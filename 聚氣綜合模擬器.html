@@ -53,6 +53,30 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
 #rating{font-family:'Noto Serif TC',serif;font-weight:900;font-size:14px;letter-spacing:.05em;padding:2px 6px;border-radius:4px;color:#171512;white-space:nowrap}
 #verdict{font-family:'Noto Serif TC',serif;color:#d8cfba;letter-spacing:.01em;font-size:13px;line-height:1.5}
 @media(max-width:960px){body{height:auto;overflow-y:auto}.main-layout{flex-direction:column}.canvas-panel{height:50vh}.ui-panel{width:100%;max-height:none;overflow-y:visible}.controls-grid{grid-template-columns:1fr}}
+/* 羅盤層樣式 */
+.compass-overlay{position:absolute;bottom:20px;right:20px;width:180px;height:180px;pointer-events:none;z-index:10}
+.compass-ring{position:absolute;inset:0;border:2px solid var(--gold);border-radius:50%;background:rgba(23,21,18,.85);box-shadow:0 0 15px rgba(185,138,46,.3)}
+.compass-markings{position:absolute;inset:10px;border:1px dashed rgba(185,138,46,.4);border-radius:50%}
+.compass-needle{position:absolute;top:50%;left:50%;width:3px;height:80px;background:linear-gradient(to top,var(--seal) 50%,var(--jade) 50%);transform-origin:bottom center;transform:translate(-50%,-100%) rotate(0deg);transition:transform .15s ease-out}
+.compass-center{position:absolute;top:50%;left:50%;width:12px;height:12px;background:var(--gold);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px var(--gold)}
+.compass-dir{position:absolute;font-family:'Noto Serif TC',serif;font-size:11px;font-weight:700;color:var(--paper)}
+.compass-dir.n{top:2px;left:50%;transform:translateX(-50%)}
+.compass-dir.s{bottom:2px;left:50%;transform:translateX(-50%)}
+.compass-dir.e{right:2px;top:50%;transform:translateY(-50%)}
+.compass-dir.w{left:2px;top:50%;transform:translateY(-50%)}
+.compass-readout{position:absolute;bottom:-25px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--gold);white-space:nowrap;letter-spacing:.05em}
+/* 氣場粒子層 */
+.qi-layer{position:absolute;inset:0;pointer-events:none;z-index:5}
+.qi-particle{position:absolute;width:3px;height:3px;border-radius:50%;background:radial-gradient(circle,rgba(185,138,46,.9),rgba(185,138,46,0));animation:qiFloat 2s infinite ease-in-out}
+@keyframes qiFloat{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+.qi-flow-line{position:absolute;height:1px;background:linear-gradient(90deg,transparent,rgba(62,111,134,.6),transparent);transform-origin:left center;animation:qiFlow 3s infinite linear}
+@keyframes qiFlow{0%{opacity:0}10%{opacity:.8}90%{opacity:.8}100%{opacity:0}}
+.taiji-aura{position:absolute;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(185,138,46,.15) 0%,transparent 70%);animation:taijiPulse 4s infinite ease-in-out;pointer-events:none;z-index:6}
+@keyframes taijiPulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:.7;transform:scale(1.1)}}
+.auspicious-glow{position:absolute;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(127,176,143,.2) 0%,transparent 70%);animation:auspiciousPulse 2s infinite ease-in-out;pointer-events:none;z-index:7}
+@keyframes auspiciousPulse{0%,100%{opacity:.3}50%{opacity:.6}}
+.inauspicious-alert{position:absolute;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(192,74,58,.3) 0%,transparent 70%);animation:inauspiciousFlash 1s infinite ease-in-out;pointer-events:none;z-index:8}
+@keyframes inauspiciousFlash{0%,100%{opacity:0}50%{opacity:.8}}
 </style>
 </head>
 <body>
@@ -64,6 +88,23 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
 <div class="main-layout">
   <div class="canvas-panel">
     <canvas id="sim-canvas"></canvas>
+    <!-- 羅盤層 -->
+    <div class="compass-overlay" id="compass">
+      <div class="compass-ring"></div>
+      <div class="compass-markings"></div>
+      <div class="compass-dir n">子</div>
+      <div class="compass-dir s">午</div>
+      <div class="compass-dir e">卯</div>
+      <div class="compass-dir w">酉</div>
+      <div class="compass-needle" id="compass-needle"></div>
+      <div class="compass-center"></div>
+      <div class="compass-readout" id="compass-readout">坐北朝南</div>
+    </div>
+    <!-- 氣場層 -->
+    <div class="qi-layer" id="qi-layer"></div>
+    <div class="taiji-aura" id="taiji-aura" style="display:none"></div>
+    <div class="auspicious-glow" id="auspicious-glow" style="display:none"></div>
+    <div class="inauspicious-alert" id="inauspicious-alert" style="display:none"></div>
   </div>
 
   <div class="ui-panel">
@@ -171,6 +212,7 @@ let bgCanvas=null,bgDirty=true;
 let tantouTimer=0,isPaused=false;
 let GRID_SIZE=50;
 let gridCols=0,gridRows=0,grid=[];
+let mouseX=0,mouseY=0;
 
 function initGrid(){gridCols=Math.ceil(W/GRID_SIZE);gridRows=Math.ceil(H/GRID_SIZE);grid=new Array(gridCols*gridRows);for(let i=0;i<grid.length;i++)grid[i]=[]}
 function clearGrid(){for(let i=0;i<grid.length;i++)grid[i].length=0}
@@ -234,6 +276,13 @@ function rs(){
   }
 }
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(rs,150)});
+
+// 滑鼠移動事件：更新羅盤指針方向
+cv.addEventListener('mousemove',e=>{
+  const rect=cv.getBoundingClientRect();
+  mouseX=e.clientX-rect.left;
+  mouseY=e.clientY-rect.top;
+});
 
 document.addEventListener('visibilitychange',()=>{isPaused=document.hidden;if(!isPaused)lastTime=0});
 let fontsLoaded=false;
@@ -1727,6 +1776,87 @@ function drawRadar(dt){
   rCtx.closePath();rCtx.fillStyle='rgba(185,138,46,.28)';rCtx.fill();rCtx.strokeStyle='#b98a2e';rCtx.lineWidth=2;rCtx.stroke();
 }
 
+// 視覺呈現：更新羅盤指針與座向顯示
+function updateCompass(){
+  const needle=document.getElementById('compass-needle');
+  const readout=document.getElementById('compass-readout');
+  if(!needle||!readout)return;
+  
+  // 根據滑鼠位置或預設方向計算角度
+  const angle=mouseX?(Math.atan2(mouseY-H/2,mouseX-W/2)*180/Math.PI+90):0;
+  needle.style.transform=`translate(-50%,-100%) rotate(${angle}deg)`;
+  
+  // 簡易座向計算（實際應用需結合二十四山向）
+  const normalizedAngle=((angle%360)+360)%360;
+  let direction='坐北朝南';
+  if(normalizedAngle>=45&&normalizedAngle<135)direction='坐西朝東';
+  else if(normalizedAngle>=135&&normalizedAngle<225)direction='坐南朝北';
+  else if(normalizedAngle>=225&&normalizedAngle<315)direction='坐東朝西';
+  readout.textContent=direction;
+}
+
+// 視覺呈現：根據吉凶狀態顯示氣場效果
+function updateQiEffects(){
+  const taiji=document.getElementById('taiji-aura');
+  const auspicious=document.getElementById('auspicious-glow');
+  const inauspicious=document.getElementById('inauspicious-alert');
+  const qiLayer=document.getElementById('qi-layer');
+  if(!taiji||!auspicious||!inauspicious||!qiLayer)return;
+  
+  const scores=computeScores();
+  const avgScore=scores.reduce((a,b)=>a+b,0)/5;
+  const isBadWater=['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  const isGoodWater=state.w==='jiuqu'||state.w==='you';
+  const hasBadDragon=state.d==='si'||state.d==='po';
+  
+  // 太極暈：穴場聚氣時顯示
+  if(elem.xia&&elem.mt&&avgScore>=50&&!hasBadDragon){
+    taiji.style.display='block';
+    taiji.style.left=(W/2-60)+'px';
+    taiji.style.top=(houseY()-60)+'px';
+  }else{
+    taiji.style.display='none';
+  }
+  
+  // 吉兆光暈：成貴格時顯示（九曲水、蜂腰鶴膝等）
+  const isAuspicious=isGoodWater&&(adv.fengyao||adv2.hulong)&&avgScore>=60;
+  if(isAuspicious){
+    auspicious.style.display='block';
+    auspicious.style.left=(W/2-75)+'px';
+    auspicious.style.top=(houseY()-75)+'px';
+  }else{
+    auspicious.style.display='none';
+  }
+  
+  // 凶兆警告：犯凶格時閃爍（淋頭水、反弓水、死病龍等）
+  const isInauspicious=isBadWater||hasBadDragon||(state.ml==='po'&&state.mr==='po');
+  if(isInauspicious){
+    inauspicious.style.display='block';
+    inauspicious.style.left=(W/2-50)+'px';
+    inauspicious.style.top=(houseY()-50)+'px';
+  }else{
+    inauspicious.style.display='none';
+  }
+  
+  // 氣場粒子效果：在明堂區域生成額外的氣流線
+  if(avgScore>=40&&!hasBadDragon){
+    if(Math.random()<0.02){
+      const flowLine=document.createElement('div');
+      flowLine.className='qi-flow-line';
+      const startX=W/2+(Math.random()-0.5)*200;
+      const startY=houseY()+(Math.random()-0.5)*150;
+      const length=50+Math.random()*100;
+      const angle=Math.random()*360;
+      flowLine.style.left=startX+'px';
+      flowLine.style.top=startY+'px';
+      flowLine.style.width=length+'px';
+      flowLine.style.transform=`rotate(${angle}deg)`;
+      qiLayer.appendChild(flowLine);
+      setTimeout(()=>flowLine.remove(),3000);
+    }
+  }
+}
+
 function frame(timestamp){
   if(isPaused){requestAnimationFrame(frame);return}
   if(!lastTime){lastTime=timestamp;requestAnimationFrame(frame);return}
@@ -1855,6 +1985,13 @@ function frame(timestamp){
   }
   
   drawShockwaves(dt);
+  
+  // 視覺呈現：更新羅盤指針與座向
+  updateCompass();
+  
+  // 視覺呈現：根據吉凶狀態顯示氣場效果
+  updateQiEffects();
+  
   ctx.restore(); // 解除 2.5D 全域壓縮，避免影響 UI (如雷達圖與浮動數值)
   
   const normalizedGather=Math.max(0,scoreGather/10);
