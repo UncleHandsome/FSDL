@@ -143,6 +143,7 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
         <button class="preset" data-preset="gejiao">割腳退財</button>
         <button class="preset" data-preset="huilong">迴龍顧祖</button>
         <button class="preset" data-preset="tianzhan">天斬傾瀉</button>
+        <button class="preset" id="random-preset">隨機生成</button>
       </div>
     </div>
 
@@ -1651,6 +1652,45 @@ const stateKeys=['d','ml','mr','w','xing','xue','ao','shu','shaMode','fenzhi','t
 const elemKeys=['xia','an','chao','luo','hua','mt','taiji','san','yue'];
 const advKeys=['shu','fenzhi','guiyao','ao','tantou'];
 const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
+
+// 隨機生成格局
+function generateRandomPreset(){
+  const dragonOpts=['sheng','pingyang','huilong','ji','huan','si','po'];
+  const sandOpts=['you','ya','po','none'];
+  const waterOpts=['you','jiuqu','gejiao','lintou','ji','fan','bazi','none'];
+  const xingOpts=['jin','mu','shui','huo','tu'];
+  const xueOpts=['none','wo','ru'];
+  
+  return {
+    d: dragonOpts[Math.floor(Math.random()*dragonOpts.length)],
+    ml: sandOpts[Math.floor(Math.random()*sandOpts.length)],
+    mr: sandOpts[Math.floor(Math.random()*sandOpts.length)],
+    w: waterOpts[Math.floor(Math.random()*waterOpts.length)],
+    xing: xingOpts[Math.floor(Math.random()*xingOpts.length)],
+    xue: xueOpts[Math.floor(Math.random()*xueOpts.length)],
+    fenzhi: Math.random()<0.3,
+    tantou: Math.random()<0.2,
+    guiyao: Math.random()<0.4,
+    ao: Math.random()<0.25,
+    shu: Math.random()<0.6,
+    san: Math.random()<0.35,
+    yue: Math.random()<0.3,
+    face: Math.random()<0.7,
+    luo: Math.random()<0.3,
+    hua: Math.random()<0.25,
+    hulong: Math.random()<0.35,
+    fengyao: Math.random()<0.5,
+    zutai: Math.random()<0.25,
+    guan: Math.random()<0.3,
+    qin: Math.random()<0.25,
+    qian: Math.random()<0.3,
+    qing: Math.random()<0.2,
+    shixiang: Math.random()<0.3,
+    tianzhan: Math.random()<0.15,
+    qingquan: Math.random()<0.2
+  };
+}
+
 const presets={
   perfect:{d:'sheng',ml:'you',mr:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
   gejiao:{d:'sheng',ml:'you',mr:'tai',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
@@ -1659,7 +1699,12 @@ const presets={
 };
 document.querySelectorAll('.preset').forEach(b=>{
   b.addEventListener('click',()=>{
-    const p=presets[b.dataset.preset];
+    let p;
+    if(b.id==='random-preset'){
+      p=generateRandomPreset();
+    }else{
+      p=presets[b.dataset.preset];
+    }
     Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv,baseAdv);Object.assign(adv2,baseAdv2);
     stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
     elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
