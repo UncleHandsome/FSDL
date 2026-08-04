@@ -287,8 +287,11 @@ function getGlobalMultiplier(){
   if(state.ml==='po')m*=0.75;  // 青龍破碎
   if(state.mr==='po')m*=0.75;  // 白虎破碎
   if(state.ml==='po'&&state.mr==='po')m*=0.65; // 兩側皆破
-  // 修正：平洋龍以水為砂，無山砂不扣分
-  if(state.ml==='none'&&state.mr==='none'&&state.d!=='pingyang')m*=0.5; // 山龍無護
+  // 山龍單邊無砂（露風劫）打8折，雙邊無砂打5折（平洋龍除外）
+  if(state.d!=='pingyang'){
+      if(state.ml==='none' && state.mr==='none') m *= 0.5;
+      else if(state.ml==='none' || state.mr==='none') m *= 0.8; // 單邊無砂露風
+  }
   
   // === 形煞影響 (Sha Penalties) ===
   if(state.ao)m*=(state.shu ? 0.25 : 0.4); // 凹風吹氣
@@ -299,9 +302,9 @@ function getGlobalMultiplier(){
   
   // === 五行星體與穴形配合 (Five Elements & Cave Form) ===
   if(state.xing==='huo'){
-    // 火星需有水制化，否則炎上成煞
-    const hasWaterControl = elem.yue || (state.w !== 'none' && state.w !== 'lintou');
-    m *= hasWaterControl ? 0.75 : 0.45;
+    // 火星需有「吉水」制化（水火既濟），凶水只會加劇火煞
+    const hasGoodWaterControl = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
+    m *= hasGoodWaterControl ? 0.85 : 0.35;
   }
   // 星穴相剋（金水火星結乳突、木火星結窩）：粒子引擎會產生大量煞氣，整體乘數應嚴格打折
   if(elem.xia){
@@ -355,12 +358,13 @@ function getGlobalMultiplier(){
   }
   
   // === 特殊吉格加分 (Special Auspicious Patterns) ===
-  // 三吉六秀：金水土三星配合有情砂水
-  if((state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
+  const isBadWaterRule = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  // 三吉六秀：金水土三星配合有情砂水（排除死龍/破龍）
+  if(state.d!=='si' && state.d!=='po' && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
     m *= 1.15;
   }
-  // 回龍顧祖：迴龍 + 朝山 + 向水
-  if(state.d==='huilong' && elem.chao && face) m *= 1.2;
+  // 回龍顧祖：迴龍 + 朝山 + 向水（排除凶水與死破龍）
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.chao && face) m *= 1.2;
   // 蜂腰鶴膝 + 護龍：貴龍特徵齊全
   if(adv2.fengyao && adv2.hulong && adv2.zutai && state.d!=='si' && state.d!=='po') m *= 1.1;
   
@@ -381,6 +385,8 @@ function getCapacityLimit(){
   if(state.ml==='none' && state.mr==='none' && state.d !== 'pingyang') cap = Math.min(cap, 30);
   if(state.d === 'pingyang' && state.w === 'none') cap = Math.min(cap, 15);
   if(state.w === 'gejiao' || state.w === 'lintou') cap = Math.min(cap, 20);
+  // 所有無情凶水（割腳/淋頭/反弓/八字/直沖）皆嚴重破壞明堂容量，鎖定上限
+  if(['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(state.w)) cap = Math.min(cap, 20);
   if(adv2.qing) cap = Math.min(cap, 30);
   return Math.min(100,cap);
 }
@@ -1253,8 +1259,9 @@ function computeScores(){
     else if(state.xing === 'shui') xingScore = 8;
     else if(state.xing === 'tu') xingScore = 12;
     else if(state.xing === 'huo') {
-      // 火星需制化，否則炎上成煞
-      xingScore = (elem.yue || (state.w !== 'none' && state.w !== 'lintou')) ? -8 : -40;
+      // 火星需有「吉水」制化（水火既濟），凶水只會加劇火煞
+      const hasGoodWaterControlSc = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
+      xingScore = hasGoodWaterControlSc ? -8 : -40;
     }
     xueScore += xingScore;
   }
@@ -1275,7 +1282,8 @@ function computeScores(){
 
   // === 向法評分 (Xiang) - 納氣之向 ===
   // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
-  let Xg_base = face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? 90 : 20);
+  const hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
+  let Xg_base = face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
   
   // 吉水朝堂加分
   let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
@@ -1416,8 +1424,9 @@ function updateUI(){
   if(shuBtn){
     const isBadDragon = (state.d === 'si' || state.d === 'po');
     shuBtn.disabled = isBadDragon;
-    if(isBadDragon && state.shu){
+    if(isBadDragon && (state.shu || adv.shu)){
       state.shu = false;
+      adv.shu = false; // 同步修正 adv 物件，避免物理引擎誤讀
       shuBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
@@ -1428,8 +1437,9 @@ function updateUI(){
   if(fenzhiBtn){
     const isPingyang = (state.d === 'pingyang');
     fenzhiBtn.disabled = isPingyang;
-    if(isPingyang && state.fenzhi){
+    if(isPingyang && (state.fenzhi || adv.fenzhi)){
       state.fenzhi = false;
+      adv.fenzhi = false; // 同步修正 adv 物件，避免物理引擎誤讀
       fenzhiBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
@@ -1476,8 +1486,9 @@ function updateUI(){
   if(aoBtn){
     const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
     aoBtn.disabled = !hasGap;
-    if(!hasGap && state.ao){
+    if(!hasGap && (state.ao || adv.ao)){
       state.ao = false;
+      adv.ao = false; // 同步修正 adv 物件，避免物理引擎誤讀
       aoBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
