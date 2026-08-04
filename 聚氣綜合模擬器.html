@@ -1372,6 +1372,50 @@ function updateUI(){
   
   let autoDisabledChanged = false;
 
+  // 束氣：死龍/破龍不宜強行束氣
+  const shuBtn = document.querySelector('[data-k="shu"]');
+  if(shuBtn){
+    const isBadDragon = (state.d === 'si' || state.d === 'po');
+    shuBtn.disabled = isBadDragon;
+    if(isBadDragon && state.shu){
+      state.shu = false;
+      shuBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+  
+  // 分流：平洋龍不宜分流
+  const fenzhiBtn = document.querySelector('[data-k="fenzhi"]');
+  if(fenzhiBtn){
+    const isPingyang = (state.d === 'pingyang');
+    fenzhiBtn.disabled = isPingyang;
+    if(isPingyang && state.fenzhi){
+      state.fenzhi = false;
+      fenzhiBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+  
+  // 鬼曜：死龍/破龍/緩龍生曜為盜氣，但仍允許啟用（僅評分扣分）
+  const guiyaoBtn = document.querySelector('[data-k="guiyao"]');
+  if(guiyaoBtn){
+    // 鬼曜在所有龍勢下都可啟用，但弱龍會扣分
+    // 此處不禁用，僅在評分系統處理
+  }
+  
+  // 手動煞氣模式：淋頭水或無水時禁用（無法放置人為障礙物）
+  const shaModeBtn = document.querySelector('[data-k="shaMode"]');
+  if(shaModeBtn){
+    const isShaModeDisabled = (state.w === 'none' || state.w === 'lintou');
+    shaModeBtn.disabled = isShaModeDisabled;
+    if(isShaModeDisabled && state.shaMode){
+      state.shaMode = false;
+      shaModeBtn.classList.remove('on');
+      cv.style.cursor = 'default';
+      autoDisabledChanged = true;
+    }
+  }
+
   const tantouBtn = document.querySelector('[data-k="tantou"]');
   if(tantouBtn) tantouBtn.disabled = !elem.an;
   if(!elem.an && adv.tantou) {
