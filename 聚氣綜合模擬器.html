@@ -1375,7 +1375,7 @@ function updateUI(){
   const xingLabels = {jin:'金星',mu:'木星',shui:'水星',huo:'火星(煞)',tu:'土星'};
   const xueLabels = {none:'無',wo:'窩鉗',ru:'乳突'};
   const xueStr = elem.xia ? (`星體・${xingLabels[state.xing]}` + (state.xue !== 'none' ? ` (${xueLabels[state.xue]})` : '')) : '穴星・未結';
-  const isXueMatch = !( (state.xue==='wo' && (state.xing==='mu'||state.xing==='huo')) || (state.xue==='ru' && (state.xing==='jin'||state.xing==='shui'||state.xing==='huo')) );
+  // isXueMatch 已在第 1322 行定義，此處直接使用
   const xueColor = !elem.xia ? '#d8a24a' : (state.xing==='huo' ? '#c04a3a' : (!isXueMatch ? '#d8a24a' : '#7fb08f'));
   
   let dTag = [...D_TAG[state.d]];
