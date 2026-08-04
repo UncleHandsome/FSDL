@@ -254,6 +254,7 @@ function getGlobalMultiplier(){
   if(state.ml==='po')m*=0.7;
   if(state.mr==='po')m*=0.7;
   if(state.ml==='po'&&state.mr==='po')m*=0.6;
+  if(state.ml==='none'&&state.mr==='none'&&state.d!=='pingyang')m*=0.5;
   if(state.ao)m*=(state.shu ? 0.2 : 0.3);
   if(state.tantou)m*=0.5;
   if(adv2.tianzhan)m*=0.4;
@@ -1113,10 +1114,12 @@ function updateUI(){
   const capacity=getCapacityLimit();
   let rating,color,tail;
   const effectiveAvg=avg*multiplier;
-  if(effectiveAvg>=70 && elem.xia && elem.mt){rating='上吉・龍真穴的';color='#b98a2e';tail='巒頭完美，生氣凝聚，上上之局。'}
+  const hasSideSands=(state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
+  if(effectiveAvg>=70 && elem.xia && elem.mt && hasSideSands){rating='上吉・龍真穴的';color='#b98a2e';tail='巒頭完美，生氣凝聚，上上之局。'}
   else if(effectiveAvg>=35){
     if(!elem.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
     else if(!elem.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
+    else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail='山龍左右無護砂關攔，兩邊受風，生氣難聚。';}
     else{rating='中平・有瑕';color='#3f6b52';tail='格局有瑕，聚散互見。';}
   }
   else{
