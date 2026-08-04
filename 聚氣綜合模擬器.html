@@ -264,8 +264,7 @@ function getGlobalMultiplier(){
   
   let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
   const isBadWater = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
-  let waterGuards = (validGuards && !isBadWater) ? ((elem.luo?1:0) + (elem.hua?1:0) + (adv2.shixiang?2:0) + (adv2.qin?1:0)) : 0;
-  
+  let waterGuards = (validGuards && !isBadWater) ? ((elem.luo?1:0) + (elem.hua?1:0) + (adv2.shixiang?2:0) + (adv2.qin?1:0)) : 0;  
   let anshanShield = elem.an ? 0.3 : 0;
   
   if(['gejiao','ji','fan','bazi'].includes(state.w)) {
@@ -1167,8 +1166,8 @@ function updateUI(){
   let dTag = [...D_TAG[state.d]];
   if(state.d === 'pingyang' && state.w === 'none') { dTag[0] = '平洋・無水'; dTag[1] = '#c04a3a'; }
   
-  const isBadWater = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
-  const isJieQi = (state.w === 'you' || state.w === 'jiuqu' || (elem.yue && !isBadWater) || (elem.san && !isBadWater));
+  const isBadWaterLocal = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  const isJieQi = (state.w === 'you' || state.w === 'jiuqu' || (elem.yue && !isBadWaterLocal) || (elem.san && !isBadWaterLocal));
   const jieQiTag = [isJieQi ? '界氣・得' : '界氣・散', isJieQi ? '#7fb0c9' : '#c04a3a'];
   
   const faceGood = (state.d === 'pingyang') ? !face : face;
