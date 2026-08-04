@@ -1247,8 +1247,8 @@ function computeScores(){
   let X = !elem.xia ? Math.min(25, Math.max(0, X_raw)) : Math.max(0, Math.min(100, X_raw));
 
   // === 向法評分 (Xiang) - 納氣之向 ===
-  // 基礎分：向水為吉，平洋背水反吉
-  let Xg_base = face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? 85 : 25);
+  // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
+  let Xg_base = face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? 90 : 20);
   
   // 吉水朝堂加分
   let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
@@ -1258,10 +1258,10 @@ function computeScores(){
   let guanBonus = adv2.guan ? 15 : 0;
   
   // 向水局：全盤加分
-  // 背水局：僅平洋龍得吉，且需有水朝
+  // 背水局：僅平洋龍得吉（需有水朝），山龍背水無加分
   let Xg = face 
     ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus)
-    : Math.min(100, Xg_base + (state.d === 'pingyang' ? waterBonus : 0) + (elem.an ? 8 : 0));
+    : Math.min(100, Xg_base + (state.d === 'pingyang' && state.w !== 'none' ? waterBonus : 0) + (elem.an ? 8 : 0));
   
   // 無穴星則向法無從談起
   if(!elem.xia) Xg *= 0.35;
@@ -1579,7 +1579,7 @@ const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang'
 const presets={
   perfect:{d:'sheng',ml:'you',mr:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
   gejiao:{d:'sheng',ml:'you',mr:'tai',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
-  huilong:{d:'huilong',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:true,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:true,tianzhan:false,qingquan:false},
+  huilong:{d:'huilong',ml:'you',mr:'you',w:'you',xing:'jin',xue:'ru',chao:true,fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:true,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:true,tianzhan:false,qingquan:false},
   tianzhan:{d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:true,shixiang:false,tianzhan:true,qingquan:false}
 };
 document.querySelectorAll('.preset').forEach(b=>{
@@ -1600,6 +1600,12 @@ document.querySelectorAll('.preset').forEach(b=>{
     });
     document.querySelectorAll('.seg').forEach(seg=>{if(seg.dataset.k){const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on')}});
     const fseg=document.getElementById('face-seg');if(fseg){fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));fseg.querySelector(`[data-f="${face?'1':'0'}"]`).classList.add('on')}
+    
+    // 水口元件狀態同步：如果 preset 未啟用水口但啟用了獅象，顯示提示
+    if(p.shixiang && !p.luo && !p.hua && !p.qin && state.w !== 'none' && state.w !== 'lintou') {
+        console.log('獅象把門已達成水口關攔，無需額外設置羅星/華表');
+    }
+    
     ps.length=0;updateUI();
   });
 });
