@@ -1484,6 +1484,9 @@ document.querySelectorAll('.tog').forEach(b=>{
   b.addEventListener('click',()=>{
     const k=b.dataset.k;
     
+    // 如果按鈕被禁用，直接返回不處理
+    if(b.disabled) return;
+
     // 水口/水法元件：無水或淋頭水時不可啟用（已在地形上禁用，此為雙重防護）
     if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou')){
       b.classList.remove('on');
