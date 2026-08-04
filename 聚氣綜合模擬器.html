@@ -263,7 +263,7 @@ function getGlobalMultiplier(){
   if(obstacles.length>0)m*=Math.max(0.2, 1.0 - obstacles.length * 0.15);
   
   let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
-  let isBadWater = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  const isBadWater = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
   let waterGuards = (validGuards && !isBadWater) ? ((elem.luo?1:0) + (elem.hua?1:0) + (adv2.shixiang?2:0) + (adv2.qin?1:0)) : 0;
   
   let anshanShield = elem.an ? 0.3 : 0;
@@ -1069,14 +1069,14 @@ function computeScores(){
   
   let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
   let waterExitScore=0;
-  let isBadWater = ['gejiao','fan','bazi','ji'].includes(state.w);
+  const isBadWater2 = ['gejiao','fan','bazi','ji'].includes(state.w);
   if(state.w!=='none'&&state.w!=='lintou'&&validGuards){
       if(elem.luo)waterExitScore+=15;if(elem.hua)waterExitScore+=15;if(adv2.shixiang)waterExitScore+=20;if(adv2.qin)waterExitScore+=10;
-      if(isBadWater) waterExitScore *= 0.2; // 修正：明堂逢凶水，下游神獸無力回天
+      if(isBadWater2) waterExitScore *= 0.2; // 修正：明堂逢凶水，下游神獸無力回天
   }
   
   let baseWa = {you:60,jiuqu:90,gejiao:10,lintou:0,none:30,ji:10,fan:10,bazi:0}[state.w];
-  let Wa=Math.min(100,baseWa+waterExitScore+((elem.san && !isBadWater)?15:0)+((elem.yue && !isBadWater)?15:0));
+  let Wa=Math.min(100,baseWa+waterExitScore+((elem.san && !isBadWater2)?15:0)+((elem.yue && !isBadWater2)?15:0));
   let xueScore = 0;
   if(state.xue==='wo') {
       xueScore = (state.d==='ji'||state.d==='sheng')?15:5;
