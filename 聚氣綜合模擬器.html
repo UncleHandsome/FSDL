@@ -221,9 +221,11 @@ function getNearby(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y
 
 const baseState={d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
 const baseElem={xia:true,an:true,chao:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
+const baseAdv={shu:true,fenzhi:false,guiyao:false,ao:false,tantou:false};
 const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
 const state={...baseState};
 const elem={...baseElem};
+const adv={...baseAdv};
 const adv2={...baseAdv2};
 const view={heat:true,wind:true,tilt:false};let face=true;
 
@@ -1390,7 +1392,7 @@ document.querySelectorAll('.tog').forEach(b=>{
       if(!hasGap) return; // 龍虎完整無缺，無法形成凹風
     }
     
-    const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv'?state:b.dataset.g==='adv2'?adv2:view;
+    const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv'?adv:b.dataset.g==='adv2'?adv2:view;
     o[k]=!o[k];b.classList.toggle('on',o[k]);
     if(k==='shaMode')cv.style.cursor=o[k]?'crosshair':'default';
     if(k==='heat'&&!view.heat){if(heat)heat.fill(0)}
@@ -1414,6 +1416,7 @@ if(tseg) {
 
 const stateKeys=['d','ml','mr','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
 const elemKeys=['xia','an','chao','luo','hua','mt','taiji','san','yue'];
+const advKeys=['shu','fenzhi','guiyao','ao','tantou'];
 const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
 const presets={
   perfect:{d:'sheng',ml:'you',mr:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
@@ -1424,9 +1427,10 @@ const presets={
 document.querySelectorAll('.preset').forEach(b=>{
   b.addEventListener('click',()=>{
     const p=presets[b.dataset.preset];
-    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);
+    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv,baseAdv);Object.assign(adv2,baseAdv2);
     stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
     elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
+    advKeys.forEach(k=>{if(k in p)adv[k]=p[k]});
     adv2Keys.forEach(k=>{if(k in p)adv2[k]=p[k]});
     if('face'in p)face=p.face;
     obstacles.length=0;shockwaves.length=0;bgDirty=true;cv.style.cursor=state.shaMode?'crosshair':'default';
