@@ -1437,7 +1437,7 @@ document.querySelectorAll('.preset').forEach(b=>{
     document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
     document.querySelectorAll('.tog').forEach(x=>{
         const g=x.dataset.g;const k=x.dataset.k;
-        const o=g==='elem'?elem:g==='adv'?state:g==='adv2'?adv2:view;
+        const o=g==='elem'?elem:g==='adv'?adv:g==='adv2'?adv2:view;
         if(k) x.classList.toggle('on',o[k]);
     });
     document.querySelectorAll('.seg').forEach(seg=>{if(seg.dataset.k){const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on')}});
