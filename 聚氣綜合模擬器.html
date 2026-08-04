@@ -1823,7 +1823,7 @@ function updateQiEffects(){
   }
   
   // 吉兆光暈：成貴格時顯示（九曲水、蜂腰鶴膝等）
-  const isAuspicious=isGoodWater&&(adv.fengyao||adv2.hulong)&&avgScore>=60;
+  const isAuspicious=isGoodWater&&(adv2.fengyao||adv2.hulong)&&avgScore>=60;
   if(isAuspicious){
     auspicious.style.display='block';
     auspicious.style.left=(W/2-75)+'px';
