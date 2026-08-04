@@ -1346,26 +1346,46 @@ document.querySelectorAll('.tog').forEach(b=>{
     const k=b.dataset.k;
     
     // 水口/水法元件：無水或淋頭水時不可啟用（已在地形上禁用，此為雙重防護）
-    if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou'))return;
-    if(k==='yue'&&state.w==='lintou')return;
+    if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou')){
+      b.classList.remove('on');
+      return;
+    }
+    if(k==='yue'&&state.w==='lintou'){
+      b.classList.remove('on');
+      return;
+    }
     
     // 依附案山的元件：無案山時不可啟用
-    if(['tantou','guan'].includes(k)&&!elem.an)return;
+    if(['tantou','guan'].includes(k)&&!elem.an){
+      b.classList.remove('on');
+      return;
+    }
     
     // 依附明堂的元件：無明堂時不可啟用
-    if(k==='qing'&&!elem.mt)return;
+    if(k==='qing'&&!elem.mt){
+      b.classList.remove('on');
+      return;
+    }
     
     // 擎拳煞：必須有龍虎砂才能形成
-    if(k==='qingquan'&&state.ml==='none'&&state.mr==='none')return;
+    if(k==='qingquan'&&state.ml==='none'&&state.mr==='none'){
+      b.classList.remove('on');
+      return;
+    }
     
     // 天斬煞：需要穴星作為目標
-    if(k==='tianzhan'&&!elem.xia)return;
+    if(k==='tianzhan'&&!elem.xia){
+      b.classList.remove('on');
+      return;
+    }
     
     // 凹風煞：需要龍虎砂其中一側破碎或無砂才能形成缺口
     if(k==='ao'){
-      // 只有當龍砂或虎砂有破損/缺失時才允許啟用
       const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
-      if(!hasGap) return; // 龍虎完整無缺，無法形成凹風
+      if(!hasGap){
+        b.classList.remove('on');
+        return;
+      }
     }
     
     const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv'?adv:b.dataset.g==='adv2'?adv2:view;
