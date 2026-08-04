@@ -1020,7 +1020,42 @@ function dragonY(t){
     }
     return-20+t*(houseY()-14);
 }
-function riverY(x){let t=(x-W*ENV.riverStart)/(W*(ENV.riverEnd-ENV.riverStart));t=Math.max(0,Math.min(1,t));const c=Math.cos((t-.5)*Math.PI);if(state.w==='you')return H*.74+H*.12*c;if(state.w==='jiuqu')return H*.74+H*.06*Math.sin(t*Math.PI*4);if(state.w==='gejiao')return H*.58;if(state.w==='fan')return H*.8-H*.09*c;if(state.w==='ji')return H*ENV.riverBaseY;if(state.w==='bazi')return H * (0.65 + Math.abs(x/W - 0.5) * 0.666);return 1e9}
+function riverY(x){
+  let t=(x-W*ENV.riverStart)/(W*(ENV.riverEnd-ENV.riverStart));
+  t=Math.max(0,Math.min(1,t));
+  const c=Math.cos((t-.5)*Math.PI);
+  
+  // 真實風水地理：河道應有自然彎曲變化，避免過於規則
+  if(state.w==='you'){
+    // 玉帶水：環抱有情，河道呈優美弧形環抱穴場，弧度飽滿如腰帶
+    return H*.74+H*.12*c;
+  }
+  else if(state.w==='jiuqu'){
+    // 九曲水：蜿蜒曲折，每曲皆能停蓄真氣，增加高頻細節模擬自然河道
+    return H*.74+H*.06*Math.sin(t*Math.PI*4)+H*.02*Math.sin(t*Math.PI*8);
+  }
+  else if(state.w==='gejiao'){
+    // 割腳水：貼穴太近，淘空地基，添加侵蝕波動模擬水流沖刷
+    return H*.58 + Math.sin(t*Math.PI)*H*.02;
+  }
+  else if(state.w==='fan'){
+    // 反弓水：無情背棄，凸面沖刷穴場，增強背棄形態
+    return H*.8-H*.09*c - H*.03*Math.sin(t*Math.PI);
+  }
+  else if(state.w==='ji'){
+    // 直沖水：湍急直流，無緩衝（使用確定性噪聲避免每幀跳動）
+    return H*ENV.riverBaseY + Math.sin(x*0.02)*H*.005;
+  }
+  else if(state.w==='bazi'){
+    // 八字水：牽鼻洩氣，外擴無情，添加細微波紋
+    return H * (0.65 + Math.abs(x/W - 0.5) * 0.666) + H*.01*Math.sin(t*Math.PI*3);
+  }
+  else if(state.w==='none'){
+    return 1e9;
+  }
+  // 淋頭水不繪製河道（從天而降）
+  return 1e9;
+}
 function heatAdd(x,y,a){if(!view.heat)return;const gx=Math.floor(x/W*gw),gy=Math.floor(y/H*gh);if(gx<0||gy<0||gx>=gw||gy>=gh)return;heat[gy*gw+gx]+=a}
 
 function computeScores(){
@@ -1160,10 +1195,30 @@ function updateUI(){
   }
 
   
+  // 凹風煞：需要龍虎砂其中一側破碎或無砂才能形成缺口
   const aoBtn = document.querySelector('[data-k="ao"]');
-  if(aoBtn) aoBtn.disabled = false;
-
+  if(aoBtn){
+    const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
+    aoBtn.disabled = !hasGap;
+    if(!hasGap && state.ao){
+      state.ao = false;
+      aoBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
   
+  // 天斬煞：需要穴星作為目標
+  const tianzhanBtn = document.querySelector('[data-k="tianzhan"]');
+  if(tianzhanBtn){
+    const noTarget = !elem.xia;
+    tianzhanBtn.disabled = noTarget;
+    if(noTarget && adv2.tianzhan){
+      adv2.tianzhan = false;
+      tianzhanBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+
   const qingBtn = document.querySelector('[data-k="qing"]');
   if(qingBtn) qingBtn.disabled = !elem.mt;
   if(!elem.mt && adv2.qing) {
@@ -1255,12 +1310,29 @@ document.querySelectorAll('.seg').forEach(seg=>{
 document.querySelectorAll('.tog').forEach(b=>{
   b.addEventListener('click',()=>{
     const k=b.dataset.k;
-    if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou'))return;
-    if(k==='yue'&&state.w==='lintou')return; // 淋頭水局不適合半月池
     
+    // 水口/水法元件：無水或淋頭水時不可啟用（已在地形上禁用，此為雙重防護）
+    if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou'))return;
+    if(k==='yue'&&state.w==='lintou')return;
+    
+    // 依附案山的元件：無案山時不可啟用
     if(['tantou','guan'].includes(k)&&!elem.an)return;
+    
+    // 依附明堂的元件：無明堂時不可啟用
     if(k==='qing'&&!elem.mt)return;
+    
+    // 擎拳煞：必須有龍虎砂才能形成
     if(k==='qingquan'&&state.ml==='none'&&state.mr==='none')return;
+    
+    // 天斬煞：需要穴星作為目標
+    if(k==='tianzhan'&&!elem.xia)return;
+    
+    // 凹風煞：需要龍虎砂其中一側破碎或無砂才能形成缺口
+    if(k==='ao'){
+      // 只有當龍砂或虎砂有破損/缺失時才允許啟用
+      const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
+      if(!hasGap) return; // 龍虎完整無缺，無法形成凹風
+    }
     
     const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv'?state:b.dataset.g==='adv2'?adv2:view;
     o[k]=!o[k];b.classList.toggle('on',o[k]);
