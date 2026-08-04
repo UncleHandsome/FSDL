@@ -339,10 +339,19 @@ function getGlobalMultiplier(){
   // 山龍背水（坐空朝滿）大忌
   if(!face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
-  // 平洋龍訣法：喜坐空朝滿（背水反為大吉）
+  // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分
   if(state.d === 'pingyang' && state.w !== 'none') {
-      if(!face) m *= 1.25; // 平洋背水，坐實朝空
-      else if(state.w !== 'jiuqu' && state.w !== 'you') m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
+      const hasFrontGoodWater = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
+      if(!face) {
+          m *= hasFrontGoodWater ? 0.6 : 1.25; // 背對前堂吉水打0.6折；無前堂吉水之純平洋背水才給予1.25倍
+      } else if(state.w !== 'jiuqu' && state.w !== 'you') {
+          m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
+      }
+  }
+
+  // 木星無穴形（直來直去無所止，扣分修正）
+  if(elem.xia && state.xing === 'mu' && state.xue === 'none') {
+      m *= 0.5;
   }
   
   // === 特殊吉格加分 (Special Auspicious Patterns) ===
