@@ -16,7 +16,7 @@ header h1{font-size:20px;letter-spacing:.15em;font-weight:900}
 header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
 .main-layout{flex:1;display:flex;padding:8px;gap:8px;min-height:0}
 .canvas-panel{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-dark);border-radius:12px;overflow:hidden;border:1px solid rgba(246,241,231,.15);box-shadow:0 10px 30px rgba(0,0,0,.15)}
-#sim-canvas{width:100%;height:100%;flex:1;display:block;background:#0c1013;aspect-ratio:auto}
+#sim-canvas{width:100%;height:100%;flex:1;display:block;background:#0c1013;aspect-ratio:auto;touch-action:none;}
 .ui-panel{width:440px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--jade) #0e1114}
 .ui-panel::-webkit-scrollbar{width:5px}
 .ui-panel::-webkit-scrollbar-track{background:#0e1114;border-radius:3px}
@@ -162,7 +162,7 @@ function initSprites(){const sz=Math.max(1.5,baseDim*.004);createParticleSprite(
 const ps=[],obstacles=[],shockwaves=[];
 let spawnAcc=0,gIdx=0,shaAcc=0;
 let waterOffset=0,windTime=0;
-let lastTime=0;
+let lastTime=0,taijiAngle=0;
 let W=0,H=0,gw=0,gh=0,baseDim=0,margin=0;
 let radarW=0,radarH=0;
 let heat=null,heatC=null,heatCtx=null,heatImg=null;
@@ -632,8 +632,9 @@ class Particle{
     if(elem.xia&&state.xing==='huo'&&this.y>hy-baseDim*.15&&this.y<hy){
       this.vx+=((this.x-hx)*.8 + (Math.random()-.5)*4.0)*dt; 
       this.vy+=(Math.random()-.5)*2.0*pScale*dt; // 火性炎上，氣場上下亂竄
-      // 水火既濟：若前方有半月池(水)，可壓制火星炎燥；若無，極易化為凶煞
-      let huoShaProb = elem.yue ? 0.01 : 0.08; 
+      // 水火既濟：若前方有半月池 (水) 或天然大河 (玉帶/九曲)，可壓制火星炎燥；若無，極易化為凶煞
+      let hasGoodWater = elem.yue || state.w === 'you' || state.w === 'jiuqu';
+      let huoShaProb = hasGoodWater ? 0.01 : 0.08; 
       if(Math.random() < huoShaProb * dt) { this.state='sha'; this.life=50; } 
     }
     if(elem.xia&&state.xing==='mu'&&this.y>hy-baseDim*.1&&this.y<hy){
@@ -1023,7 +1024,6 @@ function dragonY(t){
 }
 function riverY(x){
   let t=(x-W*ENV.riverStart)/(W*(ENV.riverEnd-ENV.riverStart));
-  t=Math.max(0,Math.min(1,t));
   const c=Math.cos((t-.5)*Math.PI);
   
   // 真實風水地理：河道應有自然彎曲變化，避免過於規則
@@ -1064,7 +1064,8 @@ function computeScores(){
   let D=Math.min(100, {sheng:90,si:40,po:25,pingyang:70,huilong:95,ji:60,huan:50}[state.d]+(state.shu && !isBadDragon ? 10 : 0)-(state.fenzhi?20:0)+(adv2.zutai?15:0)+(adv2.fengyao?10:0));
   if(state.d==='pingyang'&&state.w==='none') D -= 40;
   const mlScore={you:35,ya:15,po:10,none:0}[state.ml];const mrScore={you:35,tai:5,po:10,none:0}[state.mr];
-  let S=Math.min(100,mlScore+mrScore+(elem.an?15:0)+(elem.chao?15:0)-(state.ao?30:0)-(state.tantou?20:0)+(state.guiyao?(!['po','si','huan'].includes(state.d)?10:-15):0)+(adv2.hulong?15:0)-(adv2.qingquan?20:0)-((state.ml==='ya'&&state.mr==='tai')?30:0));
+  let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 50 : (mlScore + mrScore);
+  let S=Math.min(100,baseS+(elem.an?15:0)+(elem.chao?15:0)-(state.ao?30:0)-(state.tantou?20:0)+(state.guiyao?(!['po','si','huan'].includes(state.d)?10:-15):0)+(adv2.hulong?15:0)-(adv2.qingquan?20:0)-((state.ml==='ya'&&state.mr==='tai')?30:0));
   
   let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
   let waterExitScore=0;
@@ -1075,7 +1076,7 @@ function computeScores(){
   }
   
   let baseWa = {you:60,jiuqu:90,gejiao:10,lintou:0,none:30,ji:10,fan:10,bazi:0}[state.w];
-  let Wa=Math.min(100,baseWa+waterExitScore+((elem.san && !isBadWater)?15:0)+(elem.yue?15:0));
+  let Wa=Math.min(100,baseWa+waterExitScore+((elem.san && !isBadWater)?15:0)+((elem.yue && !isBadWater)?15:0));
   let xueScore = 0;
   if(state.xue==='wo') {
       xueScore = (state.d==='ji'||state.d==='sheng')?15:5;
@@ -1097,7 +1098,7 @@ function computeScores(){
   
   let X_raw = 0 + (elem.taiji?25:0) + (elem.xia?25:0) + (elem.mt?20:0) + (elem.xia?xueScore+xingScore:0) + (adv2.qian?15:0) - (adv2.tianzhan?25:0) - (adv2.qing?20:0);
   let X = !elem.xia ? Math.min(15, Math.max(0, X_raw)) : Math.max(0, Math.min(100, X_raw));
-  let Xg_base = face ? 60 : (state.d === 'pingyang' && state.w !== 'none' ? 70 : 20);
+  let Xg_base = face ? 60 : (state.d === 'pingyang' && state.w !== 'none' ? 85 : 20);
   let waterBonus = (state.w==='you'||state.w==='jiuqu') ? 25 : 0;
   let Xg=face?Math.min(100,Xg_base+waterBonus+(elem.an?10:0)+(adv2.guan?15:0)) : Math.min(100, Xg_base+(state.d==='pingyang'?waterBonus:0)+(elem.an?5:0)+(elem.chao?0:0));
   if(!elem.xia) Xg *= 0.2;
@@ -1115,7 +1116,11 @@ function updateUI(){
   let rating,color,tail;
   const effectiveAvg=avg*multiplier;
   const hasSideSands=(state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
-  if(effectiveAvg>=70 && elem.xia && elem.mt && hasSideSands){rating='上吉・龍真穴的';color='#b98a2e';tail='巒頭完美，生氣凝聚，上上之局。'}
+  if(state.d==='si' || state.d==='po'){
+    rating='大凶・來龍枯潰';color='#a63a2b';
+    tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。';
+  }
+  else if(effectiveAvg>=70 && elem.xia && elem.mt && hasSideSands){rating='上吉・龍真穴的';color='#b98a2e';tail='巒頭完美，生氣凝聚，上上之局。'}
   else if(effectiveAvg>=35){
     if(!elem.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
     else if(!elem.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
@@ -1691,7 +1696,7 @@ function drawWindArrows(dt){
 
 function drawTaiji(){
   if(!elem.taiji)return;const hx=W/2,hy=houseY();
-  ctx.save();ctx.translate(hx,hy);ctx.rotate(lastTime*.0015);ctx.strokeStyle='rgba(230,195,110,.85)';ctx.lineWidth=1.8; // 修正：太極代表內氣生機，不應被外部煞風(windTime)帶動
+  ctx.save();ctx.translate(hx,hy);ctx.rotate(taijiAngle);ctx.strokeStyle='rgba(230,195,110,.85)';ctx.lineWidth=1.8;
   ctx.beginPath();ctx.arc(0,0,10,0,6.28);ctx.stroke();ctx.beginPath();ctx.arc(0,-5,5,Math.PI*1.5,Math.PI*.5);ctx.stroke();ctx.beginPath();ctx.arc(0,5,5,Math.PI*1.5,Math.PI*.5,true);ctx.stroke();ctx.restore();
 }
 
@@ -1718,7 +1723,7 @@ function drawRadar(dt){
   for(let r=1;r<=5;r++){rCtx.beginPath();for(let k=0;k<=5;k++){const a=-Math.PI/2+k*2*Math.PI/5;const x=cx+Math.cos(a)*R*r/5,y=cy+Math.sin(a)*R*r/5;k?rCtx.lineTo(x,y):rCtx.moveTo(x,y)}rCtx.stroke()}
   for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5;rCtx.beginPath();rCtx.moveTo(cx,cy);rCtx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);rCtx.stroke();rCtx.fillStyle='#cfc6b4';rCtx.font='13px "Noto Serif TC",serif';rCtx.textAlign='center';rCtx.textBaseline='middle';rCtx.fillText(labs[k],cx+Math.cos(a)*(R+12),cy+Math.sin(a)*(R+12))}
   const t=computeScores();
-  for(let k=0;k<5;k++){dispVel[k]+=(t[k]-disp[k])*.06*dt;dispVel[k]*=Math.pow(.75,dt);disp[k]+=dispVel[k]*dt}
+  for(let k=0;k<5;k++){dispVel[k]+=(t[k]-disp[k])*.06*dt;dispVel[k]*=Math.pow(.75,dt);disp[k]=Math.max(0,Math.min(100,disp[k]+dispVel[k]*dt))}
   rCtx.beginPath();for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5,v=disp[k]/100*R;const x=cx+Math.cos(a)*v,y=cy+Math.sin(a)*v;k?rCtx.lineTo(x,y):rCtx.moveTo(x,y)}
   rCtx.closePath();rCtx.fillStyle='rgba(185,138,46,.28)';rCtx.fill();rCtx.strokeStyle='#b98a2e';rCtx.lineWidth=2;rCtx.stroke();
 }
@@ -1728,6 +1733,8 @@ function frame(timestamp){
   if(!lastTime){lastTime=timestamp;requestAnimationFrame(frame);return}
   let realDt=Math.min((timestamp-lastTime)/16.666,1.5);lastTime=timestamp;
   const dt = realDt * simTimeScale; // 應用時間縮放
+  
+  taijiAngle += 0.02 * dt; // 太極圖角度獨立累積，不受暫停影響
   
   const currentWaterSpeed=state.w==='lintou'?25:state.w==='ji'?18:state.w==='fan'?5:state.w==='jiuqu'?1.5:3;
   waterOffset=(waterOffset+currentWaterSpeed*dt)%3000;
@@ -1805,14 +1812,7 @@ function frame(timestamp){
     }
   }
   
-  for(let i=0; i<ps.length; ){
-      if(ps[i].markedForDeath){
-          ps[i] = ps[ps.length-1];
-          ps.pop();
-      } else {
-          i++;
-      }
-  }
+  // 已刪除死代碼（markedForDeath 於 Particle 中從未被觸發）
   
   for(let p of ps){
     const speedSq=p.vx*p.vx+p.vy*p.vy;
