@@ -53,18 +53,6 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
 #rating{font-family:'Noto Serif TC',serif;font-weight:900;font-size:14px;letter-spacing:.05em;padding:2px 6px;border-radius:4px;color:#171512;white-space:nowrap}
 #verdict{font-family:'Noto Serif TC',serif;color:#d8cfba;letter-spacing:.01em;font-size:13px;line-height:1.5}
 @media(max-width:960px){body{height:auto;overflow-y:auto}.main-layout{flex-direction:column}.canvas-panel{height:50vh}.ui-panel{width:100%;max-height:none;overflow-y:visible}.controls-grid{grid-template-columns:1fr}}
-/* 羅盤層樣式 */
-.compass-overlay{position:absolute;bottom:20px;right:20px;width:180px;height:180px;pointer-events:none;z-index:10}
-.compass-ring{position:absolute;inset:0;border:2px solid var(--gold);border-radius:50%;background:rgba(23,21,18,.85);box-shadow:0 0 15px rgba(185,138,46,.3)}
-.compass-markings{position:absolute;inset:10px;border:1px dashed rgba(185,138,46,.4);border-radius:50%}
-.compass-needle{position:absolute;top:50%;left:50%;width:3px;height:80px;background:linear-gradient(to top,var(--seal) 50%,var(--jade) 50%);transform-origin:bottom center;transform:translate(-50%,-100%) rotate(0deg);transition:transform .15s ease-out}
-.compass-center{position:absolute;top:50%;left:50%;width:12px;height:12px;background:var(--gold);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 8px var(--gold)}
-.compass-dir{position:absolute;font-family:'Noto Serif TC',serif;font-size:11px;font-weight:700;color:var(--paper)}
-.compass-dir.n{top:2px;left:50%;transform:translateX(-50%)}
-.compass-dir.s{bottom:2px;left:50%;transform:translateX(-50%)}
-.compass-dir.e{right:2px;top:50%;transform:translateY(-50%)}
-.compass-dir.w{left:2px;top:50%;transform:translateY(-50%)}
-.compass-readout{position:absolute;bottom:-25px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--gold);white-space:nowrap;letter-spacing:.05em}
 /* 氣場粒子層 */
 .qi-layer{position:absolute;inset:0;pointer-events:none;z-index:5}
 .qi-particle{position:absolute;width:3px;height:3px;border-radius:50%;background:radial-gradient(circle,rgba(185,138,46,.9),rgba(185,138,46,0));animation:qiFloat 2s infinite ease-in-out}
@@ -88,18 +76,6 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
 <div class="main-layout">
   <div class="canvas-panel">
     <canvas id="sim-canvas"></canvas>
-    <!-- 羅盤層 -->
-    <div class="compass-overlay" id="compass">
-      <div class="compass-ring"></div>
-      <div class="compass-markings"></div>
-      <div class="compass-dir n">子</div>
-      <div class="compass-dir s">午</div>
-      <div class="compass-dir e">卯</div>
-      <div class="compass-dir w">酉</div>
-      <div class="compass-needle" id="compass-needle"></div>
-      <div class="compass-center"></div>
-      <div class="compass-readout" id="compass-readout">坐北朝南</div>
-    </div>
     <!-- 氣場層 -->
     <div class="qi-layer" id="qi-layer"></div>
     <div class="taiji-aura" id="taiji-aura" style="display:none"></div>
@@ -279,7 +255,7 @@ function rs(){
 }
 window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(rs,150)});
 
-// 滑鼠移動事件：更新羅盤指針方向
+// 滑鼠移動事件
 cv.addEventListener('mousemove',e=>{
   const rect=cv.getBoundingClientRect();
   mouseX=e.clientX-rect.left;
@@ -1780,25 +1756,6 @@ function drawRadar(dt){
   rCtx.closePath();rCtx.fillStyle='rgba(185,138,46,.28)';rCtx.fill();rCtx.strokeStyle='#b98a2e';rCtx.lineWidth=2;rCtx.stroke();
 }
 
-// 視覺呈現：更新羅盤指針與座向顯示
-function updateCompass(){
-  const needle=document.getElementById('compass-needle');
-  const readout=document.getElementById('compass-readout');
-  if(!needle||!readout)return;
-  
-  // 根據滑鼠位置或預設方向計算角度
-  const angle=mouseX?(Math.atan2(mouseY-H/2,mouseX-W/2)*180/Math.PI+90):0;
-  needle.style.transform=`translate(-50%,-100%) rotate(${angle}deg)`;
-  
-  // 簡易座向計算（實際應用需結合二十四山向）
-  const normalizedAngle=((angle%360)+360)%360;
-  let direction='坐北朝南';
-  if(normalizedAngle>=45&&normalizedAngle<135)direction='坐西朝東';
-  else if(normalizedAngle>=135&&normalizedAngle<225)direction='坐南朝北';
-  else if(normalizedAngle>=225&&normalizedAngle<315)direction='坐東朝西';
-  readout.textContent=direction;
-}
-
 // 視覺呈現：根據吉凶狀態顯示氣場效果
 function updateQiEffects(){
   const taiji=document.getElementById('taiji-aura');
@@ -1989,9 +1946,6 @@ function frame(timestamp){
   }
   
   drawShockwaves(dt);
-  
-  // 視覺呈現：更新羅盤指針與座向
-  updateCompass();
   
   // 視覺呈現：根據吉凶狀態顯示氣場效果
   updateQiEffects();
