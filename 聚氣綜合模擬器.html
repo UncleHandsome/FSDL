@@ -1847,15 +1847,20 @@ const advKeys=['ao','shu','fenzhi','tantou','guiyao'];  // 用於同步 adv 狀�
 // 隨機生成格局 - 已補全所有地形與穴場開關的隨機邏輯，並加上基本風水相容性檢查
 function generateRandomPreset(){
   const dragonOpts=['sheng','pingyang','huilong','ji','huan','si','po'];
-  const sandOpts=['you','ya','po','none'];
+  const mnOpts=['you','kang','po','none']; // 後山：玄武垂頭、拒屍、破碎、無
+  const mlOpts=['you','ya','po','none']; // 左砂：青龍有情、逼壓、破碎、無
+  const mrOpts=['you','tai','po','none']; // 右砂：白虎有情、抬頭煞、破碎、無
+  const msOpts=['you','di','po','none']; // 前案：朱雀翔舞、低陷、破碎、無
   const waterOpts=['you','jiuqu','gejiao','lintou','ji','fan','bazi','none'];
   const xingOpts=['jin','mu','shui','huo','tu'];
-  const xueOpts=['none','wo','ru'];
+  const xueOpts=['none','wo','qian','ru','tu'];
   
   const p = {
     d: dragonOpts[Math.floor(Math.random()*dragonOpts.length)],
-    ml: sandOpts[Math.floor(Math.random()*sandOpts.length)],
-    mr: sandOpts[Math.floor(Math.random()*sandOpts.length)],
+    mn: mnOpts[Math.floor(Math.random()*mnOpts.length)],
+    ml: mlOpts[Math.floor(Math.random()*mlOpts.length)],
+    mr: mrOpts[Math.floor(Math.random()*mrOpts.length)],
+    ms: msOpts[Math.floor(Math.random()*msOpts.length)],
     w: waterOpts[Math.floor(Math.random()*waterOpts.length)],
     xing: xingOpts[Math.floor(Math.random()*xingOpts.length)],
     xue: xueOpts[Math.floor(Math.random()*xueOpts.length)],
@@ -1883,6 +1888,8 @@ function generateRandomPreset(){
     xia: Math.random()<0.85,
     an: Math.random()<0.75,
     chao: Math.random()<0.5,
+    zhu: Math.random()<0.8,
+    xu: Math.random()<0.7,
     mt: Math.random()<0.8,
     taiji: Math.random()<0.6,
   };
@@ -1908,6 +1915,16 @@ function generateRandomPreset(){
   // 穴場核心要素（確保基本風水結構）
   if(!p.xia && Math.random() < 0.7) p.xia = true; // 70% 機率有穴星
   if(!p.mt && Math.random() < 0.6) p.mt = true;  // 60% 機率有明堂
+  
+  // UI/UX 一致性檢查：確保地形選項與按鈕對應
+  // 後山 (mn) 只能是 you/kang/po/none
+  if(!['you','kang','po','none'].includes(p.mn)) p.mn = 'none';
+  // 左砂 (ml) 只能是 you/ya/po/none
+  if(!['you','ya','po','none'].includes(p.ml)) p.ml = 'none';
+  // 右砂 (mr) 只能是 you/tai/po/none
+  if(!['you','tai','po','none'].includes(p.mr)) p.mr = 'none';
+  // 前案 (ms) 只能是 you/di/po/none
+  if(!['you','di','po','none'].includes(p.ms)) p.ms = 'none';
   
   return p;
 }
