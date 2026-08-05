@@ -1,23 +1,33 @@
 ```
-# Environment files
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
+node_modules/
+venv/
+.venv/
 .env
 .env.local
 *.env.*
 
-# Logs and temporary files
-*.log
-*.tmp
+# Editors
+.vscode/
+.idea/
 
 # System files
 .DS_Store
 Thumbs.db
 
-# Coverage reports
+# Logs
+*.log
+
+# Coverage
 coverage/
 htmlcov/
 .coverage
 
-# Compression files
+# Compressed files
 *.zip
 *.gz
 *.tar
