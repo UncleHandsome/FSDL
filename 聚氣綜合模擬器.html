@@ -203,9 +203,11 @@ function getNearby(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y
 const baseState={d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
 const baseElem={xia:true,an:true,chao:true,zhu:true,xu:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
 const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
+const baseAdv={ao:false,shu:true,fenzhi:false,tantou:false,guiyao:false};  // 用於 preset 同步
 const state={...baseState};
 const elem={...baseElem};
 const adv2={...baseAdv2};
+const adv={...baseAdv};  // adv 物件保留供 UI 開關使用
 const view={heat:true,wind:true,tilt:false};
 
 // 坐向（向水=true，背水=false）已納入 state 管理以確保狀態同步
@@ -378,7 +380,7 @@ function getGlobalMultiplier(){
   if(state.xing==='huo'){
     // 火星需有「吉水」制化（水火既濟），凶水只會加劇火煞；火星本質燥烈難結真穴，即使有吉水制化仍屬高風險
     const hasGoodWaterControl = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
-    m *= hasGoodWaterControl ? 0.45 : 0.30;  // 修正：火星制化後仍應大幅扣分（0.45），無制化則大凶（0.30）
+    m *= hasGoodWaterControl ? 0.35 : 0.25;  // 修正：火星制化後仍應嚴格扣分（0.35），無制化則大凶（0.25）
   }
   // 星穴相剋（金水火星結乳突、木火星結窩）：粒子引擎會產生大量煞氣，整體乘數應嚴格打折
   if(elem.xia){
@@ -421,10 +423,17 @@ function getGlobalMultiplier(){
   if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
   // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分；若無吉水則背水仍凶（平洋需有水界氣）
+  // 修正：平洋龍「坐空朝滿」為變格，若前方有吉水且四象完備，背水不扣分；僅在無吉水或砂手破碎時才扣分
   if(state.d === 'pingyang' && state.w !== 'none') {
       const hasFrontGoodWater = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
+      const hasCompleteSands = (state.ml === 'you' && state.mr === 'you' && elem.an);
       if(!state.face) {
-          m *= 0.5; // 修正：平洋背水一律大凶（背後空虛），無論前方是否有吉水皆扣至 0.5
+          // 坐空朝滿變格：前方吉水 + 四象完備時不扣分，否則仍需打折
+          if(hasFrontGoodWater && hasCompleteSands) {
+              // 坐空朝滿成格，不扣分
+          } else {
+              m *= 0.5; // 平洋背水且不成格，大凶
+          }
       } else if(state.w !== 'jiuqu' && state.w !== 'you') {
           m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
       }
@@ -438,7 +447,8 @@ function getGlobalMultiplier(){
   // === 特殊吉格加分 (Special Auspicious Patterns) ===
   const isBadWaterRule = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
   // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
-  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
+  // 修正：增加穴形檢查，避免誤判；並要求案山朝山完備
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu') && elem.an){
     m *= 1.15;
   }
   // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
@@ -451,10 +461,10 @@ function getGlobalMultiplier(){
 function getCapacityLimit(){
   let cap=0;
   // 四象砂手容量貢獻
-  if(state.ml==='you')cap+=20;else if(state.ml==='ya')cap-=10;else if(state.ml==='po')cap+=5;  // 修正：青龍逼壓為凶象，應扣分而非加分
-  if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap-=10;else if(state.mr==='po')cap+=5;
-  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap-=15;else if(state.ms==='po')cap+=5;  // 修正：朱雀低陷比破碎更凶，扣分應大於破碎
-  if(state.mn==='you')cap+=25;else if(state.mn==='kang')cap+=0;else if(state.mn==='po')cap+=5;
+  if(state.ml==='you')cap+=20;else if(state.ml==='ya')cap-=10;else if(state.ml==='po')cap-=8;  // 修正：青龍破碎為凶象，應扣分
+  if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap-=10;else if(state.mr==='po')cap-=8;  // 修正：白虎抬頭煞與破碎皆為凶象
+  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap-=15;else if(state.ms==='po')cap-=12;  // 修正：朱雀低陷與破碎皆為凶象
+  if(state.mn==='you')cap+=25;else if(state.mn==='kang')cap-=15;else if(state.mn==='po')cap-=12;  // 修正：玄武拒屍為大凶，應扣分；破碎亦凶
   // 穴場要素
   if(elem.an)cap+=10;if(elem.chao)cap+=8;if(elem.xia)cap+=10;
   if(elem.zhu)cap+=10;if(elem.xu)cap+=10;
@@ -1285,10 +1295,10 @@ function computeScores(){
   let D = Math.max(0, Math.min(100, D_raw));
 
   // === 砂法評分 (Sand) - 護衛關攔 ===
-  const mlScore_raw = {you:35, ya:12, po:8, none:0}[state.ml];
-  const mrScore_raw = {you:35, tai:3, po:8, none:0}[state.mr];
-  const msScore_raw = {you:35, di:-10, po:8, none:0}[state.ms]; // 修正：朱雀低陷為凶象，應扣分而非 0 分，且比破碎更凶
-  const mnScore_raw = {you:40, kang:5, po:8, none:0}[state.mn];
+  const mlScore_raw = {you:35, ya:12, po:-8, none:0}[state.ml];  // 修正：青龍破碎為凶象，應扣分而非加分
+  const mrScore_raw = {you:35, tai:-8, po:-8, none:0}[state.mr];  // 修正：白虎抬頭煞與破碎皆為凶象，應扣分
+  const msScore_raw = {you:35, di:-10, po:-12, none:0}[state.ms]; // 修正：朱雀低陷與破碎皆為凶象，破碎比低陷更凶
+  const mnScore_raw = {you:40, kang:-15, po:-12, none:0}[state.mn];  // 修正：玄武拒屍為大凶之象，應扣分；破碎亦為凶
   
   // 平洋龍以水為砂，不強求山砂；山龍需四象完備
   let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore_raw + mrScore_raw + msScore_raw + mnScore_raw);
@@ -1465,7 +1475,8 @@ function computeScores(){
   // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
   if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.an && elem.chao && state.face) xiangBonus += 15;
   // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
-  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
+  // 修正：增加穴形檢查，避免誤判；並要求案山完備
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu') && elem.an){
     X_raw += 10;
   }
   
@@ -1578,9 +1589,9 @@ function updateUI(){
   if(shuBtn){
     const isBadDragon = (state.d === 'si' || state.d === 'po');
     shuBtn.disabled = isBadDragon;
-    if(isBadDragon && (state.shu)){
+    if(isBadDragon && state.shu){
       state.shu = false;
-      
+      adv.shu = false;  // 同步更新 adv 狀態
       shuBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
@@ -1591,9 +1602,9 @@ function updateUI(){
   if(fenzhiBtn){
     const isPingyang = (state.d === 'pingyang');
     fenzhiBtn.disabled = isPingyang;
-    if(isPingyang && (state.fenzhi)){
+    if(isPingyang && state.fenzhi){
       state.fenzhi = false;
-      
+      adv.fenzhi = false;  // 同步更新 adv 狀態
       fenzhiBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
@@ -1641,9 +1652,9 @@ function updateUI(){
   if(aoBtn){
     const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none'||state.ml==='ya'||state.mr==='tai'||!elem.an);
     aoBtn.disabled = !hasGap; // 修正：護砂完備時禁用凹風煞，物理上不合理
-    if(!hasGap && (state.ao)){
+    if(!hasGap && state.ao){
       state.ao = false;
-      
+      adv.ao = false;  // 同步更新 adv 狀態
       aoBtn.classList.remove('on');
       autoDisabledChanged = true;
     }
@@ -1798,11 +1809,16 @@ document.querySelectorAll('.tog').forEach(b=>{
       }
     }
     
-    const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv2'?adv2:b.dataset.g==='view'?view:state;
+    const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv2'?adv2:b.dataset.g==='adv'?adv:b.dataset.g==='view'?view:state;
     o[k]=!o[k];
     // 同步 update state 物件，修復 adv 與 state 變數不同步的 Bug
     if(k in state) state[k] = o[k];
-    b.classList.toggle('on',o[k]);
+    // 若為 adv 開關，同時更新 UI 按鈕狀態
+    if(b.dataset.g === 'adv' && k !== 'shaMode') {
+      b.classList.toggle('on', o[k]);
+    } else {
+      b.classList.toggle('on',o[k]);
+    }
     if(k==='shaMode')cv.style.cursor=o[k]?'crosshair':'default';
     if(k==='heat'&&!view.heat){if(heat)heat.fill(0)}
     bgDirty=true;
@@ -1826,6 +1842,7 @@ if(tseg) {
 const stateKeys=['d','ml','mr','ms','mn','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
 const elemKeys=['xia','an','chao','zhu','xu','luo','hua','mt','taiji','san','yue'];
 const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
+const advKeys=['ao','shu','fenzhi','tantou','guiyao'];  // 用於同步 adv 狀態
 
 // 隨機生成格局 - 已補全所有地形與穴場開關的隨機邏輯，並加上基本風水相容性檢查
 function generateRandomPreset(){
@@ -1897,7 +1914,8 @@ function generateRandomPreset(){
 
 const presets={
   perfect:{d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
-  gejiao:{d:'sheng',ml:'you',mr:'tai',ms:'you',mn:'you',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
+
+gejiao:{d:'sheng',ml:'you',mr:'tai',ms:'you',mn:'you',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
   huilong:{d:'huilong',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'ru',chao:true,fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:true,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:true,tianzhan:false,qingquan:false},
   tianzhan:{d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:true,shixiang:false,tianzhan:true,qingquan:false}
 };
@@ -1909,10 +1927,11 @@ document.querySelectorAll('.preset').forEach(b=>{
     }else{
       p=presets[b.dataset.preset];
     }
-    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);
+    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);Object.assign(adv,baseAdv);
     stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
     elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
     adv2Keys.forEach(k=>{if(k in p)adv2[k]=p[k]});
+    advKeys.forEach(k=>{if(k in p)adv[k]=p[k]});  // 同步 adv 狀態
     if('face' in p) state.face = p.face;
     obstacles.length=0;shockwaves.length=0;bgDirty=true;cv.style.cursor=state.shaMode?'crosshair':'default';
     document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
