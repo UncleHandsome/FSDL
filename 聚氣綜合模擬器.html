@@ -2147,64 +2147,78 @@ function drawBgTerrain(bctx){
   if(elem.chao){const grad=bctx.createLinearGradient(W*.5,H*.86,W*.5,H+4);grad.addColorStop(0,'#426b7a');grad.addColorStop(1,'#1d3038');bctx.fillStyle=grad;bctx.beginPath();bctx.moveTo(W*.2,H+4);bctx.quadraticCurveTo(W*.5,H*.86,W*.8,H+4);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(140,180,200,.8)';_fillText('朝山',W*.5-12,H*.97)}
   // 前案/朱雀視覺顯示
   if(state.ms !== 'none'){
-    const hx=W/2, hy=H*.76;
+    const hx=W/2, hy=H*.82;
     let frontMountainGrad;
     if(state.ms==='you'){ // 翔舞：秀麗有情
-      frontMountainGrad=bctx.createLinearGradient(hx,H*.68,hx,H*.95);
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.72,hx,H*.95);
       frontMountainGrad.addColorStop(0,'#6b8c5a');
       frontMountainGrad.addColorStop(1,'#3a5a33');
     } else if(state.ms==='di'){ // 低陷：空虛凹陷
-      frontMountainGrad=bctx.createLinearGradient(hx,H*.85,hx,H*.95);
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.86,hx,H*.95);
       frontMountainGrad.addColorStop(0,'#8c7a5a');
       frontMountainGrad.addColorStop(1,'#5a4a33');
     } else if(state.ms==='po'){ // 破碎：殘缺不全
-      frontMountainGrad=bctx.createLinearGradient(hx,H*.68,hx,H*.95);
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.72,hx,H*.95);
       frontMountainGrad.addColorStop(0,'#6e655c');
       frontMountainGrad.addColorStop(1,'#36322d');
     } else { // 無或預設
-      frontMountainGrad=bctx.createLinearGradient(hx,H*.68,hx,H*.95);
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.75,hx,H*.95);
       frontMountainGrad.addColorStop(0,'#5a6a7a');
       frontMountainGrad.addColorStop(1,'#2a3a48');
     }
     bctx.fillStyle=frontMountainGrad;
-    if(state.ms==='you'){ // 朱雀翔舞：秀麗圓潤
+    if(state.ms==='you'){ // 朱雀翔舞：秀麗圓潤，如鳥展翅
       bctx.beginPath();
-      bctx.moveTo(W*.2,H*.95);
-      bctx.quadraticCurveTo(W*.35,H*.68,W*.5,H*.72);
-      bctx.quadraticCurveTo(W*.65,H*.68,W*.8,H*.95);
-      bctx.quadraticCurveTo(W*.65,H*.98,W*.5,H*.96);
-      bctx.quadraticCurveTo(W*.35,H*.98,W*.2,H*.95);
+      bctx.moveTo(W*.20,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.78,W*.40,H*.75);
+      bctx.quadraticCurveTo(W*.45,H*.73,W*.5,H*.74);  // 中央微隆
+      bctx.quadraticCurveTo(W*.55,H*.73,W*.60,H*.75);
+      bctx.quadraticCurveTo(W*.68,H*.78,W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
+      bctx.closePath();
+      bctx.fill();
+      // 添加層次感
+      bctx.fillStyle='rgba(120,180,120,.5)';
+      bctx.beginPath();
+      bctx.moveTo(W*.26,H*.93);
+      bctx.quadraticCurveTo(W*.35,H*.82,W*.42,H*.80);
+      bctx.quadraticCurveTo(W*.5,H*.79,W*.58,H*.80);
+      bctx.quadraticCurveTo(W*.65,H*.82,W*.74,H*.93);
+      bctx.quadraticCurveTo(W*.5,H*.95,W*.26,H*.93);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(160,210,160,.8)';
-      _fillText('朱雀翔舞',W*.5-25,H*.78);
-    } else if(state.ms==='di'){ // 朱雀低陷：凹陷空虛
+      _fillText('朱雀翔舞',W*.5-25,H*.80);
+    } else if(state.ms==='di'){ // 朱雀低陷：凹陷空虛，明堂無收
       bctx.beginPath();
-      bctx.moveTo(W*.2,H*.95);
-      bctx.quadraticCurveTo(W*.35,H*.92,W*.45,H*.88);
-      bctx.lineTo(W*.55,H*.88);
-      bctx.quadraticCurveTo(W*.65,H*.92,W*.8,H*.95);
-      bctx.quadraticCurveTo(W*.65,H*.98,W*.5,H*.96);
-      bctx.quadraticCurveTo(W*.35,H*.98,W*.2,H*.95);
+      bctx.moveTo(W*.20,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.90,W*.42,H*.89);
+      bctx.lineTo(W*.58,H*.89);
+      bctx.quadraticCurveTo(W*.68,H*.90,W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(220,120,100,.8)';
-      _fillText('朱雀低陷 (凶)',W*.5-35,H*.82);
-    } else if(state.ms==='po'){ // 朱雀破碎：不規則缺口
+      _fillText('朱雀低陷 (凶)',W*.5-35,H*.92);
+    } else if(state.ms==='po'){ // 朱雀破碎：不規則缺口，山形殘破
       bctx.beginPath();
-      bctx.moveTo(W*.2,H*.95);
-      bctx.lineTo(W*.30,H*.75);
-      bctx.lineTo(W*.40,H*.82);
-      bctx.lineTo(W*.50,H*.70);
-      bctx.lineTo(W*.60,H*.82);
-      bctx.lineTo(W*.70,H*.75);
-      bctx.lineTo(W*.8,H*.95);
-      bctx.quadraticCurveTo(W*.65,H*.98,W*.5,H*.96);
-      bctx.quadraticCurveTo(W*.35,H*.98,W*.2,H*.95);
+      bctx.moveTo(W*.20,H*.95);
+      bctx.lineTo(W*.28,H*.82);
+      bctx.lineTo(W*.36,H*.86);
+      bctx.lineTo(W*.44,H*.80);
+      bctx.lineTo(W*.50,H*.76);
+      bctx.lineTo(W*.56,H*.81);
+      bctx.lineTo(W*.64,H*.85);
+      bctx.lineTo(W*.72,H*.80);
+      bctx.lineTo(W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(220,120,100,.8)';
-      _fillText('朱雀破碎',W*.5-25,H*.78);
+      _fillText('朱雀破碎',W*.5-25,H*.82);
     } else if(state.ms!=='none' && elem.an){
       // 一般案山（已於下方繪製）
     }
@@ -2216,72 +2230,88 @@ function drawBgTerrain(bctx){
   }
   // 玄武/主山視覺顯示
   if(state.mn !== 'none'){
-    const hx=W/2, hy=H*.18;
+    const hx=W/2, hy=H*.22;
     let mainMountainGrad;
     if(state.mn==='kang'){ // 拒屍：高昂陡峭
-      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.35);
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.05,hx,H*.38);
       mainMountainGrad.addColorStop(0,'#8b4513');
       mainMountainGrad.addColorStop(1,'#4a3728');
     } else if(state.mn==='po'){ // 破碎：殘缺不全
-      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.35);
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.38);
       mainMountainGrad.addColorStop(0,'#6e655c');
       mainMountainGrad.addColorStop(1,'#36322d');
     } else if(state.mn==='you'){ // 垂頭：圓潤有情
-      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.35);
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.10,hx,H*.38);
       mainMountainGrad.addColorStop(0,'#5a7c59');
       mainMountainGrad.addColorStop(1,'#2a4a33');
     } else { // 無或預設
-      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.35);
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.10,hx,H*.38);
       mainMountainGrad.addColorStop(0,'#4a5a6a');
       mainMountainGrad.addColorStop(1,'#253038');
     }
     bctx.fillStyle=mainMountainGrad;
-    if(state.mn==='kang'){ // 拒屍：高聳陡峭
+    if(state.mn==='kang'){ // 拒屍：高聳陡峭，山勢險峻無情
       bctx.beginPath();
-      bctx.moveTo(W*.35,H*.35);
-      bctx.lineTo(W*.42,H*.08);
-      bctx.lineTo(W*.5,H*.02);
-      bctx.lineTo(W*.58,H*.08);
-      bctx.lineTo(W*.65,H*.35);
-      bctx.quadraticCurveTo(W*.5,H*.42,W*.35,H*.35);
+      bctx.moveTo(W*.28,H*.38);
+      bctx.lineTo(W*.38,H*.08);
+      bctx.lineTo(W*.45,H*.05);
+      bctx.lineTo(W*.5,H*.04);  // 尖峰高昂
+      bctx.lineTo(W*.55,H*.05);
+      bctx.lineTo(W*.62,H*.08);
+      bctx.lineTo(W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.42,W*.28,H*.38);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(220,120,100,.8)';
-      _fillText('玄武拒屍 (凶)',W*.5-35,H*.15);
-    } else if(state.mn==='po'){ // 破碎：不規則缺口
+      _fillText('玄武拒屍 (凶)',W*.5-35,H*.22);
+    } else if(state.mn==='po'){ // 破碎：不規則缺口，山體殘破
       bctx.beginPath();
-      bctx.moveTo(W*.35,H*.35);
-      bctx.lineTo(W*.40,H*.12);
-      bctx.lineTo(W*.45,H*.18);
-      bctx.lineTo(W*.50,H*.10);
-      bctx.lineTo(W*.55,H*.20);
-      bctx.lineTo(W*.60,H*.12);
-      bctx.lineTo(W*.65,H*.35);
-      bctx.quadraticCurveTo(W*.5,H*.42,W*.35,H*.35);
+      bctx.moveTo(W*.28,H*.38);
+      bctx.lineTo(W*.35,H*.12);
+      bctx.lineTo(W*.41,H*.18);
+      bctx.lineTo(W*.46,H*.10);
+      bctx.lineTo(W*.50,H*.15);
+      bctx.lineTo(W*.54,H*.08);
+      bctx.lineTo(W*.59,H*.16);
+      bctx.lineTo(W*.65,H*.10);
+      bctx.lineTo(W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.42,W*.28,H*.38);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(220,120,100,.8)';
-      _fillText('玄武破碎',W*.5-25,H*.15);
-    } else if(state.mn==='you'){ // 垂頭：圓潤飽滿
+      _fillText('玄武破碎',W*.5-25,H*.18);
+    } else if(state.mn==='you'){ // 垂頭：圓潤飽滿，山勢低伏有情
       bctx.beginPath();
-      bctx.moveTo(W*.35,H*.35);
-      bctx.quadraticCurveTo(W*.42,H*.05,W*.5,H*.04);
-      bctx.quadraticCurveTo(W*.58,H*.05,W*.65,H*.35);
-      bctx.quadraticCurveTo(W*.5,H*.42,W*.35,H*.35);
+      bctx.moveTo(W*.26,H*.38);
+      bctx.quadraticCurveTo(W*.35,H*.15,W*.43,H*.10);
+      bctx.quadraticCurveTo(W*.47,H*.08,W*.5,H*.09);  // 圓頂微微低伏
+      bctx.quadraticCurveTo(W*.53,H*.08,W*.57,H*.10);
+      bctx.quadraticCurveTo(W*.65,H*.15,W*.74,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.45,W*.26,H*.38);
+      bctx.closePath();
+      bctx.fill();
+      // 添加植被層次
+      bctx.fillStyle='rgba(90,140,90,.4)';
+      bctx.beginPath();
+      bctx.moveTo(W*.30,H*.35);
+      bctx.quadraticCurveTo(W*.40,H*.20,W*.46,H*.16);
+      bctx.quadraticCurveTo(W*.5,H*.15,W*.54,H*.16);
+      bctx.quadraticCurveTo(W*.60,H*.20,W*.70,H*.35);
+      bctx.quadraticCurveTo(W*.5,H*.40,W*.30,H*.35);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(160,210,160,.8)';
-      _fillText('玄武垂頭',W*.5-25,H*.15);
+      _fillText('玄武垂頭',W*.5-25,H*.22);
     } else if(state.mn!=='none'){
       bctx.beginPath();
-      bctx.moveTo(W*.35,H*.35);
-      bctx.quadraticCurveTo(W*.42,H*.12,W*.5,H*.10);
-      bctx.quadraticCurveTo(W*.58,H*.12,W*.65,H*.35);
-      bctx.quadraticCurveTo(W*.5,H*.42,W*.35,H*.35);
+      bctx.moveTo(W*.28,H*.38);
+      bctx.quadraticCurveTo(W*.40,H*.15,W*.5,H*.12);
+      bctx.quadraticCurveTo(W*.60,H*.15,W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.45,W*.28,H*.38);
       bctx.closePath();
       bctx.fill();
       bctx.fillStyle='rgba(160,210,160,.8)';
-      _fillText('主山',W*.5-12,H*.15);
+      _fillText('主山',W*.5-12,H*.20);
     }
   }
   if(state.w!=='none'&&state.w!=='lintou'){

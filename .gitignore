@@ -1,3 +1,36 @@
-The modified file appears to be an HTML file with Chinese characters in the filename. Since this is a source code file and not a build artifact, dependency, or temporary file, no additional entries need to be added to the .gitignore file.
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 
-(empty)
+# Dependencies
+node_modules/
+venv/
+.venv/
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Build directories
+dist/
+build/
+target/
+```
