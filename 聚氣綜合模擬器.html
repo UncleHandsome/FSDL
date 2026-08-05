@@ -619,7 +619,9 @@ class Particle{
     }
     
     if(this.isUnderground && this.state === 'moving') {
-        let t_curr = state.d === 'pingyang' ? (this.y - H*.1) / (hy - 14 - H*.1) : (this.y + 20) / (hy - 14 + 20);
+        let denom = (state.d === 'pingyang') ? (hy - 14 - H*.1) : (hy - 14 + 20);
+        if (Math.abs(denom) < 0.001) denom = 0.001; // 避免分母為零
+        let t_curr = state.d === 'pingyang' ? (this.y - H*.1) / denom : (this.y + 20) / denom;
         if (t_curr >= 0 && t_curr <= 1) {
             this.vx += (dragonX(t_curr) - this.x) * 0.15 * dt; // 修正：循脈而行，真氣隨視覺彎曲
         }
@@ -2215,7 +2217,7 @@ function frame(timestamp){
       ctx.fill();
   }
 
-  if(bgDirty&&bgCanvas){const bctx=bgCanvas.getContext('2d');bctx.setTransform(DPR,0,0,DPR,0,0);bctx.clearRect(0,0,W,H);drawBgTerrain(bctx);bgDirty=false}
+  if(bgDirty&&bgCanvas){const bctx=bgCanvas.getContext('2d');bctx.setTransform(DPR,0,0,DPR,0,0);bctx.clearRect(0,0,W*DPR,H*DPR);drawBgTerrain(bctx);bgDirty=false}
   if(bgCanvas)ctx.drawImage(bgCanvas,0,0,W,H);
   
   drawWaterFlow();drawHeat(dt);drawWindArrows(dt);drawTaiji();
