@@ -132,7 +132,7 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
         <div class="ctrl-row"><span class="ctrl-label">時間</span><div class="seg" id="time-seg">
           <button data-t="0">暫停</button><button data-t="1" class="on">正常</button><button data-t="2">加速</button>
         </div></div>
-        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="face-seg"><button data-f="1" class="on">向水</button><button data-f="0">背水</button></div><div class="seg" style="flex:0 0 auto"><button class="tog on" data-g="view" data-k="heat">熱力</button><button class="tog on" data-g="view" data-k="wind">風場</button><button class="tog" data-g="view" data-k="tilt">2.5D</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="state.face
       </div>
     </div>
 
@@ -364,12 +364,12 @@ function getGlobalMultiplier(){
   
   // === 坐向規則 (Facing Rules) ===
   // 山龍背水（坐空朝滿）大忌
-  if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
+  if(!state.state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
   // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分
   if(state.d === 'pingyang' && state.w !== 'none') {
       const hasFrontGoodWater = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
-      if(!face) {
+      if(!state.face) {
           m *= hasFrontGoodWater ? 0.6 : 1.25; // 背對前堂吉水打0.6折；無前堂吉水之純平洋背水才給予1.25倍
       } else if(state.w !== 'jiuqu' && state.w !== 'you') {
           m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
@@ -388,7 +388,7 @@ function getGlobalMultiplier(){
     m *= 1.15;
   }
   // 回龍顧祖：迴龍 + 朝山 + 向水（排除凶水與死破龍）
-  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.chao && face) m *= 1.2;
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.chao && state.face) m *= 1.2;
   // 蜂腰鶴膝 + 護龍：貴龍特徵齊全
   if(adv2.fengyao && adv2.hulong && adv2.zutai && state.d!=='si' && state.d!=='po') m *= 1.1;
   
@@ -542,7 +542,7 @@ class Particle{
       }
       
       // 九曲逆水朝堂：若為向水局，九曲水會將清純水氣逆勢向上（反重力）輸回明堂，大旺財氣
-      if(state.w === 'jiuqu' && face && this.y > hy + 10 && this.state === 'settled') {
+      if(state.w === 'jiuqu' && state.face && this.y > hy + 10 && this.state === 'settled') {
           if(Math.random() < 0.015 * dt) {
               this.state = 'moving';
               this.vy = -1.5 * pScale; // 逆向托力
@@ -710,7 +710,7 @@ class Particle{
 
     const dx_h=this.x-hx,dy_h=this.y-hy;
     const distSq=dx_h*dx_h+dy_h*dy_h;
-    const mingTangY=hy+(face?cR*.8:-cR*.8);
+    const mingTangY=hy+(state.state.face
     
     if(distSq<cR_sq*2.25){this.hasPassedMingTang=true} // 修正：嚴格限縮明堂判定範圍，拒絕邊緣漏氣蹭分
     
@@ -817,9 +817,9 @@ class Particle{
 
     if(!this.isUnderground){
       const inMingTangFront=this.y>hy&&this.y<hy+cR*1.5&&Math.abs(dx_h)<cR;
-      const isChongSha=face&&(state.w==='lintou'||state.w==='ji')&&!elem.an;
+      const isChongSha=state.face&&(state.w==='lintou'||state.w==='ji')&&!elem.an;
       
-      if(face&&inMingTangFront){
+      if(state.face&&inMingTangFront){
         if(isChongSha){
           this.vy+=.5*pScale*dt;
           this.vx+=dx_h*.15*dt;
@@ -830,7 +830,7 @@ class Particle{
           this.vy-=.2*pScale*dt;
           if(elem.an && this.y > hy + cR * 0.5) this.vy -= .4 * pScale * dt; // 案山關攔內氣
         }
-      }else if(!face&&state.w!=='none'&&state.w!=='lintou'&&this.y>riverY(this.x)-30){
+      }else if(!state.face&&state.w!=='none'&&state.w!=='lintou'&&this.y>riverY(this.x)-30){
         this.vy-=.5*pScale*dt;
       }
     }
@@ -932,7 +932,7 @@ class Particle{
     }
     
       if(elem.san && state.w!=='none'){
-        const dx=W/2-this.x,dy=(face?H*.65:H*.39)-this.y;const dSq=dx*dx+dy*dy;const sanR=baseDim*.11;
+        const dx=W/2-this.x,dy=(state.state.face
         if(dSq<sanR*sanR){
           // 三叉水「水聚天心」：兩水交匯形成強大的水漩渦(太極水暈)，將真氣牢牢吸附並高速旋轉淨化
           const d = Math.max(1, Math.sqrt(dSq));
@@ -950,7 +950,7 @@ class Particle{
         }
       }
       if(elem.yue){
-        const dx=(this.x-W/2)/(W*.16),dy=(this.y-(face?H*.62:H*.42))/(H*.07);const distNorm=dx*dx+dy*dy;
+        const dx=(this.x-W/2)/(W*.16),dy=(this.y-(state.state.face
         if(distNorm<1){
           this.vx+=-dy*.25*pScale*dt;this.vy+=dx*.25*pScale*dt;
           
@@ -997,7 +997,7 @@ class Particle{
     if(state.xue==='ru') strengthMod=(state.d==='pingyang'||state.d==='huan') ? 1.8 : 0.5; // 修正：平洋一突勝千峰
     
     if(elem.taiji||elem.chao){
-      const s=((elem.taiji?1:0)+(elem.chao ? 0.4 : 0))*strengthMod*(face?1:0.5);
+      const s=((elem.taiji?1:0)+(elem.chao ? 0.4 : 0))*strengthMod*(state.state.face
       const dx=hx-this.x,dy=hy-this.y;const dSq=dx*dx+dy*dy;
       if(dSq<cR_sq*3.61&&dSq>1){
         const d=Math.sqrt(dSq);const strength=1-(d/(cR*1.9));
@@ -1328,7 +1328,7 @@ function computeScores(){
   // === 向法評分 (Xiang) - 納氣之向 ===
   // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
   const hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
-  let Xg_base = state.face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
+  let Xg_base = state.state.face
   
   // 吉水朝堂加分
   let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
@@ -1432,7 +1432,7 @@ function updateUI(){
   if(state.tantou) shaNotes.push('探頭煞');
   let shaStr = shaNotes.length > 0 ? `【犯煞：${shaNotes.join('、')}】` : '';
   
-  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr)}；水：${wDescText}；向：${face?'向水':'背水'}。${shaStr}${multiplierNote}${tail}`;
+  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr)}；水：${wDescText}；向：${state.state.face
   
   const st=document.getElementById('status');st.innerHTML='';
   const isCangFeng = state.ml==='you' && state.mr==='you' && !state.ao && !adv2.tianzhan && !adv2.qingquan;
@@ -1451,8 +1451,8 @@ function updateUI(){
   const isJieQi = (state.w === 'you' || state.w === 'jiuqu' || (elem.yue && !isBadWaterLocal) || (elem.san && !isBadWaterLocal));
   const jieQiTag = [isJieQi ? '界氣・得' : '界氣・散', isJieQi ? '#7fb0c9' : '#c04a3a'];
   
-  const faceGood = (state.d === 'pingyang') ? !face : face;
-  const faceTagStr = face ? '坐向・向水' : '坐向・背水';
+  const faceGood = (state.d === 'pingyang') ? !state.state.face
+  const faceTagStr = state.face
   const faceTagColor = faceGood ? '#7fb08f' : '#c04a3a';
 
   const tags=[dTag, cangFengTag, jieQiTag, [xueStr,xueColor], [faceTagStr, faceTagColor]];
@@ -1742,7 +1742,7 @@ function generateRandomPreset(){
     shu: Math.random()<0.6,
     san: Math.random()<0.35,
     yue: Math.random()<0.3,
-    face: Math.random()<0.7,
+    state.face
     luo: Math.random()<0.3,
     hua: Math.random()<0.25,
     hulong: Math.random()<0.35,
@@ -1789,10 +1789,10 @@ function generateRandomPreset(){
 }
 
 const presets={
-  perfect:{d:'sheng',ml:'you',mr:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
-  gejiao:{d:'sheng',ml:'you',mr:'tai',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
-  huilong:{d:'huilong',ml:'you',mr:'you',w:'you',xing:'jin',xue:'ru',chao:true,fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:true,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:true,tianzhan:false,qingquan:false},
-  tianzhan:{d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:true,shixiang:false,tianzhan:true,qingquan:false}
+  perfect:{d:'sheng',ml:'you',mr:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,state.face
+  gejiao:{d:'sheng',ml:'you',mr:'tai',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,state.face
+  huilong:{d:'huilong',ml:'you',mr:'you',w:'you',xing:'jin',xue:'ru',chao:true,fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,state.face
+  tianzhan:{d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,state.face
 };
 document.querySelectorAll('.preset').forEach(b=>{
   b.addEventListener('click',()=>{
@@ -1815,7 +1815,7 @@ document.querySelectorAll('.preset').forEach(b=>{
         if(k) x.classList.toggle('on',o[k]);
     });
     document.querySelectorAll('.seg').forEach(seg=>{if(seg.dataset.k){const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on')}});
-    const fseg=document.getElementById('face-seg');if(fseg){fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));fseg.querySelector(`[data-f="${state.face?'1':'0'}"]`).classList.add('on')}
+    const fseg=document.getElementById('state.face
     
     // 水口元件狀態同步：如果 preset 未啟用水口但啟用了獅象，顯示提示
     if(p.shixiang && !p.luo && !p.hua && !p.qin && state.w !== 'none' && state.w !== 'lintou') {
@@ -2013,8 +2013,8 @@ function drawBgTerrain(bctx){
   }
 
   if(state.w !== 'lintou'){
-      const sy = face ? H*.65 : H*.39, yy = face ? H*.62 : H*.42;
-      if(elem.san && state.w !== 'none'){bctx.lineWidth=10;bctx.strokeStyle='rgba(62,111,134,.7)';bctx.beginPath();bctx.moveTo(W*.2,face?H*.4:H*.64);bctx.quadraticCurveTo(W*.35,face?H*.55:H*.49,W*.5,sy);bctx.stroke();bctx.beginPath();bctx.moveTo(W*.8,face?H*.4:H*.64);bctx.quadraticCurveTo(W*.65,face?H*.55:H*.49,W*.5,sy);bctx.stroke();bctx.fillStyle='rgba(160,210,230,.85)';_fillText('三叉水',W*.52,sy-3)}
+      const sy = state.face
+      if(elem.san && state.w !== 'none'){bctx.lineWidth=10;bctx.strokeStyle='rgba(62,111,134,.7)';bctx.beginPath();bctx.moveTo(W*.2,state.state.face
       if(elem.yue){bctx.fillStyle='rgba(50,100,130,0.8)';bctx.beginPath();bctx.ellipse(W/2,yy,W*.16,H*.07,0,0,Math.PI*2);bctx.fill();bctx.fillStyle='rgba(160,210,230,.85)';_fillText('半月池',W*.52,yy-2)}
   }
   
@@ -2041,8 +2041,8 @@ function drawBgTerrain(bctx){
     bctx.fillStyle='rgba(185,138,46,.6)';bctx.font=`${Math.max(9,Math.min(12,W*.01))}px "Noto Serif TC",serif`;_fillText('外明堂',hx+cR*1.05,hy-cR*1.05);_fillText('內明堂',hx+cR*.4,hy-cR*.45);
     if(adv2.qing){bctx.strokeStyle='rgba(220,120,100,.5)';bctx.lineWidth=2;bctx.beginPath();bctx.moveTo(hx-cR,hy+cR*.5);bctx.lineTo(hx+cR,hy+cR*.8);bctx.stroke();bctx.fillStyle='rgba(220,120,100,.8)';_fillText('傾瀉',hx+cR*.8,hy+cR*.6)}
   }
-  bctx.fillStyle=face?'#a63a2b':'#6b5a52';bctx.beginPath();
-  if(face){bctx.moveTo(hx-14,hy-4);bctx.lineTo(hx,hy+10);bctx.lineTo(hx+14,hy-4);bctx.closePath();bctx.fill();bctx.fillRect(hx-10,hy-16,20,12);}
+  bctx.fillStyle=state.state.face
+  if(state.face){bctx.moveTo(hx-14,hy-4);bctx.lineTo(hx,hy+10);bctx.lineTo(hx+14,hy-4);bctx.closePath();bctx.fill();bctx.fillRect(hx-10,hy-16,20,12);}
   else{bctx.moveTo(hx-14,hy+4);bctx.lineTo(hx,hy-10);bctx.lineTo(hx+14,hy+4);bctx.closePath();bctx.fill();bctx.fillRect(hx-10,hy+4,20,12);}
   for(let obs of obstacles){const ox=obs.nx*W,oy=obs.ny*H;const r=obs.rRatio*baseDim;bctx.fillStyle='#2b2b28';bctx.beginPath();bctx.moveTo(ox,oy-r);bctx.lineTo(ox+r*.6,oy+r*.5);bctx.lineTo(ox-r*.6,oy+r*.5);bctx.closePath();bctx.fill();bctx.strokeStyle='#c04a3a';bctx.lineWidth=2;bctx.stroke()}
   
