@@ -1,0 +1,2716 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>城市・建築・道路 聚氣綜合模擬器 v25.2.0 城市版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700;900&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f6f1e7;--ink:#22201c;--ink-soft:#5a554c;--seal:#a63a2b;--gold:#b98a2e;--jade:#3f6b52;--water:#3e6f86;--bg-dark:#14120e;--bg-panel:#171a1e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;background:var(--bg-dark);color:#cfc6b4;line-height:1.4;overflow-x:hidden;height:100vh;display:flex;flex-direction:column}
+h1,h2,h3,h4{font-family:'Noto Serif TC','PingFang TC',serif}
+header{background:#171512;color:var(--paper);text-align:center;padding:8px 16px;border-bottom:2px solid var(--gold);flex:0 0 auto}
+header h1{font-size:20px;letter-spacing:.15em;font-weight:900}
+header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
+.main-layout{flex:1;display:flex;padding:8px;gap:8px;min-height:0}
+.canvas-panel{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-dark);border-radius:12px;overflow:hidden;border:1px solid rgba(246,241,231,.15);box-shadow:0 10px 30px rgba(0,0,0,.15)}
+#sim-canvas{width:100%;height:100%;flex:1;display:block;background:#0c1013;aspect-ratio:auto;touch-action:none;}
+.ui-panel{width:440px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--jade) #0e1114}
+.ui-panel::-webkit-scrollbar{width:5px}
+.ui-panel::-webkit-scrollbar-track{background:#0e1114;border-radius:3px}
+.ui-panel::-webkit-scrollbar-thumb{background:var(--jade);border-radius:3px}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ctrl-col{display:flex;flex-direction:column;gap:4px}
+.ctrl-row{display:flex;align-items:center;gap:6px;margin-bottom:0}
+.ctrl-label{font-family:'Noto Serif TC',serif;letter-spacing:.05em;color:#cfc6b4;min-width:42px;font-size:13px;flex-shrink:0}
+.seg{display:flex;gap:3px;flex-wrap:wrap;flex:1}
+.seg button{display:flex;align-items:center;gap:3px;background:transparent;border:1px solid rgba(246,241,231,.2);color:#cfc6b4;border-radius:4px;padding:3px 6px;cursor:pointer;font-family:'Noto Serif TC',serif;font-size:12px;letter-spacing:.01em;transition:.2s;white-space:nowrap}
+.seg button.on{background:var(--gold);border-color:var(--gold);color:#171512;font-weight:700}
+.seg button:hover{background:rgba(246,241,231,.08);border-color:rgba(246,241,231,.5)}
+.seg button.on:hover{background:#cda240;border-color:#cda240}
+.seg button.danger.on{background:var(--seal);border-color:var(--seal);color:#fff}
+.seg button.danger.on:hover{background:#c04a3a;border-color:#c04a3a}
+.seg button.preset{border-color:#7fb08f;color:#7fb08f;font-weight:600;flex:1;justify-content:center}
+.seg button.preset:hover{background:#7fb08f;color:#14120e}
+.seg button:disabled{opacity:.3;pointer-events:none;cursor:not-allowed}
+.stats-row{display:flex;gap:8px;align-items:flex-end;margin-top:4px}
+.meters{flex:1;display:flex;flex-direction:column;gap:4px}
+.meter-group{width:100%}
+.meter-title{font-size:12px;letter-spacing:.03em;color:#a89e88;display:flex;justify-content:space-between;margin-bottom:2px}
+.meter-title b{color:var(--paper)}
+.meter{height:6px;background:rgba(246,241,231,.1);border-radius:99px;overflow:hidden}
+.meter i{display:block;height:100%;width:0%;transition:width .35s}
+#m-gather .meter i{background:linear-gradient(90deg,#8a6a20,var(--gold))}
+#m-scatter .meter i{background:linear-gradient(90deg,#7a2a20,#c04a3a)}
+.radar-box{width:150px;flex:0 0 auto;background:rgba(246,241,231,.03);border:1px solid rgba(246,241,231,.08);border-radius:8px;padding:4px;text-align:center}
+.radar-box h4{font-size:13px;color:#cfc6b4;letter-spacing:.1em;margin-bottom:2px}
+#radar{width:130px;height:130px}
+.status-bar{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.status-bar span{font-size:11px;letter-spacing:.02em;border:1px solid;border-radius:999px;padding:2px 8px}
+#verdict-row{background:rgba(0,0,0,.2);padding:6px 8px;border-radius:6px;border-left:3px solid var(--gold);margin-top:4px;display:flex;align-items:center;gap:8px}
+#rating{font-family:'Noto Serif TC',serif;font-weight:900;font-size:14px;letter-spacing:.05em;padding:2px 6px;border-radius:4px;color:#171512;white-space:nowrap}
+#verdict{font-family:'Noto Serif TC',serif;color:#d8cfba;letter-spacing:.01em;font-size:13px;line-height:1.5}
+@media(max-width:960px){body{height:auto;overflow-y:auto}.main-layout{flex-direction:column}.canvas-panel{height:50vh}.ui-panel{width:100%;max-height:none;overflow-y:visible}.controls-grid{grid-template-columns:1fr}}
+/* 氣場粒子層 */
+.qi-layer{position:absolute;inset:0;pointer-events:none;z-index:5}
+.qi-particle{position:absolute;width:3px;height:3px;border-radius:50%;background:radial-gradient(circle,rgba(185,138,46,.9),rgba(185,138,46,0));animation:qiFloat 2s infinite ease-in-out}
+@keyframes qiFloat{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.3)}}
+.qi-flow-line{position:absolute;height:1px;background:linear-gradient(90deg,transparent,rgba(62,111,134,.6),transparent);transform-origin:left center;animation:qiFlow 3s infinite linear}
+@keyframes qiFlow{0%{opacity:0}10%{opacity:.8}90%{opacity:.8}100%{opacity:0}}
+.taiji-aura{position:absolute;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(185,138,46,.15) 0%,transparent 70%);animation:taijiPulse 4s infinite ease-in-out;pointer-events:none;z-index:6}
+@keyframes taijiPulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:.7;transform:scale(1.1)}}
+.auspicious-glow{position:absolute;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(127,176,143,.2) 0%,transparent 70%);animation:auspiciousPulse 2s infinite ease-in-out;pointer-events:none;z-index:7}
+@keyframes auspiciousPulse{0%,100%{opacity:.3}50%{opacity:.6}}
+.inauspicious-alert{position:absolute;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,rgba(192,74,58,.3) 0%,transparent 70%);animation:inauspiciousFlash 1s infinite ease-in-out;pointer-events:none;z-index:8}
+@keyframes inauspiciousFlash{0%,100%{opacity:0}50%{opacity:.8}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>城市・建築・道路 聚氣綜合模擬器</h1>
+</header>
+
+<div class="main-layout">
+  <div class="canvas-panel">
+    <canvas id="sim-canvas"></canvas>
+    <!-- 氣場層 -->
+    <div class="qi-layer" id="qi-layer"></div>
+    <div class="taiji-aura" id="taiji-aura" style="display:none"></div>
+    <div class="auspicious-glow" id="auspicious-glow" style="display:none"></div>
+    <div class="inauspicious-alert" id="inauspicious-alert" style="display:none"></div>
+  </div>
+
+  <div class="ui-panel">
+    <div class="controls-grid">
+      <div class="ctrl-col">
+        <div class="ctrl-row"><span class="ctrl-label">龍勢</span><div class="seg" data-k="d"><button data-v="sheng">主幹道</button><button data-v="pingyang">支路網</button><button data-v="huilong">環狀路</button><button data-v="ji">高速道</button><button data-v="huan">慢速道</button><button data-v="si">死胡同</button><button data-v="po">破碎路</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">後方</span><div class="seg" data-k="mn"><button data-v="you">靠山樓</button><button data-v="kang">高壓煞</button><button data-v="po">破碎地</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">左側</span><div class="seg" data-k="ml"><button data-v="you">青龍樓</button><button data-v="ya">逼壓樓</button><button data-v="po">破損樓</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">右側</span><div class="seg" data-k="mr"><button data-v="you">白虎樓</button><button data-v="tai">抬頭煞</button><button data-v="po">破損樓</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">前方</span><div class="seg" data-k="ms"><button data-v="you">案山樓</button><button data-v="di">低陷地</button><button data-v="po">破碎地</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水勢</span><div class="seg" data-k="w"><button data-v="you">環城河</button><button data-v="jiuqu">九曲河</button><button data-v="gejiao">割腳渠</button><button data-v="lintou">淋頭瀑</button><button data-v="ji">直沖溝</button><button data-v="fan">反弓河</button><button data-v="bazi">八字渠</button><button data-v="none">無水</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">建築</span><div class="seg" data-k="xing"><button data-v="jin">圓形樓</button><button data-v="mu">方形樓</button><button data-v="shui">波浪樓</button><button data-v="huo">尖頂樓</button><button data-v="tu">平台樓</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">穴形</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo">凹陷庭</button><button data-v="qian">鉗形口</button><button data-v="ru">乳突台</button><button data-v="tu">突起台</button></div></div>
+      </div>
+      <div class="ctrl-col">
+        <div class="ctrl-row"><span class="ctrl-label">護從</span><div class="seg">
+          <button class="tog on" data-g="adv" data-k="shu">束氣</button>
+          <button class="tog danger" data-g="adv" data-k="fenzhi">分流</button>
+          <button class="tog" data-g="adv" data-k="guiyao">鬼曜</button>
+          <button class="tog" data-g="adv2" data-k="hulong">護龍</button>
+          <button class="tog on" data-g="adv2" data-k="fengyao">蜂腰</button>
+          <button class="tog" data-g="adv2" data-k="zutai">祖脈</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">穴場</span><div class="seg">
+          <button class="tog on" data-g="elem" data-k="xia">穴星</button>
+          <button class="tog on" data-g="elem" data-k="an">案山</button>
+          <button class="tog on" data-g="elem" data-k="chao">朝山</button>
+          <button class="tog on" data-g="elem" data-k="zhu">主山</button>
+          <button class="tog on" data-g="elem" data-k="xu">玄武</button>
+          <button class="tog on" data-g="elem" data-k="mt">明堂</button>
+          <button class="tog on" data-g="elem" data-k="taiji">太極</button>
+          <button class="tog" data-g="adv2" data-k="guan">官星</button>
+          <button class="tog danger" data-g="adv2" data-k="qing">傾瀉</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水法</span><div class="seg">
+          <button class="tog water-dep" data-g="elem" data-k="san">三叉水</button>
+          <button class="tog" data-g="elem" data-k="yue">半月池</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水口</span><div class="seg">
+          <button class="tog" data-g="elem" data-k="luo">羅星</button>
+          <button class="tog" data-g="elem" data-k="hua">華表</button>
+          <button class="tog" data-g="adv2" data-k="shixiang">獅象</button>
+          <button class="tog" data-g="adv2" data-k="qin">禽星</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">形煞</span><div class="seg">
+          <button class="tog danger" data-g="adv2" data-k="tianzhan">天斬</button>
+          <button class="tog danger" data-g="adv2" data-k="qingquan">擎拳</button>
+          <button class="tog danger" data-g="adv" data-k="ao">凹風</button>
+          <button class="tog danger" data-g="adv" data-k="tantou">探頭</button>
+          <button class="tog danger" data-g="adv" data-k="shaMode">手動</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">時間</span><div class="seg" id="time-seg">
+          <button data-t="0">暫停</button><button data-t="1" class="on">正常</button><button data-t="2">加速</button>
+        </div></div>
+        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="face-seg"><button data-f="1" class="on">向水</button><button data-f="0">背水</button></div><div class="seg" style="flex:0 0 auto"><button class="tog on" data-g="view" data-k="heat">熱力</button><button class="tog on" data-g="view" data-k="wind">風場</button><button class="tog" data-g="view" data-k="tilt">2.5D</button></div></div>
+      </div>
+    </div>
+
+    <div class="ctrl-row">
+      <span class="ctrl-label">格局</span>
+      <div class="seg" style="width:100%">
+        <button class="preset" data-preset="perfect">完美城市</button>
+        <button class="preset" data-preset="gejiao">割腳退財</button>
+        <button class="preset" data-preset="huilong">環狀顧祖</button>
+        <button class="preset" data-preset="tianzhan">天斬傾瀉</button>
+        <button class="preset" id="random-preset">隨機生成</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="meters">
+        <div class="meter-group" id="m-gather"><div class="meter-title"><span>聚氣指數</span><b id="g-num">0</b></div><div class="meter"><i id="g-fill"></i></div></div>
+        <div class="meter-group" id="m-scatter"><div class="meter-title"><span>散氣／煞氣</span><b id="s-num">0</b></div><div class="meter"><i id="s-fill"></i></div></div>
+        <div class="meter-group"><div class="meter-title"><span>容量/乘數</span><b id="cap-num">0/×1.0</b></div><div class="meter"><i id="cap-fill" style="background:linear-gradient(90deg,#3f6b52,#7fb08f)"></i></div></div>
+      </div>
+      <div class="radar-box">
+        <h4>五訣</h4>
+        <canvas id="radar" width="130" height="130"></canvas>
+      </div>
+    </div>
+
+    <div class="status-bar" id="status"></div>
+    <div id="verdict-row"><span id="rating"></span><p id="verdict"></p></div>
+  </div>
+</div>
+
+<script>
+const ENV={houseY:.52,riverStart:.12,riverEnd:.88,riverBaseY:.78,centerRBase:.15,dragonSegments:9,maxParticles:{sheng:260,si:80,po:100,pingyang:150,huilong:220,ji:300,huan:120},spawnRate:{sheng:2.6,si:.5,po:1.0,pingyang:1.5,huilong:2.2,ji:4.0,huan:1.0}};
+const cv=document.getElementById('sim-canvas'),ctx=cv.getContext('2d');
+const rCv=document.getElementById('radar'),rCtx=rCv.getContext('2d');
+const DPR=Math.min(2,window.devicePixelRatio||1);
+let lastG=-1,lastS=-1,pScale=1;
+
+const noise=(function(){const p=[];for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));[p[i],p[j]]=[p[j],p[i]]}for(let i=0;i<256;i++)p[256+i]=p[i];function fade(t){return t*t*t*(t*(t*6-15)+10)}function lerp(a,b,t){return a+t*(b-a)}function grad(h,x,y){const v=h&3;const u=v<2?x:y;const w=v<2?y:x;return((v&1)?-u:u)+((v&2)?-w:w)}return function(x,y){const X=((Math.floor(x)%256)+256)%256;const Y=((Math.floor(y)%256)+256)%256;x-=Math.floor(x);y-=Math.floor(y);const u=fade(x),v=fade(y);const A=p[X]+Y,B=p[X+1]+Y;return lerp(lerp(grad(p[A],x,y),grad(p[B],x-1,y),u),lerp(grad(p[A+1],x,y-1),grad(p[B+1],x-1,y-1),u),v)}})();
+
+const spriteCache={};
+function createParticleSprite(key,coreColor,glowRGB,size){let c=spriteCache[key];if(!c){c=document.createElement('canvas');spriteCache[key]=c}c.width=c.height=size*4;const cx=c.getContext('2d');cx.clearRect(0,0,c.width,c.height);const grad=cx.createRadialGradient(c.width/2,c.height/2,0,c.width/2,c.height/2,size*2);grad.addColorStop(0,`rgba(${glowRGB},0.15)`);grad.addColorStop(.5,`rgba(${glowRGB},0.06)`);grad.addColorStop(1,'rgba(0,0,0,0)');cx.fillStyle=grad;cx.fillRect(0,0,c.width,c.height);cx.fillStyle=coreColor;cx.beginPath();cx.arc(c.width/2,c.height/2,size,0,Math.PI*2);cx.fill()}
+function initSprites(){const sz=Math.max(1.5,baseDim*.004);createParticleSprite('normal','rgba(230,195,110,0.9)','185,138,46',sz);createParticleSprite('faint','rgba(230,195,110,0.5)','185,138,46',sz*.7);createParticleSprite('settled','rgba(150,220,235,0.85)','120,200,220',sz*1.1);createParticleSprite('held','rgba(240,208,128,0.9)','240,208,128',sz*1.1);createParticleSprite('sha','rgba(200,80,60,0.9)','200,80,60',sz*1.4);createParticleSprite('leak','rgba(190,220,240,0.8)','150,200,255',sz*1.2);createParticleSprite('pure','rgba(255,240,180,1.0)','255,220,100',sz*1.2)}
+
+const ps=[],obstacles=[],shockwaves=[];
+const MAX_SHOCKWAVES = 50; // 限制衝擊波陣列最大長度，避免卡頓
+let spawnAcc=0,gIdx=0,shaAcc=0;
+let waterOffset=0,windTime=0;
+let lastTime=0,taijiAngle=0;
+let W=0,H=0,gw=0,gh=0,baseDim=0,margin=0;
+let radarW=0,radarH=0;
+let heat=null,heatC=null,heatCtx=null,heatImg=null;
+let tempHeatCanvas=null;
+let bgCanvas=null,bgDirty=true;
+let tantouTimer=0,isPaused=false;
+let GRID_SIZE=50;
+let gridCols=0,gridRows=0,grid=[];
+let mouseX=0,mouseY=0;
+
+function initGrid(){gridCols=Math.ceil(W/GRID_SIZE);gridRows=Math.ceil(H/GRID_SIZE);grid=new Array(gridCols*gridRows);for(let i=0;i<grid.length;i++)grid[i]=[]}
+function clearGrid(){for(let i=0;i<grid.length;i++)grid[i].length=0}
+function addToGrid(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y/GRID_SIZE);if(gx>=0&&gx<gridCols&&gy>=0&&gy<gridRows){grid[gy*gridCols+gx].push(p)}}
+function getNearby(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y/GRID_SIZE);const res=[];for(let dy=-1;dy<=1;dy++){for(let dx=-1;dx<=1;dx++){const nx=gx+dx,ny=gy+dy;if(nx>=0&&nx<gridCols&&ny>=0&&ny<gridRows){const cell=grid[ny*gridCols+nx];for(let i=0;i<cell.length;i++)res.push(cell[i])}}}return res}
+
+const baseState={d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
+const baseElem={xia:true,an:true,chao:true,zhu:true,xu:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
+const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
+const baseAdv={ao:false,shu:true,fenzhi:false,tantou:false,guiyao:false};  // 用於 preset 同步
+const state={...baseState};
+const elem={...baseElem};
+const adv2={...baseAdv2};
+const adv={...baseAdv};  // adv 物件保留供 UI 開關使用
+const view={heat:true,wind:true,tilt:false};
+
+// 坐向（向水=true，背水=false）已納入 state 管理以確保狀態同步
+state.face = true;
+
+// 廢除 adv 物件，將所有開關統一收攏至 state 與 elem 中（修復狀態不同步 Bug）
+// 原本 adv 中的欄位已全部移至 state：shu, fenzhi, guiyao, ao, tantou
+
+let resizeTimer;
+function rs(){
+  const oldW=W,oldH=H;
+  W=cv.clientWidth;H=cv.clientHeight;
+  if(W===0||H===0)return;
+  baseDim=Math.min(W,H);
+  pScale=baseDim/600;
+  margin=baseDim*.05;
+  GRID_SIZE=Math.max(50,baseDim*.08);
+  cv.width=W*DPR;cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  gw=Math.max(30,Math.round((W*DPR)/12));
+  gh=Math.max(24,Math.round((H*DPR)/12));
+  
+  // 修正：熱力圖 Resize 數值還原失真問題
+  // 不再使用 Canvas 影像縮放插值與 8-bit 色彩通道轉換，直接從 Float32Array 保留原始精度
+  let oldHeat = null;
+  if(oldW>0&&oldH>0&&heat){
+    oldHeat = new Float32Array(heat); // 保留舊的熱力圖數值（Float32 精度）
+  }
+  
+  heat=new Float32Array(gw*gh);
+  if(!heatC)heatC=document.createElement('canvas');
+  heatC.width=gw;heatC.height=gh;
+  heatCtx=heatC.getContext('2d',{willReadFrequently:true});
+  heatImg=heatCtx.createImageData(gw,gh);
+  
+  // 修正：直接使用雙線性插值從舊的 Float32Array 還原熱力圖數值，避免 8-bit 色彩通道精度損失
+  if(oldHeat && oldHeat.length > 0){
+    const oldGw = Math.round((oldW*DPR)/12);
+    const oldGh = Math.round((oldH*DPR)/12);
+    for(let y=0;y<gh;y++){
+      for(let x=0;x<gw;x++){
+        const oldX = (x / gw) * oldGw;
+        const oldY = (y / gh) * oldGh;
+        const x0 = Math.floor(oldX), y0 = Math.floor(oldY);
+        const x1 = Math.min(x0+1, oldGw-1), y1 = Math.min(y0+1, oldGh-1);
+        const fx = oldX - x0, fy = oldY - y0;
+        
+        // 雙線性插值
+        const v00 = oldHeat[y0*oldGw+x0] || 0;
+        const v10 = oldHeat[y0*oldGw+x1] || 0;
+        const v01 = oldHeat[y1*oldGw+x0] || 0;
+        const v11 = oldHeat[y1*oldGw+x1] || 0;
+        
+        const v0 = v00*(1-fx) + v10*fx;
+        const v1 = v01*(1-fx) + v11*fx;
+        const v = v0*(1-fy) + v1*fy;
+        
+        heat[y*gw+x] = v;
+      }
+    }
+  }
+  
+  radarW=rCv.clientWidth;radarH=rCv.clientHeight;
+  rCv.width=radarW*DPR;rCv.height=radarH*DPR;
+  rCtx.setTransform(DPR,0,0,DPR,0,0);
+  if(!bgCanvas)bgCanvas=document.createElement('canvas');
+  bgCanvas.width=cv.width;bgCanvas.height=cv.height;
+  bgDirty=true;initSprites();initGrid();
+  
+  if(oldW>0&&oldH>0){
+    const scaleX=W/oldW,scaleY=H/oldH;
+    for(let p of ps){p.x*=scaleX;p.y*=scaleY}
+    for(let sw of shockwaves){sw.x*=scaleX;sw.y*=scaleY;sw.r*=scaleX;sw.maxR*=scaleX;}
+  }
+}
+window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(rs,150)});
+
+// 滑鼠移動事件
+cv.addEventListener('mousemove',e=>{
+  const rect=cv.getBoundingClientRect();
+  mouseX=e.clientX-rect.left;
+  mouseY=e.clientY-rect.top;
+});
+
+// Touch 觸控事件支援（行動裝置煞氣放置）
+let touchDragMode = false;
+cv.addEventListener('touchstart', e => {
+  if (!state.shaMode) return;
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  const touch = e.touches[0];
+  const nx = (touch.clientX - rect.left) / rect.width;
+  let ny = (touch.clientY - rect.top) / rect.height;
+  if (view.tilt) ny = 0.5 + (ny - 0.5) / 0.6;
+  if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
+  
+  let removed = false;
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const obsVisualY = view.tilt ? (0.5 + (obstacles[i].ny - 0.5) * 0.6) : obstacles[i].ny;
+    const dx = (obstacles[i].nx * W) - (nx * W), dy = (obsVisualY * H) - (ny * H);
+    const r = obstacles[i].rRatio * baseDim;
+    if (dx * dx + dy * dy < (r * 1.1) * (r * 1.1)) {
+      obstacles.splice(i, 1);
+      removed = true;
+      break;
+    }
+  }
+  if (!removed && obstacles.length < 5) {
+    obstacles.push({ nx, ny, rRatio: .03 });
+    shockwaves.push({ x: nx * W, y: ny * H, r: 0, maxR: baseDim * .08, life: 25 });
+    touchDragMode = true;
+  }
+  bgDirty = true;
+  updateUI();
+}, { passive: false });
+
+cv.addEventListener('touchmove', e => {
+  if (!state.shaMode || !touchDragMode) return;
+  e.preventDefault();
+}, { passive: false });
+
+cv.addEventListener('touchend', e => {
+  touchDragMode = false;
+}, { passive: false });
+
+document.addEventListener('visibilitychange',()=>{isPaused=document.hidden;if(!isPaused)lastTime=0});
+let fontsLoaded=false;
+if(document.fonts){document.fonts.ready.then(()=>{if(!fontsLoaded){fontsLoaded=true;bgDirty=true}})}
+
+function getGlobalMultiplier(){
+  let m=1.0;
+  
+  // === 核心要素乘數 (Core Elements) ===
+  if(!elem.xia)m*=0.4;  // 無穴星則氣無所依
+  if(!elem.mt)m*=0.6;   // 無明堂則氣無所聚
+  
+  // === 龍勢基礎乘數 (Dragon Base) ===
+  if(state.d==='po')m*=0.25;  // 破龍崩瀉，大凶
+  if(state.d==='si')m*=0.35;  // 死病龍枯槁，無氣
+  if(state.d==='huan')m*=0.65; // 緩龍退敗，氣弱
+  if(state.d==='ji' && !adv2.qian && !elem.an && !elem.mt && !adv2.guan)m*=0.7; // 急龍無制：需檢查明堂、案山、官星等多重緩衝，缺一不可
+  
+  // === 砂法影響 (Sand Guards) - 四象完備性檢查 ===
+  if(state.ml==='ya')m*=0.85;  // 青龍逼壓
+  if(state.mr==='tai')m*=0.65; // 白虎抬頭煞
+  if(state.ml==='ya'&&state.mr==='tai')m*=0.75; // 龍虎相鬥
+  if(state.ml==='po')m*=0.75;  // 青龍破碎
+  if(state.mr==='po')m*=0.75;  // 白虎破碎
+  if(state.ml==='po'&&state.mr==='po')m*=0.65; // 兩側皆破
+  if(state.ms==='po')m*=0.80;  // 朱雀破碎
+  if(state.mn==='po')m*=0.80;  // 玄武破碎
+  if(state.mn==='kang')m*=0.55; // 玄武拒屍，大凶
+  if(state.ms==='di')m*=0.75;   // 朱雀低陷，明堂空虛
+  // 山龍單邊無砂（露風劫）打8折，雙邊無砂打5折（平洋龍除外）
+      if(state.ms==='none') m *= 0.85; // 前案空虛
+      if(state.mn==='none') m *= 0.7;  // 後靠空虛
+  if(state.d!=='pingyang'){
+      if(state.ml==='none' && state.mr==='none') m *= 0.5;
+      else if(state.ml==='none' || state.mr==='none') m *= 0.8; // 單邊無砂露風
+  }
+  
+  // === 形煞影響 (Sha Penalties) ===
+  if(state.ao)m*=(state.shu ? 0.25 : 0.4); // 凹風吹氣
+  if(state.tantou)m*=0.55;  // 探頭暗箭
+  if(adv2.tianzhan)m*=0.45; // 天斬罡風
+  if(adv2.qingquan)m*=0.65; // 擎拳頂心
+  if(state.fenzhi)m*=0.7;   // 枝龍分流洩氣
+  
+  // === 五行星體與穴形配合 (Five Elements & Cave Form) ===
+  if(state.xing==='huo'){
+    // 火星需有「吉水」制化（水火既濟），凶水只會加劇火煞；火星本質燥烈難結真穴，即使有吉水制化仍屬高風險
+    const hasGoodWaterControl = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
+    m *= hasGoodWaterControl ? 0.35 : 0.25;  // 修正：火星制化後仍應嚴格扣分（0.35），無制化則大凶（0.25）
+  }
+  // 星穴相剋（金水火星結乳突、木火星結窩）：粒子引擎會產生大量煞氣，整體乘數應嚴格打折
+  if(elem.xia){
+    if(state.xue==='ru' && (state.xing==='jin'||state.xing==='shui'||state.xing==='huo')) m *= 0.35;
+    if(state.xue==='wo' && (state.xing==='mu'||state.xing==='huo')) m *= 0.35;
+    // 補全：鉗穴、突穴的五行生剋檢查
+    if(state.xue==='qian' && (state.xing==='jin'||state.xing==='shui'||state.xing==='huo')) m *= 0.40;  // 鉗穴忌金水火，宜木土
+    if(state.xue==='tu' && (state.xing==='jin'||state.xing==='shui'||state.xing==='huo')) m *= 0.40;  // 突穴忌金水火，宜木土
+  }
+  
+  // === 平洋無水則無龍，氣散無依，加重乘數懲罰 ===
+  if(state.d === 'pingyang' && state.w === 'none') {
+      m *= 0.25;
+  }
+  
+  // === 手動煞氣點擊懲罰 ===
+  if(obstacles.length>0)m*=Math.max(0.3, 1.0 - obstacles.length * 0.12);
+  
+  // === 水法影響 (Water Rules) ===
+  let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
+  const isBadWater = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  let waterGuards = (validGuards && !isBadWater) ? ((elem.luo?1:0) + (elem.hua?1:0) + (adv2.shixiang?2:0) + (adv2.qin?1:0)) : 0;  
+  let anshanShield = elem.an ? 0.35 : 0;
+  
+  // 凶水格局：需有護衛才能減輕危害
+  if(['gejiao','ji','fan','bazi'].includes(state.w)) {
+      // 反弓水無情射穴，加重扣分
+      let base = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.25 : 0.45;
+      let waterCap = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.75 : 0.9;
+      // 修正：割腳水/反弓水雖貼穴難擋，但高大案山仍能減輕部分危害；八字水外擴無情，案山遮蔽效果更弱
+      let effectiveAnShield = (state.w === 'bazi') ? anshanShield * 0.15 : ((state.w === 'gejiao' || state.w === 'fan') ? anshanShield * 0.35 : anshanShield); 
+      m *= Math.min(waterCap, base + waterGuards * 0.12 + effectiveAnShield);
+  }
+  
+  // 傾瀉：明堂斜飛，需有水口關攔
+  if(adv2.qing) m *= Math.min(0.9, 0.55 + waterGuards * 0.12 + anshanShield); 
+  
+  // === 坐向規則 (Facing Rules) ===
+  // 山龍背水（坐空朝滿）大忌
+  if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
+  
+  // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分；若無吉水則背水仍凶（平洋需有水界氣）
+  // 修正：平洋龍「坐空朝滿」為變格，若前方有吉水且四象完備，背水不扣分；僅在無吉水或砂手破碎時才扣分
+  if(state.d === 'pingyang' && state.w !== 'none') {
+      const hasFrontGoodWater = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
+      const hasCompleteSands = (state.ml === 'you' && state.mr === 'you' && elem.an);
+      if(!state.face) {
+          // 坐空朝滿變格：前方吉水 + 四象完備時不扣分，否則仍需打折
+          if(hasFrontGoodWater && hasCompleteSands) {
+              // 坐空朝滿成格，不扣分
+          } else {
+              m *= 0.5; // 平洋背水且不成格，大凶
+          }
+      } else if(state.w !== 'jiuqu' && state.w !== 'you') {
+          m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
+      }
+  }
+
+  // 木星無穴形（直來直去無所止，扣分修正）
+  if(elem.xia && state.xing === 'mu' && state.xue === 'none') {
+      m *= 0.5;
+  }
+  
+  // === 特殊吉格加分 (Special Auspicious Patterns) ===
+  const isBadWaterRule = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
+  // 修正：增加穴形檢查，避免誤判；並要求案山朝山完備
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu') && elem.an){
+    m *= 1.15;
+  }
+  // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.an && elem.chao && state.face) m *= 1.2;
+  // 蜂腰鶴膝 + 護龍：貴龍特徵齊全
+  if(adv2.fengyao && adv2.hulong && adv2.zutai && state.d!=='si' && state.d!=='po') m *= 1.1;
+  
+  return m;
+}
+function getCapacityLimit(){
+  let cap=0;
+  // 四象砂手容量貢獻
+  if(state.ml==='you')cap+=20;else if(state.ml==='ya')cap-=10;else if(state.ml==='po')cap-=8;  // 修正：青龍破碎為凶象，應扣分
+  if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap-=10;else if(state.mr==='po')cap-=8;  // 修正：白虎抬頭煞與破碎皆為凶象
+  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap-=15;else if(state.ms==='po')cap-=12;  // 修正：朱雀低陷與破碎皆為凶象
+  if(state.mn==='you')cap+=25;else if(state.mn==='kang')cap-=15;else if(state.mn==='po')cap-=12;  // 修正：玄武拒屍為大凶，應扣分；破碎亦凶
+  // 穴場要素
+  if(elem.an)cap+=10;if(elem.chao)cap+=8;if(elem.xia)cap+=10;
+  if(elem.zhu)cap+=10;if(elem.xu)cap+=10;
+  if(elem.mt)cap+=20; // 修正：明堂是聚氣的核心容器，必須提供大量基礎容量
+  if(adv2.qian)cap+=15;if(adv2.hulong)cap+=10;
+  if(adv2.zutai)cap+=10;
+  if(adv2.fengyao)cap+=10;
+  // 修正：水口神獸交鎖（下關砂），如同水壩蓄水，能大幅提升明堂乘氣的極限容量
+  if(elem.luo)cap+=10; if(elem.hua)cap+=10; if(adv2.shixiang)cap+=15; if(adv2.qin)cap+=5;
+  if(!elem.mt) cap = Math.min(cap, 25);
+  if(state.ml==='none' && state.mr==='none' && state.d !== 'pingyang') cap = Math.min(cap, 30);
+  if(state.d === 'pingyang' && state.w === 'none') cap = Math.min(cap, 15);
+  if(state.w === 'gejiao' || state.w === 'lintou') cap = Math.min(cap, 20);
+  // 淋頭水為滅頂之災，容量上限應極低（幾乎無聚氣可能）
+  if(state.w === 'lintou') cap = Math.min(cap, 5);
+  // 所有無情凶水（割腳/淋頭/反弓/八字/直沖）皆嚴重破壞明堂容量，鎖定上限
+  if(['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(state.w)) cap = Math.min(cap, 20);
+  if(adv2.qing) cap = Math.min(cap, 30);
+  return Math.min(100,cap);
+}
+
+class Particle{
+  constructor(isShaArrow=false){
+    this.isShaArrow=isShaArrow;
+    this.state='moving';
+    this.dir=1;this.faint=state.d==='si';this.branched=false;
+    this.ph=Math.random()*6.28;this.life=0;this.maxLife=120;
+    this.vx=0;this.vy=0;this.x=0;this.y=0;
+    this.purified=false;
+    this.isUnderground=true;
+    this.hasPassedMingTang=false;
+    this.hasTouchedWater=false;
+    this.markedForDeath=false;
+    this.inPool=0;
+    
+    if(isShaArrow){
+      this.state='sha';
+      this.x=W/2+(Math.random()-.5)*40;this.y=H*.85;
+      const dx=W/2-this.x,dy=H*.52-this.y;const d=Math.hypot(dx,dy);
+      this.vx=(dx/d)*3.5*pScale;this.vy=(dy/d)*3.5*pScale;
+      this.life=150;this.maxLife=150;return;
+    }
+    
+    const t=Math.random()*.75;const leak=(state.d==='po'||state.d==='huan')&&Math.random()<.35;
+    const spread = (35 - 25 * t) * pScale; // 修正：氣脈隨過峽「剝換」逐漸收斂，並正確適應螢幕縮放
+    this.x=dragonX(t)+(Math.random()-.5)*spread;
+    
+    // 修正：平洋龍粒子生成點與物理邏輯矛盾
+    // 風水訣曰「平洋拿水，水即是龍」。平洋龍應從水面/地面生成，模擬「潛隱於地、隨水而行」
+    if(state.d === 'pingyang') {
+        this.y = riverY(this.x) + (Math.random() - 0.5) * 20; // 在水位線附近生成
+        this.isUnderground = false; // 平洋龍氣浮於地表
+    } else {
+        this.y=dragonY(t);
+    }
+    
+    let initVy = (.6+Math.random()*.5)*pScale;
+    if(state.d==='ji') initVy = 2.5 * pScale; 
+    if(state.d==='huan' || state.d==='pingyang') initVy = 0.2 * pScale; 
+    
+    this.vx=leak?(Math.random()<.5?-1.8:1.8)*pScale:0;
+    this.vy=initVy;
+    if(leak){this.state='leak';this.life=120}
+  }
+  
+  update(dt){
+    const hx=W/2,hy=H*ENV.houseY,cR=baseDim*ENV.centerRBase;
+    const cR_sq=cR*cR;
+    const cR3_sq=9*cR_sq;
+    
+    if(adv2.zutai && this.state==='moving'){
+        const pool1Y = H * 0.15, pool2Y = H * 0.30;
+        const t1 = Math.max(0, (pool1Y - (-20)) / (hy - (-20))), t2 = Math.max(0, (pool2Y - (-20)) / (hy - (-20)));
+        const px1 = dragonX(t1), px2 = dragonX(t2); // 追蹤動態龍脈引力點
+        const poolR = baseDim * 0.08;
+        let inPool = false;
+        const rx1 = (this.x - px1) / (W * 0.1), ry1 = (this.y - pool1Y) / (H * 0.03);
+        if(rx1*rx1 + ry1*ry1 < 1.0){
+            inPool = true; this.inPool = 1;
+            this.vx *= Math.pow(0.95, dt); this.vy *= Math.pow(0.95, dt);
+            this.vx += (px1 - this.x) * 0.01 * dt; this.vy += (pool1Y - this.y) * 0.01 * dt;
+            if(Math.random() < 0.005 * dt) this.vy += 1.5 * pScale; 
+        } else if(Math.hypot(this.x - px2, this.y - pool2Y) < poolR){
+            inPool = true; this.inPool = 2;
+            this.vx *= Math.pow(0.95, dt); this.vy *= Math.pow(0.95, dt);
+            this.vx += (px2 - this.x) * 0.01 * dt; this.vy += (pool2Y - this.y) * 0.01 * dt;
+            if(Math.random() < 0.01 * dt) this.vy += 1.5 * pScale;
+        }
+        if(!inPool) this.inPool = 0;
+    }
+
+    if(this.state==='leak'){
+      this.life-=dt;this.x+=this.vx*dt;this.y+=this.vy*.4*dt;
+      if(this.life<=0)return false;
+      return!(this.y>H+margin||this.y<-margin*2||this.x<-margin||this.x>W+margin);
+    }
+    if(this.state==='sha'){
+      this.life-=dt;
+      
+      if(this.isShaArrow) {
+          const dx = (W/2) - this.x, dy = (H*ENV.houseY) - this.y;
+          const d = Math.max(1, Math.hypot(dx, dy));
+          // 探頭暗箭：帶有極強的導引力，精準狙擊明堂穴心內的聚氣
+          this.vx += (dx/d) * 0.25 * pScale * dt; 
+          this.vy += (dy/d) * 0.25 * pScale * dt;
+          if (d < baseDim * 0.05) this.life -= 3 * dt; // 擊中穴心後碎裂，交由全局碰撞邏輯產生連環破壞
+      } else {
+          this.vy += 0.05 * pScale * dt;
+      }
+      this.x+=this.vx*dt;this.y+=this.vy*dt;
+      return!(this.life<=0);
+    }
+    if(this.state==='settled'||this.state==='held'){
+      this.life-=dt;this.x+=Math.sin(windTime*.05+this.ph)*.3*pScale*dt;
+      
+      // 流體排斥力：防止真氣無限重疊，讓氣團產生柔軟的體積感與流動性
+      const nearby = getNearby(this);
+      for(let target of nearby) {
+          if(target !== this && (target.state === 'settled' || target.state === 'held')) {
+              const dx = this.x - target.x, dy = this.y - target.y;
+              const distSq = dx*dx + dy*dy;
+              if(distSq > 0 && distSq < (25 * pScale * pScale)) { // 感知半徑
+                  const dist = Math.sqrt(distSq);
+                  this.x += (dx/dist) * 0.4 * pScale * dt; // 柔和推開
+                  this.y += (dy/dist) * 0.4 * pScale * dt;
+              }
+          }
+      }
+
+      if(this.life<=0)return false;
+      if(view.heat)heatAdd(this.x,this.y,this.state==='settled'?1.5:1.3);
+      
+      if(this.state === 'held' && !elem.an && this.y < riverY(this.x) - 10) {
+          this.state = 'moving';
+          this.vy = 2.0 * pScale; // 案山消失，失去支撐，氣脈直接墜落
+      }
+      
+      let exposed=(state.ml==='none'||state.ml==='po'?0.05:0)+(state.mr==='none'||state.mr==='po'?0.05:0)+(!elem.an?0.05:0);
+      if(exposed>0&&Math.random()<exposed*0.02*dt){this.state='moving';this.vx+=(Math.random()-0.5)*4*pScale;}
+      
+      if(state.w==='gejiao'&& this.y > hy - 5 && Math.hypot(this.x-hx,this.y-hy)<cR*1.8){
+        this.state='swept';this.dir=this.x<hx?-1:1; // 修正：必須抵達水位線才會被割腳水沖刷，拒絕隔空吸氣
+      }
+      if(state.w==='lintou'&&this.y>hy-cR&&this.y<hy+cR*2){
+        this.state='swept';this.dir=(Math.random()<.5?-1:1);
+      }
+      
+      // 九曲逆水朝堂：若為向水局，九曲水會將清純水氣逆勢向上（反重力）輸回明堂，大旺財氣
+      if(state.w === 'jiuqu' && state.face && this.y > hy + 10 && this.state === 'settled') {
+          if(Math.random() < 0.015 * dt) {
+              this.state = 'moving';
+              this.vy = -1.5 * pScale; // 逆向托力
+              this.purified = true; // 化為純粹的吉氣
+              if(shockwaves.length < MAX_SHOCKWAVES) {
+                shockwaves.push({x:this.x, y:this.y, r:0, maxR:baseDim*.05, life:20, type:'pure'}); // 逆水昇華波紋
+              }
+          }
+      }
+
+      if(adv2.qing && this.state==='settled'){
+          this.vy += 0.05 * pScale * dt;
+          this.y += this.vy * dt;
+          
+          let limitY = elem.an ? (hy + cR*0.8) : (hy + cR*1.2);
+          if(this.y > limitY) { 
+              if(elem.an) {
+                  this.y = limitY; this.vy = 0; // 案山成功關攔傾瀉之氣
+              } else if(state.w === 'none' || state.w === 'lintou') {
+                  this.state = 'leak';
+              } else {
+                  this.state = 'swept'; 
+                  this.dir = this.x < hx ? -1 : 1; 
+              }
+          }
+      }
+      return true;
+    }
+    if(this.state==='swept'){
+      this.vx += (4.2*pScale*this.dir - this.vx) * 0.2 * dt; // 修正：河水推力作用於速度向量(vx)，解決動力學覆寫衝突
+      
+      const isFastWater = (state.w === 'ji' || state.w === 'gejiao' || state.w === 'fan'); // 判斷是否為無情水
+      if(adv2.shixiang && (this.x > W*0.85 || this.x < W*0.15)){
+          const dx = W/2 - this.x; 
+          this.vx += dx * 0.02 * dt; 
+          this.vy -= 0.5 * pScale * dt; 
+          if(Math.random() < (isFastWater ? 0.005 : 0.02) * dt) { this.state='held'; this.life=600; } // 凶水沖刷，神獸攔氣機率大幅下降
+      }
+
+      if((elem.luo||elem.hua)&&(this.x>W*.85||this.x<W*.15)){
+        this.vx -= this.dir * 1.5 * pScale * dt; 
+        this.vy -= 0.2 * pScale * dt;
+        if(Math.random() < (isFastWater ? 0.003 : 0.015) * dt) { this.state='held'; this.life=500; } 
+      }
+	  
+      this.vx *= Math.pow(0.85, dt);
+      this.vy *= Math.pow(0.85, dt);
+      this.vx = Math.max(-5 * pScale, Math.min(5 * pScale, this.vx));
+      this.vy = Math.max(-5 * pScale, Math.min(5 * pScale, this.vy));
+      
+      this.x += this.vx * dt; // 統一計算最終位移，讓神獸的引力與水流推力完美疊加
+      this.y += this.vy * dt;
+
+	  if(this.x>W*.11&&this.x<W*.89&&state.w!=='lintou'&&state.w!=='none'){
+		const targetY=riverY(this.x)+6;this.y+=(targetY-this.y)*.3*dt;
+	  }
+      if(this.x>W+margin||this.x<-margin){
+        const catchP=(elem.luo ? 0.6 : 0)+(elem.hua ? 0.25 : 0);
+        if(catchP>0&&Math.random()<catchP){
+          this.state='held';this.life=600;
+          this.x=this.dir<0?W*0.06:W*0.94; // 修正：取消不合理的河道源頭瞬移，讓真氣精準停留在神獸視覺模型上
+          this.y=riverY(this.x)-4;return true;
+        }
+        return false;
+      }
+      return true;
+    }
+    
+    this.isUnderground=this.y<(hy-baseDim*.05);
+    let windAmp=0,jitter=0;
+    if(!this.isUnderground){
+      
+      let windExposed = 0;
+      if(state.ml==='none' || state.ml==='po') windExposed += 0.04;
+      if(state.mr==='none' || state.mr==='po') windExposed += 0.04;
+      if(!elem.an) windExposed += 0.05; 
+      
+      windAmp = (state.ml==='you'&&state.mr==='you'&&elem.an) ? 0.01 : windExposed;
+      if(state.d==='pingyang') windAmp *= 0.2; // 修正：平洋龍不怕八風交吹
+      if(adv2.hulong && Math.abs(this.x - hx) < W*0.2) windAmp *= 0.2;
+      
+      jitter = (state.ml==='you'&&state.mr==='you'&&elem.an) ? 0.01 : (0.04 + windExposed);
+      if(state.d==='si') jitter *= 2.0;
+      
+      // 修正：真正的「氣乘風則散」。若毫無遮蔽（風劫），真氣將被強風直接吹散化為虛無
+      if(windExposed >= 0.13 && state.d !== 'pingyang' && this.state === 'moving') {
+          if(Math.random() < windExposed * 0.1 * dt) { this.state = 'leak'; this.life = 60; }
+      }
+      
+      
+      if(this.y < hy && this.y > hy - baseDim*0.15) {
+          if((state.d==='po'||state.d==='si') && !state.guiyao) {
+              this.vy += 1.5 * pScale * dt; 
+          }
+          if(state.guiyao) {
+              if(state.d==='po' || state.d==='si' || state.d==='huan') {
+                  this.vx += (Math.random() - 0.5) * 3.0 * pScale * dt; 
+                  this.vy -= 1.0 * pScale * dt; // 弱龍生曜：鬼曜化為「盜氣星」，將真氣反向(向上)抽離穴場
+                  if(Math.random() < 0.02 * dt) this.state = 'leak'; // 氣遭竊漏不聚
+              } else {
+                  this.vy += 0.2 * pScale * dt; 
+                  this.vx *= Math.pow(0.8, dt); // 強龍生曜：武將帶刀，推氣入穴
+              }
+          }
+      }
+    }
+    
+    if(this.isUnderground && this.state === 'moving') {
+        let denom = (state.d === 'pingyang') ? (hy - 14 - H*.1) : (hy - 14 + 20);
+        if (Math.abs(denom) < 0.001) denom = 0.001; // 避免分母為零
+        let t_curr = state.d === 'pingyang' ? (this.y - H*.1) / denom : (this.y + 20) / denom;
+        if (t_curr >= 0 && t_curr <= 1) {
+            this.vx += (dragonX(t_curr) - this.x) * 0.15 * dt; // 修正：循脈而行，真氣隨視覺彎曲
+        }
+        
+        if(state.shu && this.y > hy - cR*3 && this.y < hy - cR) {
+            if(state.d === 'si' || state.d === 'po') {
+                this.vx += (Math.random() - 0.5) * 1.5 * pScale * dt; // 死/破龍強行束氣，反遭擠散
+            } else {
+                this.vx += (hx - this.x) * 0.15 * dt; 
+                this.vy *= Math.pow(0.92, dt); 
+            }
+            // 過峽最忌風吹：若有凹風煞，束氣處的脆弱真氣會被橫風直接吹散（風劫破脈）
+            if(state.ao && Math.random() < 0.04 * dt) {
+                this.state = 'leak'; this.life = 60;
+                this.vx += 3.0 * pScale; // 氣遭側風無情吹出脈外
+            }
+        }
+    }
+
+    if(state.fenzhi&&this.y<H*.45&&!this.branched&&Math.random()<.06*dt){
+          this.vx=(this.x<hx?-1:1)*3.5*pScale;this.branched=true;
+          this.state='leak'; this.life=150; // 修正：分流之氣徹底洩漏，穿透護砂不再回流明堂
+        }
+    
+    const t_prog = this.y / hy;
+    if(adv2.fengyao && t_prog > 0.4 && t_prog < 0.6){
+        this.vx += (hx - this.x) * 0.2 * dt; 
+    } else if(adv2.fengyao && t_prog >= 0.6 && t_prog < 0.65 && !this.purified){
+        this.purified = true;
+        if(this.state === 'sha') { 
+            this.state = 'moving'; this.life = this.maxLife; 
+            // 視覺回饋：蜂腰化煞，產生金色淨化波紋
+            // 限制衝擊波產生數量，避免 CPU/GPU 效能崩潰
+            if(shockwaves.length < MAX_SHOCKWAVES) {
+                shockwaves.push({x:this.x, y:this.y, r:0, maxR:baseDim*.06, life:25, type:'pure'});
+            }
+        } 
+        this.vx *= Math.pow(0.5, dt);
+        this.vy *= Math.pow(0.5, dt);
+    }
+    if(this.purified) jitter*=.1;
+
+    if(adv2.tianzhan && Math.abs(this.x - hx) < W*0.05 && this.y > H*0.2 && this.y < H*0.4){
+        this.vy += 5.0 * pScale * dt; 
+        // 天斬罡風：風洞效應劈砍而下，同時會向左右兩側產生強大的水平撕裂風，扯碎明堂
+        this.vx += (this.x < hx ? -1 : 1) * 4.0 * pScale * dt;
+        if(this.state==='moving' && Math.random() < 0.1 * dt) { this.state='sha'; this.life=60; }
+    }
+
+    if(adv2.hulong && this.y > 0 && this.y < hy - cR) {
+        const drift = this.x - hx;
+        if(Math.abs(drift) > W*0.12) this.vx -= Math.sign(drift) * 1.5 * pScale * dt; // 修正：護龍發揮實體漏斗作用，逼氣入穴
+    }
+
+    const dx_h=this.x-hx,dy_h=this.y-hy;
+    const distSq=dx_h*dx_h+dy_h*dy_h;
+    const mingTangY=hy+(state.face ? cR : -cR);
+    
+    if(distSq<cR_sq*2.25){this.hasPassedMingTang=true} // 修正：嚴格限縮明堂判定範圍，拒絕邊緣漏氣蹭分
+    
+    if(distSq>cR_sq&&distSq<cR3_sq&&this.y<mingTangY+cR){
+      this.vx+=(hx-this.x)*.0005*pScale*dt;
+      this.vy+=(mingTangY-this.y)*.001*pScale*dt;
+    }
+
+    if(adv2.qian && this.y > hy - cR*0.5 && this.y < hy + cR*0.5 && Math.abs(dx_h) < cR*0.8){
+        this.vx *= Math.pow(0.5, dt); 
+        this.vy += (hy - this.y) * 0.05 * dt;
+        // 鉗穴「急來緩受」：專治急龍、火星等暴猛之氣，鉗砂能將高速氣流瞬間夾住、強制收束
+        if(this.vy > 1.5 * pScale && this.state === 'moving') {
+            this.vy *= 0.2; // 瞬間煞車
+            if(Math.random() < 0.1 * dt) { this.state = 'settled'; this.life = 600; } // 暴氣化吉
+        }
+    }
+
+    const L=W*(state.ml==='ya'?.31:state.ml==='po'?.05:.18);
+    const R=W*(state.mr==='ya'||state.mr==='tai'?.69:state.mr==='po'?.95:.82);
+    
+    if(adv2.qingquan){
+        if(state.ml!=='none' && this.x < L + 20) { this.vx += 2.0 * pScale * dt; if(Math.random()<0.02*dt) { this.state='sha'; this.life=50; } }
+        if(state.mr!=='none' && this.x > R - 20) { this.vx -= 2.0 * pScale * dt; if(Math.random()<0.02*dt) { this.state='sha'; this.life=50; } }
+    }
+
+    // 限制護砂阻擋僅在地下入首之後（y > H * 0.25）才生效，避免龍頭粒子卡牆
+    if(this.y > H * 0.25){
+      if(state.ml!=='none'&&this.x<L){
+        this.x=L;this.vx=Math.abs(this.vx)*.5+.1*pScale;this.vy+=.1*pScale;
+        
+        if(state.ml==='you' && this.y > hy) this.vx += 0.5 * pScale * dt;
+      }
+      if(state.mr!=='none'&&this.x>R){
+        this.x=R;this.vx=-Math.abs(this.vx)*.4-.05*pScale;
+        
+        if(state.mr==='you' && this.y > hy) this.vx -= 0.5 * pScale * dt;
+        
+        if(state.mr==='tai'&&Math.random()<.03*dt){this.state='sha';this.life=50;this.vx=-2.5*pScale;this.vy=1.5*pScale}
+      }
+    }
+    if(state.mr==='tai'&&this.x>W*.6&&this.y>H*.3){this.vx-=1.5*pScale*dt}
+    if(state.ao&&this.x<W*.28&&this.y>H*.25&&this.y<H*.45){
+      const dx=hx-this.x,dy=hy-this.y;const d=Math.max(1,Math.hypot(dx,dy));
+      this.vx+=(dx/d)*3*pScale*dt;this.vy+=(dy/d)*3*pScale*dt;
+      if(this.state==='moving'&&Math.random()<.03*dt) { this.state='sha'; this.life=50; }
+    }
+    
+    if(elem.xia&&state.xing==='huo'&&this.y>hy-baseDim*.15&&this.y<hy){
+      this.vx+=((this.x-hx)*.8 + (Math.random()-.5)*4.0)*dt; 
+      this.vy+=(Math.random()-.5)*2.0*pScale*dt; // 火性炎上，氣場上下亂竄
+      // 水火既濟：若前方有半月池 (水) 或天然大河 (玉帶/九曲)，可壓制火星炎燥；若無，極易化為凶煞
+      let hasGoodWater = elem.yue || state.w === 'you' || state.w === 'jiuqu';
+      let huoShaProb = hasGoodWater ? 0.01 : 0.08; 
+      if(Math.random() < huoShaProb * dt) { this.state='sha'; this.life=50; } 
+    }
+    if(elem.xia&&state.xing==='mu'&&this.y>hy-baseDim*.1&&this.y<hy){
+        // 木星垂旒：木氣直下，若有「乳突」穴則轉為生氣灌注；若無，則煞不住車直衝而下
+        this.vy += (state.xue === 'ru' ? 0.1 : 0.8) * pScale * dt; 
+        if(state.xue !== 'ru' && Math.random() < 0.03 * dt) { this.state = 'leak'; } // 無乳突接氣，木氣直瀉不收
+    } 
+    if(elem.xia&&state.xing==='shui'&&this.y>hy-baseDim*.1&&this.y<hy){this.vx+=Math.sin(this.y*.1)*.2*pScale*dt;} 
+    if(elem.xia&&state.xing==='tu'&&this.y>hy-baseDim*.1&&this.y<hy){
+      this.vy*=Math.pow(.7,dt); 
+      this.vx*=Math.pow(.7,dt); 
+    }
+    if(elem.xia&&state.xing==='jin'&&this.y>hy-baseDim*.1&&this.y<hy){
+      this.vx+=(hx-this.x)*.1*dt; 
+      this.vy*=Math.pow(.85,dt); 
+    }
+    
+    if(elem.xia&&state.xue==='wo'&&distSq<cR_sq*2.25){
+      // 修正：金水星結窩為大吉（相生），木火星結窩為「形煞」（相剋）
+      let woSync = (state.xing==='jin'||state.xing==='shui') ? 1.5 : (state.xing==='mu'||state.xing==='huo') ? 0.2 : 1;
+      this.vx+=(hx-this.x)*.05*woSync*dt;this.vy+=(hy-this.y)*.05*woSync*dt;jitter*= (woSync>1 ? .1 : .5);
+      if(woSync < 1 && this.state === 'moving' && Math.random() < 0.05 * dt) {
+          this.state = state.xing==='huo' ? 'sha' : 'leak'; // 火星結窩犯重煞，木星結窩則洩氣
+          if(this.state === 'sha') this.life = 50;
+      }
+    }
+
+    if(elem.xia&&state.xue==='ru'&&distSq<cR_sq*1.5){
+      // 修正：增加乳突穴形的實體引力。木土星結乳突為大吉，金水火星結突則為「鬥煞」
+      let ruSync = (state.xing==='mu'||state.xing==='tu') ? 1.5 : (state.xing==='jin'||state.xing==='shui'||state.xing==='huo') ? 0.2 : 1;
+      this.vx+=(hx-this.x)*.04*ruSync*dt;this.vy+=(hy-this.y)*.04*ruSync*dt;jitter*= (ruSync>1 ? .1 : .5);
+      if(ruSync < 1 && this.state === 'moving' && Math.random() < 0.05 * dt) { 
+          this.state = 'sha'; this.life = 60; // 突起犯金水火煞，化為銳利煞氣直插明堂
+          this.vy += 1.5 * pScale; // 給予煞氣向下的衝擊力
+      }
+    }
+
+    
+    if(state.w==='lintou' && this.y < hy + cR * 3.0){ // 修正：淋頭水的毀滅性重力應貫穿整個來龍與明堂全域（滅頂之災）
+      this.vy += 2.0 * pScale * dt;
+      jitter += 0.1;
+      // 淋頭水自高處直沖來龍，越靠近入首處(穴後)煞氣轉化機率越高，直接破脈
+      let lintouProb = (this.y < hy - cR) ? 0.06 : 0.02;
+      if(Math.random() < lintouProb * dt) { this.state = 'sha'; this.life = 40; }
+      // 修正：淋頭瀑布無差別沖刷，讓所有已結或未結之氣也直接潰散落水，無法倖免
+      if(this.state !== 'sha' && this.state !== 'swept' && this.y > hy - 10) {
+          if(Math.random() < 0.1 * dt) { this.state = 'swept'; this.dir = (Math.random()<.5?-1:1); }
+      }
+    }
+
+    if(!this.isUnderground){
+      const inMingTangFront=this.y>hy&&this.y<hy+cR*1.5&&Math.abs(dx_h)<cR;
+      const isChongSha=state.face&&(state.w==='lintou'||state.w==='ji')&&!elem.an;
+      
+      if(state.face&&inMingTangFront){
+        if(isChongSha){
+          this.vy+=.5*pScale*dt;
+          this.vx+=dx_h*.15*dt;
+          if(this.state==='moving'&&Math.random()<.08*dt){
+            this.state='sha';this.life=60;
+          }
+        }else{
+          this.vy-=.2*pScale*dt;
+          if(elem.an && this.y > hy + cR * 0.5) this.vy -= .4 * pScale * dt; // 案山關攔內氣
+        }
+      }else if(!state.face&&state.w!=='none'&&state.w!=='lintou'&&this.y>riverY(this.x)-30){
+        this.vy-=.5*pScale*dt;
+      }
+    }
+
+    const rY=riverY(this.x);
+    if(state.w!=='none'&&state.w!=='lintou'){
+      const distR=Math.abs(this.y-rY);
+      
+      if(this.y>=rY-20&&this.y<=rY+20){this.hasTouchedWater=true}
+      
+      if(adv2.qin && Math.abs(this.x - hx) < W*0.1 && this.y > rY - 30 && this.y < rY + 10){
+          this.vx *= Math.pow(0.6, dt); this.vy *= Math.pow(0.6, dt);
+          if(this.state==='moving' && Math.random() < 0.05 * dt) { this.state='settled'; this.life=600; }
+      }
+
+      if(distR<40&&this.y<rY&&this.vy>0){
+        this.vy*=Math.pow(.8,dt);
+        const slope=(riverY(this.x+5)-riverY(this.x-5))/10;
+        this.vx+=slope*.5*pScale*dt;
+      }
+      
+      if(state.w==='you'&&this.y>rY-80&&this.y<=rY){
+        
+        const dx=hx-this.x,dy=hy-this.y;const d=Math.max(1,Math.hypot(dx,dy));
+        this.vx+=(dx/d)*.08*pScale*dt;
+        this.vy*=Math.pow(.85,dt); 
+      }
+      if((state.w==='you'||state.w==='jiuqu')&&this.y>rY-20&&this.y<=rY&&this.vy>0){
+        this.vy*=Math.pow(0.5,dt);
+        if(this.state==='moving'&&Math.random()<0.1*dt){this.state='settled';this.life=800;}
+      }
+      if(state.w==='fan'&&this.y>hy&&this.y<rY+20){
+        
+        const dx=this.x-hx,dy=this.y-hy;const d=Math.max(1,Math.hypot(dx,dy));
+        this.vx+=(dx/d)*.15*pScale*dt; // 離心力將真氣向外扯
+        this.vy+=.1*pScale*dt;
+        
+        // 反弓無情，如弓射箭：將接觸反弓弧面的氣轉為煞氣，並給予極大的反向初速，直射穴場
+        if(this.state!=='sha' && Math.random() < 0.05 * dt) {
+            this.state = 'sha'; this.life = 80;
+            this.vx = -(dx/d) * 4.0 * pScale; // 負向量：反向直射
+            this.vy = -(dy/d) * 4.0 * pScale;
+        }
+      }
+      if(state.w==='gejiao'){
+        if(distR<40&&this.y<rY){this.vy+=(40-distR)*.015*pScale*dt}
+        // 割腳水淘空地基：貼穴太近，產生極強的「下拽真空」，連明堂內已經聚好的氣都會被硬生生扯入水中
+        if (this.y > hy && this.y < rY) {
+            this.vy += 1.2 * pScale * dt; // 真空下墜引力
+            if(this.state === 'settled' && Math.random() < 0.05 * dt) {
+                this.state = 'swept'; this.dir = this.x < hx ? -1 : 1;
+            }
+        }
+      }
+      if((state.w==='ji'||state.w==='fan')&&distR<20&&this.y<rY&&Math.random()<.05*dt){
+        this.state='sha';this.life=50;
+      }
+      
+      if(state.w==='jiuqu'&&Math.abs(this.x-W/2)>W*.15&&this.y>rY-20){
+        this.vx*=Math.pow(.9,dt);this.vy*=Math.pow(.9,dt);
+        if(this.state!=='settled'&&Math.random()<.02*dt){this.state='settled';this.life=800}
+      }
+
+      if(state.w==='bazi' && this.y > hy && this.y < rY){
+          // 八字牽鼻水：無情外八字會產生極強的斜向拉力，將明堂真氣無情撕裂拖走
+          this.vx += (this.x < hx ? -1 : 1) * 1.2 * pScale * dt; 
+          this.vy += 1.5 * pScale * dt;
+          if(this.state==='moving' && Math.random() < 0.03 * dt) { this.vy += 2.5 * pScale; } // 瞬間下墜
+          if(this.state==='settled' && Math.random() < 0.10 * dt) { this.state='swept'; this.dir = this.x < hx ? -1 : 1; }
+      }
+    }
+
+    
+    const dxA = Math.abs(this.x - hx);
+    // 修正：使其真正貼合視覺案山的拋物線 (案山範圍 W*0.36 ~ W*0.64, 頂點 W*0.5, H*0.76，底部界限約 H+4)
+    const dxRatio = Math.min(1, dxA / (W * 0.14));
+    const anshanBounceY = H * 0.76 + dxRatio * dxRatio * H * 0.24;
+    // 修正：案山只攔截空中真氣，且限於視覺範圍內 (dxA < W*0.16)，解決邊界幽靈碰撞 Bug
+    if(elem.an && dxA < W * 0.16 && this.y >= anshanBounceY && this.vy > 0 && this.state !== 'swept' && this.state !== 'sha'){
+      if(adv2.guan) {
+          this.vy = -Math.abs(this.vy) * 0.8; 
+          this.vx += (hx - this.x) * 0.2 * dt; 
+          // 官星截氣：威權守護，能將即將外洩或浮躁的氣強行扣留，並化為純正的吉氣
+          if(Math.random() < 0.1 * dt && shockwaves.length < MAX_SHOCKWAVES) { 
+              this.state = 'held'; this.purified = true; 
+              shockwaves.push({x:this.x, y:this.y, r:0, maxR:baseDim*.05, life:20, type:'pure'}); // 官星化煞波紋
+          }
+          this.y = anshanBounceY - 1;
+      } else {
+          this.vy = -Math.abs(this.vy)*.4;
+          // 修正：真實的「迴風返氣」。案山不僅往上托，更具有強大的向心捲流作用，強制將向外衝的氣導回穴場
+          if(elem.mt) {
+              this.vx += (hx - this.x) * 0.15 * dt; // 加強向太極中心的聚攏力
+              this.vy -= 0.8 * pScale * dt; // 增強向上迴風的托力
+              if(this.state==='moving' && Math.random() < 0.08 * dt) { this.state='settled'; this.life=500; }
+          }
+          this.y = anshanBounceY - 1; 
+      }
+    }
+    
+    if(elem.san && state.w!=='none'){
+      const sanR = baseDim * .11;
+      const dx=W/2-this.x, dy=(state.face ? H*.65 : H*.39) - this.y;
+      const dSq = dx*dx + dy*dy;
+      if(dSq<sanR*sanR){
+          // 三叉水「水聚天心」：兩水交匯形成強大的水漩渦(太極水暈)，將真氣牢牢吸附並高速旋轉淨化
+          const d = Math.max(1, Math.sqrt(dSq));
+          this.vx += (dx/d) * 0.5 * pScale * dt; // 向心力
+          this.vy += (dy/d) * 0.5 * pScale * dt;
+          this.vx -= (dy/d) * 1.5 * pScale * dt; // 產生極強的切線旋轉力
+          this.vy += (dx/d) * 1.5 * pScale * dt;
+          this.vx *= Math.pow(.85, dt); // 水的阻力，防止粒子飛出
+          this.vy *= Math.pow(.85, dt);
+          
+          if((this.state==='moving'||this.state==='sha')&&Math.random()<.1*dt && shockwaves.length < MAX_SHOCKWAVES){
+              this.state='settled';this.life=800;this.purified=true;
+              shockwaves.push({x:this.x, y:this.y, r:0, maxR:baseDim*.08, life:30, type:'pure'}); // 天心漩渦淨化波紋(稍微大一點)
+          }
+        }
+      }
+      if(elem.yue){
+        const dx=(this.x-W/2)/(W*.16),dy=(this.y-(state.face?H*.62:H*.42))/(H*.07);
+        const distNorm=Math.sqrt(dx*dx+dy*dy);
+        if(distNorm<1){
+          this.vx+=-dy*.25*pScale*dt;this.vy+=dx*.25*pScale*dt;
+          
+          if((this.state==='moving'||this.state==='sha')&&(distNorm<.2||Math.random()<.08*dt) && shockwaves.length < MAX_SHOCKWAVES){
+              this.state='settled';this.life=800;this.purified=true;
+              shockwaves.push({x:this.x, y:this.y, r:0, maxR:baseDim*.06, life:25, type:'pure'}); // 半月池淨化波紋
+          }
+        }
+      }
+
+    if(this.y>hy&&this.y<H*.88-10&&Math.abs(this.x-hx)<cR*1.5){
+      const dx=this.x-hx,dy=this.y-hy;
+      const d=Math.max(1,Math.hypot(dx,dy));
+      const asymmetry=(state.ml==='you'?1.2:.8)-(state.mr==='you'?1.2:.8);
+      this.vx+=(-dy/d)*.02*pScale*dt+asymmetry*.01*pScale*dt;
+      this.vy+=(dx/d)*.02*pScale*dt;
+      this.vy-=.02*pScale*dt;
+      
+      // 左動右靜：青龍(陽)主動推氣，白虎(陰)主靜收氣。真氣應在明堂內形成「左旋向右」的太極暗流
+      if(state.ml==='you' && state.mr==='you') {
+        this.vx += 0.03 * pScale * dt; // 青龍方給予微妙的向右推力
+        if (this.x > hx && this.vx > 0) this.vx *= Math.pow(0.7, dt); // 到達白虎方則迅速減速收斂
+        this.vy -= .03 * pScale * dt; 
+        if(Math.random() < .06 * dt && this.state === 'moving') { this.state='settled'; this.life=500; } 
+      }
+      
+      // 龍虎相鬥：青龍逼壓且白虎抬頭，明堂受極限擠壓，真氣化為鬥煞
+      if(state.ml==='ya' && state.mr==='tai') {
+          this.vx += (Math.random() - 0.5) * 2.0 * pScale * dt; // 內部亂流
+          if(Math.random() < 0.05 * dt) { this.state='sha'; this.life=50; }
+      }
+    }
+
+    const tX=Math.cos(windTime*.002)*15;
+    const tY=Math.sin(windTime*.002)*15;
+    const nx=noise((this.x/W)*4+tX,(this.y/H)*4+tY);
+    const ny=noise((this.x/W)*4+100+tX,(this.y/H)*4+tY);
+    
+    this.vx+=nx*windAmp*3*pScale*dt;this.vy+=ny*windAmp*1.5*pScale*dt;
+    this.vx+=(Math.random()-.5)*jitter*pScale*dt;
+    
+    let strengthMod=1;
+    if(state.xue==='wo') strengthMod=1.6;
+    if(state.xue==='ru') strengthMod=(state.d==='pingyang'||state.d==='huan') ? 1.8 : 0.5; // 修正：平洋一突勝千峰
+    
+    if(elem.taiji||elem.chao){
+      const s=((elem.taiji?1:0)+(elem.chao ? 0.4 : 0))*strengthMod*(state.face?1:0.5);
+      const dx=hx-this.x,dy=hy-this.y;const dSq=dx*dx+dy*dy;
+      if(dSq<cR_sq*3.61&&dSq>1){
+        const d=Math.sqrt(dSq);const strength=1-(d/(cR*1.9));
+        this.vx+=(dx/d)*.03*strength*s*pScale*dt;
+        if(dy>0)this.vy+=(dy/d)*.02*strength*s*pScale*dt;
+        
+        
+        if(elem.taiji && dSq < cR_sq * 0.4) {
+            if(state.d === 'si' || state.d === 'po') {
+                // 煞穴反噬：死破龍強行結穴，太極無法消化腐氣，反向排斥引爆
+                this.vx += (this.x - hx) * 0.1 * dt; 
+                this.vy += (this.y - hy) * 0.1 * dt;
+                if(Math.random() < 0.1 * dt) { this.state='sha'; this.life=40; }
+            } else {
+                this.vx *= Math.pow(0.5, dt); 
+                this.vy *= Math.pow(0.5, dt);
+                this.vx -= dy * 0.02 * dt; 
+                this.vy += dx * 0.02 * dt; // 完美的太極螺旋聚氣
+                // 修正：真氣在太極暈內旋轉沉澱後應化為結穴吉氣，避免無限重疊且能啟動流體排斥
+                if (this.state === 'moving' && Math.random() < 0.02 * dt) { this.state = 'settled'; this.life = 600; }
+            }
+        }
+      }
+    }
+    
+    
+    if(state.d==='pingyang' && !this.isUnderground){
+        if(state.w==='none') {
+            this.vx += (Math.random() - 0.5) * 4.0 * pScale * dt; 
+        } else if(state.w!=='lintou' && this.y < riverY(this.x)) {
+            this.vy += 0.25 * pScale * dt; 
+        }
+    }
+    
+    this.vx*=Math.pow(.96,dt);this.vy*=Math.pow(.96,dt);this.vy+=.08*pScale*dt;
+    if(state.d==='si') { this.vx*=Math.pow(.85,dt); this.vy*=Math.pow(.85,dt); } // 修正：死病龍氣衰凝滯，無法順暢輸送
+    
+    // 水口交鎖，明堂停蓄：若下游有神獸關攔，且非凶水，明堂內部會形成如水壩般的「停蓄」氣場，極度聚氣
+    let hasWaterLock = (elem.luo || elem.hua || adv2.shixiang || adv2.qin);
+    if(hasWaterLock && !['gejiao','ji','lintou','none'].includes(state.w)) {
+        if(this.y > hy && this.y < riverY(this.x) && this.state === 'moving') {
+            this.vx *= Math.pow(0.85, dt); // 氣場受到水壩效應，極度穩定緩慢
+            this.vy *= Math.pow(0.85, dt);
+            if(Math.random() < 0.03 * dt) { this.state = 'settled'; this.life = 800; } // 迅速結氣化財
+        }
+    }
+    
+    if(state.d==='ji' && this.y > hy && !elem.an && state.w==='none' && this.vy > 2.0 * pScale){
+        if(Math.random() < 0.1 * dt) { this.state='sha'; this.life=40; }
+    }
+
+    this.vx=Math.max(-3.5*pScale,Math.min(3.5*pScale,this.vx));
+    if(this.state!=='sha'){
+      let min_vy;
+      if(this.vy<0){min_vy=-3*pScale}
+      else{
+        // 修正：垂直速度不連續問題。當 vy 接近 0 時，使用平滑過渡而非突變
+        // 避免粒子在 0 附近產生向下抽搐/抖動的非物理現象
+        let baseMin = state.d==='ji' ? 1.8*pScale : (state.d==='huan' ? 0.12*pScale : 0.4*pScale);
+        min_vy=(distSq<cR_sq*1.44)?.1*pScale:baseMin;
+        // 平滑過渡：當 vy 很小但為正時，允許更小的最小值以避免突變
+        if(this.vy < 0.1 * pScale) min_vy = Math.min(min_vy, 0.05 * pScale);
+      }
+      let maxVy = state.d==='ji' ? 5.0*pScale : (state.d==='huan' ? 1.2*pScale : 3*pScale);
+      this.vy=Math.max(min_vy,Math.min(maxVy,this.vy));
+    }else{this.vy=Math.max(-3.5*pScale,Math.min(3.5*pScale,this.vy))}
+    
+    // 破碎砂碎氣：山體崩塌破碎，無法護衛且會將真氣「割裂」。真氣撞擊後化為凶煞，並以尖銳的折角彈入明堂污染氣場
+    if((state.ml==='po'&&this.x<W*.15)||(state.mr==='po'&&this.x>W*.85)){
+      if(this.state !== 'sha' && Math.random() < 0.08 * dt){
+          this.state = 'sha'; this.life = 60;
+          // 以極大的反向初速，將碎裂的煞氣像子彈一樣彈入明堂中央
+          this.vx = (state.ml==='po' && this.x<W*.15) ? 3.5 * pScale : -3.5 * pScale;
+          this.vy = (Math.random() - 0.2) * 3.0 * pScale; 
+          return true;
+      }
+    }
+    if(!state.shu&&state.d==='sheng'&&this.y>hy-20&&this.y<hy&&Math.random()<.01*dt){
+      this.state='sha';this.life=40;
+    }
+    
+    for(let obs of obstacles){
+      const dx=this.x-(obs.nx*W),dy=this.y-(obs.ny*H);const r=obs.rRatio*baseDim;const dSq=dx*dx+dy*dy;
+      if(dSq<r*r){
+        const d=Math.max(.001,Math.sqrt(dSq));
+        this.x=(obs.nx*W)+(dx/d)*r*1.05; // 修正：將粒子實體擠出障礙物表面，防止連續碰撞導致的黑洞沾黏與效能崩潰
+        this.y=(obs.ny*H)+(dy/d)*r*1.05;
+        this.vx=(dx/d)*4*pScale;this.vy=(dy/d)*4*pScale;
+        this.state='sha';this.life=60;shockwaves.push({x:this.x,y:this.y,r:0,maxR:baseDim*.1,life:35});break;
+      }
+    }
+    
+    const sf=(state.ml==='ya'||state.mr==='ya'?.7:1)*(state.d==='si'?.7:state.d==='sheng'?1.15:1);
+    this.x+=this.vx*sf*dt;this.y+=this.vy*sf*dt;
+    if(view.heat)heatAdd(this.x,this.y,.6);
+    
+    if(state.w!=='none'&&state.w!=='lintou'&&this.x>W*.11&&this.x<W*.89&&this.y>=rY-5){
+      if(state.w==='you'||state.w==='jiuqu'){
+        let baseLife = state.w==='jiuqu' ? 800 : (300+Math.random()*200);
+        let validGuards = (state.ml !== 'none' || state.mr !== 'none');
+        let guardMult = validGuards ? (1+(elem.luo ? 0.6 : 0)+(elem.hua ? 0.4 : 0)) : 1;
+        this.state='settled';
+        this.life=baseLife * guardMult;
+        this.y=rY+6+Math.random()*12;if(state.w==='jiuqu'){this.vx*=.5;this.vy*=.5}
+      }else{this.state='swept';this.dir=state.w==='ji'?1:(this.x<hx?-1:1)}
+      return true;
+    }
+    
+    if(elem.an&&this.y>=H*.82&&this.vy>-0.5){this.state='held';this.life=220+Math.random()*150;this.y=H*.82-2-Math.random()*18;return true}
+    return!(this.y>H+margin||this.y<-margin*2||this.x<-margin||this.x>W+margin);
+  }
+  
+  draw(){
+    if(this.state==='sha'||(this.state==='swept'&&Math.abs(this.vx)>2)){
+      const angle=Math.atan2(this.vy,this.vx);
+      const speed=Math.hypot(this.vx,this.vy);
+      const len=Math.min(25,speed*4);
+      ctx.save();ctx.translate(this.x,this.y);ctx.rotate(angle);
+      ctx.fillStyle=this.state==='sha'?'rgba(255,60,40,0.9)':'rgba(190,220,240,0.8)';
+      ctx.beginPath();
+      ctx.moveTo(len/2,0);ctx.lineTo(-len/2,-4);ctx.lineTo(-len/4,0);ctx.lineTo(-len/2,4);ctx.closePath();
+      ctx.fill();ctx.restore();return;
+    }
+    let sprite;
+    if(this.state==='leak')sprite=spriteCache.leak;
+    else if(this.state==='settled')sprite=spriteCache.settled;
+    else if(this.state==='held')sprite=spriteCache.held;
+    else if(this.purified) sprite=spriteCache.pure; 
+    else if(this.inPool > 0) sprite=spriteCache.pure;
+    else sprite=this.faint?spriteCache.faint:spriteCache.normal;
+    
+    let pulse=1;if(this.state==='settled'||this.state==='held')pulse=1+.2*Math.sin(windTime*.15+this.ph);
+    const drawW=sprite.width*pulse,drawH=sprite.height*pulse;
+    ctx.drawImage(sprite,this.x-drawW/2,this.y-drawH/2,drawW,drawH);
+  }
+}
+
+function houseY(){return H*ENV.houseY}
+function dragonX(t){
+    let base=W*.5;
+    if(state.d==='sheng')base+=W*.1*Math.sin(t*Math.PI*2.2)*(1-t);
+    if(state.d==='ji')base+=W*.03*Math.sin(t*Math.PI*4)*(1-t);
+    if(state.d==='huan')base+=W*.18*Math.sin(t*Math.PI*1.8)*(1-t);
+    if(state.d==='po')base+=W*.05*Math.sin(t*Math.PI*1.5)*(1-t);
+    if(state.d==='pingyang')base+=W*.2*Math.sin(t*Math.PI);
+    if(state.d==='huilong'){
+        base = W * 0.5 + W * 0.35 * Math.sin((1 - t) * Math.PI); // 修正：完美的半圓弧 C 字迴龍，精準顧祖
+    }
+    base+=Math.sin(t*15)*(W*.015)*(1-t);base+=Math.sin(t*32)*(W*.005)*(1-t);
+    return base;
+}
+function dragonY(t){
+    if(state.d==='pingyang') return H*.1 + t * (houseY()-14 - H*.1); 
+    if(state.d==='huilong'){
+        // 修正：迴龍顧祖真實地理軌跡。龍脈先向下潛行，然後向上彎回朝拜祖山
+        // 使用正弦曲線模擬「迴轉向上」的地理形勢，t=0 在上方(祖山)，t=0.5 最低點(過峽)，t=1 回升至穴場
+        const lowestPoint = houseY() + 30; // 最低點比穴場更低
+        const upwardCurve = Math.sin(t * Math.PI); // 0 -> 1 -> 0 的弧形
+        return -20 + upwardCurve * (lowestPoint + 20);
+    }
+    return -20+t*(houseY()-14);
+}
+function riverY(x){
+  let t=(x-W*ENV.riverStart)/(W*(ENV.riverEnd-ENV.riverStart));
+  const c=Math.cos((t-.5)*Math.PI);
+  
+  // 真實風水地理：河道應有自然彎曲變化，避免過於規則
+  if(state.w==='you'){
+    // 玉帶水：環抱有情，河道呈優美弧形環抱穴場，弧度飽滿如腰帶
+    return H*.74+H*.12*c;
+  }
+  else if(state.w==='jiuqu'){
+    // 九曲水：蜿蜒曲折，每曲皆能停蓄真氣，增加高頻細節模擬自然河道
+    return H*.74+H*.06*Math.sin(t*Math.PI*4)+H*.02*Math.sin(t*Math.PI*8);
+  }
+  else if(state.w==='gejiao'){
+    // 割腳水：貼穴太近，淘空地基，添加侵蝕波動模擬水流沖刷
+    return H*.58 + Math.sin(t*Math.PI)*H*.02;
+  }
+  else if(state.w==='fan'){
+    // 反弓水：無情背棄，凸面沖刷穴場，增強背棄形態
+    return H*.8-H*.09*c - H*.03*Math.sin(t*Math.PI);
+  }
+  else if(state.w==='ji'){
+    // 直沖水：湍急直流，無緩衝（使用確定性噪聲避免每幀跳動）
+    return H*ENV.riverBaseY + Math.sin(x*0.02)*H*.005;
+  }
+  else if(state.w==='bazi'){
+    // 八字水：牽鼻洩氣，外擴無情，添加細微波紋
+    return H * (0.65 + Math.abs(x/W - 0.5) * 0.666) + H*.01*Math.sin(t*Math.PI*3);
+  }
+  // 無水或淋頭水：返回明堂下方作為粒子沉積基準，避免無限墜落
+  return H*.74 + H*.15;
+}
+function heatAdd(x,y,a){if(!view.heat)return;const gx=Math.floor(x/W*gw),gy=Math.floor(y/H*gh);if(gx<0||gy<0||gx>=gw||gy>=gh)return;heat[gy*gw+gx]+=a}
+
+function computeScores(){
+  // === 龍法評分 (Dragon) - 來龍為根本 ===
+  let isBadDragon = (state.d === 'si' || state.d === 'po');
+  let D_raw = {sheng:90, si:35, po:20, pingyang:70, huilong:95, ji:55, huan:45}[state.d];
+  
+  // 束氣過峽：真龍必經剝換，但病破龍束氣反遭擠散
+  if(state.shu && !isBadDragon) D_raw += 10;
+  else if(state.shu && isBadDragon) D_raw -= 15;
+  
+  // 枝龍分流：洩散龍氣
+  if(state.fenzhi) D_raw -= 30;
+  
+  // 祖脈傳承：太祖少祖顯現，龍脈源遠流長
+  if(adv2.zutai) D_raw += 15;
+  
+  // 蜂腰鶴膝：真龍過峽特徵
+  if(adv2.fengyao) D_raw += 12;
+  
+  // 平洋龍無水則無界氣
+  if(state.d === 'pingyang' && state.w === 'none') D_raw -= 45;
+  
+  // 護龍夾送：貴龍特徵
+  if(adv2.hulong) D_raw += 12;
+  
+  let D = Math.max(0, Math.min(100, D_raw));
+
+  // === 砂法評分 (Sand) - 護衛關攔 ===
+  const mlScore_raw = {you:35, ya:12, po:-8, none:0}[state.ml];  // 修正：青龍破碎為凶象，應扣分而非加分
+  const mrScore_raw = {you:35, tai:-8, po:-8, none:0}[state.mr];  // 修正：白虎抬頭煞與破碎皆為凶象，應扣分
+  const msScore_raw = {you:35, di:-10, po:-12, none:0}[state.ms]; // 修正：朱雀低陷與破碎皆為凶象，破碎比低陷更凶
+  const mnScore_raw = {you:40, kang:-15, po:-12, none:0}[state.mn];  // 修正：玄武拒屍為大凶之象，應扣分；破碎亦為凶
+  
+  // 平洋龍以水為砂，不強求山砂；山龍需四象完備
+  let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore_raw + mrScore_raw + msScore_raw + mnScore_raw);
+  
+  // 案山關攔：正面遮蔽（與朱雀前案重複時酌減）
+  baseS += (elem.an ? 12 : 0);
+  // 朝山拱照：遠方朝拜
+  baseS += (elem.chao ? 10 : 0);
+  // 主山/玄武實體要素
+  baseS += (elem.zhu ? 10 : 0);
+  baseS += (elem.xu ? 10 : 0);
+  
+  // 凹風煞：兩側受風吹襲
+  if(state.ao) baseS -= 40;
+  // 探頭砂：暗箭傷人
+  if(state.tantou) baseS -= 30;
+  
+  // 鬼曜星：強龍生曜為吉，弱龍生曜盜氣；並檢查五行生剋（鬼曜屬火，忌水火相衝）
+  if(state.guiyao) {
+    if(['po','si','huan'].includes(state.d)) baseS -= 25;
+    else {
+      // 鬼曜本質屬火，需配合星體五行
+      if(state.xing === 'shui') baseS += 5;   // 水火相衝，吉性大減
+      else if(state.xing === 'huo') baseS += 18;  // 火曜相助，大吉
+      else baseS += 12;  // 金木土星平吉
+    }
+  }
+  
+  // 護龍夾送增吉
+  if(adv2.hulong) baseS += 15;
+  // 擎拳煞：頂心沖射
+  if(adv2.qingquan) baseS -= 30;
+  // 龍虎相鬥：逼壓交加
+  if(state.ml === 'ya' && state.mr === 'tai') baseS -= 40;
+  // 玄武拒屍：後山高昂無情
+  if(state.mn === 'kang') baseS -= 35;
+  // 朱雀低陷：前案空虛（已於 msScore_raw 給 -10 分，此處不再重複扣分）
+  
+  let S = Math.max(0, Math.min(100, baseS));
+
+  // === 水法評分 (Water) - 界氣止氣 ===
+  let validGuards = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
+  let waterExitScore = 0;
+  const isBadWater2 = ['gejiao','fan','bazi','ji'].includes(state.w);
+  
+  // 水口神獸：獅象羅星華表禽星，皆為關攔之器
+  // 修正：凶水格局更需要水口攔截，但大水直衝時神獸功效應大幅削減（物理上難以完全抵禦）
+  if(state.w !== 'none' && state.w !== 'lintou' && validGuards){
+    if(elem.luo) waterExitScore += 15;
+    if(elem.hua) waterExitScore += 15;
+    if(adv2.shixiang) waterExitScore += 25;
+    if(adv2.qin) waterExitScore += 10;
+    // 凶水格局，水口神獸仍保持 60% 功效（凶水更需攔截）
+    if(isBadWater2) waterExitScore *= 0.60;
+    // 直衝湍急水（ji）屬大水沖擊，神獸功效再減至 30%（物理上難以完全抵禦高速水流）
+    if(state.w === 'ji') waterExitScore *= 0.50;
+  }
+
+  // 基础水形評分
+  let baseWa = {you:65, jiuqu:95, gejiao:8, lintou:0, none:35, ji:12, fan:8, bazi:5}[state.w];
+  
+  // 三叉水聚、半月池蓄：人工水法加分應適中，不應過高；平洋龍時三叉水需有水口保護才算吉
+  if(elem.san && !isBadWater2 && (state.d !== 'pingyang' || elem.luo || elem.hua || adv2.shixiang)) baseWa += 12;  // 修正：三叉水從 +20 降為 +12，平洋龍時需有水口保護才算吉水
+  if(elem.yue && !isBadWater2) baseWa += 8;   // 修正：半月池從 +15 降為 +8，人工水法不應超過天然吉水
+  
+  let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
+
+  // === 穴法評分 (Xue) - 乘氣之口 ===
+  let xueScore = 0;
+  if(elem.xia) {
+    // 窩鉗穴：金水星結窩大吉，木火星結窩犯剋
+    if(state.xue === 'wo') {
+      xueScore = (state.d === 'ji' || state.d === 'sheng') ? 18 : 5;
+      if(state.xing === 'jin' || state.xing === 'shui') xueScore += 18;
+      if(state.xing === 'mu') xueScore -= 18;
+      if(state.xing === 'huo') xueScore -= 25;
+    }
+    // 乳突穴：木土星結乳大吉，金水火結突犯煞
+    else if(state.xue === 'ru') {
+      xueScore = (state.d === 'pingyang' || state.d === 'huan') ? 22 : -5;
+      if(state.xing === 'mu' || state.xing === 'tu') xueScore += 18;
+      if(state.xing === 'jin' || state.xing === 'shui') xueScore -= 40; // 加重金水星結乳突之扣分
+      if(state.xing === 'huo') xueScore -= 50;
+    }
+    // 鉗穴：急來緩受，需配合案山明堂
+    else if(state.xue === 'qian') {
+      xueScore = (elem.an && elem.mt) ? 15 : -10;
+      if(state.xing === 'jin' || state.xing === 'shui') xueScore += 12;
+      if(state.xing === 'mu') xueScore -= 15;
+      if(state.xing === 'huo') xueScore -= 30;
+      if(state.xing === 'tu') xueScore += 8;
+    }
+    // 突穴：平洋龍專用，高山龍忌用（高山莫安突，古訣明示大凶）
+    else if(state.xue === 'tu') {
+      xueScore = (state.d === 'pingyang') ? 20 : -40;  // 修正：高山龍用突穴從 -15 改為 -40，違反古訣應重罰
+      if(state.xing === 'jin' || state.xing === 'shui') xueScore -= 35;
+      if(state.xing === 'mu') xueScore += 10;
+      if(state.xing === 'huo') xueScore -= 40;
+      if(state.xing === 'tu') xueScore += 15;
+    }
+    
+    // 五行星體本質評分
+    let xingScore = 0;
+    if(state.xing === 'jin') xingScore = 12;
+    else if(state.xing === 'mu') xingScore = 12;
+    else if(state.xing === 'shui') xingScore = 8;
+    else if(state.xing === 'tu') xingScore = 12;
+    else if(state.xing === 'huo') {
+      // 火星本質燥烈，即使有吉水制化，結穴仍多凶少吉（修正：真實風水火星難結真穴）
+      const hasGoodWaterControlSc = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
+      xingScore = hasGoodWaterControlSc ? -35 : -55; // 修正：有水制化仍扣 35 分，無水則扣 55 分，反映火星高風險
+    }
+    xueScore += xingScore;
+  }
+  
+  // 穴場基本要素：太極暈、穴星、明堂
+  let X_raw = (elem.taiji ? 28 : 0) + (elem.xia ? 28 : 0) + (elem.mt ? 22 : 0);
+  X_raw += (elem.xia ? xueScore : 0);
+  
+  // 鉗穴：急來緩受
+  if(adv2.qian) X_raw += 15;
+  // 天斬煞：罡風劈穴
+  if(adv2.tianzhan) X_raw -= 35;
+  // 傾瀉：氣隨堂泄
+  if(adv2.qing) X_raw -= 30;
+  
+  // 修正：星穴相剋時保留負分資訊，不過度截斷為 0
+  // 讓嚴重相剋 (-50 分) 與單純沒結穴 (0 分) 能區分開來
+  let X_base = !elem.xia ? Math.min(25, Math.max(0, X_raw)) : X_raw;
+  // 僅在最終輸出時限制顯示範圍，內部計算保留負值
+  let X = Math.max(-50, Math.min(100, X_base));
+  
+  // === 向法評分 (Xiang) - 納氣之向 ===
+  // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
+  const hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
+  let Xg_base = state.face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
+  
+  // 吉水朝堂加分
+  let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
+  // 案山關攔加分
+  let anshanBonus = elem.an ? 12 : 0;
+  // 官星貴氣加分，並檢查五行生剋（官星屬土，需配合星體五行）
+  let guanBonus = adv2.guan ? 15 : 0;
+  if(adv2.guan) {
+    // 官星本質屬土，需配合星體五行
+    if(state.xing === 'mu') guanBonus -= 8;   // 木剋土，官星受制
+    else if(state.xing === 'jin') guanBonus += 8;  // 金洩土，官星得洩秀
+    else if(state.xing === 'shui') guanBonus -= 5;  // 土剋水，官星耗氣
+    else if(state.xing === 'huo') guanBonus += 10;  // 火生土，官星得生
+    // 土星與官星比和，不增不減
+  }
+  
+  // 向水局：全盤加分
+  // 背水局：僅平洋龍得吉（需有水朝），山龍背水無加分
+  let Xg = state.face 
+    ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus)
+    : Math.min(100, Xg_base + (state.d === 'pingyang' && state.w !== 'none' ? waterBonus : 0) + (elem.an ? 8 : 0));
+  
+  // 無穴星則向法無從談起
+  if(!elem.xia) Xg *= 0.35;
+  
+  // === 一票否決機制 (Veto) - 大凶格局 ===
+  let vetoPenalty = 0;
+  if(state.w === 'lintou') vetoPenalty = 55;  // 淋頭水滅頂
+  // 平洋龍地勢平坦，淋頭水煞氣較高山龍為輕（修正：平洋龍淋頭水懲罰減半）
+  if(state.w === 'lintou' && state.d === 'pingyang') vetoPenalty = 28;
+  if(state.w === 'fan') vetoPenalty += 35;     // 反弓水射穴一票否決加扣
+  if(state.d === 'po' && state.w === 'gejiao') vetoPenalty += 35;  // 破龍遇割腳，雪上加霜
+  if(state.ml === 'po' && state.mr === 'po' && state.ao) vetoPenalty += 30;  // 破碎逢風
+  
+  // === 特殊吉格加分 (Special Auspicious Patterns) - 直接加入評分 ===
+  let xiangBonus = 0;
+  const isBadWaterRuleSc = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.an && elem.chao && state.face) xiangBonus += 15;
+  // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
+  // 修正：增加穴形檢查，避免誤判；並要求案山完備
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu') && elem.an){
+    X_raw += 10;
+  }
+  
+  // 修正：五訣雷達圖與聚氣指數邏輯一致
+  // 返回原始分數（含負值），讓雷達圖能反映真實吉凶程度
+  return [
+    Math.max(0, D - vetoPenalty),
+    Math.max(-50, Math.min(100, X + xiangBonus) - vetoPenalty * 0.5),
+    Math.max(0, S - vetoPenalty * 0.3),
+    Math.max(0, Wa - vetoPenalty * 0.5),
+    Math.max(0, Xg + xiangBonus - vetoPenalty * 0.3)
+  ];
+}
+const D_DESC={sheng:'主幹道通達',si:'死胡同困滯',po:'破碎路崩瀉',pingyang:'支路網潛行',huilong:'環狀路顧祖',ji:'高速道直入',huan:'慢速道退敗'};
+const M_DESC=(ml,mr,ms,mn)=>`四象：後方${mn==='you'?'靠山樓':mn==='kang'?'高壓煞 (凶)':mn==='po'?'破碎地':'無'}｜左側${ml==='you'?'青龍樓':ml==='ya'?'逼壓樓':ml==='po'?'破損樓':'無'}｜右側${mr==='you'?'白虎樓':mr==='tai'?'抬頭煞':mr==='po'?'破損樓':'無'}｜前方${ms==='you'?'案山樓':ms==='di'?'低陷地':ms==='po'?'破碎地':'無'}`;
+const W_DESC={you:'環城河 (凹吉)',jiuqu:'九曲河 (極吉)',gejiao:'割腳渠 (極凶)',lintou:'淋頭瀑 (極凶)',ji:'直沖溝 (快水)',fan:'反弓河 (凸凶)',bazi:'八字渠 (凶)',none:'無水為界'};
+const D_TAG={sheng:['主幹・通','#7fb08f'],si:['死巷・困','#d8a24a'],po:['碎路・瀉','#c04a3a'],pingyang:['支路・潛','#7fb08f'],huilong:['環路・顧','#b98a2e'],ji:['高速・沖','#d8a24a'],huan:['慢道・退','#d8a24a']};
+
+function updateUI(){
+  const sc=computeScores(),avg=sc.reduce((a,b)=>a+b,0)/5;
+  const multiplier=getGlobalMultiplier();
+  const capacity=getCapacityLimit();
+  let rating,color,tail;
+  const effectiveAvg=avg*multiplier;
+  const hasSideSands=(state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
+  const isXueMatch = !( (state.xue==='wo' && (state.xing==='mu'||state.xing==='huo')) || (state.xue==='ru' && (state.xing==='jin'||state.xing==='shui'||state.xing==='huo')) );
+
+  if(state.d==='si' || state.d==='po'){
+    rating='大凶・來龍枯潰';color='#a63a2b';
+    tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。';
+  }
+  else if(state.d==='pingyang' && state.w==='none'){
+    rating='大凶・平洋無水';color='#a63a2b';
+    tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。';
+  }
+  else if(elem.xia && !isXueMatch){
+    rating='大凶・星穴相剋';color='#a63a2b';
+    tail='星體與穴形犯嚴重形煞相剋（如金水火星結乳突、木火星結窩），穴場化為凶煞，無法聚氣。';
+  }
+  else if(effectiveAvg>=70 && elem.xia && elem.mt && hasSideSands){rating='上吉・龍真穴的';color='#b98a2e';tail='巒頭完美，生氣凝聚，上上之局。'}
+  else if(effectiveAvg>=35){
+    if(!elem.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
+    else if(!elem.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
+    else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail='山龍左右無護砂關攔，兩邊受風，生氣難聚。';}
+    else{rating='中平・有瑕';color='#3f6b52';tail='格局有瑕，聚散互見。';}
+  }
+  else{
+    if(!elem.xia){rating='大凶・無穴可立';color='#a63a2b';tail='山龍無穴星融結，煞氣肆橫，不可用。';}
+    else{rating='大凶・不聚';color='#a63a2b';tail='煞氣肆橫，生氣耗散。';}
+  }
+  const r=document.getElementById('rating');r.textContent=rating;r.style.background=color;
+  let multiplierNote=multiplier<1?`【總加權 ×${multiplier.toFixed(1)}】`:'';
+  let wDescText = W_DESC[state.w];
+  if(elem.yue) wDescText += '(半月池)';
+  if(elem.san) wDescText += '(三叉水)';
+
+  let shaNotes = [];
+  if(obstacles.length > 0) shaNotes.push(`手動煞氣(${obstacles.length}處)`);
+  if(adv2.qing) shaNotes.push('明堂傾瀉');
+  if(adv2.tianzhan) shaNotes.push('天斬煞');
+  if(state.ao) shaNotes.push('凹風煞');
+  if(state.fenzhi) shaNotes.push('枝龍分流');
+  if(state.ml==='ya') shaNotes.push('青龍逼壓');
+  if(state.mr==='tai') shaNotes.push('白虎抬頭');
+  if(state.w==='gejiao') shaNotes.push('割腳水');
+  if(state.w==='lintou') shaNotes.push('淋頭水');
+  if(state.w==='fan') shaNotes.push('反弓水');
+  if(state.w==='bazi') shaNotes.push('八字水');
+  if(adv2.qingquan) shaNotes.push('擎拳煞');
+  if(state.tantou) shaNotes.push('探頭煞');
+  let shaStr = shaNotes.length > 0 ? `【犯煞：${shaNotes.join('、')}】` : '';
+  
+  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr,state.ms,state.mn)}；水：${wDescText}；向：${state.face?'向水':'背水'}。${shaStr}${multiplierNote}${tail}`;
+  
+  const st=document.getElementById('status');st.innerHTML='';
+  const isCangFeng = state.ml==='you' && state.mr==='you' && !state.ao && !adv2.tianzhan && !adv2.qingquan;
+  const cangFengTag = (state.d === 'pingyang' && !state.ao && !adv2.tianzhan) ? ['藏風・平洋', '#7fb08f'] : (isCangFeng ? ['藏風・得', '#7fb08f'] : ['藏風・瑕', '#d8a24a']);
+  
+  const xingLabels = {jin:'金星',mu:'木星',shui:'水星',huo:'火星(煞)',tu:'土星'};
+  const xueLabels = {none:'無',wo:'窩鉗',ru:'乳突'};
+  const xueStr = elem.xia ? (`星體・${xingLabels[state.xing]}` + (state.xue !== 'none' ? ` (${xueLabels[state.xue]})` : '')) : '穴星・未結';
+  // isXueMatch 已在第 1322 行定義，此處直接使用
+  const xueColor = !elem.xia ? '#d8a24a' : (state.xing==='huo' || !isXueMatch ? '#c04a3a' : '#7fb08f');
+  
+  let dTag = [...D_TAG[state.d]];
+  if(state.d === 'pingyang' && state.w === 'none') { dTag[0] = '平洋・無水'; dTag[1] = '#c04a3a'; }
+  
+  const isBadWaterLocal = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  const isJieQi = (state.w === 'you' || state.w === 'jiuqu' || (elem.yue && !isBadWaterLocal) || (elem.san && !isBadWaterLocal));
+  const jieQiTag = [isJieQi ? '界氣・得' : '界氣・散', isJieQi ? '#7fb0c9' : '#c04a3a'];
+  
+  const faceGood = (state.d === 'pingyang') ? !state.face : state.face;
+  const faceTagStr = state.face ? '坐向・向水' : '坐向・背水';
+  const faceTagColor = faceGood ? '#7fb08f' : '#c04a3a';
+
+  const tags=[dTag, cangFengTag, jieQiTag, [xueStr,xueColor], [faceTagStr, faceTagColor]];
+  if(adv2.qing) tags.push(['形煞・傾瀉', '#c04a3a']);
+  if(adv2.tianzhan) tags.push(['形煞・天斬', '#c04a3a']);
+  if(state.ao) tags.push(['形煞・凹風', '#c04a3a']);
+  if(state.fenzhi) tags.push(['龍勢・分流洩氣', '#c04a3a']);
+  if(adv2.qingquan) tags.push(['形煞・擎拳', '#c04a3a']);
+  if(state.tantou) tags.push(['形煞・探頭', '#c04a3a']);
+  tags.forEach(t=>{const s=document.createElement('span');s.textContent=t[0];s.style.borderColor=t[1];s.style.color=t[1];st.appendChild(s)});
+  
+  
+  let autoDisabledChanged = false;
+
+  // 束氣：死龍/破龍不宜強行束氣
+  const shuBtn = document.querySelector('[data-k="shu"]');
+  if(shuBtn){
+    const isBadDragon = (state.d === 'si' || state.d === 'po');
+    shuBtn.disabled = isBadDragon;
+    if(isBadDragon && state.shu){
+      state.shu = false;
+      adv.shu = false;  // 同步更新 adv 狀態
+      shuBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+  
+  // 分流：平洋龍不宜分流
+  const fenzhiBtn = document.querySelector('[data-k="fenzhi"]');
+  if(fenzhiBtn){
+    const isPingyang = (state.d === 'pingyang');
+    fenzhiBtn.disabled = isPingyang;
+    if(isPingyang && state.fenzhi){
+      state.fenzhi = false;
+      adv.fenzhi = false;  // 同步更新 adv 狀態
+      fenzhiBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+  
+  // 鬼曜：死龍/破龍/緩龍生曜為盜氣，但仍允許啟用（僅評分扣分）
+  const guiyaoBtn = document.querySelector('[data-k="guiyao"]');
+  if(guiyaoBtn){
+    // 鬼曜在所有龍勢下都可啟用，但弱龍會扣分
+    // 此處不禁用，僅在評分系統處理
+  }
+  
+  // 手動煞氣模式：淋頭水或無水時禁用（無法放置人為障礙物）
+  const shaModeBtn = document.querySelector('[data-k="shaMode"]');
+  if(shaModeBtn){
+    const isShaModeDisabled = (state.w === 'none' || state.w === 'lintou');
+    shaModeBtn.disabled = isShaModeDisabled;
+    if(isShaModeDisabled && state.shaMode){
+      state.shaMode = false;
+      shaModeBtn.classList.remove('on');
+      cv.style.cursor = 'default';
+      autoDisabledChanged = true;
+    }
+  }
+
+  const tantouBtn = document.querySelector('[data-k="tantou"]');
+  if(tantouBtn) tantouBtn.disabled = !elem.an;
+  if(!elem.an && state.tantou) {
+      state.tantou = false;
+      if(tantouBtn) tantouBtn.classList.remove('on');
+      autoDisabledChanged = true;
+  }
+  const guanBtn = document.querySelector('[data-k="guan"]');
+  if(guanBtn) guanBtn.disabled = !elem.an;
+  if(!elem.an && adv2.guan) {
+      adv2.guan = false;
+      if(guanBtn) guanBtn.classList.remove('on');
+      autoDisabledChanged = true;
+  }
+
+  
+  // 凹風煞：龍虎砂破碎、無砂、逼壓、抬頭，或砂手太低/太遠都會受風吹襲
+  // 修正：護砂完備（青龍白虎皆有情的完整四象局）時，地理上不可能形成凹風煞，應強制禁用
+  const aoBtn = document.querySelector('[data-k="ao"]');
+  if(aoBtn){
+    const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none'||state.ml==='ya'||state.mr==='tai'||!elem.an);
+    aoBtn.disabled = !hasGap; // 修正：護砂完備時禁用凹風煞，物理上不合理
+    if(!hasGap && state.ao){
+      state.ao = false;
+      adv.ao = false;  // 同步更新 adv 狀態
+      aoBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+  
+  // 天斬煞：需要穴星作為目標
+  const tianzhanBtn = document.querySelector('[data-k="tianzhan"]');
+  if(tianzhanBtn){
+    const noTarget = !elem.xia;
+    tianzhanBtn.disabled = noTarget;
+    if(noTarget && adv2.tianzhan){
+      adv2.tianzhan = false;
+      tianzhanBtn.classList.remove('on');
+      autoDisabledChanged = true;
+    }
+  }
+
+  const qingBtn = document.querySelector('[data-k="qing"]');
+  if(qingBtn) qingBtn.disabled = !elem.mt;
+  if(!elem.mt && adv2.qing) {
+      adv2.qing = false;
+      if(qingBtn) qingBtn.classList.remove('on');
+      autoDisabledChanged = true;
+  }
+  
+  
+  const qingquanBtn = document.querySelector('[data-k="qingquan"]');
+  const noSands = (state.ml === 'none' && state.mr === 'none');
+  if(qingquanBtn) qingquanBtn.disabled = noSands;
+  if(noSands && adv2.qingquan) {
+      adv2.qingquan = false;
+      if(qingquanBtn) qingquanBtn.classList.remove('on');
+      autoDisabledChanged = true;
+  }
+
+  
+  // 半月池：無水時仍可人工開鑿聚氣，僅在淋頭水時禁用
+  const yueBtn = document.querySelector('[data-k="yue"]');
+  if(yueBtn) {
+      const isYueDisabled = (state.w === 'lintou');
+      yueBtn.disabled = isYueDisabled;
+      if(isYueDisabled && elem.yue) {
+          elem.yue = false;
+          yueBtn.classList.remove('on');
+          autoDisabledChanged = true;
+      }
+  }
+
+  // 其他依附於自然河道的水口/水法元件（無水或淋頭水時禁用）
+  document.querySelectorAll('.water-dep').forEach(b=>{
+      const isDisabled = (state.w === 'none' || state.w === 'lintou');
+      b.disabled = isDisabled;
+      if(isDisabled && b.classList.contains('on')) {
+          b.classList.remove('on');
+          const k = b.dataset.k;
+          const g = b.dataset.g;
+          if(g === 'elem') elem[k] = false;
+          else if(g === 'adv2') adv2[k] = false;
+          autoDisabledChanged = true;
+      }
+  });
+  if(state.w === 'lintou' && elem.yue) {
+      elem.yue = false;
+      const yueBtn = document.querySelector('[data-k="yue"]');
+      if(yueBtn) yueBtn.classList.remove('on');
+  }
+
+  if(autoDisabledChanged) bgDirty = true;
+
+  document.getElementById('cap-num').textContent=`${capacity}/×${multiplier.toFixed(1)}`;
+  document.getElementById('cap-fill').style.width=capacity+'%';
+}
+
+document.querySelectorAll('.seg').forEach(seg=>{
+  if(!seg.dataset.k||seg.id==='face-seg')return;
+  seg.addEventListener('click',e=>{
+    const b=e.target.closest('button');if(!b||b.classList.contains('tog')||b.classList.contains('preset'))return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    const oldW=state.w;state[seg.dataset.k]=b.dataset.v;
+    if(seg.dataset.k==='w'){
+      if(state.w!=='you'&&state.w!=='jiuqu'){ps.forEach(p=>{if(p.state==='settled'){p.state='swept';p.dir=p.x<W/2?-1:1}})}
+      if(oldW==='lintou'&&state.w!=='lintou'){ps.forEach(p=>{if(p.vy>3)p.vy=1.5})}
+      if(state.w==='none'){
+        ps.forEach(p=>{if(p.state==='swept')p.state='moving'});
+        if(elem.luo||elem.hua||elem.san||adv2.shixiang||adv2.qin){
+          elem.luo=false;elem.hua=false;elem.san=false;
+          adv2.shixiang=false; adv2.qin=false;
+          document.querySelectorAll('.tog').forEach(x=>{
+            if(['luo','hua','san','shixiang','qin'].includes(x.dataset.k)) x.classList.remove('on');
+          });
+        }
+      }
+    }
+    if(seg.dataset.k==='d'){
+      // 切換龍勢時清空舊粒子陣列，讓新龍勢的氣場順暢生成
+      ps.length = 0;
+      if(heat) heat.fill(0); // 清空熱力圖避免殘影
+    }
+    bgDirty=true;
+    updateUI();
+  });
+  const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on');
+});
+
+document.querySelectorAll('.tog').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const k=b.dataset.k;
+    
+    // 如果按鈕被禁用，直接返回不處理
+    if(b.disabled) return;
+
+    // 水口/水法元件：無水或淋頭水時不可啟用（已在地形上禁用，此為雙重防護）
+    if(['luo','hua','san','shixiang','qin'].includes(k)&&(state.w==='none'||state.w==='lintou')){
+      b.classList.remove('on');
+      return;
+    }
+    if(k==='yue'&&state.w==='lintou'){
+      b.classList.remove('on');
+      return;
+    }
+    
+    // 依附案山的元件：無案山時不可啟用
+    if(['tantou','guan'].includes(k)&&!elem.an){
+      b.classList.remove('on');
+      return;
+    }
+    
+    // 依附明堂的元件：無明堂時不可啟用
+    if(k==='qing'&&!elem.mt){
+      b.classList.remove('on');
+      return;
+    }
+    
+    // 擎拳煞：必須有龍虎砂才能形成
+    if(k==='qingquan'&&state.ml==='none'&&state.mr==='none'){
+      b.classList.remove('on');
+      return;
+    }
+    
+    // 天斬煞：需要穴星作為目標
+    if(k==='tianzhan'&&!elem.xia){
+      b.classList.remove('on');
+      return;
+    }
+    
+    // 凹風煞：需要龍虎砂其中一側破碎或無砂才能形成缺口
+    if(k==='ao'){
+      const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
+      if(!hasGap){
+        b.classList.remove('on');
+        return;
+      }
+    }
+    
+    const o=b.dataset.g==='elem'?elem:b.dataset.g==='adv2'?adv2:b.dataset.g==='adv'?adv:b.dataset.g==='view'?view:state;
+    o[k]=!o[k];
+    // 同步 update state 物件，修復 adv 與 state 變數不同步的 Bug
+    if(k in state) state[k] = o[k];
+    // 若為 adv 開關，同時更新 UI 按鈕狀態
+    if(b.dataset.g === 'adv' && k !== 'shaMode') {
+      b.classList.toggle('on', o[k]);
+    } else {
+      b.classList.toggle('on',o[k]);
+    }
+    if(k==='shaMode')cv.style.cursor=o[k]?'crosshair':'default';
+    if(k==='heat'&&!view.heat){if(heat)heat.fill(0)}
+    bgDirty=true;
+    updateUI();
+  });
+});
+
+const fseg=document.getElementById('face-seg');
+fseg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.face=b.dataset.f==='1';bgDirty=true;updateUI()});
+
+let simTimeScale = 1;
+const tseg = document.getElementById('time-seg');
+if(tseg) {
+    tseg.addEventListener('click', e => {
+        const b = e.target.closest('button'); if(!b) return;
+        tseg.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on');
+        simTimeScale = parseFloat(b.dataset.t);
+    });
+}
+
+const stateKeys=['d','ml','mr','ms','mn','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
+const elemKeys=['xia','an','chao','zhu','xu','luo','hua','mt','taiji','san','yue'];
+const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
+const advKeys=['ao','shu','fenzhi','tantou','guiyao'];  // 用於同步 adv 狀態
+
+// 隨機生成格局 - 已補全所有地形與穴場開關的隨機邏輯，並加上基本風水相容性檢查
+function generateRandomPreset(){
+  const dragonOpts=['sheng','pingyang','huilong','ji','huan','si','po'];
+  const mnOpts=['you','kang','po','none']; // 後山：玄武垂頭、拒屍、破碎、無
+  const mlOpts=['you','ya','po','none']; // 左砂：青龍有情、逼壓、破碎、無
+  const mrOpts=['you','tai','po','none']; // 右砂：白虎有情、抬頭煞、破碎、無
+  const msOpts=['you','di','po','none']; // 前案：朱雀翔舞、低陷、破碎、無
+  const waterOpts=['you','jiuqu','gejiao','lintou','ji','fan','bazi','none'];
+  const xingOpts=['jin','mu','shui','huo','tu'];
+  const xueOpts=['none','wo','qian','ru','tu'];
+  
+  const p = {
+    d: dragonOpts[Math.floor(Math.random()*dragonOpts.length)],
+    mn: mnOpts[Math.floor(Math.random()*mnOpts.length)],
+    ml: mlOpts[Math.floor(Math.random()*mlOpts.length)],
+    mr: mrOpts[Math.floor(Math.random()*mrOpts.length)],
+    ms: msOpts[Math.floor(Math.random()*msOpts.length)],
+    w: waterOpts[Math.floor(Math.random()*waterOpts.length)],
+    xing: xingOpts[Math.floor(Math.random()*xingOpts.length)],
+    xue: xueOpts[Math.floor(Math.random()*xueOpts.length)],
+    fenzhi: Math.random()<0.3,
+    tantou: Math.random()<0.2,
+    guiyao: Math.random()<0.4,
+    ao: Math.random()<0.25,
+    shu: Math.random()<0.6,
+    san: Math.random()<0.35,
+    yue: Math.random()<0.3,
+    face: Math.random()<0.7,
+    luo: Math.random()<0.3,
+    hua: Math.random()<0.25,
+    hulong: Math.random()<0.35,
+    fengyao: Math.random()<0.5,
+    zutai: Math.random()<0.25,
+    guan: Math.random()<0.3,
+    qin: Math.random()<0.25,
+    qian: Math.random()<0.3,
+    qing: Math.random()<0.2,
+    shixiang: Math.random()<0.3,
+    tianzhan: Math.random()<0.15,
+    qingquan: Math.random()<0.2,
+    // 穴場核心要素隨機生成
+    xia: Math.random()<0.85,
+    an: Math.random()<0.75,
+    chao: Math.random()<0.5,
+    zhu: Math.random()<0.8,
+    xu: Math.random()<0.7,
+    mt: Math.random()<0.8,
+    taiji: Math.random()<0.6,
+  };
+  
+  // 風水相容性檢查：無水時移除水口元件
+  if(p.w === 'none' || p.w === 'lintou') {
+    p.luo = false;
+    p.hua = false;
+    p.qin = false;
+    p.shixiang = false;
+  }
+  
+  // 死龍/破龍不宜束氣
+  if(p.d === 'si' || p.d === 'po') {
+    p.shu = false;
+  }
+  
+  // 平洋龍不宜分流
+  if(p.d === 'pingyang') {
+    p.fenzhi = false;
+  }
+  
+  // 穴場核心要素（確保基本風水結構）
+  if(!p.xia && Math.random() < 0.7) p.xia = true; // 70% 機率有穴星
+  if(!p.mt && Math.random() < 0.6) p.mt = true;  // 60% 機率有明堂
+  
+  // UI/UX 一致性檢查：確保地形選項與按鈕對應
+  // 後山 (mn) 只能是 you/kang/po/none
+  if(!['you','kang','po','none'].includes(p.mn)) p.mn = 'none';
+  // 左砂 (ml) 只能是 you/ya/po/none
+  if(!['you','ya','po','none'].includes(p.ml)) p.ml = 'none';
+  // 右砂 (mr) 只能是 you/tai/po/none
+  if(!['you','tai','po','none'].includes(p.mr)) p.mr = 'none';
+  // 前案 (ms) 只能是 you/di/po/none
+  if(!['you','di','po','none'].includes(p.ms)) p.ms = 'none';
+  
+  return p;
+}
+
+const presets={
+  perfect:{d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'jiuqu',xing:'jin',xue:'wo',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:true,yue:true,face:true,luo:true,hua:true,hulong:true,fengyao:true,zutai:true,guan:true,qin:true,qian:true,qing:false,shixiang:true,tianzhan:false,qingquan:false},
+
+gejiao:{d:'sheng',ml:'you',mr:'tai',ms:'you',mn:'you',w:'gejiao',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false},
+  huilong:{d:'huilong',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'ru',chao:true,fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:true,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:true,tianzhan:false,qingquan:false},
+  tianzhan:{d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',fenzhi:false,tantou:false,guiyao:true,ao:false,shu:true,san:false,yue:false,face:true,luo:false,hua:false,hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:true,shixiang:false,tianzhan:true,qingquan:false}
+};
+document.querySelectorAll('.preset').forEach(b=>{
+  b.addEventListener('click',()=>{
+    let p;
+    if(b.id==='random-preset'){
+      p=generateRandomPreset();
+    }else{
+      p=presets[b.dataset.preset];
+    }
+    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);Object.assign(adv,baseAdv);
+    stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
+    elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
+    adv2Keys.forEach(k=>{if(k in p)adv2[k]=p[k]});
+    advKeys.forEach(k=>{if(k in p)adv[k]=p[k]});  // 同步 adv 狀態
+    if('face' in p) state.face = p.face;
+    obstacles.length=0;shockwaves.length=0;bgDirty=true;cv.style.cursor=state.shaMode?'crosshair':'default';
+    document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.tog').forEach(x=>{
+        const g=x.dataset.g;const k=x.dataset.k;
+        const o=g==='elem'?elem:g==='adv2'?adv2:g==='view'?view:state;
+        if(k) x.classList.toggle('on',o[k]);
+    });
+    document.querySelectorAll('.seg').forEach(seg=>{if(seg.dataset.k){const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on')}});
+    const fseg=document.getElementById('face-seg');if(fseg){fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));fseg.querySelector(`[data-f="${state.face?'1':'0'}"]`).classList.add('on')}
+    
+    // 水口元件狀態同步：如果 preset 未啟用水口但啟用了獅象，顯示提示
+    if(p.shixiang && !p.luo && !p.hua && !p.qin && state.w !== 'none' && state.w !== 'lintou') {
+        console.log('獅象把門已達成水口關攔，無需額外設置羅星/華表');
+    }
+    
+    ps.length=0;
+    if(heat) heat.fill(0); // 清空熱力圖避免殘影
+    updateUI();
+  });
+});
+
+cv.addEventListener('click',e=>{
+  if(!state.shaMode)return;
+  const rect=cv.getBoundingClientRect();
+  const nx=(e.clientX-rect.left)/rect.width;
+  let ny=(e.clientY-rect.top)/rect.height;
+  
+  // 2.5D 模式下點擊判定修正：統一使用視覺座標進行碰撞檢測
+  let visualNx = nx, visualNy = ny;
+  if(view.tilt) {
+      // 反向映射：將視覺壓縮的 Y 座標還原回物理空間
+      ny = 0.5 + (ny - 0.5) / 0.6;
+      if(ny < 0 || ny > 1) return; // 點擊在浮島外的虛空處無效
+      // 計算視覺座標下的障礙物位置（用於碰撞檢測）
+      visualNy = 0.5 + (ny - 0.5) * 0.6;
+  }
+  
+  let removed=false;
+  for(let i=obstacles.length-1;i>=0;i--){
+    // 修正：在 2.5D 模式下，使用視覺座標進行碰撞檢測
+    const obsVisualY = view.tilt ? (0.5 + (obstacles[i].ny - 0.5) * 0.6) : obstacles[i].ny;
+    const dx=(obstacles[i].nx*W)-(nx*W),dy=(obsVisualY*H)-(visualNy*H);const r=obstacles[i].rRatio*baseDim;
+    if(dx*dx+dy*dy<(r*1.1)*(r*1.1)){obstacles.splice(i,1);removed=true;break}
+  }
+  if(!removed&&obstacles.length<5){
+    obstacles.push({nx,ny,rRatio:.03});
+    shockwaves.push({x:nx*W,y:ny*H,r:0,maxR:baseDim*.08,life:25});
+  }
+  bgDirty=true;
+  updateUI();
+});
+
+function drawBgTerrain(bctx){
+  bctx.save();const N=ENV.dragonSegments;
+  const fontSize=Math.max(10,Math.min(14,W*.012));
+  bctx.font=`${fontSize}px "Noto Serif TC",serif`;
+  
+  const _fillText = (t, x, y) => {
+    bctx.save();
+    bctx.shadowColor = 'rgba(0,0,0,0.9)';
+    bctx.shadowBlur = 4;
+    bctx.shadowOffsetX = 1;
+    bctx.shadowOffsetY = 1;
+    if(typeof bctx.fillStyle === 'string') bctx.fillStyle = bctx.fillStyle.replace(/0?\.\d+\)/, '1)');
+    bctx.fillText(t, x, y);
+    bctx.restore();
+  };
+
+  if(adv2.hulong){
+      bctx.strokeStyle='rgba(90,140,100,.2)';bctx.lineWidth=4;
+      bctx.beginPath();bctx.moveTo(dragonX(.92)-W*.1,dragonY(.92));bctx.quadraticCurveTo(W*.2,H*.4,W*.1,H*.32);bctx.stroke();
+      bctx.beginPath();bctx.moveTo(dragonX(.92)+W*.1,dragonY(.92));bctx.quadraticCurveTo(W*.8,H*.4,W*.9,H*.32);bctx.stroke();
+  }
+
+  if(state.fenzhi){
+      bctx.strokeStyle='rgba(220,120,100,.6)';bctx.lineWidth=3;bctx.setLineDash([4,4]);
+      const fx1=dragonX(.25), fy1=dragonY(.25);
+      bctx.beginPath();bctx.moveTo(fx1,fy1);bctx.quadraticCurveTo(fx1-W*.12,fy1+H*.05,fx1-W*.18,fy1+H*.12);bctx.stroke();
+      const fx2=dragonX(.45), fy2=dragonY(.45);
+      bctx.beginPath();bctx.moveTo(fx2,fy2);bctx.quadraticCurveTo(fx2+W*.12,fy2+H*.05,fx2+W*.18,fy2+H*.12);bctx.stroke();
+      bctx.setLineDash([]);
+      bctx.fillStyle='rgba(220,120,100,.9)';_fillText('枝龍分流',fx1-W*.15,fy1+H*.08);
+  }
+
+  if(state.d==='sheng'||state.d==='ji'||state.d==='huan'){
+    bctx.strokeStyle='rgba(90,140,100,.5)';bctx.lineWidth=7;bctx.lineCap='round';
+    bctx.beginPath();bctx.moveTo(dragonX(.92),dragonY(.92));bctx.quadraticCurveTo(W*.3,H*.4,W*.18,H*.32);bctx.stroke();
+    bctx.beginPath();bctx.moveTo(dragonX(.92),dragonY(.92));bctx.quadraticCurveTo(W*.7,H*.4,W*.82,H*.32);bctx.stroke();
+    for(let i=0;i<N;i++){
+      const t=i/(N-1);const x=dragonX(t),y=dragonY(t)+(i%2?7:-7);
+      let r=34-21*t; if(state.shu&&t>.4&&t<.6) r*=.4;
+      const peakH = state.d==='ji' ? r*1.6 : (state.d==='huan' ? r*0.6 : r*0.9);
+      const baseW = state.d==='huan' ? r*1.5 : r;
+      const grad=bctx.createLinearGradient(x,y-peakH,x,y+9);
+      grad.addColorStop(0, state.d==='ji'?'#3a5743':(state.d==='huan'?'#628d6c':(t<.4?'#4a7c59':'#558c66')));
+      grad.addColorStop(1, state.d==='ji'?'#192d21':(state.d==='huan'?'#304a37':(t<.4?'#233d2b':'#2a4a33')));
+      bctx.fillStyle=grad;
+      bctx.beginPath();
+      if(state.d==='huan'){
+        bctx.ellipse(x, y+4, baseW, peakH, 0, Math.PI, 0);
+      }else{
+        bctx.moveTo(x-baseW,y+9);bctx.lineTo(x,y-peakH);bctx.lineTo(x+baseW,y+9);bctx.closePath();
+      }
+      bctx.fill();
+    }
+    bctx.fillStyle='rgba(160,210,160,.85)';_fillText(`${D_DESC[state.d]}`,W*.03,H*.06);if(state.shu){_fillText('束氣過峽',W*.52,H*.22)}
+  }else if(state.d==='pingyang'){
+    bctx.strokeStyle='rgba(120,150,110,.4)';bctx.lineWidth=15;bctx.lineCap='round';
+    bctx.beginPath();
+    for(let i=0;i<=20;i++){const t=i/20;bctx.lineTo(dragonX(t),dragonY(t))}
+    bctx.stroke();
+    bctx.fillStyle='rgba(160,210,160,.85)';_fillText('平洋潛龍',W*.03,H*.06);
+  }else if(state.d==='huilong'){
+    bctx.strokeStyle='rgba(90,140,100,.6)';bctx.lineWidth=10;bctx.lineCap='round';
+    bctx.beginPath();
+    for(let i=0;i<=30;i++){const t=i/30;bctx.lineTo(dragonX(t),dragonY(t))}
+    bctx.stroke();
+    for(let i=0;i<N;i++){
+      const t=i/(N-1),x=dragonX(t),y=dragonY(t),r=28-15*t;
+      const grad=bctx.createLinearGradient(x,y-r,x,y+8);grad.addColorStop(0,'#4a7c59');grad.addColorStop(1,'#233d2b');bctx.fillStyle=grad;
+      bctx.beginPath();bctx.moveTo(x-r,y+8);bctx.lineTo(x,y-r*.9);bctx.lineTo(x+r,y+8);bctx.closePath();bctx.fill();
+    }
+    bctx.fillStyle='rgba(185,138,46,.9)';_fillText('迴龍顧祖',W*.7,H*.15);
+  }else if(state.d==='si'){
+    for(let i=0;i<N;i++){const t=i/(N-1),x=dragonX(t),y=dragonY(t);const grad=bctx.createLinearGradient(x,y-6,x,y+6);grad.addColorStop(0,'#505448');grad.addColorStop(1,'#282b24');bctx.fillStyle=grad;bctx.beginPath();bctx.ellipse(x,y,12,6,0,0,Math.PI*2);bctx.fill()}
+    bctx.fillStyle='rgba(170,170,150,.75)';_fillText('死/病龍(枯槁無氣)',W*.03,H*.06);
+  }else if(state.d==='po'){
+    for(let i=0;i<N;i++){
+      const t=i/(N-1),x=dragonX(t),y=dragonY(t)+(i%2?8:-8),r=28-12*t;
+      const grad=bctx.createLinearGradient(x,y-r,x,y+9);grad.addColorStop(0,'#8c5240');grad.addColorStop(1,'#3a221b');bctx.fillStyle=grad;
+      bctx.beginPath();bctx.moveTo(x-r,y+9);bctx.lineTo(x-r*.4,y-r*1.1);bctx.lineTo(x,y-r*.2);bctx.lineTo(x+r*.5,y-r*.9);bctx.lineTo(x+r,y+9);bctx.closePath();bctx.fill();
+      bctx.strokeStyle='rgba(255,100,80,.6)';bctx.lineWidth=1.5;bctx.beginPath();bctx.moveTo(x-r*.3,y-r*.8);bctx.lineTo(x+r*.2,y+5);bctx.stroke();
+    }
+    bctx.fillStyle='rgba(220,120,100,.85)';_fillText('破龍崩瀉(山崩氣洩)',W*.03,H*.06);
+  }
+
+  if(adv2.zutai){
+      [0.15, 0.30].forEach(py => {
+          const y = H * py;
+          const t = Math.max(0, (y - (-20)) / (houseY() - (-20))); // 反推當前高度的龍脈進度
+          const zx = dragonX(t); // 取出真實脊線X座標
+          bctx.fillStyle='rgba(60,100,80,.4)';
+          bctx.beginPath();bctx.ellipse(zx,y,W*.1,H*.03,0,0,Math.PI*2);bctx.fill();
+          bctx.strokeStyle='rgba(160,210,160,.6)';bctx.lineWidth=2;bctx.stroke();
+      });
+      bctx.fillStyle='rgba(160,210,160,.85)';_fillText('太祖/少祖',W*.55,H*.14);
+  }
+
+  if(state.guiyao){bctx.strokeStyle='#3f6b52';bctx.lineWidth=4;const hx=W/2,hy=houseY();for(let i=0;i<5;i++){const angle=Math.PI+(i/4)*Math.PI;bctx.beginPath();bctx.moveTo(hx,hy-20);bctx.lineTo(hx+Math.cos(angle)*40,hy-20+Math.sin(angle)*40);bctx.stroke()}bctx.fillStyle='rgba(160,210,160,.85)';_fillText('鬼曜星',W*.55,H*.42)}
+  if(elem.xia){
+    const hx=W/2,hy=houseY();const grad=bctx.createLinearGradient(hx,hy-55,hx,hy-10);grad.addColorStop(0,'#558c66');grad.addColorStop(1,'#2a4a33');bctx.fillStyle=grad;
+    if(state.xing==='jin'){bctx.beginPath();bctx.arc(hx,hy-28,28,Math.PI,0);bctx.fill()}
+	else if(state.xing==='mu'){bctx.beginPath();bctx.moveTo(hx-18,hy);bctx.lineTo(hx-18,hy-45);bctx.arc(hx,hy-45,18,Math.PI,0);bctx.lineTo(hx+18,hy);bctx.fill()}
+	else if(state.xing==='shui'){bctx.beginPath();bctx.moveTo(hx-35,hy);bctx.quadraticCurveTo(hx-20,hy-40,hx,hy-20);bctx.quadraticCurveTo(hx+20,hy,hx+35,hy-25);bctx.lineTo(hx+35,hy);bctx.fill()}
+	else if(state.xing==='huo'){
+	  const hGrad=bctx.createLinearGradient(hx,hy-65,hx,hy);hGrad.addColorStop(0,'#a63a2b');hGrad.addColorStop(1,'#3a201c');bctx.fillStyle=hGrad;
+	  bctx.beginPath();bctx.moveTo(hx-30,hy);bctx.lineTo(hx-15,hy-40);bctx.lineTo(hx,hy-65);bctx.lineTo(hx+15,hy-35);bctx.lineTo(hx+30,hy);bctx.closePath();bctx.fill();
+	  bctx.fillStyle='rgba(220,120,100,.9)';_fillText('火星(炎上煞)',W*.53,H*.4);
+	}
+	else if(state.xing==='tu'){
+	  const tGrad=bctx.createLinearGradient(hx,hy-35,hx,hy);tGrad.addColorStop(0,'#6a7a52');tGrad.addColorStop(1,'#2c3523');bctx.fillStyle=tGrad;
+	  bctx.beginPath();bctx.moveTo(hx-36,hy);bctx.lineTo(hx-28,hy-35);bctx.lineTo(hx+28,hy-35);bctx.lineTo(hx+36,hy);bctx.closePath();bctx.fill();
+	}
+    
+    if(state.xue==='wo'){bctx.fillStyle='#0e1114';bctx.beginPath();bctx.arc(hx,hy-28,14,Math.PI,0);bctx.fill()}
+    else if(state.xue==='ru'){bctx.fillStyle=grad;bctx.beginPath();bctx.arc(hx,hy-40,12,0,Math.PI*2);bctx.fill()}
+    
+    bctx.fillStyle='rgba(160,210,160,.8)';_fillText('穴星',hx+30,hy-38);
+  }
+  
+  if(adv2.qian){
+      const hx=W/2,hy=houseY(),cR=baseDim*ENV.centerRBase;
+      bctx.strokeStyle='rgba(240,208,128,.8)';bctx.lineWidth=4;
+      bctx.beginPath();bctx.arc(hx-20,hy,25,Math.PI*1.5,Math.PI*0.5);bctx.stroke();
+      bctx.beginPath();bctx.arc(hx+20,hy,25,Math.PI*0.5,Math.PI*1.5);bctx.stroke();
+      bctx.fillStyle='rgba(240,208,128,.8)';_fillText('鉗穴',hx+35,hy);
+  }
+
+  if(state.ml!=='none'){
+    const grad=bctx.createLinearGradient(W*.07,H*.24,W*.2,H*.72);grad.addColorStop(0,state.ml==='po'?'#6e655c':'#4a7c59');grad.addColorStop(1,state.ml==='po'?'#36322d':'#233d2b');bctx.fillStyle=grad;const gap=state.ao?H*.15:0;
+    bctx.beginPath();bctx.moveTo(W*.16,H*.24);if(state.ao){bctx.lineTo(W*.1,H*.35);bctx.lineTo(W*.18,H*.45)}bctx.quadraticCurveTo(W*.07,H*.49+gap,W*.2,H*.72);bctx.quadraticCurveTo(W*.15,H*.49,W*.16,H*.24);bctx.closePath();bctx.fill();
+    bctx.fillStyle=state.ml==='po'||state.ml==='ya'?'rgba(220,120,100,.8)':'rgba(160,210,160,.8)';_fillText(state.ml==='ya'?'逼壓':state.ml==='po'?'破碎砂':'有情砂',W*.05,H*.3);
+    if(state.ao){bctx.strokeStyle='rgba(220,120,100,.8)';bctx.lineWidth=2;bctx.beginPath();bctx.moveTo(W*.05,H*.35);bctx.lineTo(W*.25,H*.4);bctx.stroke();bctx.fillStyle='rgba(220,120,100,.8)';_fillText('凹風煞',W*.05,H*.33)}
+    if(adv2.qingquan) {
+        bctx.fillStyle='rgba(255,60,40,.8)';
+        _fillText('擎拳煞', W*.12, H*.4);
+    }
+  }
+  if(state.mr!=='none'){
+    const grad=bctx.createLinearGradient(W*.93,H*.24,W*.8,H*.72);grad.addColorStop(0,state.mr==='tai'?'#7a4a4a':state.mr==='po'?'#6e655c':'#4a7c59');grad.addColorStop(1,state.mr==='tai'?'#3d2525':state.mr==='po'?'#36322d':'#233d2b');bctx.fillStyle=grad;const hMod=state.mr==='tai'?.15:.24;
+    bctx.beginPath();bctx.moveTo(W*.84,H*hMod);bctx.quadraticCurveTo(W*.93,H*.49,W*.8,H*.72);bctx.quadraticCurveTo(W*.85,H*.49,W*.84,H*hMod);bctx.closePath();bctx.fill();
+    bctx.fillStyle=state.mr==='tai'||state.mr==='po'?'rgba(220,120,100,.8)':'rgba(160,210,160,.8)';_fillText(state.mr==='tai'?'白虎抬頭':state.mr==='po'?'破碎砂':'有情砂',W*.88,H*.3);
+    if(adv2.qingquan) {
+        bctx.fillStyle='rgba(255,60,40,.8)';
+        _fillText('擎拳煞', W*.85, H*.4);
+    }
+  }
+  
+  if(adv2.tianzhan){
+      bctx.strokeStyle='rgba(255,60,40,.6)';bctx.lineWidth=3;
+      bctx.beginPath();bctx.moveTo(W*.45,H*.2);bctx.lineTo(W*.48,H*.4);bctx.stroke();
+      bctx.beginPath();bctx.moveTo(W*.55,H*.2);bctx.lineTo(W*.52,H*.4);bctx.stroke();
+      bctx.fillStyle='rgba(255,60,40,.8)';_fillText('天斬煞',W*.46,H*.25);
+  }
+
+  if(state.w !== 'lintou'){
+      const sy = state.face ? H*.65 : H*.39, yy = state.face ? H*.62 : H*.42;
+      if(elem.san && state.w !== 'none'){bctx.lineWidth=10;bctx.strokeStyle='rgba(62,111,134,.7)';bctx.beginPath();bctx.moveTo(W*.2, state.face ? H*.4 : H*.64);bctx.quadraticCurveTo(W*.35, state.face ? H*.55 : H*.49, W*.5, sy);bctx.stroke();bctx.beginPath();bctx.moveTo(W*.8, state.face ? H*.4 : H*.64);bctx.quadraticCurveTo(W*.65, state.face ? H*.55 : H*.49, W*.5, sy);bctx.stroke();bctx.fillStyle='rgba(160,210,230,.85)';_fillText('三叉水',W*.52,sy-3);}
+      if(elem.yue){bctx.fillStyle='rgba(50,100,130,0.8)';bctx.beginPath();bctx.ellipse(W/2,yy,W*.16,H*.07,0,0,Math.PI*2);bctx.fill();bctx.fillStyle='rgba(160,210,230,.85)';_fillText('半月池',W*.52,yy-2)}
+  }
+  
+  if(elem.chao){const grad=bctx.createLinearGradient(W*.5,H*.86,W*.5,H+4);grad.addColorStop(0,'#426b7a');grad.addColorStop(1,'#1d3038');bctx.fillStyle=grad;bctx.beginPath();bctx.moveTo(W*.2,H+4);bctx.quadraticCurveTo(W*.5,H*.86,W*.8,H+4);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(140,180,200,.8)';_fillText('朝山',W*.5-12,H*.97)}
+  // 前案/朱雀視覺顯示
+  if(state.ms !== 'none'){
+    const hx=W/2, hy=H*.82;
+    let frontMountainGrad;
+    if(state.ms==='you'){ // 翔舞：秀麗有情
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.72,hx,H*.95);
+      frontMountainGrad.addColorStop(0,'#6b8c5a');
+      frontMountainGrad.addColorStop(1,'#3a5a33');
+    } else if(state.ms==='di'){ // 低陷：空虛凹陷
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.86,hx,H*.95);
+      frontMountainGrad.addColorStop(0,'#8c7a5a');
+      frontMountainGrad.addColorStop(1,'#5a4a33');
+    } else if(state.ms==='po'){ // 破碎：殘缺不全
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.72,hx,H*.95);
+      frontMountainGrad.addColorStop(0,'#6e655c');
+      frontMountainGrad.addColorStop(1,'#36322d');
+    } else { // 無或預設
+      frontMountainGrad=bctx.createLinearGradient(hx,H*.75,hx,H*.95);
+      frontMountainGrad.addColorStop(0,'#5a6a7a');
+      frontMountainGrad.addColorStop(1,'#2a3a48');
+    }
+    bctx.fillStyle=frontMountainGrad;
+    if(state.ms==='you'){ // 朱雀翔舞：秀麗圓潤，如鳥展翅
+      bctx.beginPath();
+      bctx.moveTo(W*.20,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.78,W*.40,H*.75);
+      bctx.quadraticCurveTo(W*.45,H*.73,W*.5,H*.74);  // 中央微隆
+      bctx.quadraticCurveTo(W*.55,H*.73,W*.60,H*.75);
+      bctx.quadraticCurveTo(W*.68,H*.78,W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
+      bctx.closePath();
+      bctx.fill();
+      // 添加層次感
+      bctx.fillStyle='rgba(120,180,120,.5)';
+      bctx.beginPath();
+      bctx.moveTo(W*.26,H*.93);
+      bctx.quadraticCurveTo(W*.35,H*.82,W*.42,H*.80);
+      bctx.quadraticCurveTo(W*.5,H*.79,W*.58,H*.80);
+      bctx.quadraticCurveTo(W*.65,H*.82,W*.74,H*.93);
+      bctx.quadraticCurveTo(W*.5,H*.95,W*.26,H*.93);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(160,210,160,.8)';
+      _fillText('朱雀翔舞',W*.5-25,H*.80);
+    } else if(state.ms==='di'){ // 朱雀低陷：凹陷空虛，明堂無收
+      bctx.beginPath();
+      bctx.moveTo(W*.20,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.90,W*.42,H*.89);
+      bctx.lineTo(W*.58,H*.89);
+      bctx.quadraticCurveTo(W*.68,H*.90,W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(220,120,100,.8)';
+      _fillText('朱雀低陷 (凶)',W*.5-35,H*.92);
+    } else if(state.ms==='po'){ // 朱雀破碎：不規則缺口，山形殘破
+      bctx.beginPath();
+      bctx.moveTo(W*.20,H*.95);
+      bctx.lineTo(W*.28,H*.82);
+      bctx.lineTo(W*.36,H*.86);
+      bctx.lineTo(W*.44,H*.80);
+      bctx.lineTo(W*.50,H*.76);
+      bctx.lineTo(W*.56,H*.81);
+      bctx.lineTo(W*.64,H*.85);
+      bctx.lineTo(W*.72,H*.80);
+      bctx.lineTo(W*.80,H*.95);
+      bctx.quadraticCurveTo(W*.68,H*.97,W*.5,H*.95);
+      bctx.quadraticCurveTo(W*.32,H*.97,W*.20,H*.95);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(220,120,100,.8)';
+      _fillText('朱雀破碎',W*.5-25,H*.82);
+    } else if(state.ms!=='none' && elem.an){
+      // 一般案山（已於下方繪製）
+    }
+  }
+  if(elem.an){
+    const grad=bctx.createLinearGradient(W*.5,H*.76,W*.5,H+4);grad.addColorStop(0,'#558c66');grad.addColorStop(1,'#2a4a33');bctx.fillStyle=grad;bctx.beginPath();bctx.moveTo(W*.36,H+4);bctx.quadraticCurveTo(W*.5,H*.76,W*.64,H+4);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(160,210,160,.85)';_fillText('案山',W*.5-12,H*.9);
+    if(adv2.guan){bctx.fillStyle='#3d5c46';bctx.beginPath();bctx.moveTo(W*.45,H*.92);bctx.lineTo(W*.5,H*.82);bctx.lineTo(W*.55,H*.92);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(160,210,160,.8)';_fillText('官星',W*.52,H*.85)}
+    if(state.tantou){bctx.fillStyle='#575049';bctx.beginPath();bctx.moveTo(W*.45,H*.82);bctx.lineTo(W*.48,H*.72);bctx.lineTo(W*.51,H*.82);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(220,120,100,.9)';_fillText('探頭砂 (暗箭)',W*.52,H*.74)}
+  }
+  // 玄武/主山視覺顯示
+  if(state.mn !== 'none'){
+    const hx=W/2, hy=H*.22;
+    let mainMountainGrad;
+    if(state.mn==='kang'){ // 拒屍：高昂陡峭
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.05,hx,H*.38);
+      mainMountainGrad.addColorStop(0,'#8b4513');
+      mainMountainGrad.addColorStop(1,'#4a3728');
+    } else if(state.mn==='po'){ // 破碎：殘缺不全
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.08,hx,H*.38);
+      mainMountainGrad.addColorStop(0,'#6e655c');
+      mainMountainGrad.addColorStop(1,'#36322d');
+    } else if(state.mn==='you'){ // 垂頭：圓潤有情
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.10,hx,H*.38);
+      mainMountainGrad.addColorStop(0,'#5a7c59');
+      mainMountainGrad.addColorStop(1,'#2a4a33');
+    } else { // 無或預設
+      mainMountainGrad=bctx.createLinearGradient(hx,H*.10,hx,H*.38);
+      mainMountainGrad.addColorStop(0,'#4a5a6a');
+      mainMountainGrad.addColorStop(1,'#253038');
+    }
+    bctx.fillStyle=mainMountainGrad;
+    if(state.mn==='kang'){ // 拒屍：高聳陡峭，山勢險峻無情
+      bctx.beginPath();
+      bctx.moveTo(W*.28,H*.38);
+      bctx.lineTo(W*.38,H*.08);
+      bctx.lineTo(W*.45,H*.05);
+      bctx.lineTo(W*.5,H*.04);  // 尖峰高昂
+      bctx.lineTo(W*.55,H*.05);
+      bctx.lineTo(W*.62,H*.08);
+      bctx.lineTo(W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.42,W*.28,H*.38);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(220,120,100,.8)';
+      _fillText('玄武拒屍 (凶)',W*.5-35,H*.22);
+    } else if(state.mn==='po'){ // 破碎：不規則缺口，山體殘破
+      bctx.beginPath();
+      bctx.moveTo(W*.28,H*.38);
+      bctx.lineTo(W*.35,H*.12);
+      bctx.lineTo(W*.41,H*.18);
+      bctx.lineTo(W*.46,H*.10);
+      bctx.lineTo(W*.50,H*.15);
+      bctx.lineTo(W*.54,H*.08);
+      bctx.lineTo(W*.59,H*.16);
+      bctx.lineTo(W*.65,H*.10);
+      bctx.lineTo(W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.42,W*.28,H*.38);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(220,120,100,.8)';
+      _fillText('玄武破碎',W*.5-25,H*.18);
+    } else if(state.mn==='you'){ // 垂頭：圓潤飽滿，山勢低伏有情
+      bctx.beginPath();
+      bctx.moveTo(W*.26,H*.38);
+      bctx.quadraticCurveTo(W*.35,H*.15,W*.43,H*.10);
+      bctx.quadraticCurveTo(W*.47,H*.08,W*.5,H*.09);  // 圓頂微微低伏
+      bctx.quadraticCurveTo(W*.53,H*.08,W*.57,H*.10);
+      bctx.quadraticCurveTo(W*.65,H*.15,W*.74,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.45,W*.26,H*.38);
+      bctx.closePath();
+      bctx.fill();
+      // 添加植被層次
+      bctx.fillStyle='rgba(90,140,90,.4)';
+      bctx.beginPath();
+      bctx.moveTo(W*.30,H*.35);
+      bctx.quadraticCurveTo(W*.40,H*.20,W*.46,H*.16);
+      bctx.quadraticCurveTo(W*.5,H*.15,W*.54,H*.16);
+      bctx.quadraticCurveTo(W*.60,H*.20,W*.70,H*.35);
+      bctx.quadraticCurveTo(W*.5,H*.40,W*.30,H*.35);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(160,210,160,.8)';
+      _fillText('玄武垂頭',W*.5-25,H*.22);
+    } else if(state.mn!=='none'){
+      bctx.beginPath();
+      bctx.moveTo(W*.28,H*.38);
+      bctx.quadraticCurveTo(W*.40,H*.15,W*.5,H*.12);
+      bctx.quadraticCurveTo(W*.60,H*.15,W*.72,H*.38);
+      bctx.quadraticCurveTo(W*.5,H*.45,W*.28,H*.38);
+      bctx.closePath();
+      bctx.fill();
+      bctx.fillStyle='rgba(160,210,160,.8)';
+      _fillText('主山',W*.5-12,H*.20);
+    }
+  }
+  if(state.w!=='none'&&state.w!=='lintou'){
+    if(elem.luo){[[W*ENV.riverStart,riverY(W*ENV.riverStart)],[W*ENV.riverEnd,riverY(W*ENV.riverEnd)]].forEach(pt=>{bctx.fillStyle='#2b2b28';bctx.beginPath();bctx.arc(pt[0],pt[1]-2,7,0,6.28);bctx.fill();bctx.strokeStyle='rgba(230,195,110,.9)';bctx.lineWidth=1.5;bctx.beginPath();bctx.arc(pt[0],pt[1]-2,7,0,6.28);bctx.stroke()});bctx.fillStyle='rgba(230,195,110,.8)';_fillText('羅星',W*.885,riverY(W*ENV.riverEnd)-14)}
+    if(elem.hua){[[W*.075,riverY(W*ENV.riverStart)],[W*.925,riverY(W*ENV.riverEnd)]].forEach(pt=>{bctx.fillStyle='#4a443c';bctx.beginPath();bctx.moveTo(pt[0]-6,pt[1]+8);bctx.lineTo(pt[0],pt[1]-24);bctx.lineTo(pt[0]+6,pt[1]+8);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(230,195,110,.9)';bctx.beginPath();bctx.arc(pt[0],pt[1]-24,2,0,6.28);bctx.fill()});bctx.fillStyle='rgba(230,195,110,.8)';_fillText('華表',W*.055,riverY(W*ENV.riverStart)-30)}
+    if(adv2.qin){bctx.fillStyle='#3a4b5c';bctx.beginPath();bctx.ellipse(W/2,H*.72,15,8,0,0,Math.PI*2);bctx.fill();bctx.fillStyle='rgba(160,210,230,.8)';_fillText('禽星',W*.52,H*.71)}
+    if(adv2.shixiang){
+        bctx.fillStyle='#2b2b28';
+        bctx.beginPath();bctx.arc(W*0.12,riverY(W*0.12),15,0,6.28);bctx.fill();
+        bctx.beginPath();bctx.arc(W*0.88,riverY(W*0.88),15,0,6.28);bctx.fill();
+        bctx.fillStyle='rgba(230,195,110,.9)';_fillText('獅象捍門',W*.85,riverY(W*.88)-20);
+    }
+  }
+  const hx=W/2,hy=houseY(),cR=baseDim*ENV.centerRBase;
+  if(elem.mt){
+    bctx.setLineDash([4,7]);bctx.strokeStyle='rgba(185,138,46,.3)';bctx.beginPath();bctx.arc(hx,hy,cR*1.45,0,6.28);bctx.stroke();bctx.strokeStyle='rgba(185,138,46,.7)';bctx.beginPath();bctx.arc(hx,hy,cR*.62,0,6.28);bctx.stroke();bctx.setLineDash([]);
+    bctx.fillStyle='rgba(185,138,46,.6)';bctx.font=`${Math.max(9,Math.min(12,W*.01))}px "Noto Serif TC",serif`;_fillText('外明堂',hx+cR*1.05,hy-cR*1.05);_fillText('內明堂',hx+cR*.4,hy-cR*.45);
+    if(adv2.qing){bctx.strokeStyle='rgba(220,120,100,.5)';bctx.lineWidth=2;bctx.beginPath();bctx.moveTo(hx-cR,hy+cR*.5);bctx.lineTo(hx+cR,hy+cR*.8);bctx.stroke();bctx.fillStyle='rgba(220,120,100,.8)';_fillText('傾瀉',hx+cR*.8,hy+cR*.6)}
+  }
+  bctx.fillStyle = state.face ? '#a63a2b' : '#6b5a52';
+  if(state.face){bctx.moveTo(hx-14,hy-4);bctx.lineTo(hx,hy+10);bctx.lineTo(hx+14,hy-4);bctx.closePath();bctx.fill();bctx.fillRect(hx-10,hy-16,20,12);}
+  else{bctx.moveTo(hx-14,hy+4);bctx.lineTo(hx,hy-10);bctx.lineTo(hx+14,hy+4);bctx.closePath();bctx.fill();bctx.fillRect(hx-10,hy+4,20,12);}
+  for(let obs of obstacles){const ox=obs.nx*W,oy=obs.ny*H;const r=obs.rRatio*baseDim;bctx.fillStyle='#2b2b28';bctx.beginPath();bctx.moveTo(ox,oy-r);bctx.lineTo(ox+r*.6,oy+r*.5);bctx.lineTo(ox-r*.6,oy+r*.5);bctx.closePath();bctx.fill();bctx.strokeStyle='#c04a3a';bctx.lineWidth=2;bctx.stroke()}
+  
+  // 將高耗能的陰影文字移至靜態快取層
+  bctx.font=`${Math.max(10,Math.min(14,W*.012))}px "Noto Serif TC",serif`;
+  if(state.w==='lintou'){bctx.fillStyle='rgba(220,140,120,.9)';_fillText('淋頭水(極凶)',W*.52,H*.25)}
+  if(state.w==='bazi'){bctx.fillStyle='rgba(220,140,120,.9)';_fillText('八字牽鼻(凶)',W*.42,H*.75)}
+  if(state.w==='you'){bctx.fillStyle='rgba(160,210,230,.9)';_fillText('玉帶水',W*.42,H*.7)}
+  if(state.w==='jiuqu'){bctx.fillStyle='rgba(160,210,230,.9)';_fillText('九曲水(極吉)',W*.42,H*.68)}
+  if(state.w==='gejiao'){bctx.fillStyle='rgba(220,140,120,.9)';_fillText('割腳水(極凶)',W*.42,H*.54)}
+  if(state.w==='ji'){bctx.fillStyle='rgba(220,140,120,.85)';_fillText('直沖湍急',W*.42,H*.72)}
+  if(state.w==='fan'){bctx.fillStyle='rgba(220,140,120,.85)';_fillText('反弓無情',W*.42,H*.66)}
+  
+  bctx.restore();
+}
+
+function drawWaterFlow(){
+  ctx.save();if(state.w==='none'){ctx.restore();return}
+  
+  if(state.w==='lintou'){
+    ctx.strokeStyle='rgba(150,200,230,.6)';ctx.lineWidth=2;ctx.setLineDash([10,15]);ctx.lineDashOffset=-waterOffset;
+    for(let i=-15;i<=15;i+=5){ctx.beginPath();ctx.moveTo(W/2+i,0);ctx.lineTo(W/2+i,H*.55);ctx.stroke()}ctx.setLineDash([]);
+    ctx.restore();return;
+  }
+  ctx.lineWidth=state.w==='jiuqu'?14:18;ctx.strokeStyle=state.w==='you'||state.w==='jiuqu'?'rgba(62,111,134,.9)':state.w==='gejiao'?'rgba(100,60,60,.9)':state.w==='bazi'?'rgba(80,120,150,.7)':'rgba(70,90,110,.9)';
+  if(state.w !== 'bazi') {
+    ctx.beginPath();for(let x=W*ENV.riverStart;x<=W*ENV.riverEnd;x+=6){const y=riverY(x);x<=W*ENV.riverStart+1?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke();
+  }
+  
+  if(state.w==='bazi'){
+      ctx.lineWidth=10;ctx.strokeStyle='rgba(80,120,150,.5)';
+      ctx.beginPath();ctx.moveTo(W*.5,H*.65);ctx.lineTo(W*.2,H*.85);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(W*.5,H*.65);ctx.lineTo(W*.8,H*.85);ctx.stroke();
+  }
+
+  ctx.lineWidth=2;ctx.strokeStyle=state.w==='you'||state.w==='jiuqu'?'rgba(190,230,240,.5)':'rgba(235,242,250,.7)';ctx.setLineDash([12,18]);ctx.lineDashOffset=-waterOffset;
+  if(state.w !== 'bazi') {
+    ctx.beginPath();for(let x=W*ENV.riverStart;x<=W*ENV.riverEnd;x+=6){const y=riverY(x);x<=W*ENV.riverStart+1?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke();
+  } else {
+    ctx.beginPath();ctx.moveTo(W*.5,H*.65);ctx.lineTo(W*.2,H*.85);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W*.5,H*.65);ctx.lineTo(W*.8,H*.85);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  if(state.w==='jiuqu'){
+    ctx.fillStyle='rgba(190,230,240,.4)';
+    for(let k=1;k<=3;k++){const px=W*(ENV.riverStart+k*0.18),py=riverY(px);ctx.beginPath();ctx.arc(px,py,6+Math.sin(waterOffset*.1+k)*2,0,6.28);ctx.fill();}
+  }else if(state.w==='ji'){
+    ctx.strokeStyle='rgba(255,100,80,.8)';ctx.lineWidth=2;
+    for(let k=0;k<3;k++){const py=H*(ENV.riverBaseY-0.2)+((waterOffset*2+k*60)%100);ctx.beginPath();ctx.moveTo(W/2-8,py-8);ctx.lineTo(W/2,py);ctx.lineTo(W/2+8,py-8);ctx.stroke();}
+  }
+  ctx.restore();
+}
+
+function drawHeat(dt){
+  if(!view.heat||!heatCtx)return;
+  const img=heatImg;
+  for(let i=0;i<heat.length;i++){
+    const v=Math.min(1,heat[i]*.14);
+    img.data[i*4]=Math.floor(40+215*v);img.data[i*4+1]=Math.floor(60+150*v);img.data[i*4+2]=Math.floor(100+20*v);img.data[i*4+3]=Math.max(0,Math.floor(v*170));
+    heat[i]*=Math.pow(.92,dt);if(heat[i]<.01)heat[i]=0;
+  }
+  heatCtx.putImageData(img,0,0);
+  ctx.save();
+  // 保持與全域繪圖上下文相同的 2.5D 變換，直接繪製即可精準對齊
+  ctx.globalAlpha=.7;ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+  ctx.drawImage(heatC,0,0,W,H);
+  ctx.restore();
+}
+
+function drawWindArrows(dt){
+  if(!view.wind)return;
+  const step=Math.max(40,baseDim*.08);
+  const tX=Math.cos(windTime*.002)*15;
+  const tY=Math.sin(windTime*.002)*15;
+  for(let y=step/2;y<H;y+=step)for(let x=step/2;x<W;x+=step){
+    let shelter=1;
+    if(state.ml==='you'&&state.mr==='you'&&elem.an)shelter=(x>W*.16&&x<W*.84&&y>H*.18)?.05:1;
+    else if(state.ml==='you'&&state.mr==='you')shelter=(x>W*.16&&x<W*.84&&y>H*.18)?.4:1;
+    else if(elem.an)shelter=(x>W*.35&&x<W*.65&&y>H*.18)?.6:1; // 修正：案山單獨存在時亦能提供正面部分擋風效果
+    if(adv2.hulong && Math.abs(x - W/2) < W*0.2) shelter *= 0.2;
+    if(state.d==='pingyang') shelter *= 0.2; // 修正：同步平洋龍的視覺抗風力
+    if(state.ao&&x<W*.28&&y>H*.25&&y<H*.45)shelter=2.5;if(state.mr==='tai'&&x>W*.7)shelter=1.5;if(state.guiyao&&y<H*.45&&x>W*.3&&x<W*.7)shelter=.4;
+    if(adv2.tianzhan && Math.abs(x - W/2) < W*0.05 && y > H*0.2 && y < H*0.4) shelter = 5.0;
+    
+    const nx=noise((x/W)*6+tX,(y/H)*6+tY);
+    const ny=noise((x/W)*6+50+tX,(y/H)*6+tY);
+    const base=shelter>1?1.5:.5;const wx=nx*base*shelter*2;const wy=ny*base*shelter*2;
+    const len=Math.min(18,Math.hypot(wx,wy)*6+2);const angle=Math.atan2(wy,wx);const m=Math.hypot(wx,wy);
+    ctx.strokeStyle=m<.5?'rgba(140,200,160,.2)':m<1.1?'rgba(220,200,140,.3)':'rgba(220,120,100,.4)';ctx.lineWidth=1.5;
+    const x2=x+Math.cos(angle)*len,y2=y+Math.sin(angle)*len;
+    ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x2,y2);ctx.moveTo(x2,y2);ctx.lineTo(x2-5*Math.cos(angle-.5),y2-5*Math.sin(angle-.5));ctx.moveTo(x2,y2);ctx.lineTo(x2-5*Math.cos(angle+.5),y2-5*Math.sin(angle+.5));ctx.stroke();
+  }
+}
+
+function drawTaiji(){
+  if(!elem.taiji)return;const hx=W/2,hy=houseY();
+  ctx.save();ctx.translate(hx,hy);ctx.rotate(taijiAngle);ctx.strokeStyle='rgba(230,195,110,.85)';ctx.lineWidth=1.8;
+  ctx.beginPath();ctx.arc(0,0,10,0,6.28);ctx.stroke();ctx.beginPath();ctx.arc(0,-5,5,Math.PI*1.5,Math.PI*.5);ctx.stroke();ctx.beginPath();ctx.arc(0,5,5,Math.PI*1.5,Math.PI*.5,true);ctx.stroke();ctx.restore();
+}
+
+function drawShockwaves(dt){
+  // 修正：衝擊波陣列限制失效問題，確保任何情況下都不超過 MAX_SHOCKWAVES
+  if(shockwaves.length > MAX_SHOCKWAVES) {
+    shockwaves.splice(0, shockwaves.length - MAX_SHOCKWAVES);
+  }
+  for(let i=shockwaves.length-1;i>=0;i--){
+    const sw=shockwaves[i];
+    sw.r+=(sw.maxR/35)*dt;
+    sw.life-=dt;
+    if(sw.life<=0){shockwaves.splice(i,1);continue}
+    const progress=sw.r/sw.maxR;
+    // 支援化煞為用的金色淨化波紋
+    ctx.strokeStyle=sw.type==='pure'?`rgba(240,208,128,${1-progress})`:`rgba(255,80,60,${1-progress})`;
+    ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(sw.x,sw.y,sw.r,0,6.28);ctx.stroke();
+  }
+}
+
+let disp=[0,0,0,0,0],dispVel=[0,0,0,0,0];
+function drawRadar(dt){
+  const w=radarW,h=radarH;const cx=w/2,cy=h/2+10;
+  const R=Math.min(w,h)/2-35;
+  rCtx.clearRect(0,0,w,h);const labs=['龍','穴','砂','水','向'];
+  rCtx.strokeStyle='rgba(246,241,231,.14)';rCtx.lineWidth=1;
+  for(let r=1;r<=5;r++){rCtx.beginPath();for(let k=0;k<=5;k++){const a=-Math.PI/2+k*2*Math.PI/5;const x=cx+Math.cos(a)*R*r/5,y=cy+Math.sin(a)*R*r/5;k?rCtx.lineTo(x,y):rCtx.moveTo(x,y)}rCtx.stroke()}
+  for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5;rCtx.beginPath();rCtx.moveTo(cx,cy);rCtx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);rCtx.stroke();rCtx.fillStyle='#cfc6b4';rCtx.font='13px "Noto Serif TC",serif';rCtx.textAlign='center';rCtx.textBaseline='middle';rCtx.fillText(labs[k],cx+Math.cos(a)*(R+12),cy+Math.sin(a)*(R+12))}
+  const t=computeScores();
+  for(let k=0;k<5;k++){dispVel[k]+=(t[k]-disp[k])*.06*dt;dispVel[k]*=Math.pow(.75,dt);disp[k]=Math.max(0,Math.min(100,disp[k]+dispVel[k]*dt))}
+  rCtx.beginPath();for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5,v=disp[k]/100*R;const x=cx+Math.cos(a)*v,y=cy+Math.sin(a)*v;k?rCtx.lineTo(x,y):rCtx.moveTo(x,y)}
+  rCtx.closePath();rCtx.fillStyle='rgba(185,138,46,.28)';rCtx.fill();rCtx.strokeStyle='#b98a2e';rCtx.lineWidth=2;rCtx.stroke();
+}
+
+// 視覺呈現：根據吉凶狀態顯示氣場效果
+function updateQiEffects(){
+  const taiji=document.getElementById('taiji-aura');
+  const auspicious=document.getElementById('auspicious-glow');
+  const inauspicious=document.getElementById('inauspicious-alert');
+  const qiLayer=document.getElementById('qi-layer');
+  if(!taiji||!auspicious||!inauspicious||!qiLayer)return;
+  
+  const scores=computeScores();
+  const avgScore=scores.reduce((a,b)=>a+b,0)/5;
+  const isBadWater=['gejiao','fan','bazi','ji','lintou'].includes(state.w);
+  const isGoodWater=state.w==='jiuqu'||state.w==='you';
+  const hasBadDragon=state.d==='si'||state.d==='po';
+  
+  // 2.5D 視角修正：計算視覺 Y 座標並同步縮放 DOM 元素尺寸
+  const targetY = houseY();
+  const visualY = view.tilt ? (H * 0.5 + (targetY - H * 0.5) * 0.6) : targetY;
+  const tiltScale = view.tilt ? 0.6 : 1; // 2.5D 模式下垂直壓縮比例
+  
+  // 太極暈：穴場聚氣時顯示（需應用垂直縮放以匹配 Canvas 投影）
+  if(elem.xia&&elem.mt&&avgScore>=50&&!hasBadDragon){
+    taiji.style.display='block';
+    taiji.style.left=(W/2-60)+'px';
+    taiji.style.top=(visualY-60)+'px';
+    taiji.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
+  }else{
+    taiji.style.display='none';
+    taiji.style.transform = '';
+  }
+  
+  // 吉兆光暈：成貴格時顯示（九曲水、蜂腰鶴膝等）
+  const isAuspicious=isGoodWater&&(adv2.fengyao||adv2.hulong)&&avgScore>=60;
+  if(isAuspicious){
+    auspicious.style.display='block';
+    auspicious.style.left=(W/2-75)+'px';
+    auspicious.style.top=(visualY-75)+'px';
+    auspicious.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
+  }else{
+    auspicious.style.display='none';
+    auspicious.style.transform = '';
+  }
+  
+  // 凶兆警告：犯凶格時閃爍（淋頭水、反弓水、死病龍等）
+  const isInauspicious=isBadWater||hasBadDragon||(state.ml==='po'&&state.mr==='po');
+  if(isInauspicious){
+    inauspicious.style.display='block';
+    inauspicious.style.left=(W/2-50)+'px';
+    inauspicious.style.top=(visualY-50)+'px';
+    inauspicious.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
+  }else{
+    inauspicious.style.display='none';
+    inauspicious.style.transform = '';
+  }
+  
+  // 氣場粒子效果：在明堂區域生成額外的氣流線
+  if(avgScore>=40&&!hasBadDragon){
+    if(Math.random()<0.02){
+      const flowLine=document.createElement('div');
+      flowLine.className='qi-flow-line';
+      const startX=W/2+(Math.random()-0.5)*200;
+      const startY=visualY+(Math.random()-0.5)*150;
+      const length=50+Math.random()*100;
+      const angle=Math.random()*360;
+      flowLine.style.left=startX+'px';
+      flowLine.style.top=startY+'px';
+      flowLine.style.width=length+'px';
+      flowLine.style.transform=`rotate(${angle}deg) scaleY(${tiltScale})`; // 應用垂直縮放
+      qiLayer.appendChild(flowLine);
+      setTimeout(()=>flowLine.remove(),3000);
+    }
+  }
+}
+
+function frame(timestamp){
+  if(isPaused){requestAnimationFrame(frame);return}
+  if(!lastTime){lastTime=timestamp;requestAnimationFrame(frame);return}
+  let realDt=Math.min((timestamp-lastTime)/16.666,1.5);lastTime=timestamp;
+  const dt = realDt * simTimeScale; // 應用時間縮放
+  
+  taijiAngle += 0.02 * dt; // 太極圖角度獨立累積，不受暫停影響
+  
+  const currentWaterSpeed=state.w==='lintou'?25:state.w==='ji'?18:state.w==='fan'?5:state.w==='jiuqu'?1.5:3;
+  waterOffset=(waterOffset+currentWaterSpeed*dt)%3000;
+  const windSpeed=Math.max(0.5, state.ao?2.5:0, (state.ml==='po'||state.mr==='po')?2:0);
+  windTime+=windSpeed*dt;
+  
+  if(state.tantou&&elem.an){tantouTimer+=dt;if(tantouTimer>120){for(let i=0;i<3;i++)ps.push(new Particle(true));tantouTimer=0}}
+  
+  // 1. 繪製不受壓縮的底層宇宙背景
+  const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#151a1e');bg.addColorStop(1,'#0c1013');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  
+  ctx.save();
+  if(view.tilt){
+      // 2. 2.5D 視角轉換：將繪圖原點移至中心，壓縮 Y 軸，再移回
+      ctx.translate(W/2, H/2);
+      ctx.scale(1, 0.6);
+      ctx.translate(-W/2, -H/2);
+      
+      // 3. 繪製地塊基底厚度 (營造風水沙盤浮島感)
+      ctx.fillStyle = '#080b0d';
+      ctx.beginPath();
+      ctx.moveTo(0, H/2); ctx.lineTo(0, H + H*0.5); ctx.lineTo(W, H + H*0.5); ctx.lineTo(W, H/2);
+      ctx.fill();
+  }
+
+  if(bgDirty&&bgCanvas){const bctx=bgCanvas.getContext('2d');bctx.setTransform(DPR,0,0,DPR,0,0);bctx.clearRect(0,0,W*DPR,H*DPR);drawBgTerrain(bctx);bgDirty=false}
+  if(bgCanvas)ctx.drawImage(bgCanvas,0,0,W,H);
+  
+  // 修正：地形圖層繪製順序 - 先畫河流再畫案山，避免「水在山頂上流」的圖層錯誤
+  drawWaterFlow();drawHeat(dt);drawWindArrows(dt);drawTaiji();
+  
+  spawnAcc+=ENV.spawnRate[state.d]*dt;
+  const maxP = ENV.maxParticles[state.d] || 200;
+  while(spawnAcc>=1&&ps.length<maxP){ps.push(new Particle());spawnAcc--}
+  if(ps.length>=maxP)spawnAcc=0;
+  
+  const hx=W/2,hy=houseY(),cR=baseDim*ENV.centerRBase;
+  const centerR=cR*(elem.mt?1.3:1)*(elem.xia?1.12:1);
+  const capacityLimit=getCapacityLimit();
+  const globalMultiplier=getGlobalMultiplier();
+  
+  let scoreGather=0;
+  let scoreScatter=0;
+  let events=0;
+  let avgKinetic=0;
+  let mingTangCount=0;
+  const centerRSq=centerR*centerR;
+  const fastThresholdSq=(1.5*pScale)*(1.5*pScale);
+  
+  // 1. 先清空並重建空間網格（確保粒子查詢的是當前幀的最新網格）
+  clearGrid();for(let p of ps)addToGrid(p);
+  
+  // 2. 更新粒子物理狀態（此時 getNearby() 查詢的是正確的本幀網格）
+  for(let i=0;i<ps.length;){
+    const p=ps[i];const alive=p.update(dt);
+    if(!alive){
+      if(p.state!=='settled'&&p.state!=='held'){events++}
+      ps[i]=ps[ps.length-1];ps.pop()
+    }
+    else{i++}
+  }
+  
+  const shaRadius=baseDim*.03;const shaRadSq=shaRadius*shaRadius;
+  for(let p of ps){
+    if(p.state==='sha'&&(Math.abs(p.vx)>1||Math.abs(p.vy)>1)){
+      const nearby=getNearby(p);
+      for(let target of nearby){
+        if(target!==p&&(target.state==='settled'||target.state==='held')){
+          const dx=target.x-p.x,dy=target.y-p.y;
+          if(dx*dx+dy*dy<shaRadSq){
+            const d=Math.hypot(dx,dy)||1;
+            target.state='sha';target.life=60; 
+            target.vx=(dx/d)*2.5*pScale;target.vy=(dy/d)*2.5*pScale;
+            p.vx*=0.8;p.vy*=0.8; 
+          }
+        }
+      }
+    }
+  }
+  
+  // 已刪除死代碼（markedForDeath 於 Particle 中從未被觸發）
+  
+  for(let p of ps){
+    const speedSq=p.vx*p.vx+p.vy*p.vy;
+    const isFast=speedSq>fastThresholdSq;
+    const dx=p.x-hx,dy=p.y-hy;
+    const inMingTang=dx*dx+dy*dy<centerRSq;
+    
+    if(inMingTang){
+      mingTangCount++;
+      avgKinetic+=speedSq;
+    }
+    
+    if(p.state==='settled'){
+      if(p.hasPassedMingTang&&p.hasTouchedWater){
+        scoreGather+=15;
+      }else{
+        scoreGather+=10;
+      }
+    }else if(p.state==='held'){
+      scoreGather+=8;
+    }else if(p.state==='sha'){
+      scoreScatter+=15;
+      if(inMingTang) scoreGather-=5; 
+    }else if(p.state==='moving'){
+      if(inMingTang){
+        if(isFast){
+          scoreScatter+=5;
+          scoreGather-=3; 
+        }else{
+          scoreGather+=5;
+        }
+      }
+    }
+    p.draw();
+  }
+  
+  if(mingTangCount>0){
+    avgKinetic/=mingTangCount;
+    const kineticPenalty=Math.min(30,avgKinetic*.3);
+    scoreGather-=kineticPenalty;
+  }
+  
+  drawShockwaves(dt);
+  
+  // 視覺呈現：根據吉凶狀態顯示氣場效果
+  updateQiEffects();
+  
+  ctx.restore(); // 解除 2.5D 全域壓縮，避免影響 UI (如雷達圖與浮動數值)
+  
+  const normalizedGather=Math.max(0,scoreGather/10);
+  const effectiveGather=Math.min(normalizedGather,capacityLimit)*globalMultiplier;
+  
+  if(effectiveGather>gIdx)gIdx+=(effectiveGather-gIdx)*.02*dt;
+  else gIdx+=(effectiveGather-gIdx)*.1*dt;
+  gIdx=Math.max(0,Math.min(gIdx,100));
+  
+  shaAcc=shaAcc*Math.pow(.97,dt)+(scoreScatter/10)*.25*dt+events*1.2;
+  const sIdx=Math.min(100,shaAcc);
+  
+  const roundG=Math.round(gIdx);const roundS=Math.round(sIdx);
+  if(roundG!==lastG){document.getElementById('g-fill').style.width=gIdx+'%';document.getElementById('g-num').textContent=roundG;lastG=roundG}
+  if(roundS!==lastS){document.getElementById('s-fill').style.width=sIdx+'%';document.getElementById('s-num').textContent=roundS;lastS=roundS}
+  
+  drawRadar(dt);requestAnimationFrame(frame);
+}
+
+rs();updateUI();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
