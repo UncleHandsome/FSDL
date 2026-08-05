@@ -2130,11 +2130,15 @@ function updateQiEffects(){
   const isGoodWater=state.w==='jiuqu'||state.w==='you';
   const hasBadDragon=state.d==='si'||state.d==='po';
   
+  // 2.5D 視角修正：計算視覺 Y 座標
+  const targetY = houseY();
+  const visualY = view.tilt ? (H * 0.5 + (targetY - H * 0.5) * 0.6) : targetY;
+  
   // 太極暈：穴場聚氣時顯示
   if(elem.xia&&elem.mt&&avgScore>=50&&!hasBadDragon){
     taiji.style.display='block';
     taiji.style.left=(W/2-60)+'px';
-    taiji.style.top=(houseY()-60)+'px';
+    taiji.style.top=(visualY-60)+'px';
   }else{
     taiji.style.display='none';
   }
@@ -2144,7 +2148,7 @@ function updateQiEffects(){
   if(isAuspicious){
     auspicious.style.display='block';
     auspicious.style.left=(W/2-75)+'px';
-    auspicious.style.top=(houseY()-75)+'px';
+    auspicious.style.top=(visualY-75)+'px';
   }else{
     auspicious.style.display='none';
   }
@@ -2154,7 +2158,7 @@ function updateQiEffects(){
   if(isInauspicious){
     inauspicious.style.display='block';
     inauspicious.style.left=(W/2-50)+'px';
-    inauspicious.style.top=(houseY()-50)+'px';
+    inauspicious.style.top=(visualY-50)+'px';
   }else{
     inauspicious.style.display='none';
   }
@@ -2165,7 +2169,7 @@ function updateQiEffects(){
       const flowLine=document.createElement('div');
       flowLine.className='qi-flow-line';
       const startX=W/2+(Math.random()-0.5)*200;
-      const startY=houseY()+(Math.random()-0.5)*150;
+      const startY=visualY+(Math.random()-0.5)*150;
       const length=50+Math.random()*100;
       const angle=Math.random()*360;
       flowLine.style.left=startX+'px';
