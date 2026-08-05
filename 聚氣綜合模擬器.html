@@ -2146,7 +2146,7 @@ function drawBgTerrain(bctx){
   
   if(elem.chao){const grad=bctx.createLinearGradient(W*.5,H*.86,W*.5,H+4);grad.addColorStop(0,'#426b7a');grad.addColorStop(1,'#1d3038');bctx.fillStyle=grad;bctx.beginPath();bctx.moveTo(W*.2,H+4);bctx.quadraticCurveTo(W*.5,H*.86,W*.8,H+4);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(140,180,200,.8)';_fillText('朝山',W*.5-12,H*.97)}
   // 前案/朱雀視覺顯示
-  if(elem.an || state.ms!=='none'){
+  if(state.ms !== 'none'){
     const hx=W/2, hy=H*.76;
     let frontMountainGrad;
     if(state.ms==='you'){ // 翔舞：秀麗有情
@@ -2215,7 +2215,7 @@ function drawBgTerrain(bctx){
     if(state.tantou){bctx.fillStyle='#575049';bctx.beginPath();bctx.moveTo(W*.45,H*.82);bctx.lineTo(W*.48,H*.72);bctx.lineTo(W*.51,H*.82);bctx.closePath();bctx.fill();bctx.fillStyle='rgba(220,120,100,.9)';_fillText('探頭砂 (暗箭)',W*.52,H*.74)}
   }
   // 玄武/主山視覺顯示
-  if(elem.zhu || elem.xu){
+  if(state.mn !== 'none'){
     const hx=W/2, hy=H*.18;
     let mainMountainGrad;
     if(state.mn==='kang'){ // 拒屍：高昂陡峭
