@@ -9,16 +9,28 @@ venv/
 .venv/
 .env
 .env.local
+*.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# Logs and temp files
-*.log
-*.tmp
-
 # System files
 .DS_Store
 Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Build directories
+dist/
+build/
+target/
 ```
