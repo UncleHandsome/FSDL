@@ -87,11 +87,13 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
     <div class="controls-grid">
       <div class="ctrl-col">
         <div class="ctrl-row"><span class="ctrl-label">龍勢</span><div class="seg" data-k="d"><button data-v="sheng">躍龍</button><button data-v="pingyang">平洋</button><button data-v="huilong">迴龍</button><button data-v="ji">急龍</button><button data-v="huan">緩龍</button><button data-v="si">死病</button><button data-v="po">破</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">後山</span><div class="seg" data-k="mn"><button data-v="you">玄武垂頭</button><button data-v="kang">拒屍</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">左砂</span><div class="seg" data-k="ml"><button data-v="you">青龍有情</button><button data-v="ya">逼壓</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">右砂</span><div class="seg" data-k="mr"><button data-v="you">白虎有情</button><button data-v="tai">抬頭煞</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">前案</span><div class="seg" data-k="ms"><button data-v="you">朱雀翔舞</button><button data-v="di">低陷</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">水勢</span><div class="seg" data-k="w"><button data-v="you">玉帶</button><button data-v="jiuqu">九曲</button><button data-v="gejiao">割腳</button><button data-v="lintou">淋頭</button><button data-v="ji">直沖</button><button data-v="fan">反弓</button><button data-v="bazi">八字</button><button data-v="none">無水</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">星體</span><div class="seg" data-k="xing"><button data-v="jin">金</button><button data-v="mu">木</button><button data-v="shui">水</button><button data-v="huo">火</button><button data-v="tu">土</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">穴形</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo">窩鉗</button><button data-v="ru">乳突</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">穴形</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo">窩穴</button><button data-v="qian">鉗穴</button><button data-v="ru">乳穴</button><button data-v="tu">突穴</button></div></div>
       </div>
       <div class="ctrl-col">
         <div class="ctrl-row"><span class="ctrl-label">護從</span><div class="seg">
@@ -106,9 +108,10 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
           <button class="tog on" data-g="elem" data-k="xia">穴星</button>
           <button class="tog on" data-g="elem" data-k="an">案山</button>
           <button class="tog on" data-g="elem" data-k="chao">朝山</button>
+          <button class="tog on" data-g="elem" data-k="zhu">主山</button>
+          <button class="tog on" data-g="elem" data-k="xu">玄武</button>
           <button class="tog on" data-g="elem" data-k="mt">明堂</button>
           <button class="tog on" data-g="elem" data-k="taiji">太極</button>
-          <button class="tog" data-g="adv2" data-k="qian">鉗穴</button>
           <button class="tog" data-g="adv2" data-k="guan">官星</button>
           <button class="tog danger" data-g="adv2" data-k="qing">傾瀉</button>
         </div></div>
@@ -117,10 +120,10 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
           <button class="tog" data-g="elem" data-k="yue">半月池</button>
         </div></div>
         <div class="ctrl-row"><span class="ctrl-label">水口</span><div class="seg">
-          <button class="tog water-dep" data-g="elem" data-k="luo">羅星</button>
-          <button class="tog water-dep" data-g="elem" data-k="hua">華表</button>
-          <button class="tog water-dep" data-g="adv2" data-k="shixiang">獅象</button>
-          <button class="tog water-dep" data-g="adv2" data-k="qin">禽星</button>
+          <button class="tog" data-g="elem" data-k="luo">羅星</button>
+          <button class="tog" data-g="elem" data-k="hua">華表</button>
+          <button class="tog" data-g="adv2" data-k="shixiang">獅象</button>
+          <button class="tog" data-g="adv2" data-k="qin">禽星</button>
         </div></div>
         <div class="ctrl-row"><span class="ctrl-label">形煞</span><div class="seg">
           <button class="tog danger" data-g="adv2" data-k="tianzhan">天斬</button>
@@ -197,8 +200,8 @@ function clearGrid(){for(let i=0;i<grid.length;i++)grid[i].length=0}
 function addToGrid(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y/GRID_SIZE);if(gx>=0&&gx<gridCols&&gy>=0&&gy<gridRows){grid[gy*gridCols+gx].push(p)}}
 function getNearby(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y/GRID_SIZE);const res=[];for(let dy=-1;dy<=1;dy++){for(let dx=-1;dx<=1;dx++){const nx=gx+dx,ny=gy+dy;if(nx>=0&&nx<gridCols&&ny>=0&&ny<gridRows){const cell=grid[ny*gridCols+nx];for(let i=0;i<cell.length;i++)res.push(cell[i])}}}return res}
 
-const baseState={d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
-const baseElem={xia:true,an:true,chao:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
+const baseState={d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
+const baseElem={xia:true,an:true,chao:true,zhu:true,xu:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
 const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
 const state={...baseState};
 const elem={...baseElem};
@@ -345,14 +348,20 @@ function getGlobalMultiplier(){
   if(state.d==='huan')m*=0.65; // 緩龍退敗，氣弱
   if(state.d==='ji' && !adv2.qian && !elem.an)m*=0.7; // 急龍無制
   
-  // === 砂法影響 (Sand Guards) ===
+  // === 砂法影響 (Sand Guards) - 四象完備性檢查 ===
   if(state.ml==='ya')m*=0.85;  // 青龍逼壓
   if(state.mr==='tai')m*=0.65; // 白虎抬頭煞
   if(state.ml==='ya'&&state.mr==='tai')m*=0.75; // 龍虎相鬥
   if(state.ml==='po')m*=0.75;  // 青龍破碎
   if(state.mr==='po')m*=0.75;  // 白虎破碎
   if(state.ml==='po'&&state.mr==='po')m*=0.65; // 兩側皆破
+  if(state.ms==='po')m*=0.80;  // 朱雀破碎
+  if(state.mn==='po')m*=0.80;  // 玄武破碎
+  if(state.mn==='kang')m*=0.55; // 玄武拒屍，大凶
+  if(state.ms==='di')m*=0.75;   // 朱雀低陷，明堂空虛
   // 山龍單邊無砂（露風劫）打8折，雙邊無砂打5折（平洋龍除外）
+      if(state.ms==='none') m *= 0.85; // 前案空虛
+      if(state.mn==='none') m *= 0.7;  // 後靠空虛
   if(state.d!=='pingyang'){
       if(state.ml==='none' && state.mr==='none') m *= 0.5;
       else if(state.ml==='none' || state.mr==='none') m *= 0.8; // 單邊無砂露風
@@ -437,9 +446,14 @@ function getGlobalMultiplier(){
 }
 function getCapacityLimit(){
   let cap=0;
+  // 四象砂手容量貢獻
   if(state.ml==='you')cap+=20;else if(state.ml==='ya')cap+=10;else if(state.ml==='po')cap+=5;
   if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap+=0;else if(state.mr==='po')cap+=5;
-  if(elem.an)cap+=15;if(elem.chao)cap+=10;if(elem.xia)cap+=10;
+  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap+=5;else if(state.ms==='po')cap+=5;
+  if(state.mn==='you')cap+=25;else if(state.mn==='kang')cap+=0;else if(state.mn==='po')cap+=5;
+  // 穴場要素
+  if(elem.an)cap+=10;if(elem.chao)cap+=8;if(elem.xia)cap+=10;
+  if(elem.zhu)cap+=10;if(elem.xu)cap+=10;
   if(elem.mt)cap+=20; // 修正：明堂是聚氣的核心容器，必須提供大量基礎容量
   if(adv2.qian)cap+=15;if(adv2.hulong)cap+=10;
   if(adv2.zutai)cap+=10;
@@ -1267,14 +1281,19 @@ function computeScores(){
   // === 砂法評分 (Sand) - 護衛關攔 ===
   const mlScore_raw = {you:35, ya:12, po:8, none:0}[state.ml];
   const mrScore_raw = {you:35, tai:3, po:8, none:0}[state.mr];
+  const msScore_raw = {you:35, di:10, po:8, none:0}[state.ms];
+  const mnScore_raw = {you:40, kang:5, po:8, none:0}[state.mn];
   
-  // 平洋龍以水為砂，不強求山砂
-  let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore_raw + mrScore_raw);
+  // 平洋龍以水為砂，不強求山砂；山龍需四象完備
+  let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore_raw + mrScore_raw + msScore_raw + mnScore_raw);
   
-  // 案山關攔：正面遮蔽
-  baseS += (elem.an ? 18 : 0);
+  // 案山關攔：正面遮蔽（與朱雀前案重複時酌減）
+  baseS += (elem.an ? 12 : 0);
   // 朝山拱照：遠方朝拜
-  baseS += (elem.chao ? 15 : 0);
+  baseS += (elem.chao ? 10 : 0);
+  // 主山/玄武實體要素
+  baseS += (elem.zhu ? 10 : 0);
+  baseS += (elem.xu ? 10 : 0);
   
   // 凹風煞：兩側受風吹襲
   if(state.ao) baseS -= 40;
@@ -1293,6 +1312,10 @@ function computeScores(){
   if(adv2.qingquan) baseS -= 30;
   // 龍虎相鬥：逼壓交加
   if(state.ml === 'ya' && state.mr === 'tai') baseS -= 40;
+  // 玄武拒屍：後山高昂無情
+  if(state.mn === 'kang') baseS -= 35;
+  // 朱雀低陷：前案空虛
+  if(state.ms === 'di') baseS -= 25;
   
   let S = Math.max(0, Math.min(100, baseS));
 
@@ -1418,7 +1441,7 @@ function computeScores(){
   ];
 }
 const D_DESC={sheng:'躍龍起伏',si:'死病龍',po:'破龍崩瀉',pingyang:'平洋潛龍',huilong:'迴龍顧祖',ji:'急龍直入',huan:'緩龍退敗'};
-const M_DESC=(ml,mr)=>`青龍${ml==='you'?'有情':ml==='ya'?'逼壓':ml==='po'?'破碎':'無'}、白虎${mr==='you'?'有情':mr==='tai'?'抬頭(煞)':mr==='po'?'破碎':'無'}`;
+const M_DESC=(ml,mr,ms,mn)=>`四象：後玄武${mn==='you'?'垂頭':mn==='kang'?'拒屍(凶)':mn==='po'?'破碎':'無'}｜左青龍${ml==='you'?'有情':ml==='ya'?'逼壓':ml==='po'?'破碎':'無'}｜右白虎${mr==='you'?'有情':mr==='tai'?'抬頭(煞)':mr==='po'?'破碎':'無'}｜前朱雀${ms==='you'?'翔舞':ms==='di'?'低陷':ms==='po'?'破碎':'無'}`;
 const W_DESC={you:'玉帶水(凹)',jiuqu:'九曲水(極吉)',gejiao:'割腳水(極凶)',lintou:'淋頭水(極凶)',ji:'直沖湍急(快水)',fan:'反弓水(凸)',bazi:'八字牽鼻(凶)',none:'無水為界'};
 const D_TAG={sheng:['來龍・躍','#7fb08f'],si:['來龍・病','#d8a24a'],po:['來龍・瀉','#c04a3a'],pingyang:['平洋・潛','#7fb08f'],huilong:['迴龍・顧','#b98a2e'],ji:['急龍・沖','#d8a24a'],huan:['緩龍・退','#d8a24a']};
 
@@ -1476,7 +1499,7 @@ function updateUI(){
   if(state.tantou) shaNotes.push('探頭煞');
   let shaStr = shaNotes.length > 0 ? `【犯煞：${shaNotes.join('、')}】` : '';
   
-  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr)}；水：${wDescText}；向：${state.face?'向水':'背水'}。${shaStr}${multiplierNote}${tail}`;
+  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr,state.ms,state.mn)}；水：${wDescText}；向：${state.face?'向水':'背水'}。${shaStr}${multiplierNote}${tail}`;
   
   const st=document.getElementById('status');st.innerHTML='';
   const isCangFeng = state.ml==='you' && state.mr==='you' && !state.ao && !adv2.tianzhan && !adv2.qingquan;
@@ -1760,8 +1783,8 @@ if(tseg) {
     });
 }
 
-const stateKeys=['d','ml','mr','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
-const elemKeys=['xia','an','chao','luo','hua','mt','taiji','san','yue'];
+const stateKeys=['d','ml','mr','ms','mn','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
+const elemKeys=['xia','an','chao','zhu','xu','luo','hua','mt','taiji','san','yue'];
 const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
 
 // 隨機生成格局 - 已補全所有地形與穴場開關的隨機邏輯，並加上基本風水相容性檢查
