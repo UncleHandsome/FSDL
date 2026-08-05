@@ -416,11 +416,11 @@ function getGlobalMultiplier(){
   // 山龍背水（坐空朝滿）大忌
   if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
-  // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分
+  // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分；若無吉水則不應加分
   if(state.d === 'pingyang' && state.w !== 'none') {
       const hasFrontGoodWater = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
       if(!state.face) {
-          m *= hasFrontGoodWater ? 0.6 : 1.25; // 背對前堂吉水打0.6折；無前堂吉水之純平洋背水才給予1.25倍
+          m *= hasFrontGoodWater ? 0.6 : 1.0; // 修正：背對前堂吉水打 0.6 折；無前堂吉水之平洋背水不應加分
       } else if(state.w !== 'jiuqu' && state.w !== 'you') {
           m *= 0.75; // 平洋向水若非玉帶九曲，遇快水極易退氣
       }
@@ -433,12 +433,12 @@ function getGlobalMultiplier(){
   
   // === 特殊吉格加分 (Special Auspicious Patterns) ===
   const isBadWaterRule = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
-  // 三吉六秀：金水土三星配合有情砂水（排除死龍/破龍）
-  if(state.d!=='si' && state.d!=='po' && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
+  // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
     m *= 1.15;
   }
-  // 回龍顧祖：迴龍 + 朝山 + 向水（排除凶水與死破龍）
-  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.chao && state.face) m *= 1.2;
+  // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRule && elem.an && elem.chao && state.face) m *= 1.2;
   // 蜂腰鶴膝 + 護龍：貴龍特徵齊全
   if(adv2.fengyao && adv2.hulong && adv2.zutai && state.d!=='si' && state.d!=='po') m *= 1.1;
   
@@ -448,8 +448,8 @@ function getCapacityLimit(){
   let cap=0;
   // 四象砂手容量貢獻
   if(state.ml==='you')cap+=20;else if(state.ml==='ya')cap+=10;else if(state.ml==='po')cap+=5;
-  if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap+=0;else if(state.mr==='po')cap+=5;
-  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap+=5;else if(state.ms==='po')cap+=5;
+  if(state.mr==='you')cap+=20;else if(state.mr==='tai')cap-=10;else if(state.mr==='po')cap+=5; // 修正：白虎抬頭是大凶，應減少容量而非不變
+  if(state.ms==='you')cap+=20;else if(state.ms==='di')cap-=5;else if(state.ms==='po')cap+=5; // 修正：朱雀低陷應扣分而非加分
   if(state.mn==='you')cap+=25;else if(state.mn==='kang')cap+=0;else if(state.mn==='po')cap+=5;
   // 穴場要素
   if(elem.an)cap+=10;if(elem.chao)cap+=8;if(elem.xia)cap+=10;
@@ -858,7 +858,7 @@ class Particle{
     }
 
     
-    if(state.w==='lintou' && this.y < hy + cR * 1.5){ // 修正：淋頭水的毀滅性重力應貫穿整個明堂與來龍
+    if(state.w==='lintou' && this.y < hy + cR * 3.0){ // 修正：淋頭水的毀滅性重力應貫穿整個來龍與明堂全域（滅頂之災）
       this.vy += 2.0 * pScale * dt;
       jitter += 0.1;
       // 淋頭水自高處直沖來龍，越靠近入首處(穴後)煞氣轉化機率越高，直接破脈
@@ -1281,7 +1281,7 @@ function computeScores(){
   // === 砂法評分 (Sand) - 護衛關攔 ===
   const mlScore_raw = {you:35, ya:12, po:8, none:0}[state.ml];
   const mrScore_raw = {you:35, tai:3, po:8, none:0}[state.mr];
-  const msScore_raw = {you:35, di:10, po:8, none:0}[state.ms];
+  const msScore_raw = {you:35, di:0, po:8, none:0}[state.ms]; // 修正：朱雀低陷為凶象，應直接給 0 分而非 10 分
   const mnScore_raw = {you:40, kang:5, po:8, none:0}[state.mn];
   
   // 平洋龍以水為砂，不強求山砂；山龍需四象完備
@@ -1314,8 +1314,7 @@ function computeScores(){
   if(state.ml === 'ya' && state.mr === 'tai') baseS -= 40;
   // 玄武拒屍：後山高昂無情
   if(state.mn === 'kang') baseS -= 35;
-  // 朱雀低陷：前案空虛
-  if(state.ms === 'di') baseS -= 25;
+  // 朱雀低陷：前案空虛（已於 msScore_raw 給 0 分，此處不再重複扣分）
   
   let S = Math.max(0, Math.min(100, baseS));
 
@@ -1368,9 +1367,9 @@ function computeScores(){
     else if(state.xing === 'shui') xingScore = 8;
     else if(state.xing === 'tu') xingScore = 12;
     else if(state.xing === 'huo') {
-      // 火星需有「吉水」制化（水火既濟），凶水只會加劇火煞
+      // 火星本質燥烈，即使有吉水制化，結穴仍多凶少吉（修正：真實風水火星難結真穴）
       const hasGoodWaterControlSc = elem.yue || elem.san || state.w === 'you' || state.w === 'jiuqu';
-      xingScore = hasGoodWaterControlSc ? -8 : -40;
+      xingScore = hasGoodWaterControlSc ? -25 : -50; // 修正：有水制化仍扣 25 分，無水則扣 50 分
     }
     xueScore += xingScore;
   }
@@ -1423,10 +1422,10 @@ function computeScores(){
   // === 特殊吉格加分 (Special Auspicious Patterns) - 直接加入評分 ===
   let xiangBonus = 0;
   const isBadWaterRuleSc = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
-  // 回龍顧祖：迴龍 + 朝山 + 向水，向法加分（排除凶水與死破龍）
-  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.chao && state.face) xiangBonus += 15;
-  // 三吉六秀：金水土三星配合有情砂水，穴法加分（排除死龍/破龍）
-  if(state.d!=='si' && state.d!=='po' && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
+  // 回龍顧祖：迴龍 + 案山 + 朝山 + 向水，四者俱全方成格局（排除凶水與死破龍）
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.an && elem.chao && state.face) xiangBonus += 15;
+  // 三吉六秀：金水土三星配合有情砂水，需有穴星結穴方為真（排除死龍/破龍）
+  if(state.d!=='si' && state.d!=='po' && elem.xia && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
     X_raw += 10;
   }
   
@@ -1596,11 +1595,11 @@ function updateUI(){
   }
 
   
-  // 凹風煞：需要龍虎砂其中一側破碎或無砂才能形成缺口
+  // 凹風煞：龍虎砂破碎、無砂、逼壓、抬頭，或砂手太低/太遠都會受風吹襲
   const aoBtn = document.querySelector('[data-k="ao"]');
   if(aoBtn){
-    const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none');
-    aoBtn.disabled = !hasGap;
+    const hasGap = (state.ml==='po'||state.ml==='none'||state.mr==='po'||state.mr==='none'||state.ml==='ya'||state.mr==='tai'||!elem.an); // 修正：逼壓/抬頭/無案山也代表砂手失常，易受凹風影響
+    aoBtn.disabled = false; // 凹風煞可手動啟用，但需符合地理條件才生效
     if(!hasGap && (state.ao)){
       state.ao = false;
       
