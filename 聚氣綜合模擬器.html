@@ -132,9 +132,7 @@ header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
         <div class="ctrl-row"><span class="ctrl-label">時間</span><div class="seg" id="time-seg">
           <button data-t="0">暫停</button><button data-t="1" class="on">正常</button><button data-t="2">加速</button>
         </div></div>
-        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="state.face
-      </div>
-    </div>
+        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="face-seg"><button data-f="1" class="on">向水</button><button data-f="0">背水</button></div><div class="seg" style="flex:0 0 auto"><button class="tog on" data-g="view" data-k="heat">熱力</button><button class="tog on" data-g="view" data-k="wind">風場</button><button class="tog" data-g="view" data-k="tilt">2.5D</button></div></div>
 
     <div class="ctrl-row">
       <span class="ctrl-label">格局</span>
@@ -364,7 +362,7 @@ function getGlobalMultiplier(){
   
   // === 坐向規則 (Facing Rules) ===
   // 山龍背水（坐空朝滿）大忌
-  if(!state.state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
+  if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
   // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分
   if(state.d === 'pingyang' && state.w !== 'none') {
@@ -951,7 +949,8 @@ class Particle{
         }
       }
       if(elem.yue){
-        const dx=(this.x-W/2)/(W*.16),dy=(this.y-(state.state.face
+        const dx=(this.x-W/2)/(W*.16),dy=(this.y-(state.face?H*.62:H*.42))/(H*.07);
+        const distNorm=Math.sqrt(dx*dx+dy*dy);
         if(distNorm<1){
           this.vx+=-dy*.25*pScale*dt;this.vy+=dx*.25*pScale*dt;
           
@@ -998,7 +997,7 @@ class Particle{
     if(state.xue==='ru') strengthMod=(state.d==='pingyang'||state.d==='huan') ? 1.8 : 0.5; // 修正：平洋一突勝千峰
     
     if(elem.taiji||elem.chao){
-      const s=((elem.taiji?1:0)+(elem.chao ? 0.4 : 0))*strengthMod*(state.state.face
+      const s=((elem.taiji?1:0)+(elem.chao ? 0.4 : 0))*strengthMod*(state.face?1:0.5);
       const dx=hx-this.x,dy=hy-this.y;const dSq=dx*dx+dy*dy;
       if(dSq<cR_sq*3.61&&dSq>1){
         const d=Math.sqrt(dSq);const strength=1-(d/(cR*1.9));
@@ -1329,7 +1328,7 @@ function computeScores(){
   // === 向法評分 (Xiang) - 納氣之向 ===
   // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
   const hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
-  let Xg_base = state.state.face
+  let Xg_base = state.face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
   
   // 吉水朝堂加分
   let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
@@ -1433,7 +1432,7 @@ function updateUI(){
   if(state.tantou) shaNotes.push('探頭煞');
   let shaStr = shaNotes.length > 0 ? `【犯煞：${shaNotes.join('、')}】` : '';
   
-  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr)}；水：${wDescText}；向：${state.state.face
+  document.getElementById('verdict').textContent=`龍：${D_DESC[state.d]}；砂：${M_DESC(state.ml,state.mr)}；水：${wDescText}；向：${state.face?'向水':'背水'}。${shaStr}${multiplierNote}${tail}`;
   
   const st=document.getElementById('status');st.innerHTML='';
   const isCangFeng = state.ml==='you' && state.mr==='you' && !state.ao && !adv2.tianzhan && !adv2.qingquan;
