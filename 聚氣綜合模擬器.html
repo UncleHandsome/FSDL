@@ -710,7 +710,7 @@ class Particle{
 
     const dx_h=this.x-hx,dy_h=this.y-hy;
     const distSq=dx_h*dx_h+dy_h*dy_h;
-    const mingTangY=hy+(state.state.face
+    const mingTangY=hy+(state.face ? cR : -cR);
     
     if(distSq<cR_sq*2.25){this.hasPassedMingTang=true} // 修正：嚴格限縮明堂判定範圍，拒絕邊緣漏氣蹭分
     
