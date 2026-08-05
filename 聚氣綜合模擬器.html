@@ -931,9 +931,10 @@ class Particle{
       }
     }
     
-      if(elem.san && state.w!=='none'){
-        const dx=W/2-this.x,dy=(state.state.face
-        if(dSq<sanR*sanR){
+    if(elem.san && state.w!=='none'){
+      const dx=W/2-this.x, dy=H/2-this.y;
+      const dSq = dx*dx + dy*dy;
+      if(dSq<sanR*sanR){
           // 三叉水「水聚天心」：兩水交匯形成強大的水漩渦(太極水暈)，將真氣牢牢吸附並高速旋轉淨化
           const d = Math.max(1, Math.sqrt(dSq));
           this.vx += (dx/d) * 0.5 * pScale * dt; // 向心力
