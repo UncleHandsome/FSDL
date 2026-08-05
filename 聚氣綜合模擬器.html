@@ -225,10 +225,11 @@ function rs(){
   gw=Math.max(30,Math.round((W*DPR)/12));
   gh=Math.max(24,Math.round((H*DPR)/12));
   
-  if(oldW>0&&oldH>0&&heatC){
-    if(!tempHeatCanvas)tempHeatCanvas=document.createElement('canvas');
-    tempHeatCanvas.width=heatC.width;tempHeatCanvas.height=heatC.height;
-    tempHeatCanvas.getContext('2d').drawImage(heatC,0,0);
+  // 修正：熱力圖 Resize 數值還原失真問題
+  // 不再使用 Canvas 影像縮放插值與 8-bit 色彩通道轉換，直接從 Float32Array 保留原始精度
+  let oldHeat = null;
+  if(oldW>0&&oldH>0&&heat){
+    oldHeat = new Float32Array(heat); // 保留舊的熱力圖數值（Float32 精度）
   }
   
   heat=new Float32Array(gw*gh);
@@ -237,12 +238,30 @@ function rs(){
   heatCtx=heatC.getContext('2d',{willReadFrequently:true});
   heatImg=heatCtx.createImageData(gw,gh);
   
-  if(tempHeatCanvas&&tempHeatCanvas.width>0){
-    heatCtx.drawImage(tempHeatCanvas,0,0,gw,gh);
-    const imgData=heatCtx.getImageData(0,0,gw,gh);
-    for(let i=0;i<gw*gh;i++){
-      const R=imgData.data[i*4];
-      heat[i]=Math.max(0,(R-40)/30.1);
+  // 修正：直接使用雙線性插值從舊的 Float32Array 還原熱力圖數值，避免 8-bit 色彩通道精度損失
+  if(oldHeat && oldHeat.length > 0){
+    const oldGw = Math.round((oldW*DPR)/12);
+    const oldGh = Math.round((oldH*DPR)/12);
+    for(let y=0;y<gh;y++){
+      for(let x=0;x<gw;x++){
+        const oldX = (x / gw) * oldGw;
+        const oldY = (y / gh) * oldGh;
+        const x0 = Math.floor(oldX), y0 = Math.floor(oldY);
+        const x1 = Math.min(x0+1, oldGw-1), y1 = Math.min(y0+1, oldGh-1);
+        const fx = oldX - x0, fy = oldY - y0;
+        
+        // 雙線性插值
+        const v00 = oldHeat[y0*oldGw+x0] || 0;
+        const v10 = oldHeat[y0*oldGw+x1] || 0;
+        const v01 = oldHeat[y1*oldGw+x0] || 0;
+        const v11 = oldHeat[y1*oldGw+x1] || 0;
+        
+        const v0 = v00*(1-fx) + v10*fx;
+        const v1 = v01*(1-fx) + v11*fx;
+        const v = v0*(1-fy) + v1*fy;
+        
+        heat[y*gw+x] = v;
+      }
     }
   }
   
@@ -1300,13 +1319,16 @@ function computeScores(){
   // 傾瀉：氣隨堂泄
   if(adv2.qing) X_raw -= 30;
   
-  // 無穴星則評分上限鎖死
-  let X = !elem.xia ? Math.min(25, Math.max(0, X_raw)) : Math.max(0, Math.min(100, X_raw));
+  // 修正：星穴相剋時保留負分資訊，不過度截斷為 0
+  // 讓嚴重相剋 (-50 分) 與單純沒結穴 (0 分) 能區分開來
+  let X_base = !elem.xia ? Math.min(25, Math.max(0, X_raw)) : X_raw;
+  // 僅在最終輸出時限制顯示範圍，內部計算保留負值
+  let X = Math.max(-50, Math.min(100, X_base));
   
   // === 向法評分 (Xiang) - 納氣之向 ===
   // 基礎分：向水為吉，平洋背水反吉，山龍背水大凶
   const hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || elem.yue || elem.san);
-  let Xg_base = face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
+  let Xg_base = state.face ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
   
   // 吉水朝堂加分
   let waterBonus = (state.w === 'you' || state.w === 'jiuqu') ? 25 : 0;
@@ -1317,7 +1339,7 @@ function computeScores(){
   
   // 向水局：全盤加分
   // 背水局：僅平洋龍得吉（需有水朝），山龍背水無加分
-  let Xg = face 
+  let Xg = state.face 
     ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus)
     : Math.min(100, Xg_base + (state.d === 'pingyang' && state.w !== 'none' ? waterBonus : 0) + (elem.an ? 8 : 0));
   
@@ -1335,15 +1357,17 @@ function computeScores(){
   let xiangBonus = 0;
   const isBadWaterRuleSc = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
   // 回龍顧祖：迴龍 + 朝山 + 向水，向法加分（排除凶水與死破龍）
-  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.chao && face) xiangBonus += 15;
+  if(state.d==='huilong' && state.d!=='si' && state.d!=='po' && !isBadWaterRuleSc && elem.chao && state.face) xiangBonus += 15;
   // 三吉六秀：金水土三星配合有情砂水，穴法加分（排除死龍/破龍）
   if(state.d!=='si' && state.d!=='po' && (state.xing==='jin'||state.xing==='tu'||state.xing==='shui') && state.ml==='you' && state.mr==='you' && (state.w==='you'||state.w==='jiuqu')){
     X_raw += 10;
   }
   
+  // 修正：五訣雷達圖與聚氣指數邏輯一致
+  // 返回原始分數（含負值），讓雷達圖能反映真實吉凶程度
   return [
     Math.max(0, D - vetoPenalty),
-    Math.max(0, Math.min(100, X + xiangBonus) - vetoPenalty * 0.5),
+    Math.max(-50, Math.min(100, X + xiangBonus) - vetoPenalty * 0.5),
     Math.max(0, S - vetoPenalty * 0.3),
     Math.max(0, Wa - vetoPenalty * 0.5),
     Math.max(0, Xg + xiangBonus - vetoPenalty * 0.3)
@@ -1810,15 +1834,21 @@ cv.addEventListener('click',e=>{
   const nx=(e.clientX-rect.left)/rect.width;
   let ny=(e.clientY-rect.top)/rect.height;
   
+  // 2.5D 模式下點擊判定修正：統一使用視覺座標進行碰撞檢測
+  let visualNx = nx, visualNy = ny;
   if(view.tilt) {
       // 反向映射：將視覺壓縮的 Y 座標還原回物理空間
       ny = 0.5 + (ny - 0.5) / 0.6;
       if(ny < 0 || ny > 1) return; // 點擊在浮島外的虛空處無效
+      // 計算視覺座標下的障礙物位置（用於碰撞檢測）
+      visualNy = 0.5 + (ny - 0.5) * 0.6;
   }
   
   let removed=false;
   for(let i=obstacles.length-1;i>=0;i--){
-    const dx=(obstacles[i].nx*W)-(nx*W),dy=(obstacles[i].ny*H)-(ny*H);const r=obstacles[i].rRatio*baseDim;
+    // 修正：在 2.5D 模式下，使用視覺座標進行碰撞檢測
+    const obsVisualY = view.tilt ? (0.5 + (obstacles[i].ny - 0.5) * 0.6) : obstacles[i].ny;
+    const dx=(obstacles[i].nx*W)-(nx*W),dy=(obsVisualY*H)-(visualNy*H);const r=obstacles[i].rRatio*baseDim;
     if(dx*dx+dy*dy<(r*1.1)*(r*1.1)){obstacles.splice(i,1);removed=true;break}
   }
   if(!removed&&obstacles.length<5){
@@ -2115,6 +2145,10 @@ function drawTaiji(){
 }
 
 function drawShockwaves(dt){
+  // 修正：衝擊波陣列限制失效問題，確保任何情況下都不超過 MAX_SHOCKWAVES
+  if(shockwaves.length > MAX_SHOCKWAVES) {
+    shockwaves.splice(0, shockwaves.length - MAX_SHOCKWAVES);
+  }
   for(let i=shockwaves.length-1;i>=0;i--){
     const sw=shockwaves[i];
     sw.r+=(sw.maxR/35)*dt;
@@ -2156,17 +2190,20 @@ function updateQiEffects(){
   const isGoodWater=state.w==='jiuqu'||state.w==='you';
   const hasBadDragon=state.d==='si'||state.d==='po';
   
-  // 2.5D 視角修正：計算視覺 Y 座標
+  // 2.5D 視角修正：計算視覺 Y 座標並同步縮放 DOM 元素尺寸
   const targetY = houseY();
   const visualY = view.tilt ? (H * 0.5 + (targetY - H * 0.5) * 0.6) : targetY;
+  const tiltScale = view.tilt ? 0.6 : 1; // 2.5D 模式下垂直壓縮比例
   
-  // 太極暈：穴場聚氣時顯示
+  // 太極暈：穴場聚氣時顯示（需應用垂直縮放以匹配 Canvas 投影）
   if(elem.xia&&elem.mt&&avgScore>=50&&!hasBadDragon){
     taiji.style.display='block';
     taiji.style.left=(W/2-60)+'px';
     taiji.style.top=(visualY-60)+'px';
+    taiji.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
   }else{
     taiji.style.display='none';
+    taiji.style.transform = '';
   }
   
   // 吉兆光暈：成貴格時顯示（九曲水、蜂腰鶴膝等）
@@ -2175,8 +2212,10 @@ function updateQiEffects(){
     auspicious.style.display='block';
     auspicious.style.left=(W/2-75)+'px';
     auspicious.style.top=(visualY-75)+'px';
+    auspicious.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
   }else{
     auspicious.style.display='none';
+    auspicious.style.transform = '';
   }
   
   // 凶兆警告：犯凶格時閃爍（淋頭水、反弓水、死病龍等）
@@ -2185,8 +2224,10 @@ function updateQiEffects(){
     inauspicious.style.display='block';
     inauspicious.style.left=(W/2-50)+'px';
     inauspicious.style.top=(visualY-50)+'px';
+    inauspicious.style.transform = `scaleY(${tiltScale})`; // 應用垂直縮放
   }else{
     inauspicious.style.display='none';
+    inauspicious.style.transform = '';
   }
   
   // 氣場粒子效果：在明堂區域生成額外的氣流線
@@ -2201,7 +2242,7 @@ function updateQiEffects(){
       flowLine.style.left=startX+'px';
       flowLine.style.top=startY+'px';
       flowLine.style.width=length+'px';
-      flowLine.style.transform=`rotate(${angle}deg)`;
+      flowLine.style.transform=`rotate(${angle}deg) scaleY(${tiltScale})`; // 應用垂直縮放
       qiLayer.appendChild(flowLine);
       setTimeout(()=>flowLine.remove(),3000);
     }
@@ -2243,6 +2284,7 @@ function frame(timestamp){
   if(bgDirty&&bgCanvas){const bctx=bgCanvas.getContext('2d');bctx.setTransform(DPR,0,0,DPR,0,0);bctx.clearRect(0,0,W*DPR,H*DPR);drawBgTerrain(bctx);bgDirty=false}
   if(bgCanvas)ctx.drawImage(bgCanvas,0,0,W,H);
   
+  // 修正：地形圖層繪製順序 - 先畫河流再畫案山，避免「水在山頂上流」的圖層錯誤
   drawWaterFlow();drawHeat(dt);drawWindArrows(dt);drawTaiji();
   
   spawnAcc+=ENV.spawnRate[state.d]*dt;
