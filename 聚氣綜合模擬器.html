@@ -420,7 +420,16 @@ class Particle{
     
     const t=Math.random()*.75;const leak=(state.d==='po'||state.d==='huan')&&Math.random()<.35;
     const spread = (35 - 25 * t) * pScale; // 修正：氣脈隨過峽「剝換」逐漸收斂，並正確適應螢幕縮放
-    this.x=dragonX(t)+(Math.random()-.5)*spread;this.y=dragonY(t);
+    this.x=dragonX(t)+(Math.random()-.5)*spread;
+    
+    // 修正：平洋龍粒子生成點與物理邏輯矛盾
+    // 風水訣曰「平洋拿水，水即是龍」。平洋龍應從水面/地面生成，模擬「潛隱於地、隨水而行」
+    if(state.d === 'pingyang') {
+        this.y = riverY(this.x) + (Math.random() - 0.5) * 20; // 在水位線附近生成
+        this.isUnderground = false; // 平洋龍氣浮於地表
+    } else {
+        this.y=dragonY(t);
+    }
     
     let initVy = (.6+Math.random()*.5)*pScale;
     if(state.d==='ji') initVy = 2.5 * pScale; 
@@ -1026,8 +1035,12 @@ class Particle{
       let min_vy;
       if(this.vy<0){min_vy=-3*pScale}
       else{
+        // 修正：垂直速度不連續問題。當 vy 接近 0 時，使用平滑過渡而非突變
+        // 避免粒子在 0 附近產生向下抽搐/抖動的非物理現象
         let baseMin = state.d==='ji' ? 1.8*pScale : (state.d==='huan' ? 0.12*pScale : 0.4*pScale);
         min_vy=(distSq<cR_sq*1.44)?.1*pScale:baseMin;
+        // 平滑過渡：當 vy 很小但為正時，允許更小的最小值以避免突變
+        if(this.vy < 0.1 * pScale) min_vy = Math.min(min_vy, 0.05 * pScale);
       }
       let maxVy = state.d==='ji' ? 5.0*pScale : (state.d==='huan' ? 1.2*pScale : 3*pScale);
       this.vy=Math.max(min_vy,Math.min(maxVy,this.vy));
@@ -1120,9 +1133,13 @@ function dragonX(t){
 function dragonY(t){
     if(state.d==='pingyang') return H*.1 + t * (houseY()-14 - H*.1); 
     if(state.d==='huilong'){
-        return -20 + t * (houseY() + 20 - 14); 
+        // 修正：迴龍顧祖真實地理軌跡。龍脈先向下潛行，然後向上彎回朝拜祖山
+        // 使用正弦曲線模擬「迴轉向上」的地理形勢，t=0 在上方(祖山)，t=0.5 最低點(過峽)，t=1 回升至穴場
+        const lowestPoint = houseY() + 30; // 最低點比穴場更低
+        const upwardCurve = Math.sin(t * Math.PI); // 0 -> 1 -> 0 的弧形
+        return -20 + upwardCurve * (lowestPoint + 20);
     }
-    return-20+t*(houseY()-14);
+    return -20+t*(houseY()-14);
 }
 function riverY(x){
   let t=(x-W*ENV.riverStart)/(W*(ENV.riverEnd-ENV.riverStart));
@@ -2246,6 +2263,10 @@ function frame(timestamp){
   const centerRSq=centerR*centerR;
   const fastThresholdSq=(1.5*pScale)*(1.5*pScale);
   
+  // 1. 先清空並重建空間網格（確保粒子查詢的是當前幀的最新網格）
+  clearGrid();for(let p of ps)addToGrid(p);
+  
+  // 2. 更新粒子物理狀態（此時 getNearby() 查詢的是正確的本幀網格）
   for(let i=0;i<ps.length;){
     const p=ps[i];const alive=p.update(dt);
     if(!alive){
@@ -2254,8 +2275,6 @@ function frame(timestamp){
     }
     else{i++}
   }
-  
-  clearGrid();for(let p of ps)addToGrid(p);
   
   const shaRadius=baseDim*.03;const shaRadSq=shaRadius*shaRadius;
   for(let p of ps){
