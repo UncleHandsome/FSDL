@@ -199,13 +199,14 @@ function getNearby(p){const gx=Math.floor(p.x/GRID_SIZE);const gy=Math.floor(p.y
 
 const baseState={d:'sheng',ml:'you',mr:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
 const baseElem={xia:true,an:true,chao:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
-const baseAdv={shu:true,fenzhi:false,guiyao:false,ao:false,tantou:false};
 const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
 const state={...baseState};
 const elem={...baseElem};
-const adv={...baseAdv};
 const adv2={...baseAdv2};
 const view={heat:true,wind:true,tilt:false};let face=true;
+
+// 廢除 adv 物件，將所有開關統一收攏至 state 與 elem 中（修復狀態不同步 Bug）
+// 原本 adv 中的欄位已全部移至 state：shu, fenzhi, guiyao, ao, tantou
 
 let resizeTimer;
 function rs(){
@@ -296,7 +297,7 @@ function getGlobalMultiplier(){
   
   // === 形煞影響 (Sha Penalties) ===
   if(state.ao)m*=(state.shu ? 0.25 : 0.4); // 凹風吹氣
-  if(adv.tantou)m*=0.55;  // 探頭暗箭
+  if(state.tantou)m*=0.55;  // 探頭暗箭
   if(adv2.tianzhan)m*=0.45; // 天斬罡風
   if(adv2.qingquan)m*=0.65; // 擎拳頂心
   if(state.fenzhi)m*=0.7;   // 枝龍分流洩氣
@@ -1673,10 +1674,9 @@ if(tseg) {
 
 const stateKeys=['d','ml','mr','w','xing','xue','ao','shu','shaMode','fenzhi','tantou','guiyao'];
 const elemKeys=['xia','an','chao','luo','hua','mt','taiji','san','yue'];
-const advKeys=['shu','fenzhi','guiyao','ao','tantou'];
 const adv2Keys=['hulong','fengyao','zutai','guan','qin','qian','qing','shixiang','tianzhan','qingquan'];
 
-// 隨機生成格局
+// 隨機生成格局 - 已補全所有地形與穴場開關的隨機邏輯，並加上基本風水相容性檢查
 function generateRandomPreset(){
   const dragonOpts=['sheng','pingyang','huilong','ji','huan','si','po'];
   const sandOpts=['you','ya','po','none'];
@@ -1755,10 +1755,9 @@ document.querySelectorAll('.preset').forEach(b=>{
     }else{
       p=presets[b.dataset.preset];
     }
-    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv,baseAdv);Object.assign(adv2,baseAdv2);
+    Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);
     stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
     elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
-    advKeys.forEach(k=>{if(k in p)adv[k]=p[k]});
     adv2Keys.forEach(k=>{if(k in p)adv2[k]=p[k]});
     if('face'in p)face=p.face;
     obstacles.length=0;shockwaves.length=0;bgDirty=true;cv.style.cursor=state.shaMode?'crosshair':'default';
