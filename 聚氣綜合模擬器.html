@@ -203,7 +203,10 @@ const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:
 const state={...baseState};
 const elem={...baseElem};
 const adv2={...baseAdv2};
-const view={heat:true,wind:true,tilt:false};let face=true;
+const view={heat:true,wind:true,tilt:false};
+
+// 坐向（向水=true，背水=false）已納入 state 管理以確保狀態同步
+state.face = true;
 
 // 廢除 adv 物件，將所有開關統一收攏至 state 與 elem 中（修復狀態不同步 Bug）
 // 原本 adv 中的欄位已全部移至 state：shu, fenzhi, guiyao, ao, tantou
@@ -332,9 +335,9 @@ function getGlobalMultiplier(){
   if(['gejiao','ji','fan','bazi'].includes(state.w)) {
       // 反弓水無情射穴，加重扣分
       let base = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.25 : 0.45;
-      let cap = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.75 : 0.9;
+      let waterCap = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.75 : 0.9;
       let effectiveAnShield = (state.w === 'gejiao' || state.w === 'fan') ? 0 : anshanShield; // 割腳水/反弓水貼穴，案山難擋
-      m *= Math.min(cap, base + waterGuards * 0.12 + effectiveAnShield);
+      m *= Math.min(waterCap, base + waterGuards * 0.12 + effectiveAnShield);
   }
   
   // 傾瀉：明堂斜飛，需有水口關攔
@@ -342,7 +345,7 @@ function getGlobalMultiplier(){
   
   // === 坐向規則 (Facing Rules) ===
   // 山龍背水（坐空朝滿）大忌
-  if(!face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
+  if(!state.face && state.d !== 'pingyang' && state.w !== 'none') m *= 0.5;
   
   // 平洋龍訣法：若前方有明堂吉水（九曲/玉帶/半月池/三叉水），背水屬於「背吉棄水」，強制打折扣分
   if(state.d === 'pingyang' && state.w !== 'none') {
@@ -1660,7 +1663,7 @@ document.querySelectorAll('.tog').forEach(b=>{
 });
 
 const fseg=document.getElementById('face-seg');
-fseg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');face=b.dataset.f==='1';bgDirty=true;updateUI()});
+fseg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.face=b.dataset.f==='1';bgDirty=true;updateUI()});
 
 let simTimeScale = 1;
 const tseg = document.getElementById('time-seg');
@@ -1737,6 +1740,10 @@ function generateRandomPreset(){
     p.fenzhi = false;
   }
   
+  // 穴場核心要素（確保基本風水結構）
+  if(!p.xia && Math.random() < 0.7) p.xia = true; // 70% 機率有穴星
+  if(!p.mt && Math.random() < 0.6) p.mt = true;  // 60% 機率有明堂
+  
   return p;
 }
 
@@ -1758,7 +1765,7 @@ document.querySelectorAll('.preset').forEach(b=>{
     stateKeys.forEach(k=>{if(k in p)state[k]=p[k]});
     elemKeys.forEach(k=>{if(k in p)elem[k]=p[k]});
     adv2Keys.forEach(k=>{if(k in p)adv2[k]=p[k]});
-    if('face'in p)face=p.face;
+    if('face' in p) state.face = p.face;
     obstacles.length=0;shockwaves.length=0;bgDirty=true;cv.style.cursor=state.shaMode?'crosshair':'default';
     document.querySelectorAll('.seg button').forEach(x=>x.classList.remove('on'));
     document.querySelectorAll('.tog').forEach(x=>{
@@ -1767,14 +1774,16 @@ document.querySelectorAll('.preset').forEach(b=>{
         if(k) x.classList.toggle('on',o[k]);
     });
     document.querySelectorAll('.seg').forEach(seg=>{if(seg.dataset.k){const cur=seg.querySelector('[data-v="'+state[seg.dataset.k]+'"]');if(cur)cur.classList.add('on')}});
-    const fseg=document.getElementById('face-seg');if(fseg){fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));fseg.querySelector(`[data-f="${face?'1':'0'}"]`).classList.add('on')}
+    const fseg=document.getElementById('face-seg');if(fseg){fseg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));fseg.querySelector(`[data-f="${state.face?'1':'0'}"]`).classList.add('on')}
     
     // 水口元件狀態同步：如果 preset 未啟用水口但啟用了獅象，顯示提示
     if(p.shixiang && !p.luo && !p.hua && !p.qin && state.w !== 'none' && state.w !== 'lintou') {
         console.log('獅象把門已達成水口關攔，無需額外設置羅星/華表');
     }
     
-    ps.length=0;updateUI();
+    ps.length=0;
+    if(heat) heat.fill(0); // 清空熱力圖避免殘影
+    updateUI();
   });
 });
 
