@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>龍・山・水 聚氣綜合模擬器 3D 版 v25.2.0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700;900&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f6f1e7;--ink:#22201c;--ink-soft:#5a554c;--seal:#a63a2b;--gold:#b98a2e;--jade:#3f6b52;--water:#3e6f86;--bg-dark:#14120e;--bg-panel:#171a1e}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;background:var(--bg-dark);color:#cfc6b4;line-height:1.4;overflow:hidden;height:100vh;display:flex;flex-direction:column}
+h1,h2,h3,h4{font-family:'Noto Serif TC','PingFang TC',serif}
+header{background:#171512;color:var(--paper);text-align:center;padding:8px 16px;border-bottom:2px solid var(--gold);flex:0 0 auto;z-index:100}
+header h1{font-size:20px;letter-spacing:.15em;font-weight:900}
+header p{color:#a89e88;letter-spacing:.1em;margin-top:2px;font-size:13px}
+.main-layout{flex:1;display:flex;padding:8px;gap:8px;min-height:0;position:relative}
+.canvas-container{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg-dark);border-radius:12px;overflow:hidden;border:1px solid rgba(246,241,231,.15);box-shadow:0 10px 30px rgba(0,0,0,.15);position:relative}
+#canvas-container-3d{width:100%;height:100%;flex:1;touch-action:none}
+.ui-panel{width:440px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--jade) #0e1114;z-index:50;background:rgba(23,26,30,0.95);padding:8px;border-radius:8px}
+.ui-panel::-webkit-scrollbar{width:5px}.ui-panel::-webkit-scrollbar-track{background:#0e1114;border-radius:3px}.ui-panel::-webkit-scrollbar-thumb{background:var(--jade);border-radius:3px}
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ctrl-col{display:flex;flex-direction:column;gap:4px}.ctrl-row{display:flex;align-items:center;gap:6px;margin-bottom:0}
+.ctrl-label{font-family:'Noto Serif TC',serif;letter-spacing:.05em;color:#cfc6b4;min-width:42px;font-size:13px;flex-shrink:0}
+.seg{display:flex;gap:3px;flex-wrap:wrap;flex:1}
+.seg button{display:flex;align-items:center;gap:3px;background:transparent;border:1px solid rgba(246,241,231,.2);color:#cfc6b4;border-radius:4px;padding:3px 6px;cursor:pointer;font-family:'Noto Serif TC',serif;font-size:12px;letter-spacing:.01em;transition:.2s;white-space:nowrap}
+.seg button.on{background:var(--gold);border-color:var(--gold);color:#171512;font-weight:700}
+.seg button:hover{background:rgba(246,241,231,.08);border-color:rgba(246,241,231,.5)}
+.seg button.on:hover{background:#cda240;border-color:#cda240}
+.seg button.danger.on{background:var(--seal);border-color:var(--seal);color:#fff}
+.seg button.danger.on:hover{background:#c04a3a;border-color:#c04a3a}
+.seg button.preset{border-color:#7fb08f;color:#7fb08f;font-weight:600;flex:1;justify-content:center}
+.seg button.preset:hover{background:#7fb08f;color:#14120e}
+.seg button:disabled{opacity:.3;pointer-events:none;cursor:not-allowed}
+.stats-row{display:flex;gap:8px;align-items:flex-end;margin-top:4px}.meters{flex:1;display:flex;flex-direction:column;gap:4px}.meter-group{width:100%}
+.meter-title{font-size:12px;letter-spacing:.03em;color:#a89e88;display:flex;justify-content:space-between;margin-bottom:2px}.meter-title b{color:var(--paper)}
+.meter{height:6px;background:rgba(246,241,231,.1);border-radius:99px;overflow:hidden}.meter i{display:block;height:100%;width:0%;transition:width .35s}
+#m-gather .meter i{background:linear-gradient(90deg,#8a6a20,var(--gold))}#m-scatter .meter i{background:linear-gradient(90deg,#7a2a20,#c04a3a)}
+.radar-box{width:150px;flex:0 0 auto;background:rgba(246,241,231,.03);border:1px solid rgba(246,241,231,.08);border-radius:8px;padding:4px;text-align:center}
+.radar-box h4{font-size:13px;color:#cfc6b4;letter-spacing:.1em;margin-bottom:2px}#radar{width:130px;height:130px}
+.status-bar{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}.status-bar span{font-size:11px;letter-spacing:.02em;border:1px solid;border-radius:999px;padding:2px 8px}
+#verdict-row{background:rgba(0,0,0,.2);padding:6px 8px;border-radius:6px;border-left:3px solid var(--gold);margin-top:4px;display:flex;align-items:center;gap:8px}
+#rating{font-family:'Noto Serif TC',serif;font-weight:900;font-size:14px;letter-spacing:.05em;padding:2px 6px;border-radius:4px;color:#171512;white-space:nowrap}
+#verdict{font-family:'Noto Serif TC',serif;color:#d8cfba;letter-spacing:.01em;font-size:13px;line-height:1.5}
+.camera-controls{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;padding:4px;background:rgba(0,0,0,.2);border-radius:6px}.camera-controls button{flex:1;min-width:60px}
+.info-overlay{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);padding:8px 12px;border-radius:6px;font-size:12px;color:#cfc6b4;pointer-events:none;z-index:10}
+@media(max-width:960px){body{height:auto;overflow-y:auto}.main-layout{flex-direction:column}.canvas-container{height:50vh}.ui-panel{width:100%;max-height:none;overflow-y:visible}.controls-grid{grid-template-columns:1fr}}
+.loading-overlay{position:absolute;inset:0;background:rgba(20,18,14,.95);display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1000}
+.loading-overlay.hidden{display:none}.loading-spinner{width:50px;height:50px;border:3px solid rgba(185,138,46,.3);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}.loading-text{margin-top:16px;color:var(--gold);letter-spacing:.1em}
+</style>
+</head>
+<body>
+<header><h1>龍・山・水 聚氣綜合模擬器 3D 版</h1><p>Three.js 三維風水巒頭模擬系統</p></header>
+<div class="main-layout">
+  <div class="canvas-container">
+    <div id="canvas-container-3d"></div>
+    <div class="info-overlay"><div>鼠標左鍵：旋轉視角 | 右鍵：平移 | 滾輪：縮放</div></div>
+    <div class="loading-overlay" id="loading"><div class="loading-spinner"></div><div class="loading-text">載入 Three.js 3D 引擎...</div></div>
+  </div>
+  <div class="ui-panel">
+    <div class="controls-grid">
+      <div class="ctrl-col">
+        <div class="ctrl-row"><span class="ctrl-label">龍勢</span><div class="seg" data-k="d"><button data-v="sheng">躍龍</button><button data-v="pingyang">平洋</button><button data-v="huilong">迴龍</button><button data-v="ji">急龍</button><button data-v="huan">緩龍</button><button data-v="si">死病</button><button data-v="po">破</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">後山</span><div class="seg" data-k="mn"><button data-v="you">玄武垂頭</button><button data-v="kang">拒屍</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">左砂</span><div class="seg" data-k="ml"><button data-v="you">青龍有情</button><button data-v="ya">逼壓</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">右砂</span><div class="seg" data-k="mr"><button data-v="you">白虎有情</button><button data-v="tai">抬頭煞</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">前案</span><div class="seg" data-k="ms"><button data-v="you">朱雀翔舞</button><button data-v="di">低陷</button><button data-v="po">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水勢</span><div class="seg" data-k="w"><button data-v="you">玉帶</button><button data-v="jiuqu">九曲</button><button data-v="gejiao">割腳</button><button data-v="lintou">淋頭</button><button data-v="ji">直沖</button><button data-v="fan">反弓</button><button data-v="bazi">八字</button><button data-v="none">無水</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">星體</span><div class="seg" data-k="xing"><button data-v="jin">金</button><button data-v="mu">木</button><button data-v="shui">水</button><button data-v="huo">火</button><button data-v="tu">土</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">穴形</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo">窩穴</button><button data-v="qian">鉗穴</button><button data-v="ru">乳穴</button><button data-v="tu">突穴</button></div></div>
+      </div>
+      <div class="ctrl-col">
+        <div class="ctrl-row"><span class="ctrl-label">護從</span><div class="seg"><button class="tog on" data-g="adv" data-k="shu">束氣</button><button class="tog danger" data-g="adv" data-k="fenzhi">分流</button><button class="tog" data-g="adv" data-k="guiyao">鬼曜</button><button class="tog" data-g="adv2" data-k="hulong">護龍</button><button class="tog on" data-g="adv2" data-k="fengyao">蜂腰</button><button class="tog" data-g="adv2" data-k="zutai">祖脈</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">穴場</span><div class="seg"><button class="tog on" data-g="elem" data-k="xia">穴星</button><button class="tog on" data-g="elem" data-k="an">案山</button><button class="tog on" data-g="elem" data-k="chao">朝山</button><button class="tog on" data-g="elem" data-k="zhu">主山</button><button class="tog on" data-g="elem" data-k="xu">玄武</button><button class="tog on" data-g="elem" data-k="mt">明堂</button><button class="tog on" data-g="elem" data-k="taiji">太極</button><button class="tog" data-g="adv2" data-k="guan">官星</button><button class="tog danger" data-g="adv2" data-k="qing">傾瀉</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水法</span><div class="seg"><button class="tog water-dep" data-g="elem" data-k="san">三叉水</button><button class="tog" data-g="elem" data-k="yue">半月池</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">水口</span><div class="seg"><button class="tog" data-g="elem" data-k="luo">羅星</button><button class="tog" data-g="elem" data-k="hua">華表</button><button class="tog" data-g="adv2" data-k="shixiang">獅象</button><button class="tog" data-g="adv2" data-k="qin">禽星</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">形煞</span><div class="seg"><button class="tog danger" data-g="adv2" data-k="tianzhan">天斬</button><button class="tog danger" data-g="adv2" data-k="qingquan">擎拳</button><button class="tog danger" data-g="adv" data-k="ao">凹風</button><button class="tog danger" data-g="adv" data-k="tantou">探頭</button><button class="tog danger" data-g="adv" data-k="shaMode">手動</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">時間</span><div class="seg" id="time-seg"><button data-t="0">暫停</button><button data-t="1" class="on">正常</button><button data-t="2">加速</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">其他</span><div class="seg" id="face-seg"><button data-f="1" class="on">向水</button><button data-f="0">背水</button></div><div class="seg" style="flex:0 0 auto"><button class="tog on" data-g="view" data-k="particles">粒子</button><button class="tog on" data-g="view" data-k="flow">流線</button><button class="tog" data-g="view" data-k="wireframe">線框</button></div></div>
+      </div>
+    </div>
+    <div class="ctrl-row"><span class="ctrl-label">格局</span><div class="seg" style="width:100%"><button class="preset" data-preset="perfect">完美巒頭</button><button class="preset" data-preset="gejiao">割腳退財</button><button class="preset" data-preset="huilong">迴龍顧祖</button><button class="preset" data-preset="tianzhan">天斬傾瀉</button><button class="preset" id="random-preset">隨機生成</button></div></div>
+    <div class="camera-controls"><span class="ctrl-label" style="min-width:50px">視角</span><button data-cam="top">俯視</button><button data-cam="front">正面</button><button data-cam="side">側面</button><button data-cam="iso">等軸</button><button data-cam="orbit">環繞</button></div>
+    <div class="stats-row">
+      <div class="meters">
+        <div class="meter-group" id="m-gather"><div class="meter-title"><span>聚氣指數</span><b id="g-num">0</b></div><div class="meter"><i id="g-fill"></i></div></div>
+        <div class="meter-group" id="m-scatter"><div class="meter-title"><span>散氣／煞氣</span><b id="s-num">0</b></div><div class="meter"><i id="s-fill"></i></div></div>
+        <div class="meter-group"><div class="meter-title"><span>容量/乘數</span><b id="cap-num">0/×1.0</b></div><div class="meter"><i id="cap-fill" style="background:linear-gradient(90deg,#3f6b52,#7fb08f)"></i></div></div>
+      </div>
+      <div class="radar-box"><h4>五訣</h4><canvas id="radar" width="130" height="130"></canvas></div>
+    </div>
+    <div class="status-bar" id="status"></div>
+    <div id="verdict-row"><span id="rating"></span><p id="verdict"></p></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene,camera,renderer,terrainMesh,waterMesh,mountainGroup,particleMesh,clock,deltaTime=0,isAutoOrbit=false,orbitSpeed=0.3;
+const TERRAIN_SIZE=100,TERRAIN_SEGMENTS=128,HEIGHT_SCALE=15,PARTICLE_COUNT=2000,FLOW_LINE_COUNT=50;
+let flowLines=[],particleGeometry,particleMaterial;
+const baseState={d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',ao:false,shu:true,shaMode:false,fenzhi:false,tantou:false,guiyao:false};
+const baseElem={xia:true,an:true,chao:true,zhu:true,xu:true,luo:false,hua:false,mt:true,taiji:true,san:false,yue:false};
+const baseAdv2={hulong:false,fengyao:true,zutai:false,guan:false,qin:false,qian:false,qing:false,shixiang:false,tianzhan:false,qingquan:false};
+const state={...baseState},elem={...baseElem},adv2={...baseAdv2},adv={ao:false,shu:true,fenzhi:false,tantou:false,guiyao:false};
+const view={particles:true,flow:true,wireframe:false};state.face=true;
+let timeScale=1,isPaused=false,gatherScore=0,scatterScore=0;
+const COLORS={terrain:0x3f6b52,terrainHighlight:0x7fb08f,water:0x3e6f86,mountain:0x5a554c,mountainPeak:0x8b7d6b,qi:0xb98a2e,sha:0xc04a3a,taiji:0xffec8b,grid:0x4a4540};
+let isDragging=false,isRightDragging=false,previousMousePosition={x:0,y:0},spherical={radius:100,phi:60,theta:45},target=new THREE.Vector3(0,0,0);
+
+function initThreeJS(){
+  const container=document.getElementById('canvas-container-3d');
+  scene=new THREE.Scene();scene.background=new THREE.Color(0x0c1013);scene.fog=new THREE.FogExp2(0x0c1013,0.015);
+  camera=new THREE.PerspectiveCamera(60,container.clientWidth/container.clientHeight,0.1,1000);camera.position.set(80,60,80);camera.lookAt(0,0,0);
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setSize(container.clientWidth,container.clientHeight);renderer.setPixelRatio(Math.min(2,window.devicePixelRatio));renderer.shadowMap.enabled=true;
+  container.appendChild(renderer.domElement);setupControls();setupLights();createTerrain();createMountains();createWater();createParticleSystem();createFlowLines();createGridHelper();
+  clock=new THREE.Clock();document.getElementById('loading').classList.add('hidden');animate();
+}
+
+function setupControls(){
+  const canvas=renderer.domElement;
+  canvas.addEventListener('mousedown',e=>{if(e.button===0)isDragging=true;if(e.button===2)isRightDragging=true;previousMousePosition={x:e.clientX,y:e.clientY}});
+  canvas.addEventListener('mousemove',e=>{const deltaX=e.clientX-previousMousePosition.x,deltaY=e.clientY-previousMousePosition.y;if(isDragging){spherical.theta-=deltaX*0.5;spherical.phi=Math.max(10,Math.min(170,spherical.phi-deltaY*0.5));updateCameraPosition()}if(isRightDragging){const right=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);camera.getWorldDirection(right);right.cross(up).normalize();const forward=new THREE.Vector3();camera.getWorldDirection(forward);target.addScaledVector(right,-deltaX*0.1);target.addScaledVector(forward,-deltaY*0.1)}previousMousePosition={x:e.clientX,y:e.clientY}});
+  canvas.addEventListener('mouseup',()=>{isDragging=false;isRightDragging=false});canvas.addEventListener('mouseleave',()=>{isDragging=false;isRightDragging=false});
+  canvas.addEventListener('wheel',e=>{spherical.radius=Math.max(30,Math.min(300,spherical.radius+e.deltaY*0.1));updateCameraPosition()});
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());updateCameraPosition();
+}
+
+function updateCameraPosition(){const phiRad=THREE.MathUtils.degToRad(spherical.phi),thetaRad=THREE.MathUtils.degToRad(spherical.theta);camera.position.x=target.x+spherical.radius*Math.sin(phiRad)*Math.sin(thetaRad);camera.position.y=target.y+spherical.radius*Math.cos(phiRad);camera.position.z=target.x+spherical.radius*Math.sin(phiRad)*Math.cos(thetaRad);camera.lookAt(target);}
+function setCameraPreset(preset){isAutoOrbit=false;document.querySelectorAll('.camera-controls button').forEach(b=>b.classList.remove('on'));document.querySelector(`[data-cam="${preset}"]`).classList.add('on');switch(preset){case'top':spherical={radius:100,phi:5,theta:45};break;case'front':spherical={radius:100,phi:60,theta:0};break;case'side':spherical={radius:100,phi:60,theta:90};break;case'iso':spherical={radius:100,phi:35,theta:45};break;case'orbit':isAutoOrbit=true;break}updateCameraPosition();}
+
+function setupLights(){scene.add(new THREE.AmbientLight(0x404040,0.5));const dirLight=new THREE.DirectionalLight(0xfff5e6,1);dirLight.position.set(50,80,30);dirLight.castShadow=true;dirLight.shadow.mapSize.width=2048;dirLight.shadow.mapSize.height=2048;dirLight.shadow.camera.near=0.5;dirLight.shadow.camera.far=200;dirLight.shadow.camera.left=-60;dirLight.shadow.camera.right=60;dirLight.shadow.camera.top=60;dirLight.shadow.camera.bottom=-60;scene.add(dirLight);const fillLight=new THREE.DirectionalLight(0x8b9bb4,0.3);fillLight.position.set(-30,40,-30);scene.add(fillLight);const taijiLight=new THREE.PointLight(COLORS.taiji,0.5,50);taijiLight.position.set(0,5,0);scene.add(taijiLight);}
+
+function getTerrainHeight(x,z){let h=0,bf=0.05;h+=Math.sin(x*bf)*Math.cos(z*bf)*HEIGHT_SCALE*0.5;h+=Math.sin(x*bf*2.3+1)*Math.cos(z*bf*1.7)*HEIGHT_SCALE*0.25;h+=Math.sin(x*bf*4.1)*Math.cos(z*bf*3.9)*HEIGHT_SCALE*0.125;h+=Math.sin((x+50)*0.03)*HEIGHT_SCALE*0.3;return Math.max(-2,h);}
+
+function createTerrain(){const geo=new THREE.PlaneGeometry(TERRAIN_SIZE,TERRAIN_SIZE,TERRAIN_SEGMENTS,TERRAIN_SEGMENTS);geo.rotateX(-Math.PI/2);const v=geo.attributes.position.array,colors=[];for(let i=0;i<v.length;i+=3){const x=v[i],z=v[i+2];let h=getTerrainHeight(x,z);v[i+1]=h;const nh=(h+HEIGHT_SCALE*0.3)/(HEIGHT_SCALE*1.3);if(nh<0.3)colors.push(0.3,0.45,0.3);else if(nh<0.6)colors.push(0.4,0.55,0.35);else colors.push(0.5,0.5,0.45)}geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geo.computeVertexNormals();const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});terrainMesh=new THREE.Mesh(geo,mat);terrainMesh.receiveShadow=true;scene.add(terrainMesh);}
+
+function createMountains(){mountainGroup=new THREE.Group();if(elem.zhu)createMountain(0,-30,25,20,COLORS.mountain);if(elem.xia&&state.ml==='you')createMountain(-25,-10,15,12,COLORS.mountain);if(elem.xia&&state.mr==='you')createMountain(25,-10,15,12,COLORS.mountain);if(elem.an)createMountain(0,20,12,8,COLORS.mountainPeak);if(elem.chao)createMountain(0,40,18,15,COLORS.mountain);scene.add(mountainGroup);}
+function createMountain(x,zOff,width,height,color){const geo=new THREE.ConeGeometry(width,height,8);const mat=new THREE.MeshLambertMaterial({color:color,flatShading:true});const m=new THREE.Mesh(geo,mat);m.position.set(x,height/2-2,zOff);m.castShadow=true;m.receiveShadow=true;m.scale.x=1+Math.random()*0.3;m.scale.z=1+Math.random()*0.3;m.rotation.y=Math.random()*Math.PI;mountainGroup.add(m);}
+
+function createWater(){if(waterMesh){scene.remove(waterMesh);waterMesh=null}if(state.w==='none')return;const geo=new THREE.PlaneGeometry(20,80,50,50);geo.rotateX(-Math.PI/2);const v=geo.attributes.position.array;for(let i=0;i<v.length;i+=3){const x=v[i];let wh=0;if(state.w==='you')wh=Math.sin(x*0.1)*2;else if(state.w==='jiuqu')wh=Math.sin(x*0.15)*3;else if(state.w==='fan')wh=-Math.abs(x)*0.1;v[i+1]=wh-1}geo.computeVertexNormals();const mat=new THREE.MeshPhongMaterial({color:COLORS.water,transparent:true,opacity:0.7,shininess:100,side:THREE.DoubleSide});waterMesh=new THREE.Mesh(geo,mat);waterMesh.position.z=30;scene.add(waterMesh);}
+
+function createParticleSystem(){particleGeometry=new THREE.BufferGeometry();const pos=new Float32Array(PARTICLE_COUNT*3),col=new Float32Array(PARTICLE_COUNT*3),vel=new Float32Array(PARTICLE_COUNT*3);for(let i=0;i<PARTICLE_COUNT;i++){const i3=i*3;pos[i3]=(Math.random()-0.5)*80;pos[i3+1]=Math.random()*20;pos[i3+2]=(Math.random()-0.5)*80;col[i3]=0.8;col[i3+1]=0.7;col[i3+2]=0.3;vel[i3]=(Math.random()-0.5)*0.1;vel[i3+1]=Math.random()*0.05;vel[i3+2]=(Math.random()-0.5)*0.1}particleGeometry.setAttribute('position',new THREE.BufferAttribute(pos,3));particleGeometry.setAttribute('color',new THREE.BufferAttribute(col,3));particleMaterial=new THREE.PointsMaterial({size:0.5,vertexColors:true,transparent:true,opacity:0.8,blending:THREE.AdditiveBlending,depthWrite:false});particleMesh=new THREE.Points(particleGeometry,particleMaterial);particleMesh.userData.velocities=vel;scene.add(particleMesh);}
+
+function createFlowLines(){for(let i=0;i<FLOW_LINE_COUNT;i++){const pts=[];const sa=(i/FLOW_LINE_COUNT)*Math.PI*2;for(let j=0;j<20;j++){const t=j/20,a=sa+t*0.5,r=10+t*30;pts.push(new THREE.Vector3(Math.cos(a)*r,t*15,Math.sin(a)*r-20))}const geo=new THREE.BufferGeometry().setFromPoints(pts);const mat=new THREE.LineBasicMaterial({color:COLORS.qi,transparent:true,opacity:0.4});const l=new THREE.Line(geo,mat);l.userData.basePoints=pts;l.userData.timeOffset=i*0.1;flowLines.push(l);scene.add(l);}}
+
+function createGridHelper(){const gh=new THREE.GridHelper(100,20,COLORS.grid,COLORS.grid);gh.position.y=-3;gh.material.opacity=0.3;gh.material.transparent=true;scene.add(gh);}
+
+function animate(){requestAnimationFrame(animate);deltaTime=clock.getDelta()*(isPaused?0:timeScale);const time=clock.getElapsedTime();if(isAutoOrbit){spherical.theta+=orbitSpeed*deltaTime;updateCameraPosition()}updateParticles(time);updateFlowLines(time);if(waterMesh){const p=waterMesh.geometry.attributes.position.array;for(let i=0;i<p.length;i+=3){const x=p[i];p[i+1]+=Math.sin(time*2+x*0.2)*0.02}waterMesh.geometry.attributes.position.needsUpdate=true}updateUI(time);renderer.render(scene,camera);}
+
+function updateParticles(time){if(!view.particles){particleMesh.visible=false;return}particleMesh.visible=true;const pos=particleGeometry.attributes.position.array,col=particleGeometry.attributes.color.array,vel=particleMesh.userData.velocities;for(let i=0;i<PARTICLE_COUNT;i++){const i3=i*3;pos[i3]+=vel[i3]*(isPaused?0:timeScale);pos[i3+1]+=vel[i3+1]*(isPaused?0:timeScale);pos[i3+2]+=vel[i3+2]*(isPaused?0:timeScale);const dx=-pos[i3],dy=-pos[i3+1]+5,dz=-pos[i3+2],dist=Math.sqrt(dx*dx+dy*dy+dz*dz);if(dist>0){const f=0.001*(state.d==='sheng'?2:1);vel[i3]+=(dx/dist)*f;vel[i3+1]+=(dy/dist)*f;vel[i3+2]+=(dz/dist)*f}if(Math.abs(pos[i3])>50||Math.abs(pos[i3+2])>50){pos[i3]=(Math.random()-0.5)*80;pos[i3+1]=Math.random()*20;pos[i3+2]=(Math.random()-0.5)*80;vel[i3]=0;vel[i3+1]=0;vel[i3+2]=0}if(state.d==='si'||state.d==='po'||adv2.tianzhan){col[i3]=0.8;col[i3+1]=0.3;col[i3+2]=0.3}else{col[i3]=0.8;col[i3+1]=0.7;col[i3+2]=0.3}}particleGeometry.attributes.position.needsUpdate=true;particleGeometry.attributes.color.needsUpdate=true;}
+
+function updateFlowLines(time){if(!view.flow){flowLines.forEach(l=>l.visible=false);return}flowLines.forEach(l=>l.visible=true);flowLines.forEach(l=>{const p=l.geometry.attributes.position.array,bp=l.userData.basePoints,off=l.userData.timeOffset;for(let j=0;j<bp.length;j++){const t=j/bp.length,w=Math.sin(time*3+t*Math.PI*4+off)*0.5;const i3=j*3;p[i3]=bp[j].x+w*0.3;p[i3+1]=bp[j].y;p[i3+2]=bp[j].z+w*0.3}l.geometry.attributes.position.needsUpdate=true;l.material.opacity=0.3+Math.sin(time*2+off)*0.1});}
+
+function updateUI(time){let bg=50,bs=20;const dm={sheng:1.5,pingyang:1.0,huilong:1.3,ji:0.7,huan:1.1,si:0.3,po:0.4};bg*=dm[state.d]||1;const wm={you:1.3,jiuqu:1.4,gejiao:0.5,lintou:0.4,ji:0.6,fan:0.5,bazi:0.7,none:0.8};bg*=wm[state.w]||1;if(elem.zhu)bg*=1.2;if(elem.an)bg*=1.1;if(elem.chao)bg*=1.1;if(elem.xu)bg*=1.15;if(adv2.tianzhan)bs+=30;if(adv2.qing)bs+=25;if(adv.ao)bs+=20;if(state.d==='si'||state.d==='po')bs+=40;gatherScore+=(bg-gatherScore)*0.05;scatterScore+=(bs-scatterScore)*0.05;document.getElementById('g-num').textContent=Math.round(gatherScore);document.getElementById('s-num').textContent=Math.round(scatterScore);document.getElementById('g-fill').style.width=`${Math.min(100,gatherScore)}%`;document.getElementById('s-fill').style.width=`${Math.min(100,scatterScore)}%`;document.getElementById('cap-num').textContent=`${Math.floor(gatherScore*10)}/×${(gatherScore/50).toFixed(1)}`;document.getElementById('cap-fill').style.width=`${Math.min(100,(gatherScore/150)*100)}%`;const rE=document.getElementById('rating'),vE=document.getElementById('verdict');if(gatherScore>100&&scatterScore<30){rE.textContent='上吉';rE.style.background='#7fb08f';vE.textContent='龍真穴的，藏風聚氣，富貴雙全'}else if(gatherScore>70&&scatterScore<50){rE.textContent='中吉';rE.style.background='#b98a2e';vE.textContent='巒頭完備，氣場穩定，小富小貴'}else if(gatherScore>40){rE.textContent='平';rE.style.background='#7f8c8d';vE.textContent='有得有失，宜謹慎布局'}else{rE.textContent='凶';rE.style.background='#c04a3a';vE.textContent='氣散形破，不宜安葬立宅'}document.getElementById('status').innerHTML=`<span style="border-color:${COLORS.qi};color:#ffd780">龍:${state.d}</span><span style="border-color:${COLORS.water};color:#5a9fbf">水:${state.w}</span><span style="border-color:${COLORS.mountain};color:#8b7d6b">星:${state.xing}</span><span style="border-color:${COLORS.taiji};color:#ffec8b">穴:${state.xue}</span>`;}
+
+function drawRadar(){const cv=document.getElementById('radar'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height,cx=w/2,cy=h/2,r=Math.min(w,h)/2-10;ctx.clearRect(0,0,w,h);ctx.fillStyle='rgba(246,241,231,0.03)';ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(246,241,231,0.15)';ctx.lineWidth=1;for(let i=1;i<=3;i++){ctx.beginPath();ctx.arc(cx,cy,(r/3)*i,0,Math.PI*2);ctx.stroke()}const axes=['龍','穴','砂','水','向'];for(let i=0;i<5;i++){const a=(i*72-90)*Math.PI/180;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.stroke();ctx.fillStyle='#cfc6b4';ctx.font='12px "Noto Serif TC"';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(axes[i],cx+Math.cos(a)*(r+15),cy+Math.sin(a)*(r+15))}const vals=[state.d==='sheng'?0.9:state.d==='si'?0.2:0.6,state.xue!=='none'?0.8:0.3,(state.ml==='you'&&state.mr==='you')?0.85:0.5,state.w==='you'||state.w==='jiuqu'?0.9:0.5,state.face?0.8:0.4];ctx.fillStyle='rgba(185,138,46,0.3)';ctx.strokeStyle='#b98a2e';ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<5;i++){const a=(i*72-90)*Math.PI/180,px=cx+Math.cos(a)*r*vals[i],py=cy+Math.sin(a)*r*vals[i];if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath();ctx.fill();ctx.stroke();}
+
+function bindEvents(){document.querySelectorAll('.tog').forEach(btn=>{btn.addEventListener('click',()=>{btn.classList.toggle('on');const g=btn.dataset.g,k=btn.dataset.k;if(g==='elem'){elem[k]=btn.classList.contains('on');rebuildScene()}else if(g==='adv'){adv[k]=btn.classList.contains('on');state[k]=adv[k]}else if(g==='adv2')adv2[k]=btn.classList.contains('on');else if(g==='view')view[k]=btn.classList.contains('on')})});document.querySelectorAll('[data-k="d"],[data-k="w"],[data-k="xing"],[data-k="xue"],[data-k="mn"],[data-k="ml"],[data-k="mr"],[data-k="ms"]').forEach(btn=>{btn.addEventListener('click',()=>{const p=btn.parentElement;p.querySelectorAll('button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');state[p.dataset.k]=btn.dataset.v;rebuildScene()})});document.querySelectorAll('#time-seg button').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('#time-seg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');const t=parseInt(btn.dataset.t);isPaused=t===0;timeScale=t===0?0:t===1?1:2})});document.querySelectorAll('#face-seg button').forEach(btn=>{btn.addEventListener('click',()=>{document.querySelectorAll('#face-seg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');state.face=btn.dataset.f==='1'})});document.querySelectorAll('.preset').forEach(btn=>{btn.addEventListener('click',()=>{applyPreset(btn.dataset.preset)})});document.getElementById('random-preset').addEventListener('click',randomizeSettings);document.querySelectorAll('.camera-controls button').forEach(btn=>{btn.addEventListener('click',()=>{setCameraPreset(btn.dataset.cam)})});window.addEventListener('resize',()=>{const c=document.getElementById('canvas-container-3d');camera.aspect=c.clientWidth/c.clientHeight;camera.updateProjectionMatrix();renderer.setSize(c.clientWidth,c.clientHeight)});setInterval(drawRadar,100);}
+
+function applyPreset(p){Object.assign(state,baseState);Object.assign(elem,baseElem);Object.assign(adv2,baseAdv2);Object.assign(adv,baseAdv);switch(p){case'perfect':state.d='sheng';state.w='you';state.xing='jin';state.xue='wo';state.ml='you';state.mr='you';state.ms='you';state.mn='you';elem.san=true;adv.shu=true;adv2.fengyao=true;break;case'gejiao':state.d='pingyang';state.w='gejiao';state.xue='none';elem.an=false;break;case'huilong':state.d='huilong';state.w='jiuqu';state.xing='tu';state.xue='qian';adv2.zutai=true;break;case'tianzhan':state.d='po';state.w='fan';adv2.tianzhan=true;adv2.qing=true;adv.ao=true;break}updateUIButtons();rebuildScene();}
+
+function randomizeSettings(){const dt=['sheng','pingyang','huilong','ji','huan'],wt=['you','jiuqu','gejiao','fan','ji'],st=['jin','mu','shui','huo','tu'],xt=['none','wo','qian','ru','tu'];state.d=dt[Math.floor(Math.random()*dt.length)];state.w=wt[Math.floor(Math.random()*wt.length)];state.xing=st[Math.floor(Math.random()*st.length)];state.xue=xt[Math.floor(Math.random()*xt.length)];state.ml=Math.random()>0.3?'you':'po';state.mr=Math.random()>0.3?'you':'po';state.ms=Math.random()>0.3?'you':'di';state.mn=Math.random()>0.3?'you':'kang';adv2.tianzhan=Math.random()<0.2;adv2.qing=Math.random()<0.2;adv.ao=Math.random()<0.3;updateUIButtons();rebuildScene();}
+
+function updateUIButtons(){document.querySelectorAll('[data-k]').forEach(btn=>{const p=btn.parentElement;if(p.dataset.k)btn.classList.toggle('on',state[p.dataset.k]===btn.dataset.v)});document.querySelectorAll('.tog').forEach(btn=>{const g=btn.dataset.g,k=btn.dataset.k;let ia=false;if(g==='elem')ia=elem[k];else if(g==='adv')ia=adv[k];else if(g==='adv2')ia=adv2[k];else if(g==='view')ia=view[k];btn.classList.toggle('on',ia)});}
+
+function rebuildScene(){if(mountainGroup){scene.remove(mountainGroup);mountainGroup=null}if(waterMesh){scene.remove(waterMesh);waterMesh=null}createMountains();createWater();}
+
+window.addEventListener('load',()=>{initThreeJS();bindEvents()});
+</script>
+</body>
+</html>
