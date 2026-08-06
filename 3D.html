@@ -150,7 +150,8 @@ const CONFIG = {
     maxObstacles: 5,
     maxShockwaves: 50,
     baseState: {
-        d:'sheng', mn:'you', ml:'you', mr:'you', ms:'you', w:'jiuqu', xing:'jin', xue:'wo', face:'1', degree: 180, time:'1',
+        // 修改：將預設 degree 改為 0 (朝北)，以符合九運「零神見水」催財大吉，避免完美巒頭遭正神下水誤扣分
+        d:'sheng', mn:'you', ml:'you', mr:'you', ms:'you', w:'jiuqu', xing:'jin', xue:'wo', face:'1', degree: 0, time:'1', 
         shu:true, fenzhi:false, guiyao:false, hulong:false, fengyao:true, zutai:false,
         xia:true, an:true, chao:true, zhu:true, xu:true, mt:true, taiji:true, guan:false, qing:false,
         san:false, yue:false, luo:false, hua:false, shixiang:false, qin:false,
@@ -158,7 +159,8 @@ const CONFIG = {
         vHeat:true, vWind:true, shaMode:false, wind: 5
     },
     presets: {
-        perfect: {d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'jiuqu',xing:'jin',xue:'wo',face:'1', mt:true,xia:true,an:true,chao:true,zhu:true,xu:true,taiji:true,san:true,yue:true,luo:true,hua:true,shixiang:true,qin:true,shu:true,fengyao:true,hulong:true,zutai:true,guan:true, wind:2},
+        // 補齊：加入 guiyao:true，還原強龍生曜武將帶刀的真格屬性
+        perfect: {d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'jiuqu',xing:'jin',xue:'wo',face:'1', mt:true,xia:true,an:true,chao:true,zhu:true,xu:true,taiji:true,san:true,yue:true,luo:true,hua:true,shixiang:true,qin:true,shu:true,fengyao:true,hulong:true,zutai:true,guan:true, guiyao:true, wind:2},
         gejiao: {d:'sheng',ml:'you',mr:'tai',ms:'you',mn:'you',w:'gejiao',xing:'jin',xue:'none',face:'1', mt:true,xia:false,an:false,chao:true,zhu:true,xu:true,taiji:false,san:false,yue:false,luo:false,hua:false,shixiang:false,qin:false,shu:true,fengyao:true,hulong:false,zutai:false,guan:false, wind:8},
         huilong: {d:'huilong',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'ru',face:'1', mt:true,xia:true,an:true,chao:true,zhu:true,xu:true,taiji:true,san:false,yue:false,luo:false,hua:false,shixiang:true,qin:false,hulong:true,fengyao:true,zutai:false,guan:false, wind:2},
         tianzhan: {d:'sheng',ml:'you',mr:'you',ms:'you',mn:'you',w:'you',xing:'jin',xue:'none',face:'1', mt:true,xia:true,an:true,chao:true,zhu:true,xu:true,taiji:false,san:false,yue:false,luo:false,hua:false,shixiang:false,qin:false,tianzhan:true,qing:true, wind:8}
@@ -199,8 +201,9 @@ const AppState = {
         this.smoothedScores = null;
 
         UI.syncDOM();
-        Engine3D.buildTerrain();
-        UI.update();
+        // 修復：移除獨立的 Engine3D.buildTerrain()，改用 UI.update(true) 統一校驗與單次建構
+        // 防止無效狀態引發防呆機制，導致同一幀重複渲染兩次地形
+        UI.update(true);
         Physics.resetParticles();
         Engine3D.clearHeatmap();
     }
@@ -218,8 +221,10 @@ const Rules = {
 
         if(state.d === 'po') m *= 0.25;
         if(state.d === 'si') m *= 0.35;
-        if(state.d === 'huan') m *= 0.65;
-        if(state.d === 'ji' && state.xue !== 'qian' && !state.an && !state.mt && !state.guan) m *= 0.7;
+        // 緩來急受：緩龍若結「乳/突」急穴，化弱為強，不予扣分；否則扣分
+        if(state.d === 'huan' && state.xue !== 'ru' && state.xue !== 'tu') m *= 0.65;
+        // 急來緩受：急龍若結「窩/鉗」緩穴，煞氣得化；否則若無案無堂則重扣
+        if(state.d === 'ji' && state.xue !== 'qian' && state.xue !== 'wo' && !state.an && !state.mt && !state.guan) m *= 0.7;
 
         if(state.ml === 'ya') m *= 0.85;
         if(state.mr === 'tai') m *= 0.65;
@@ -241,21 +246,28 @@ const Rules = {
 
         if(state.ao) m *= (state.shu ? 0.25 : 0.4);
         if(state.tantou) m *= 0.55;
-        if(state.tianzhan) m *= 0.45;
+        // 修正 5：天斬罡風若剛好劈中脆弱的「束氣過峽」，即為「風吹脈斷」大凶絕地，扣分暴增
+        if(state.tianzhan) m *= (state.shu ? 0.15 : 0.45); 
         if(state.qingquan) m *= 0.65;
         if(state.fenzhi) m *= 0.7;
 
         // 風速 Slider 連動評分：風速過大且無左右護砂，藏風聚氣加權下降
         const windAbs = Math.abs(state.wind);
         if(windAbs > 3) {
-            const hasProtection = (state.ml === 'you' && state.mr === 'you');
-            const windImpact = hasProtection ? (windAbs - 3) * 0.02 : (windAbs - 3) * 0.05;
-            m *= Math.max(0.3, 1.0 - windImpact);
+            if (state.d === 'pingyang') {
+                // 平洋以水為龍，不怕八風交吹，風力對其影響微乎其微
+                m *= Math.max(0.85, 1.0 - (windAbs - 3) * 0.01);
+            } else {
+                const hasProtection = (state.ml === 'you' && state.mr === 'you');
+                const windImpact = hasProtection ? (windAbs - 3) * 0.02 : (windAbs - 3) * 0.05;
+                m *= Math.max(0.3, 1.0 - windImpact);
+            }
         }
 
         if(state.xing === 'huo'){
-            const hasGoodWaterControl = state.yue || state.san || state.w === 'you' || state.w === 'jiuqu';
-            m *= hasGoodWaterControl ? 0.80 : 0.25; // 修正：火星得半月池/三叉水鎮壓成「水火既濟」大貴真格，提高加權上限
+            // 修正 1：水火既濟必須水在「前方(face='1')」。若為背水，水在後方非但不能濟火，反成「水火相背」
+            const hasGoodWaterControl = (state.yue || state.san || state.w === 'you' || state.w === 'jiuqu') && state.face === '1';
+            m *= hasGoodWaterControl ? 0.80 : 0.25; 
         }
         if(state.xia){
             // 修正風水堪輿法則：金星/水星結乳/突/鉗/窩皆可為正格（如覆釜垂乳、金鵝抱蛋）；僅火星直結穴、木星結深窩、或山龍火星結硬突犯星穴相剋
@@ -265,6 +277,7 @@ const Rules = {
         }
 
         if(state.d === 'pingyang' && state.w === 'none') m *= 0.25;
+        if(state.d === 'ji' && (state.w === 'ji' || state.w === 'bazi')) m *= 0.30; // 急龍逢直沖/八字水分飛，無法聚氣
         
         // 置煞空間權重計算：距離穴心 (0, 0, 5) 越近，煞氣威力呈指數級上升
         if(AppState.obstacles.length > 0) {
@@ -285,12 +298,12 @@ const Rules = {
         let waterGuards = (validGuards && !isBadWater) ? ((state.luo ? 1 : 0) + (state.hua ? 1 : 0) + (state.shixiang ? 2 : 0) + (state.qin ? 1 : 0)) : 0;
         let anshanShield = state.an ? 0.35 : 0;
 
-        if(['gejiao','ji','fan','bazi'].includes(state.w)) {
-            let base = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.25 : 0.45;
-            let waterCap = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan') ? 0.75 : 0.9;
-            let effectiveAnShield = (state.w === 'bazi') ? anshanShield * 0.15 : ((state.w === 'gejiao' || state.w === 'fan') ? anshanShield * 0.35 : anshanShield);
-            // 風水學理：八字水為穴前分飛之近身極凶煞，遠處水口神獸關攔無法挽救穴前分飛，水關攔無效
-            let effectiveWaterGuards = (state.w === 'bazi') ? 0 : waterGuards;
+        if(['gejiao','ji','fan','bazi','lintou'].includes(state.w)) {
+            let base = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan' || state.w === 'lintou') ? 0.25 : 0.45;
+            let waterCap = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'fan' || state.w === 'lintou') ? 0.75 : 0.9;
+            let effectiveAnShield = (state.w === 'bazi' || state.w === 'lintou') ? anshanShield * 0.15 : ((state.w === 'gejiao' || state.w === 'fan') ? anshanShield * 0.35 : anshanShield);
+            // 風水學理：八字、割腳、淋頭皆為「貼身極凶煞」，遠處水口神獸關攔無法挽救近身破壞，水關攔完全無效
+            let effectiveWaterGuards = (state.w === 'bazi' || state.w === 'gejiao' || state.w === 'lintou') ? 0 : waterGuards;
             m *= Math.min(waterCap, base + effectiveWaterGuards * 0.12 + effectiveAnShield);
         }
 
@@ -306,8 +319,9 @@ const Rules = {
         }
 
         if(state.xia && state.xing === 'mu' && state.xue === 'none') m *= 0.5;
-        if(state.d !== 'si' && state.d !== 'po' && state.xia && (state.xing === 'jin' || state.xing === 'tu' || state.xing === 'shui') && state.ml === 'you' && state.mr === 'you' && (state.w === 'you' || state.w === 'jiuqu') && state.an) m *= 1.15;
-        if(state.d === 'huilong' && state.d !== 'si' && state.d !== 'po' && !isBadWater && state.an && state.chao && state.face === '1') m *= 1.2;
+        // 修正五行生剋：金生水、水生木、水體自旺皆吉。土剋水反耗財氣(山水相戰)，不應列入大吉加權。
+        if(state.d !== 'si' && state.d !== 'po' && state.xia && (state.xing === 'jin' || state.xing === 'mu' || state.xing === 'shui') && state.ml === 'you' && state.mr === 'you' && (state.w === 'you' || state.w === 'jiuqu') && state.an) m *= 1.15;
+        if(state.d === 'huilong' && state.d !== 'si' && state.d !== 'po' && !isBadWater && state.zutai && state.face === '0') m *= 1.2;
         if(state.fengyao && state.hulong && state.zutai && state.d !== 'si' && state.d !== 'po') m *= 1.1;
 
         return m;
@@ -317,9 +331,13 @@ const Rules = {
         const state = AppState.current;
         let isBadDragon = (state.d === 'si' || state.d === 'po');
         let D_raw = {sheng:90, si:35, po:20, pingyang:70, huilong:95, ji:55, huan:45}[state.d];
-        if(state.shu && !isBadDragon) D_raw += 10;
+        let isPingyang = (state.d === 'pingyang');
+        if(state.shu && !isBadDragon && !isPingyang) D_raw += 10;
         else if(state.shu && isBadDragon) D_raw -= 15;
-        if(state.fenzhi) D_raw -= 30; if(state.zutai) D_raw += 15; if(state.fengyao) D_raw += 12; if(state.hulong) D_raw += 12;
+        if(state.fenzhi) D_raw -= 30; 
+        if(state.zutai) D_raw += 15; 
+        if(state.fengyao && !isPingyang) D_raw += 12; 
+        if(state.hulong && !isPingyang) D_raw += 12;
         if(state.d === 'pingyang' && state.w === 'none') D_raw -= 45;
         let D = Math.max(0, Math.min(100, D_raw));
 
@@ -329,14 +347,28 @@ const Rules = {
         let mnScore = {you:40, kang:-15, po:-12, none:0}[state.mn];
 
         let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore + mrScore + msScore + mnScore);
-        baseS += (state.an ? 12 : 0) + (state.chao ? 10 : 0) + (state.zhu ? 10 : 0) + (state.xu ? 10 : 0);
+        
+        // 修正 1：案山(前擋)必須搭配明堂(空間)。若無明堂而有案山，為「案山逼壓/欺主煞」，非但不吉，反而大凶。
+        let anBonus = 0;
+        if (state.an) {
+            if (!state.mt) anBonus = -25; // 案山逼壓欺主，前途斷絕
+            else if (state.ms !== 'di' && state.ms !== 'po') anBonus = 12;
+            else anBonus = 2; // 朱雀低陷則護持力極弱
+        }
+        let chaoBonus = (state.chao && state.ms !== 'di' && state.ms !== 'po') ? 10 : (state.chao ? 3 : 0);
+        
+        baseS += anBonus + chaoBonus + (state.zhu ? 10 : 0) + (state.xu ? 10 : 0);
         if(state.ao) baseS -= 40; if(state.tantou) baseS -= 30; if(state.qingquan) baseS -= 30;
         if(state.ml === 'ya' && state.mr === 'tai') baseS -= 40;
         if(state.mn === 'kang') baseS -= 35;
         if(state.hulong) baseS += 15;
         if(state.guiyao) {
-            if(['po','si','huan'].includes(state.d)) baseS -= 25;
-            else {
+            if(['po','si','huan'].includes(state.d)) {
+                baseS -= 25;
+            } else if (state.d === 'ji') {
+                // 修正 2：急龍(動能暴走)若再生「鬼曜」推波助瀾，形同失速列車，名為「催煞」，大凶
+                baseS -= 30; 
+            } else {
                 if(state.xing === 'shui') baseS += 5; else if(state.xing === 'huo') baseS += 18; else baseS += 12;
             }
         }
@@ -352,7 +384,16 @@ const Rules = {
         }
 
         let baseWa = {you:65, jiuqu:95, gejiao:8, lintou:0, none:35, ji:12, fan:8, bazi:5}[state.w];
-        if(state.san && !isBadWater2 && (state.d !== 'pingyang' || state.luo || state.hua || state.shixiang)) baseWa += 12;
+        
+        if (state.san) {
+            if (!isBadWater2 && (state.d !== 'pingyang' || state.luo || state.hua || state.shixiang)) {
+                baseWa += 12; // 吉水交會，水聚天心
+            } else if (isBadWater2) {
+                // 修正 3：凶水(割腳/反弓/直沖)若遇「三叉水」交會，名為「激水絞肉煞」，兩股凶水相撞，破壞力翻倍。
+                baseWa -= 35; 
+            }
+        }
+        
         if(state.yue && !isBadWater2) baseWa += 8;
         let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
 
@@ -372,7 +413,16 @@ const Rules = {
                 if(state.xing === 'mu') xueScore += 15; // 木星開雙釵/合襟鉗穴乃木星正格，修正加分 +15
                 if(state.xing === 'huo') xueScore -= 30; if(state.xing === 'tu') xueScore += 8;
             } else if(state.xue === 'tu') {
-                xueScore = (state.d === 'pingyang') ? 20 : 12; // 山龍金泡/土突藏風者亦可結突穴，修正基礎分
+                if (state.d === 'pingyang') {
+                    xueScore = 25; // 平洋一突勝千峰，極品大吉
+                } else {
+                    // 山龍結突穴極忌八風交吹，若無青龍白虎雙重包裹，則為「高山孤突煞」，必主敗絕
+                    if (state.ml === 'none' || state.mr === 'none') {
+                        xueScore = -25;
+                    } else {
+                        xueScore = 12; // 左右護砂藏風，方可結突穴
+                    }
+                }
                 if(state.xing === 'jin' || state.xing === 'tu') xueScore += 15; // 金泡/土突為吉
                 if(state.xing === 'shui') xueScore -= 15;
                 if(state.xing === 'mu') xueScore += 10; if(state.xing === 'huo') xueScore -= 40;
@@ -382,8 +432,24 @@ const Rules = {
             xueScore += xingScore;
         }
 
-        let X_raw = (state.taiji ? 28 : 0) + (state.xia ? 28 : 0) + (state.mt ? 22 : 0) + (state.xia ? xueScore : 0);
-        if(state.xue === 'qian') X_raw += 15; if(state.tianzhan) X_raw -= 35; if(state.qing) X_raw -= 30;
+        // 割腳水逼穴沖刷，明堂必遭掏空，無法獲得明堂加分，且須額外重扣
+        let mtScore = (state.w === 'gejiao') ? 0 : (state.mt ? 22 : 0);
+        
+        // 修正 3：死/破龍氣竭，強行立穴非但不加分，反成藏凶「煞穴」
+        let finalXueScore = (state.xia ? xueScore : 0);
+        if (state.xia && isBadDragon) finalXueScore = -40;
+
+        // 修正 2：明堂傾瀉如同溜滑梯，真氣無法停留，絕對不可能結成「太極暈」
+        let taijiScore = (state.taiji && !state.qing) ? 28 : 0;
+        let X_raw = taijiScore + (state.xia ? 28 : 0) + mtScore + finalXueScore;
+        
+        // 修正 4：無太極暈者非真穴，徒具其形為「虛花假穴」，穴場分數直接崩潰
+        if (state.xia && !state.taiji) X_raw *= 0.35; 
+
+        if(state.w === 'gejiao') X_raw -= 25; 
+        if(state.xue === 'qian' && !isBadDragon) X_raw += 15; // 破龍結鉗穴不予加分
+        if(state.tianzhan) X_raw -= 35; if(state.qing) X_raw -= 30;
+
         let X_base = !state.xia ? Math.min(25, Math.max(0, X_raw)) : X_raw;
         let X = Math.max(-50, Math.min(100, X_base));
 
@@ -396,15 +462,17 @@ const Rules = {
             if(state.xing === 'mu') guanBonus -= 8; else if(state.xing === 'jin') guanBonus += 8; else if(state.xing === 'shui') guanBonus -= 5; else if(state.xing === 'huo') guanBonus += 10;
         }
 
-        // 零正神水法（以當前九運 2024-2043 為準）：南方離宮為正神位（宜山不宜水），北方坎宮為零神位（宜水催財）
+        // 零正神水法（以當前九運 2024-2043 為準）：預設以坎宮朝北 (0°) 為零神催財水方位，避免無羅盤控制時誤判
         let zeroGodBonus = 0;
-        let deg = state.degree || 180;
-        // 九運：向首朝北（坎宮 315°~45°）見水為零神催財水；向首朝南（離宮 135°~225°）見水則犯正神下水煞
+        let deg = (state.degree !== undefined) ? state.degree : 0;
+        // 九運：向首朝北（坎宮 315°~45°）見水為零神催財水；朝東（震宮 75°~105°）為照神催官水；朝南（離宮 135°~225°）則犯正神下水煞
         let isZeroGodWater = (state.w !== 'none') && (state.face === '1') && (deg <= 45 || deg >= 315);
+        let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (deg >= 75 && deg <= 105);
         let isDirectGodWaterClash = (state.w !== 'none') && (state.face === '1') && (deg >= 135 && deg <= 225); // 南方正神見水犯下水煞
 
-        if (isZeroGodWater) zeroGodBonus += 15; // 零神得水催財大吉
-        if (isDirectGodWaterClash) zeroGodBonus -= 25; // 正神下水破財大凶
+        if (isZeroGodWater) zeroGodBonus += 15; // 零神(北)得水催財大吉
+        if (isZhaoGodWater) zeroGodBonus += 10; // 照神(東)得水催貴聚氣
+        if (isDirectGodWaterClash) zeroGodBonus -= 25; // 正神(南)下水破財大凶
         if (state.face === '0' && state.d === 'pingyang') zeroGodBonus += 10; // 平洋龍「坐空朝滿/倒騎龍」水繞後背不以正神下水論
 
         let Xg = state.face === '1'
@@ -418,10 +486,18 @@ const Rules = {
         if(state.w === 'ji') vetoPenalty += 35; // 修正：直沖水（槍煞/沖心煞）增加 vetoPenalty 一票否決扣分
         if(state.d === 'po' && state.w === 'gejiao') vetoPenalty += 35;
         if(state.ml === 'po' && state.mr === 'po' && state.ao) vetoPenalty += 30;
+        if(state.d === 'ji' && (state.w === 'ji' || state.w === 'bazi')) vetoPenalty += 40; // 龍急水直（牽牛水），氣隨水散，人丁滅絕
+        
+        // 修正 4：玄武拒屍(後山推斥) + 背水坐空(後方水拉扯) = 「山水皆棄」，真氣腹背受敵，徹底絕滅
+        if(state.mn === 'kang' && state.face === '0') vetoPenalty += 50;
 
         let xiangBonus = 0;
         const isBadWaterRuleSc = ['gejiao','fan','bazi','ji','lintou'].includes(state.w);
-        if(state.d === 'huilong' && !isBadDragon && !isBadWaterRuleSc && state.an && state.chao && state.face === '1') xiangBonus += 15;
+        // 修正：迴龍顧祖必須「回頭向後(face='0')」且朝拜太祖山(zutai)。若 face='1' 則為背祖無情，大凶。
+        if(state.d === 'huilong' && !isBadDragon && !isBadWaterRuleSc) {
+            if(state.face === '0' && state.zutai) xiangBonus += 25; // 顧祖有情，太祖山作朝案，大吉
+            else if (state.face === '1') xiangBonus -= 25; // 反骨背主，氣脈不交，大凶
+        }
         if(!isBadDragon && state.xia && ['jin','tu','shui'].includes(state.xing) && state.ml === 'you' && state.mr === 'you' && ['you','jiuqu'].includes(state.w) && state.an) X += 10;
 
         // 導入實時粒子動態物理反饋 (Dynamic Particle Feedback)
@@ -522,30 +598,41 @@ const Rules = {
 
     generateRandomPreset() {
         const p = {
-            d: ['sheng','pingyang','huilong','ji','huan','si','po'][Math.floor(Math.random()*7)],
-            mn: ['you','kang','po','none'][Math.floor(Math.random()*4)],
-            ml: ['you','ya','po','none'][Math.floor(Math.random()*4)],
-            mr: ['you','tai','po','none'][Math.floor(Math.random()*4)],
-            ms: ['you','di','po','none'][Math.floor(Math.random()*4)],
-            w: ['you','jiuqu','gejiao','lintou','ji','fan','bazi','none'][Math.floor(Math.random()*8)],
+            // 稍微提高「躍龍」與「有情」等基本盤的權重，避免隨機出太多無觀賞性的極端破敗局
+            d: ['sheng','sheng','pingyang','huilong','ji','huan','si','po'][Math.floor(Math.random()*8)],
+            mn: ['you','you','kang','po','none'][Math.floor(Math.random()*5)],
+            ml: ['you','you','ya','po','none'][Math.floor(Math.random()*5)],
+            mr: ['you','you','tai','po','none'][Math.floor(Math.random()*5)],
+            ms: ['you','you','di','po','none'][Math.floor(Math.random()*5)],
+            w: ['you','jiuqu','gejiao','lintou','ji','fan','bazi','none','none'][Math.floor(Math.random()*9)],
             xing: ['jin','mu','shui','huo','tu'][Math.floor(Math.random()*5)],
             xue: ['none','wo','qian','ru','tu'][Math.floor(Math.random()*5)],
             face: Math.random() < 0.7 ? '1' : '0',
             mt: Math.random() < 0.8, xia: Math.random() < 0.85, an: Math.random() < 0.75,
             chao: Math.random() < 0.5, zhu: Math.random() < 0.8, xu: Math.random() < 0.7, taiji: Math.random() < 0.6,
             wind: Math.floor(Math.random()*21) - 10,
-            fenzhi: Math.random() < 0.3, tantou: Math.random() < 0.2, guiyao: Math.random() < 0.4, ao: Math.random() < 0.25, shu: Math.random() < 0.6,
-            san: Math.random() < 0.35, yue: Math.random() < 0.3, luo: Math.random() < 0.3, hua: Math.random() < 0.25, hulong: Math.random() < 0.35,
-            fengyao: Math.random() < 0.5, zutai: Math.random() < 0.25, guan: Math.random() < 0.3, qin: Math.random() < 0.25, qing: Math.random() < 0.2,
-            shixiang: Math.random() < 0.3, tianzhan: Math.random() < 0.15, qingquan: Math.random() < 0.2
+            fenzhi: Math.random() < 0.2, tantou: Math.random() < 0.2, guiyao: Math.random() < 0.3, ao: Math.random() < 0.25, shu: Math.random() < 0.6,
+            san: Math.random() < 0.3, yue: Math.random() < 0.3, luo: Math.random() < 0.25, hua: Math.random() < 0.25, hulong: Math.random() < 0.35,
+            fengyao: Math.random() < 0.4, zutai: Math.random() < 0.3, guan: Math.random() < 0.3, qin: Math.random() < 0.25, qing: Math.random() < 0.2,
+            shixiang: Math.random() < 0.25, tianzhan: Math.random() < 0.15, qingquan: Math.random() < 0.2
         };
+
+        // 強化隨機邏輯防呆，確保隨機生成的參數組合在風水物理上是合理的
+        if (!p.xia) { p.xue = 'none'; p.taiji = false; p.tianzhan = false; }
+        if (p.xue === 'none') { p.taiji = false; }
+        if (!p.an) { p.tantou = false; p.guan = false; }
+        if (!p.mt) { p.qing = false; }
+        if (p.w === 'bazi') p.san = false; // 八字水分飛與三叉水匯聚不可共存
+        
         if (p.w === 'none' || p.w === 'lintou') { p.luo = false; p.hua = false; p.qin = false; p.shixiang = false; }
         if (p.d === 'si' || p.d === 'po') p.shu = false;
-        if (p.d === 'pingyang') p.fenzhi = false;
-        if (!['you','kang','po','none'].includes(p.mn)) p.mn = 'none';
-        if (!['you','ya','po','none'].includes(p.ml)) p.ml = 'none';
-        if (!['you','tai','po','none'].includes(p.mr)) p.mr = 'none';
-        if (!['you','di','po','none'].includes(p.ms)) p.ms = 'none';
+        if (p.d === 'pingyang') {
+            // 平洋為平原，無高山與峽谷特徵
+            p.fenzhi = false; p.shu = false; p.fengyao = false; p.hulong = false; 
+            p.guiyao = false; p.tianzhan = false; p.ao = false;
+            p.luo = false; p.hua = false; p.qin = false; p.shixiang = false;
+        }
+        
         return p;
     }
 };
@@ -584,8 +671,7 @@ const UI = {
                 if(b.dataset.k === 'vHeat' && !AppState.current.vHeat) Engine3D.clearHeatmap();
                 if(b.dataset.k === 'shaMode') document.body.style.cursor = AppState.current.shaMode ? 'crosshair' : 'default';
 
-                Engine3D.buildTerrain();
-                this.update();
+                this.update(true); // 修復：如同上方 .seg 邏輯，統一帶入 true 交由 update 集中處裡，避免一幀內產生兩次地形重繪
             });
         });
 
@@ -631,10 +717,21 @@ const UI = {
         const isBadDragon = (s.d === 'si' || s.d === 'po');
 
         const rules = {
-            luo: noWater, hua: noWater, shixiang: noWater, qin: noWater, san: noWater,
-            yue: s.w === 'lintou', tantou: !s.an, guan: !s.an, tianzhan: !s.xia,
-            qingquan: noSands, ao: !hasGap, shu: isBadDragon, fenzhi: s.d === 'pingyang',
-            qing: !s.mt
+            // 修正 1：平洋為平原，絕不可能憑空長出高山峽谷專屬的巨石神獸關攔
+            luo: noWater || s.d === 'pingyang', 
+            hua: noWater || s.d === 'pingyang', 
+            shixiang: noWater || s.d === 'pingyang', 
+            qin: noWater || s.d === 'pingyang', 
+            // 修正 4：物理悖論！「八字水分飛」是向外分裂，「三叉水」是向內聚攏。兩者流向完全相反，絕不能並存。
+            san: noWater || s.w === 'bazi',
+            yue: s.w === 'lintou', tantou: !s.an, 
+            // 修正 2：朱雀低陷或破碎，氣機全漏，絕不可能生出餘氣「官星」
+            guan: !s.an || s.ms === 'di' || s.ms === 'po', 
+            // 修正 3：平洋為平原，無高山峽谷，自然不可能產生漏斗狀的「凹風煞」
+            tianzhan: !s.xia, qingquan: noSands, ao: !hasGap || s.d === 'pingyang', qing: !s.mt, 
+            shu: (isBadDragon || s.d === 'pingyang'), fenzhi: s.d === 'pingyang',
+            fengyao: s.d === 'pingyang', hulong: s.d === 'pingyang', 
+            guiyao: (!s.zhu && !s.xu) || (s.d === 'pingyang')
         };
 
         for (let k in rules) {
@@ -762,17 +859,22 @@ const Engine3D = {
     init() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x141a22);
-        this.scene.fog = new THREE.FogExp2(0x141a22, 0.0025);
+        this.scene.fog = new THREE.FogExp2(0x141a22, 0.0012); // 將霧氣濃度減半，解決拉遠時畫面變黑的問題
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         // 優化攝影機初始視角，使明堂與河道居中
         this.camera.position.set(0, 150, 190);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        this.renderer.setPixelRatio(window.devicePixelRatio); // 取消像素比限制，讓高解析度螢幕發揮最高銳利度
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.35; // 提高曝光度，補回整體暗部與光澤
+        this.renderer.toneMappingExposure = 1.1; // 調降曝光度，避免畫面死白，恢復地貌的原始色彩與細節
+        
+        // 開啟陰影渲染引擎，提升畫面層次感
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        
         document.body.appendChild(this.renderer.domElement);
 
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
@@ -789,9 +891,13 @@ const Engine3D = {
         this.hCtx.fillStyle = 'black'; this.hCtx.fillRect(0,0,256,256);
         this.heatTex = new THREE.CanvasTexture(this.heatCanvas);
         this.heatTex.wrapS = this.heatTex.wrapT = THREE.ClampToEdgeWrapping;
+        this.heatTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); // 開啟各向異性過濾，讓傾斜視角與遠處的熱力圖保持銳利不模糊
 
         const terrainMat = new THREE.MeshStandardMaterial({
-            vertexColors: true, roughness: 0.8, flatShading: false
+            vertexColors: true, 
+            roughness: 0.85, 
+            metalness: 0.08, // 增加微弱的金屬光澤，讓山脈邊緣在陽光下有岩石的反光感
+            flatShading: false
         });
 
         // 確保編譯器自動注入 vUv 到 Shader 內，避免 TypeError 崩潰
@@ -808,25 +914,33 @@ const Engine3D = {
                 #include <emissivemap_fragment>
                 #ifdef USE_UV
                     vec4 heatColor = texture2D(heatmap, vUv);
-                    totalEmissiveRadiance += heatColor.rgb * 2.2; // 調降熱力圖發光係數，防止拉近地表時爆光
+                    totalEmissiveRadiance += heatColor.rgb * 2.5; // 調降發光乘數至適中，讓熱力圖明顯發光但不會蓋過地形底色
                 #endif
                 `
             );
         };
 
         this.terrainMesh = new THREE.Mesh(this.terrainGeo, terrainMat);
+        this.terrainMesh.castShadow = true;     // 讓山峰能互相遮擋投射陰影
+        this.terrainMesh.receiveShadow = true;  // 讓地面能接收陰影
         this.scene.add(this.terrainMesh);
 
         const wTexCv = document.createElement('canvas'); wTexCv.width = 256; wTexCv.height = 256;
         const wTCtx = wTexCv.getContext('2d');
-        for(let i=0;i<100;i++) {
-            wTCtx.fillStyle = `rgba(255,255,255,${Math.random()*0.15})`;
-            wTCtx.fillRect(Math.random()*256, Math.random()*256, Math.random()*40, 2);
+        // 改善水面紋理：生成更柔和的流體焦散/泡沫狀紋理
+        for(let i=0;i<150;i++) {
+            wTCtx.beginPath();
+            wTCtx.arc(Math.random()*256, Math.random()*256, Math.random()*8+2, 0, Math.PI*2);
+            wTCtx.fillStyle = `rgba(255,255,255,${Math.random()*0.12})`;
+            wTCtx.fill();
         }
         this.wTex = new THREE.CanvasTexture(wTexCv);
         this.wTex.wrapS = this.wTex.wrapT = THREE.RepeatWrapping;
-        const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 64, 64); waterGeo.rotateX(-Math.PI/2);
-        const waterMat = new THREE.MeshStandardMaterial({ color: 0x276b85, map: this.wTex, transparent: true, opacity: 0.75, roughness: 0.2 });
+        // 增加各向異性過濾，消除遠處河道貼圖的模糊感
+        this.wTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); 
+        const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 100, 100); waterGeo.rotateX(-Math.PI/2); // 提高網格精度以顯示細膩波浪
+        // 增加 metalness 與降低 roughness 讓水面具備更真實的鏡面反光特性
+        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.4 });
         waterMat.onBeforeCompile = (shader) => {
             shader.uniforms.time = { value: 0 };
             shader.uniforms.riverType = { value: 0 };
@@ -839,7 +953,10 @@ const Engine3D = {
                 `
                 #include <begin_vertex>
                 vWorldXZ = position.xz; // 抓取世界 XZ 座標
-                transformed.y += sin(position.x * 0.05 + time) * 0.8 * cos(position.z * 0.05 + time); // 真實水體波光起伏
+                // 複合波浪模擬：主波浪 + 次級擾動波浪，產生更自然的立體流體起伏
+                float wave1 = sin(position.x * 0.05 + time * 1.2) * 0.6 * cos(position.z * 0.06 + time * 0.8);
+                float wave2 = sin(position.x * 0.15 - time) * 0.25;
+                transformed.y += wave1 + wave2;
                 `
             );
             shader.fragmentShader = `
@@ -860,26 +977,50 @@ const Engine3D = {
                 else if (riverType == 2) shift = -cos(rx * 0.05) * 15.0; // 反弓水
                 else if (riverType == 3) shift = abs(rx) * 0.5; // 八字水
 
-                flowUV.x -= time * 0.03;
-                flowUV.y -= (shift / 350.0); // 使流體貼圖依循河道公式轉彎
+                // 雙層 UV 紋理交錯：產生波光粼粼的流體干涉視覺
+                vec2 flowUV1 = flowUV;
+                vec2 flowUV2 = flowUV * 1.5; // 第二層縮放
+                
+                flowUV1.x -= time * 0.04;
+                flowUV1.y -= (shift / 350.0);
+                
+                flowUV2.x -= time * 0.02;
+                flowUV2.y -= (shift / 350.0) + (time * 0.01); // 產生錯位滑動感
 
                 #ifdef USE_MAP
-                    vec4 sampledDiffuseColor = texture2D( map, flowUV );
-                    diffuseColor *= sampledDiffuseColor;
+                    vec4 tex1 = texture2D(map, flowUV1);
+                    vec4 tex2 = texture2D(map, flowUV2);
+                    // 混和兩層水波紋並提亮
+                    diffuseColor.rgb += (tex1.rgb + tex2.rgb) * 0.6;
                 #endif
                 `
             );
             waterMat.userData.shader = shader;
         };
         this.waterMesh = new THREE.Mesh(waterGeo, waterMat); this.waterMesh.position.y = -10;
+        this.waterMesh.receiveShadow = true;  // 讓河道能接收兩岸山峰投下的倒影
         this.scene.add(this.waterMesh);
 
-        this.scene.add(new THREE.AmbientLight(0x354050, 1.0)); // 降低全局散射光，還原山體自然陰影與溝壑
-        const dirLight = new THREE.DirectionalLight(0xffebd6, 2.2); // 增強傾斜側向主光，強烈勾勒山脊與谷地輪廓
-        dirLight.position.set(-150, 220, 120);
+        this.scene.add(new THREE.AmbientLight(0x2a3545, 0.8)); // 改為偏冷藍的環境光，讓陰影處更深邃自然
+        const dirLight = new THREE.DirectionalLight(0xfff0dd, 3.2); // 增強暖色主光，拉大冷暖對比
+        dirLight.position.set(-150, 260, 150); // 稍微拉高光源，讓峽谷底部的光影漸層更豐富
+        
+        // 設定平行光源投射陰影，精準勾勒地貌深淺
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; // 高解析度陰影貼圖
+        dirLight.shadow.mapSize.height = 2048;
+        const d = 250; // 陰影覆蓋正交投影範圍
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 1000;
+        dirLight.shadow.bias = -0.0005; // 消除陰影表面產生的網格狀鋸齒 (Shadow acne)
+        
         this.scene.add(dirLight);
 
-        const hemiLight = new THREE.HemisphereLight(0x99ccff, 0x223322, 0.6); // 加入天空/地面雙色半球光，大幅提升山谷立體感
+        const hemiLight = new THREE.HemisphereLight(0x99ccff, 0x334433, 0.65); // 稍微提亮天空與地面反光，確保拉遠與背光處依舊清晰正常
         this.scene.add(hemiLight);
 
         this.obsGroup = new THREE.Group(); this.scene.add(this.obsGroup);
@@ -900,7 +1041,7 @@ const Engine3D = {
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth/window.innerHeight;
             this.camera.updateProjectionMatrix();
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            this.renderer.setPixelRatio(window.devicePixelRatio); // 保持全設備最高解析度
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
@@ -970,6 +1111,7 @@ const Engine3D = {
         let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55;
 
         let defaultY = (state.w === 'none') ? -8 : -18;
+        let c = new THREE.Color(); // 修復：將 Color 實例化移出 22800 次的迴圈外，消除切換格局時的 GC 記憶體暴增卡頓
         for (let i = 0; i < pos.length; i += 3) {
             let x = pos[i], z = pos[i+2], y = defaultY;
             if (state.d === 'pingyang') {
@@ -1174,7 +1316,8 @@ const Engine3D = {
                 }
             }
 
-            if(state.tianzhan && Math.abs(x)<8 && z<0) y = Math.min(y, -12);
+            // 修復：限制天斬煞的 -Z 軸深度 (z > -45)，避免其向後無限延伸切穿遠處太祖山脈，破壞遠景
+            if(state.tianzhan && Math.abs(x)<8 && z > -45 && z < 0) y = Math.min(y, -12);
             let targetYueZ = (state.face === '1') ? 30 : -35;
             let yueZMin = targetYueZ - 10, yueZMax = targetYueZ + 10;
             if(state.yue && Math.abs(x)<22 && z > yueZMin && z < yueZMax) {
@@ -1187,7 +1330,8 @@ const Engine3D = {
                 }
             }
             if(state.w !== 'none') {
-                if(state.w==='lintou' && Math.abs(x)<12 && z<20) y = Math.min(y, -12);
+                // 將 z 限定在 > -5，保留後方主山的完整性，讓水流自然從山坡上傾瀉而下
+                if(state.w==='lintou' && Math.abs(x)<12 && z > -5 && z < 20) y = Math.min(y, -12);
 
                 let rS = wZ;
                 if (state.d === 'pingyang' && state.w !== 'none') {
@@ -1249,9 +1393,11 @@ const Engine3D = {
                     else if (state.w === 'lintou') flowTilt = (z < 20) ? (z - 20) * 0.5 : -Math.abs(x) * 0.05; // 淋頭水從後方高處直沖向下
                     else flowTilt = -x * 0.03; // 一般水流向右側流出
 
-                    if (dR < 15) {
-                        y = y * smoothT + (riverBottom + flowTilt) * (1 - smoothT);
-                    } else if (state.w === 'gejiao') {
+                    // 修復：移除 dR < 15 的硬限制，讓貝茲曲線平滑過渡 (smoothT) 完整涵蓋 25 單位的河岸，消除 3D 地形撕裂斷崖
+                    y = y * smoothT + (riverBottom + flowTilt) * (1 - smoothT);
+                    
+                    if (state.w === 'gejiao' && dR >= 15) {
+                        // 保留割腳水特有的峭壁切削效果
                         y -= Math.pow(25 - dR, 1.2) * 0.5;
                     }
                 }
@@ -1282,18 +1428,33 @@ const Engine3D = {
             let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
             this.hMap[gZ*(tSeg+1) + gX] = y;
 
-            let nH = Math.max(0, Math.min(1.0, (y + 15) / 75));
-            let c = new THREE.Color();
+            // 加入地表噪聲擾動，打破死板的水平顏色分層，產生真實的斑駁植被與鋸齒狀林線
+            let colorNoise = this.pNoise(x * 1.5, z * 1.5) * 0.12; 
+            let nH = Math.max(0, Math.min(1.0, ((y + 15) / 75) + colorNoise));
 
             if (y < -9) {
-                c.setHex(0x1d3534); // 深深河床水底色
+                // 河床過渡：越深的水底顏色越呈現深沉的青墨色
+                let depth = Math.max(0, Math.min(1.0, (-9 - y) / 15));
+                c.setRGB(0.05 + depth * 0.05, 0.20 - depth * 0.1, 0.25 - depth * 0.1); // 加深河床色彩對比
             } else {
-                // 強化山體高度階調對比：低窪平地(翠綠) -> 山腰(黃綠) -> 山頂山脊(明亮岩石黃褐色)，地形起伏一目瞭然
-                let hue = 0.35 - nH * 0.22; // 色相從翠綠過渡到山頂黃褐色
-                let sat = 0.55 - nH * 0.15; // 飽和度微調
-                let lightness = 0.20 + nH * 0.35; // 高度越高亮度越高，凸顯山頂山脊高光
-
-                c.setHSL(hue, sat, lightness);
+                // 植被與地質生態層次分明：平原 ➔ 森林 ➔ 高山岩石 ➔ 山頂雪線 (色彩飽和度與明度微調，更具史詩感)
+                if (nH < 0.28) {
+                    // 1. 平原至淺丘 (翠綠過渡到深草綠)
+                    let t = nH / 0.28;
+                    c.setHSL(0.33 - t * 0.06, 0.45 - t * 0.15, 0.18 + t * 0.10);
+                } else if (nH < 0.65) {
+                    // 2. 山腰森林至岩盤 (深草綠過渡到墨綠/黃褐岩石)
+                    let t = (nH - 0.28) / 0.37;
+                    c.setHSL(0.27 - t * 0.15, 0.30 - t * 0.20, 0.28 + t * 0.12);
+                } else if (nH < 0.88) {
+                    // 3. 高山岩石 (黃褐岩石過渡到深灰褐色)
+                    let t = (nH - 0.65) / 0.23;
+                    c.setHSL(0.10, 0.15 - t * 0.10, 0.40 + t * 0.10);
+                } else {
+                    // 4. 極高山峰雪線 (灰褐過渡到雪白高光)
+                    let t = (nH - 0.88) / 0.12;
+                    c.setHSL(0.6, 0.05, 0.50 + t * 0.45);
+                }
             }
             cols.push(c.r, c.g, c.b);
         }
@@ -1301,13 +1462,15 @@ const Engine3D = {
         if (this.waterMesh) {
             let isBadWater = ['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(state.w);
             if (isBadWater) {
-                this.waterMesh.material.color.setHex(0x523b38); // 泥黃濁水血煞色
-                this.waterMesh.material.opacity = 0.90;
-                this.waterMesh.material.roughness = 0.8;
+                this.waterMesh.material.color.setHex(0x6b4a31); // 更具土石流質感的泥黃煞水
+                this.waterMesh.material.opacity = 0.98;
+                this.waterMesh.material.roughness = 0.9; // 完全粗糙，無光澤
+                this.waterMesh.material.metalness = 0.0;
             } else {
-                this.waterMesh.material.color.setHex(0x276b85); // 碧綠清澈吉水
-                this.waterMesh.material.opacity = 0.75;
-                this.waterMesh.material.roughness = 0.15; // 倒影光澤強，水光返照照亮明堂
+                this.waterMesh.material.color.setHex(0x0a91a1); // 提亮為明亮清透的翡翠琉璃藍
+                this.waterMesh.material.opacity = 0.75; // 提高透明度，透出下方加深顏色的河床
+                this.waterMesh.material.roughness = 0.02; // 極致光滑，形成強烈的高光反射
+                this.waterMesh.material.metalness = 0.65; // 高金屬度讓水面波光粼粼
             }
         }
 
@@ -1323,10 +1486,20 @@ const Engine3D = {
         let z0 = Math.min(CONFIG.tSeg - 1, Math.max(0, Math.floor(gZ))), z1 = Math.min(CONFIG.tSeg, z0 + 1);
         let h00 = this.hMap[z0*(CONFIG.tSeg+1)+x0]||0, h10 = this.hMap[z0*(CONFIG.tSeg+1)+x1]||0, h01 = this.hMap[z1*(CONFIG.tSeg+1)+x0]||0, h11 = this.hMap[z1*(CONFIG.tSeg+1)+x1]||0;
         let tx = gX-x0, tz = gZ-z0;
-        return { y: (h00*(1-tx)+h10*tx)*(1-tz) + (h01*(1-tx)+h11*tx)*tz, nx: (h00-h10)*0.5, nz: (h00-h01)*0.5 };
+        let nx = (h00*(1-tz) + h01*tz) - (h10*(1-tz) + h11*tz);
+        let nz = (h00*(1-tx) + h10*tx) - (h01*(1-tx) + h11*tx);
+        return { 
+            y: (h00*(1-tx)+h10*tx)*(1-tz) + (h01*(1-tx)+h11*tx)*tz, 
+            nx: nx, 
+            nz: nz 
+        };
     },
 
+    shockwavesThisFrame: 0, // 新增：單幀震波計數器
     createShockwave(x, y, z, color) {
+        if (this.shockwavesThisFrame > 2) return; // 新增：每幀最多只允許產生 3 個震波，保護效能
+        this.shockwavesThisFrame++;
+
         const mat = new THREE.MeshBasicMaterial({color: color, transparent: true, opacity: 1, side: THREE.DoubleSide});
         const mesh = new THREE.Mesh(this.swGeo, mat); mesh.position.set(x, y+1, z);
         this.swGroup.add(mesh);
@@ -1483,7 +1656,7 @@ const Physics = {
             let anMountainHeight = Engine3D.getTerrainY(0, 75).y;
             cachedAnSlope = (anMountainHeight - cachedCaveHeight) / 75.0;
         }
-
+		let globalMultCache = Rules.getGlobalMultiplier(); 
         for(let i=0; i<this.pCount; i++) {
             let x = this.pPos[i*3], y = this.pPos[i*3+1], z = this.pPos[i*3+2];
             let vel = this.pVel[i]; let st = this.pState[i];
@@ -1658,68 +1831,70 @@ const Physics = {
             let isInCaveZone = (z > -30 && z < 25 && Math.abs(x) < 35); // 動態擴大為微地形感知區
             if (state.xia && isInCaveZone && y < 25) {
                 let isHighMountainTu = (state.xue === 'tu' && state.d !== 'pingyang');
-                let isWoodNoRu = (state.xing === 'mu' && state.xue !== 'ru'); // 木星結窩亦屬相剋，僅乳穴為真格
-                let isMetalWaterClash = (state.xue === 'ru' || state.xue === 'tu') && ['jin','shui'].includes(state.xing) && state.d !== 'pingyang';
-                let isClash = (state.xing === 'huo') || (state.xue === 'wo' && state.xing === 'mu') || isHighMountainTu || isMetalWaterClash;
+				let isWoodNoRu = (state.xing === 'mu' && state.xue !== 'ru' && state.xue !== 'qian'); 
+				
+				// 修正 4：補齊 2D 五行星穴相剋邏輯 (木星結窩為洩氣，金水火星結乳突為鬥煞)
+				let isMetalWaterSha = (state.xue === 'tu' || state.xue === 'ru') && (state.xing === 'jin' || state.xing === 'shui' || state.xing === 'huo') && state.d !== 'pingyang';
+				let isMuWoLeak = (state.xue === 'wo' && state.xing === 'mu');
 
-                if (state.xing === 'huo') {
-                    // 火星炎上熱對流：有水制化 (水火既濟) 仍保有 1% 高風險殘留燥火煞氣
-                    let hasWaterControl = state.yue || state.san || state.w === 'you' || state.w === 'jiuqu';
-                    if (hasWaterControl) {
-                        vel.y -= 1.2 * dt; // 吉水鎮壓火性，重力沉降
-                        vel.x *= Math.pow(0.70, dt);
-                        vel.z *= Math.pow(0.70, dt);
-                        // 水火既濟制化：99% 轉為金黃真氣 (包含淨化散氣 st===3)，保留 1% 燥火殘留煞氣
-                        if (Math.random() < 0.01 * dt) {
-                            this.pState[i] = 1; // 1% 殘留燥火爆發
-                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
-                        } else if (st === 1 || st === 0 || st === 3) {
-                            this.pState[i] = 2; // 水火既濟，化火煞與散氣為金黃真氣
-                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.9; this.pCol[i*3+2] = 0.6;
-                        }
-                    } else {
-                        // 修正：重現舊版 2D 火星「離心炸裂衝擊」——未受制化時，氣場向左右兩側暴猛開炸與上下亂竄
-                        vel.x += (Math.sign(x + 0.01) * 3.5 + (Math.random() - 0.5) * 5.0) * dt;
-                        vel.y += (3.0 + (Math.random() - 0.5) * 3.0) * dt; // 火性炎上向高空狂噴
-                        vel.z += (Math.random() - 0.5) * 4.0 * dt;
-                        if (st !== 1) {
-                            this.pState[i] = 1; // 染為燥烈赤紅煞氣
-                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
-                            if (Math.random() < 0.1) Engine3D.createShockwave(x, y, z, 0xff5500); // 燥火炸裂波
-                        }
-                    }
-                } else if (isHighMountainTu) {
-                    // 高山莫安突：山頂微凸地形發生邊界層風速加倍 (Boundary Layer Wind Shear)，粒子在突頂被高空強風直接吹飛
-                    let tuPeakY = Engine3D.getTerrainY(x, z).y;
-                    if (y > tuPeakY - 2.0) {
-                        vel.y += 2.0 * dt; // 頂部風力拔升
-                        vel.x += Math.sign(x + 0.01) * 5.0 * dt; // 橫向強風剝離
-                        vel.z += 5.0 * dt;
-                        if (st === 0 || st === 2) {
-                            this.pState[i] = 1; // 露頂遭風吹散化為凶煞
-                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.1;
-                        }
-                    }
-                } else if (isClash) {
-                    vel.y += 1.5 * dt;
-                    vel.x += Math.sign(x + 0.01) * 2.5 * dt;
-                    vel.z += Math.sign(z + 0.01) * 2.5 * dt;
-                    if(st === 0) {
-                        this.pState[i] = 1;
-                        this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.1;
-                    }
-
-                    // 火星強行結硬突（Huo + Tu/Ru）：硬凸犯煞/鬥煞，粒子反彈直刺穴心
-                    if ((state.xue === 'ru' || state.xue === 'tu') && state.xing === 'huo' && state.d !== 'pingyang') {
-                        if (Math.abs(x) < 20 && Math.abs(z - 5) < 20) {
-                            this.pState[i] = 1; // 轉為硬凸鬥煞
-                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.05; this.pCol[i*3+2] = 0.05;
-                            vel.y -= 2.5 * dt; // 向下反彈硬刺穴心
-                            vel.z += 3.5 * dt;
-                            if (Math.random() < 0.2) Engine3D.createShockwave(x, y, z, 0xff1111);
-                        }
-                    }
-                } else if (isWoodNoRu) {
+				if (state.xing === 'huo') {
+					// 火星炎上熱對流：有水制化 (水火既濟) 仍保有 1% 高風險殘留燥火煞氣
+					let hasWaterControl = state.yue || state.san || state.w === 'you' || state.w === 'jiuqu';
+					if (hasWaterControl) {
+						vel.y -= 1.2 * dt; // 吉水鎮壓火性，重力沉降
+						vel.x *= Math.pow(0.70, dt);
+						vel.z *= Math.pow(0.70, dt);
+						// 水火既濟制化：99% 轉為金黃真氣 (包含淨化散氣 st===3)，保留 1% 燥火殘留煞氣
+						if (Math.random() < 0.01 * dt) {
+							this.pState[i] = 1; // 1% 殘留燥火爆發
+							this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
+						} else if (st === 1 || st === 0 || st === 3) {
+							this.pState[i] = 2; // 水火既濟，化火煞與散氣為金黃真氣
+							this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.9; this.pCol[i*3+2] = 0.6;
+						}
+					} else {
+						// 修正：重現舊版 2D 火星「離心炸裂衝擊」——未受制化時，氣場向左右兩側暴猛開炸與上下亂竄
+						vel.x += (Math.sign(x + 0.01) * 3.5 + (Math.random() - 0.5) * 5.0) * dt;
+						vel.y += (3.0 + (Math.random() - 0.5) * 3.0) * dt; // 火性炎上向高空狂噴
+						vel.z += (Math.random() - 0.5) * 4.0 * dt;
+						if (st !== 1) {
+							this.pState[i] = 1; // 染為燥烈赤紅煞氣
+							this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
+							if (Math.random() < 0.1) Engine3D.createShockwave(x, y, z, 0xff5500); // 燥火炸裂波
+						}
+					}
+				} else if (isHighMountainTu) {
+					// 高山莫安突：山頂微凸地形發生邊界層風速加倍 (Boundary Layer Wind Shear)，粒子在突頂被高空強風直接吹飛
+					let tuPeakY = Engine3D.getTerrainY(x, z).y;
+					if (y > tuPeakY - 2.0) {
+						vel.y += 2.0 * dt; // 頂部風力拔升
+						vel.x += Math.sign(x + 0.01) * 5.0 * dt; // 橫向強風剝離
+						vel.z += 5.0 * dt;
+						if (st === 0 || st === 2) {
+							this.pState[i] = 1; // 露頂遭風吹散化為凶煞
+							this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.1;
+						}
+					}
+				} else if (isMetalWaterSha) {
+					// 金/水/火星強行結乳突（Jin/Shui/Huo + Tu/Ru）：硬凸犯煞/鬥煞，化為銳利煞氣反彈直刺明堂
+					vel.y -= 1.5 * dt; // 向下反彈硬刺穴心
+					vel.z += 3.5 * dt; // 直擊明堂
+					vel.x += (Math.random() - 0.5) * 2.5 * dt;
+					if (st === 0 || st === 2) {
+						this.pState[i] = 1; // 轉為硬凸鬥煞
+						this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.05; this.pCol[i*3+2] = 0.05;
+						if (Math.random() < 0.1) Engine3D.createShockwave(x, y, z, 0xff1111);
+					}
+				} else if (isMuWoLeak) {
+					// 木星結窩：木氣直長，窩穴無法聚氣，發生「洩氣」 (Leak) 而非煞氣
+					vel.y += 1.5 * dt; // 氣流上浮溢出
+					vel.x += Math.sign(x + 0.01) * 2.5 * dt; // 向兩側散逸
+					vel.z += 2.5 * dt; // 向前流失
+					if (st === 0 || st === 2) {
+						this.pState[i] = 3; // 轉為藍色外洩氣
+						this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
+					}
+				} else if (isWoodNoRu) {
                     // 木星直來直去：無乳突/窩穴接氣時，重力與直向衝力疊加，直瀉明堂穿堂而出
                     vel.z += 6.5 * dt; // 猛烈向正前方 (+Z) 直瀉
                     vel.y -= 1.2 * dt; // 重力急墜
@@ -1754,7 +1929,16 @@ const Physics = {
                             }
                         }
                     } else if (state.xue === 'ru') {
-                        vel.x += (0 - x) * 0.02 * dt; vel.z += (10 - z) * 0.02 * dt;
+                        // 修正：補上 2D 版五行相生規則（木/土星結乳穴為大吉，引發強效向心吸附與提純）
+                        let ruSync = (state.xing === 'mu' || state.xing === 'tu') ? 1.5 : 1.0;
+                        vel.x += (0 - x) * 0.02 * ruSync * dt; 
+                        vel.z += (10 - z) * 0.02 * ruSync * dt;
+                        vel.multiplyScalar(Math.pow(0.95 - (ruSync - 1.0) * 0.05, dt)); // 相生時增加黏性阻尼止氣
+                        
+                        if (ruSync > 1.0 && st === 0 && Math.random() < 0.12 * dt) {
+                            this.pState[i] = 2; // 木土結乳，提純為純粹真氣
+                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.95; this.pCol[i*3+2] = 0.6;
+                        }
                     }
 
                     // 【穴下氈唇（唇毯）物理吸附】：龍氣過穴遇氈唇台地，動能緩降並凝結真氣
@@ -1769,20 +1953,20 @@ const Physics = {
                     }
 
                     // 五行星體 3D 動態流率特徵 (Metal/Wood/Water/Fire/Earth)
-                    if (state.xing === 'shui' && !isClash) {
+                    if (state.xing === 'shui') {
                         // 水星波浪蜿蜒：S 型波浪振盪進穴
                         vel.x += Math.sin(z * 0.1 + AppState.frames * 0.08) * 1.2 * dt;
                         vel.multiplyScalar(Math.pow(0.82, dt));
-                    } else if (state.xing === 'jin' && !isClash) {
+                    } else if (state.xing === 'jin') {
                         // 金星弧形收束：左右圓潤向軸心歸攏
                         vel.x += (0 - x) * 0.08 * dt;
                         vel.multiplyScalar(Math.pow(0.78, dt));
                         vel.y -= 0.15 * dt;
-                    } else if (state.xing === 'tu' && !isClash) {
+                    } else if (state.xing === 'tu') {
                         // 土星厚重沉降：極高阻尼，迅速貼地化為方正方丘氣場
                         vel.multiplyScalar(Math.pow(0.65, dt));
                         vel.y -= 0.4 * dt;
-                    } else if (['jin', 'shui', 'tu'].includes(state.xing) && !isClash) {
+                    } else if (['jin', 'shui', 'tu'].includes(state.xing)) {
                         vel.multiplyScalar(Math.pow(0.75, dt));
                         vel.y -= 0.2 * dt;
                     }
@@ -1858,7 +2042,7 @@ const Physics = {
                         vel.z += (dz * 0.03 + dx * 0.15) * dt;
                         vel.multiplyScalar(Math.pow(0.85, dt));
 
-                        let mult = Rules.getGlobalMultiplier();
+                        let mult = globalMultCache;
                         let isDeadWater = (state.d === 'po' || state.d === 'si' || state.w === 'bazi' || state.w === 'gejiao' || mult < 0.2);
 
                         if (isDeadWater) {
@@ -2008,14 +2192,25 @@ const Physics = {
                     }
                     vel.multiplyScalar(Math.pow(0.95, dt));
 
-                    // 破碎砂（Po Sand）子彈煞氣折射機制
-                    if ((state.ml === 'po' && x < -25) || (state.mr === 'po' && x > 25)) {
-                        if (z > -20 && z < 60 && st !== 1 && Math.random() < 0.15 * dt) {
+                    // 破碎砂（Po Sand）子彈煞氣折射與崩塌機制 (補齊四象全域)
+                    if (st !== 1) {
+                        let isLeftPo = (state.ml === 'po' && x < -25 && z > -20 && z < 60);
+                        let isRightPo = (state.mr === 'po' && x > 25 && z > -20 && z < 60);
+                        let isFrontPo = (state.ms === 'po' && z > 55 && Math.abs(x) < 45); // 補齊：朱雀破碎
+                        
+                        if ((isLeftPo || isRightPo || isFrontPo) && Math.random() < 0.15 * dt) {
                             this.pState[i] = 1; // 撞擊崩塌山體轉為紅煞
                             this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
-                            let dirToCenter = (x < 0) ? 1.0 : -1.0;
-                            vel.x = dirToCenter * 6.5; // 如子彈般高速折射橫刺明堂穴心
-                            vel.z += (Math.random() - 0.3) * 3.0;
+                            
+                            if (isLeftPo || isRightPo) {
+                                let dirToCenter = (x < 0) ? 1.0 : -1.0;
+                                vel.x = dirToCenter * 6.5; // 左右破碎如子彈般橫刺明堂穴心
+                                vel.z += (Math.random() - 0.3) * 3.0;
+                            } else if (isFrontPo) {
+                                vel.z = -5.0; // 朱雀破碎：碎石煞氣無法迴風，反向強力回彈直擊明堂
+                                vel.y += 2.0;
+                                vel.x += (Math.random() - 0.5) * 4.0;
+                            }
                             Engine3D.createShockwave(x, y, z, 0xff3333);
                         }
                     }
@@ -2061,10 +2256,16 @@ const Physics = {
                             let guardCenterX = Math.sign(x) * 65.0;
                             let dxG = x - guardCenterX;
                             if (Math.abs(dxG) < 18.0) {
-                                vel.x *= Math.pow(0.02, dt); // 實體神獸強力鎖水攔截
-                                vel.z *= Math.pow(0.02, dt);
+                                // 修正：遇到凶水/快水沖刷時，實體神獸攔截與阻尼能力大幅衰減（物理上難以完全抵禦高速水流）
+                                let isFastBadWater = ['gejiao','ji','fan','lintou'].includes(state.w);
+                                let lockStrength = isFastBadWater ? 0.55 : 0.02; // 凶水時阻尼力減弱
+                                
+                                vel.x *= Math.pow(lockStrength, dt); 
+                                vel.z *= Math.pow(lockStrength, dt);
                                 vel.y += 0.1 * dt; // 氣流於神獸前升騰凝結
-                                if(st !== 2) {
+                                
+                                // 凶水局結氣機率下降，且有機會讓氣流直接越過神獸流失
+                                if(st !== 2 && Math.random() < (isFastBadWater ? 0.05 : 1.0)) {
                                     this.pState[i] = 2; // 鎖住水尾財氣
                                     this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.95; this.pCol[i*3+2] = 0.6;
                                     if (Math.random() < 0.25) Engine3D.createShockwave(x, y, z, 0xffe088);
@@ -2317,9 +2518,20 @@ const Physics = {
                         Engine3D.createShockwave(x, y, z, 0xff2222);
                     }
                 }
+                
+                // 補齊：青龍逼壓（Ya） - 左半明堂空間極限壓縮，引發沉悶的窒息煞氣
+                if (state.ml === 'ya' && state.mr !== 'tai' && x < -10 && z > -20 && z < 60) {
+                    vel.x += 1.5 * dt; // 強迫向右擠壓
+                    vel.z *= Math.pow(0.85, dt); // 氣流受阻凝滯不前
+                    if (st === 0 && Math.random() < 0.06 * dt) {
+                        this.pState[i] = 1; // 轉為逼壓悶煞
+                        this.pCol[i*3] = 0.8; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.3; // 暗紫紅色的窒息煞
+                    }
+                }
 
                 // 探頭暗箭擊中穴心：將穴心內已沉澱之吉氣 (st === 2) 撞擊破壞化為連環煞氣
-                if (st === 1 && Math.abs(x) < 15 && Math.abs(z - 5) < 15) {
+                // 修復：增加 Math.random() 機率節流，防止煞氣粒子在穴心互相感染造成 O(N²) 指數級別的迴圈卡頓 (Lag Spike)
+                if (st === 1 && Math.abs(x) < 15 && Math.abs(z - 5) < 15 && Math.random() < 0.1) {
                     for (let j = 0; j < this.pCount; j += 15) { // 隨機採樣穴心附近粒子
                         if (this.pState[j] === 2) {
                             let kx = this.pPos[j*3] - x, kz = this.pPos[j*3+2] - z;
@@ -2416,6 +2628,15 @@ const Physics = {
                     this.pState[i] = 1; // 拒屍排斥化為高空拒絕煞
                     this.pCol[i*3] = 0.9; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.15;
                 }
+            } else if (state.mn === 'po' && z > -45 && z < 10) {
+                // 補齊：玄武破碎 - 龍氣入穴前遭遇後山崩塌，氣脈遭切碎化為亂流煞氣
+                vel.x += (Math.random() - 0.5) * 4.0 * dt;
+                vel.y -= 1.5 * dt; // 崩塌下墜
+                if(st === 0 && Math.random() < 0.12 * dt) {
+                    this.pState[i] = 1; 
+                    this.pCol[i*3] = 0.9; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.15;
+                    if(Math.random() < 0.1) Engine3D.createShockwave(x, y, z, 0xff3333); // 碎石崩塌波
+                }
             } else if ((state.face === '0' || state.mn === 'none') && state.d !== 'pingyang' && z > -10 && z < 40) {
                 // 背水/坐空/無靠山：山龍背水，河道從後方產生坐空離心拔氣，將穴心真氣吸入水中洩走
                 let pullToRiver = (state.face === '0' && state.w !== 'none') ? 3.5 : 1.5;
@@ -2429,13 +2650,29 @@ const Physics = {
 
             // 單邊/雙邊無砂手之「露風劫（Wind Exposure Leak）」：無砂手時側風橫掃明堂全域(|x|<45)
             if (state.d !== 'pingyang' && z > -10 && z < 60) {
-                let isExposedLeft = (state.ml === 'none');
-                let isExposedRight = (state.mr === 'none');
+                // 修正：補上「破碎砂」同樣無法擋風的物理規則
+                let isExposedLeft = (state.ml === 'none' || state.ml === 'po');
+                let isExposedRight = (state.mr === 'none' || state.mr === 'po');
+                // 新增：補上前方空虛（無案山或朱雀低陷/破碎），引發堂氣不收
+                let isExposedFront = (!state.an || state.ms === 'di' || state.ms === 'po');
+
                 if ((isExposedLeft || isExposedRight) && Math.abs(x) < 45) {
+                    // 若雙側皆空露，則風場向兩側撕裂
                     let windDir = isExposedLeft ? -4.0 : 4.0;
+                    if (isExposedLeft && isExposedRight) windDir = (x < 0) ? -4.0 : 4.0;
+                    
                     vel.x += windDir * dt; // 橫風穿堂強行吹飛離穴
                     if ((st === 0 || st === 2) && Math.random() < 0.15 * dt) {
                         this.pState[i] = 3; // 露風劫吹散解體為藍光洩氣
+                        this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
+                    }
+                }
+                
+                // 新增：堂氣不收（縱向穿堂直風）
+                if (isExposedFront && Math.abs(x) < 35 && z > 15) {
+                    vel.z += 4.5 * dt; // 氣流無案山關攔，向前直瀉出谷
+                    if ((st === 0 || st === 2) && Math.random() < 0.12 * dt) {
+                        this.pState[i] = 3; // 氣隨風散
                         this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
                     }
                 }
@@ -2453,16 +2690,16 @@ const Physics = {
 				let hx = (x / 350 + 0.5) * 256; let hz = (z / 350 + 0.5) * 256;
 				let mult = Rules.getGlobalMultiplier();
 
-				// 根據粒子狀態 (st === 2 結氣, st === 1 煞氣, st === 0 移動) 動態調整熱力擴散半徑與透明度
-				let heatAlpha = (st === 2) ? 0.35 : (st === 1 ? 0.40 : 0.12);
-				let heatSize = (st === 2) ? 5.0 : (st === 1 ? 6.0 : 2.5);
+				// 提高透明度基數與點的尺寸，讓色彩更容易在畫布上累積成明顯的色塊
+				let heatAlpha = (st === 2) ? 0.65 : (st === 1 ? 0.70 : 0.25);
+				let heatSize = (st === 2) ? 6.0 : (st === 1 ? 7.0 : 3.0);
 
 				if (mult < 0.2 || st === 1) {
-					// 【凶局/煞氣熱力圖】：呈現深暗血紅色（毒煞衝擊/積聚）
-					Engine3D.hCtx.fillStyle = `rgba(200, 20, 20, ${heatAlpha})`;
+					// 【凶局/煞氣熱力圖】：呈現明亮的鮮紅色，增強警示感
+					Engine3D.hCtx.fillStyle = `rgba(255, 30, 30, ${heatAlpha})`;
 				} else {
-					// 【吉局熱力圖】：呈現溫潤金橙色（生氣凝聚）
-					Engine3D.hCtx.fillStyle = `rgba(255, 160, 40, ${heatAlpha})`;
+					// 【吉局熱力圖】：呈現飽和的金黃色，凸顯聚氣效果
+					Engine3D.hCtx.fillStyle = `rgba(255, 180, 20, ${heatAlpha})`;
 				}
 				Engine3D.hCtx.fillRect(hx - heatSize/2, hz - heatSize/2, heatSize, heatSize);
 			}
@@ -2477,7 +2714,7 @@ const Physics = {
             let dzTaiji = z - dynamicTaijiZ;
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < 320 && y > -8 && y < 15);
             if (inTaiji && state.w !== 'lintou') {
-                let mult = Rules.getGlobalMultiplier();
+                let mult = globalMultCache;
 
                 if (st === 1 || vel.lengthSq() > 1.5 || mult < 0.3) {
                     frameScatter++;
@@ -2585,11 +2822,11 @@ const Physics = {
                 if(st === 1) frameScatter += 5;
 
                 // 發脈回收：粒子回歸太祖山脈內部/地表重生
-                if(state.d === 'pingyang') {
-                    z = -100 - Math.random()*50; x = (Math.random()-0.5)*40;
-                    y = Engine3D.getTerrainY(x, z).y + Math.random()*3;
-                    vel.set((Math.random()-0.5)*0.5, 0, 1.0);
-                } else {
+				if(state.d === 'pingyang') {
+					z = -100 - Math.random()*50; x = (Math.random()-0.5)*40;
+					y = Engine3D.getTerrainY(x, z).y + Math.random()*3;
+					vel.set((Math.random()-0.5)*0.5, 0, 1.0);
+				} else {
 					z = -140 - Math.random()*20;
 					let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
 					let dragonCurveX = 0;
@@ -2603,9 +2840,19 @@ const Physics = {
 					vel.set((Math.random()-0.5)*0.5, 0, 3.0);
 				}
 
-                this.pState[i] = 0; this.pCol[i*3]=1.0; this.pCol[i*3+1]=0.87; this.pCol[i*3+2]=0.5;
-            }
-            this.pPos[i*3]=x; this.pPos[i*3+1]=y; this.pPos[i*3+2]=z;
+				if(state.d === 'si') {
+					this.pState[i] = 0;
+					this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40;
+				} else if((state.d === 'po' || state.d === 'huan') && Math.random() < 0.35) {
+					this.pState[i] = 3; 
+					this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.7; this.pCol[i*3+2]=0.9;
+				} else {
+					this.pState[i] = 0;
+					this.pCol[i*3]=1.0; this.pCol[i*3+1]=0.87; this.pCol[i*3+2]=0.5;
+				}
+				this.pLife[i] = 100 + Math.random() * 500; // 修復：必須重置壽命，否則粒子會永久陷入逐幀重置的死迴圈
+			}
+			this.pPos[i*3]=x; this.pPos[i*3+1]=y; this.pPos[i*3+2]=z;
         }
 
         this.pGeom.attributes.position.needsUpdate = true;
@@ -2633,7 +2880,10 @@ const Physics = {
                 let totalWind = wf + (dyn * Math.max(0.5, Math.abs(wf)));
 
                 let pos = w.line.geometry.attributes.position.array;
+                let endY = Engine3D.getTerrainY(w.bx + totalWind * 60, w.bz).y;
+                pos[1] = ty > -5 ? ty + 3 : -100;
                 pos[3] = w.bx + totalWind * 60;
+                pos[4] = endY > -5 ? endY + 3 : -100;
                 pos[5] = w.bz + Math.sin(w.bx * 0.1 + time * 1.5) * Math.abs(totalWind) * 15;
                 w.line.geometry.attributes.position.needsUpdate = true;
             });
@@ -2661,12 +2911,15 @@ const Physics = {
             AppState.smoothedScores[k] += (rawScore[k] - AppState.smoothedScores[k]) * alpha;
         }
 
-        let theoryScore = AppState.smoothedScores;
-        let vObj = Rules.getVerdictText(theoryScore);
+        let smoothedScore = AppState.smoothedScores; // 修改：避免使用 let 重複宣告 rawScore
+        let mult = Rules.getGlobalMultiplier();
+        // 將加權倍數套用至顯示數值，反映真實有效分
+        let effScore = smoothedScore.map(s => Math.max(0, Math.round(s * mult))); // 修改：改用 smoothedScore
+        let vObj = Rules.getVerdictText(smoothedScore); // 修改：改用 smoothedScore
 
         document.getElementById('v-rating').innerText = vObj.rating;
         document.getElementById('v-rating').style.color = vObj.color;
-        document.getElementById('v-text').innerText = `理論：龍${Math.round(theoryScore[0])} 穴${Math.round(theoryScore[1])} 砂${Math.round(theoryScore[2])} 水${Math.round(theoryScore[3])} 向${Math.round(theoryScore[4])}\n\n${vObj.text}`;
+        document.getElementById('v-text').innerText = `有效：龍${effScore[0]} 穴${effScore[1]} 砂${effScore[2]} 水${effScore[3]} 向${effScore[4]} (基礎:${Math.round(rawScore[0])}/${Math.round(rawScore[1])}/${Math.round(rawScore[2])}/${Math.round(rawScore[3])}/${Math.round(rawScore[4])})\n\n${vObj.text}`;
     }
 };
 
@@ -2680,6 +2933,7 @@ UI.init();
 const clock = new THREE.Clock();
 function animate() {
     requestAnimationFrame(animate);
+	Engine3D.shockwavesThisFrame = 0;
 
     let delta = clock.getDelta();
     if (delta > 0.1) delta = 0.1;
