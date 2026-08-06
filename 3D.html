@@ -598,19 +598,20 @@ const Rules = {
 
     generateRandomPreset() {
         const p = {
-            // 稍微提高「躍龍」與「有情」等基本盤的權重，避免隨機出太多無觀賞性的極端破敗局
-            d: ['sheng','sheng','pingyang','huilong','ji','huan','si','po'][Math.floor(Math.random()*8)],
-            mn: ['you','you','kang','po','none'][Math.floor(Math.random()*5)],
-            ml: ['you','you','ya','po','none'][Math.floor(Math.random()*5)],
-            mr: ['you','you','tai','po','none'][Math.floor(Math.random()*5)],
-            ms: ['you','you','di','po','none'][Math.floor(Math.random()*5)],
-            w: ['you','jiuqu','gejiao','lintou','ji','fan','bazi','none','none'][Math.floor(Math.random()*9)],
-            xing: ['jin','mu','shui','huo','tu'][Math.floor(Math.random()*5)],
-            xue: ['none','wo','qian','ru','tu'][Math.floor(Math.random()*5)],
+            // 進一步優化權重：提高「躍龍」「有情」「吉水」等觀賞性較佳的基本盤，降低極端無水或全無砂的機率
+            d: ['sheng','sheng','sheng','pingyang','pingyang','huilong','huilong','ji','huan','si','po'][Math.floor(Math.random()*11)],
+            mn: ['you','you','you','kang','po','none'][Math.floor(Math.random()*6)],
+            ml: ['you','you','you','ya','po','none'][Math.floor(Math.random()*6)],
+            mr: ['you','you','you','tai','po','none'][Math.floor(Math.random()*6)],
+            ms: ['you','you','you','di','po','none'][Math.floor(Math.random()*6)],
+            w: ['you','you','jiuqu','jiuqu','gejiao','lintou','ji','fan','bazi','none'][Math.floor(Math.random()*10)],
+            xing: ['jin','jin','mu','shui','huo','tu','tu'][Math.floor(Math.random()*7)],
+            xue: ['none','wo','wo','qian','ru','tu'][Math.floor(Math.random()*6)],
+            degree: Math.floor(Math.random() * 360), // 隨機生成坐向角度以連動零神/正神水法
             face: Math.random() < 0.7 ? '1' : '0',
             mt: Math.random() < 0.8, xia: Math.random() < 0.85, an: Math.random() < 0.75,
-            chao: Math.random() < 0.5, zhu: Math.random() < 0.8, xu: Math.random() < 0.7, taiji: Math.random() < 0.6,
-            wind: Math.floor(Math.random()*21) - 10,
+            chao: Math.random() < 0.6, zhu: Math.random() < 0.8, xu: Math.random() < 0.8, taiji: Math.random() < 0.7,
+            wind: Math.floor(Math.random()*17) - 8, // 稍微收斂風速，避免隨機生成動不動就滿級狂風
             fenzhi: Math.random() < 0.2, tantou: Math.random() < 0.2, guiyao: Math.random() < 0.3, ao: Math.random() < 0.25, shu: Math.random() < 0.6,
             san: Math.random() < 0.3, yue: Math.random() < 0.3, luo: Math.random() < 0.25, hua: Math.random() < 0.25, hulong: Math.random() < 0.35,
             fengyao: Math.random() < 0.4, zutai: Math.random() < 0.3, guan: Math.random() < 0.3, qin: Math.random() < 0.25, qing: Math.random() < 0.2,
@@ -623,14 +624,27 @@ const Rules = {
         if (!p.an) { p.tantou = false; p.guan = false; }
         if (!p.mt) { p.qing = false; }
         if (p.w === 'bazi') p.san = false; // 八字水分飛與三叉水匯聚不可共存
+        if (p.w === 'lintou') p.yue = false; // 淋頭水不可結半月池
         
+        // 砂手缺失防呆：無左右護砂則難以形成擎拳煞
+        if (p.ml === 'none' && p.mr === 'none') p.qingquan = false;
+        
+        // 迴龍顧祖防呆：強制搭配太祖山並向後看，展現顧祖之象
+        if (p.d === 'huilong') {
+            p.zutai = true;
+            p.face = '0';
+        }
+
         if (p.w === 'none' || p.w === 'lintou') { p.luo = false; p.hua = false; p.qin = false; p.shixiang = false; }
         if (p.d === 'si' || p.d === 'po') p.shu = false;
+        
         if (p.d === 'pingyang') {
             // 平洋為平原，無高山與峽谷特徵
             p.fenzhi = false; p.shu = false; p.fengyao = false; p.hulong = false; 
             p.guiyao = false; p.tianzhan = false; p.ao = false;
             p.luo = false; p.hua = false; p.qin = false; p.shixiang = false;
+            // 平洋無水則完全空亡，提高平洋局出現水法的機率
+            if (p.w === 'none' || p.w === 'lintou') p.w = ['you', 'jiuqu', 'bazi', 'gejiao'][Math.floor(Math.random()*4)];
         }
         
         return p;
@@ -858,8 +872,8 @@ const Engine3D = {
 
     init() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x141a22);
-        this.scene.fog = new THREE.FogExp2(0x141a22, 0.0012); // 將霧氣濃度減半，解決拉遠時畫面變黑的問題
+        this.scene.background = new THREE.Color(0x07101c); // 吸收 Qwen版：深邃的夜空藍背景
+        this.scene.fog = new THREE.FogExp2(0x07101c, 0.00145); // 吸收 Qwen版：讓遠景隱沒得更自然大氣
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         // 優化攝影機初始視角，使明堂與河道居中
@@ -869,7 +883,8 @@ const Engine3D = {
         this.renderer.setPixelRatio(window.devicePixelRatio); // 取消像素比限制，讓高解析度螢幕發揮最高銳利度
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.1; // 調降曝光度，避免畫面死白，恢復地貌的原始色彩與細節
+        this.renderer.toneMappingExposure = 0.65; // 調降曝光度至 0.65，壓制整體高光溢出 // 微調曝光度配合 sRGB
+        this.renderer.outputEncoding = THREE.sRGBEncoding; // 加入 sRGB 色彩編碼，讓顏色更飽和真實，消除灰濛死白感
         
         // 開啟陰影渲染引擎，提升畫面層次感
         this.renderer.shadowMap.enabled = true;
@@ -895,8 +910,8 @@ const Engine3D = {
 
         const terrainMat = new THREE.MeshStandardMaterial({
             vertexColors: true, 
-            roughness: 0.85, 
-            metalness: 0.08, // 增加微弱的金屬光澤，讓山脈邊緣在陽光下有岩石的反光感
+            roughness: 0.96, // 吸收 Qwen版：提高粗糙度，消除塑膠反光感，更貼近真實土壤與岩石
+            metalness: 0.03, // 吸收 Qwen版：降低金屬度，呈現自然漫反射
             flatShading: false
         });
 
@@ -914,7 +929,7 @@ const Engine3D = {
                 #include <emissivemap_fragment>
                 #ifdef USE_UV
                     vec4 heatColor = texture2D(heatmap, vUv);
-                    totalEmissiveRadiance += heatColor.rgb * 2.5; // 調降發光乘數至適中，讓熱力圖明顯發光但不會蓋過地形底色
+                    totalEmissiveRadiance += heatColor.rgb * 0.8; // 調降至 0.8，避免熱力圖發光導致地形高光區過曝
                 #endif
                 `
             );
@@ -927,12 +942,10 @@ const Engine3D = {
 
         const wTexCv = document.createElement('canvas'); wTexCv.width = 256; wTexCv.height = 256;
         const wTCtx = wTexCv.getContext('2d');
-        // 改善水面紋理：生成更柔和的流體焦散/泡沫狀紋理
-        for(let i=0;i<150;i++) {
-            wTCtx.beginPath();
-            wTCtx.arc(Math.random()*256, Math.random()*256, Math.random()*8+2, 0, Math.PI*2);
-            wTCtx.fillStyle = `rgba(255,255,255,${Math.random()*0.12})`;
-            wTCtx.fill();
+        // 修正：改用細微流線噪點取代巨大圓形斑點，徹底消除水面上的圓圈圖案
+        wTCtx.fillStyle = 'rgba(255,255,255,0.06)';
+        for(let i=0;i<500;i++) {
+            wTCtx.fillRect(Math.random()*256, Math.random()*256, Math.random()*4+1, Math.random()*1.5+0.5);
         }
         this.wTex = new THREE.CanvasTexture(wTexCv);
         this.wTex.wrapS = this.wTex.wrapT = THREE.RepeatWrapping;
@@ -940,7 +953,8 @@ const Engine3D = {
         this.wTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); 
         const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 100, 100); waterGeo.rotateX(-Math.PI/2); // 提高網格精度以顯示細膩波浪
         // 增加 metalness 與降低 roughness 讓水面具備更真實的鏡面反光特性
-        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.1, metalness: 0.4 });
+        // 修正：調高粗糙度 (roughness: 0.45)、降低金屬度 (metalness: 0.1)，防止太陽高光反射過度爆白
+        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.45, metalness: 0.1 });
         waterMat.onBeforeCompile = (shader) => {
             shader.uniforms.time = { value: 0 };
             shader.uniforms.riverType = { value: 0 };
@@ -990,8 +1004,8 @@ const Engine3D = {
                 #ifdef USE_MAP
                     vec4 tex1 = texture2D(map, flowUV1);
                     vec4 tex2 = texture2D(map, flowUV2);
-                    // 混和兩層水波紋並提亮
-                    diffuseColor.rgb += (tex1.rgb + tex2.rgb) * 0.6;
+                    // 降低水波紋疊加比例至 0.2，還原深青碧水質感，防止水面過曝
+                    diffuseColor.rgb += (tex1.rgb + tex2.rgb) * 0.2;
                 #endif
                 `
             );
@@ -1001,27 +1015,30 @@ const Engine3D = {
         this.waterMesh.receiveShadow = true;  // 讓河道能接收兩岸山峰投下的倒影
         this.scene.add(this.waterMesh);
 
-        this.scene.add(new THREE.AmbientLight(0x2a3545, 0.8)); // 改為偏冷藍的環境光，讓陰影處更深邃自然
-        const dirLight = new THREE.DirectionalLight(0xfff0dd, 3.2); // 增強暖色主光，拉大冷暖對比
-        dirLight.position.set(-150, 260, 150); // 稍微拉高光源，讓峽谷底部的光影漸層更豐富
+        // 吸收 Qwen版：以 HemisphereLight (天藍色/地暗綠) 作為全域基礎漫射光，取代生硬的 AmbientLight
+        const hemiLight = new THREE.HemisphereLight(0x8fa8cd, 0x1e2c22, 0.45); // 調降半球天光強度至 0.45，避免山陰處被照得過亮
+        this.scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffe8c0, 1.1); // 調降主光強度至 1.1，配合 0.65 曝光度，完美壓制過曝
+        dirLight.position.set(70, 120, 40); // 採用 Qwen版 的斜側角光位，讓山脈產生漂亮的高光邊緣與修長陰影
         
         // 設定平行光源投射陰影，精準勾勒地貌深淺
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048; // 高解析度陰影貼圖
+        // 吸收 Qwen版極速精神：將陰影降至 2048，配合 PCFSoftShadow 達成效能與畫質的最佳化
+        dirLight.shadow.mapSize.width = 2048; 
         dirLight.shadow.mapSize.height = 2048;
-        const d = 250; // 陰影覆蓋正交投影範圍
+        const d = 200; // 收束陰影範圍，提升陰影像素密度
         dirLight.shadow.camera.left = -d;
         dirLight.shadow.camera.right = d;
         dirLight.shadow.camera.top = d;
         dirLight.shadow.camera.bottom = -d;
         dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 1000;
-        dirLight.shadow.bias = -0.0005; // 消除陰影表面產生的網格狀鋸齒 (Shadow acne)
+        dirLight.shadow.camera.far = 800;
+        dirLight.shadow.bias = -0.0005; // 微調陰影偏移
+        dirLight.shadow.normalBias = 0.025; // 加入法線偏移，完美消除山坡面產生的網格狀鋸齒 (Shadow acne)
+        dirLight.shadow.radius = 2.2; // 稍微增加柔化半徑，彌補 2048 解析度，呈現極為柔和的真實陰影
         
         this.scene.add(dirLight);
-
-        const hemiLight = new THREE.HemisphereLight(0x99ccff, 0x334433, 0.65); // 稍微提亮天空與地面反光，確保拉遠與背光處依舊清晰正常
-        this.scene.add(hemiLight);
 
         this.obsGroup = new THREE.Group(); this.scene.add(this.obsGroup);
         this.swGroup = new THREE.Group(); this.scene.add(this.swGroup);
@@ -1094,12 +1111,85 @@ const Engine3D = {
         }
     },
 
-    pNoise(x, z) {
-        return (Math.sin(x*0.3)*Math.cos(z*0.3) + Math.sin(x*0.7+z*0.5))*0.5;
+    // 吸收 Qwen 版優點 1：引入 Domain Warping (空間扭曲) 與 FBM 碎形雜訊，使山脈更具自然崎嶇感
+    hashNoise(x, z) {
+        return (Math.sin(x * 0.31 + z * 0.17) * Math.cos(z * 0.29 - x * 0.13) + Math.sin(x * 0.73 + z * 0.51)) * 0.5;
+    },
+    pNoise(x, z, octaves = 3) {
+        let sum = 0, amp = 1, freq = 1, norm = 0;
+        for (let i = 0; i < octaves; i++) {
+            // 加入輕量 Domain Warping 讓地貌發生自然扭曲
+            let wx = x * freq + this.hashNoise(z * freq, x * freq) * 2.0;
+            let wz = z * freq + this.hashNoise(x * freq, z * freq) * 2.0;
+            sum += this.hashNoise(wx, wz) * amp;
+            norm += amp;
+            amp *= 0.5; freq *= 2.0;
+        }
+        return sum / norm;
     },
     ridgeNoise(x, z) {
-        let n = (Math.sin(x*0.1)*Math.cos(z*0.1) + Math.sin(x*0.23+z*0.15))*0.5;
+        let n = this.pNoise(x * 0.5, z * 0.5, 2);
         return 1.0 - Math.abs(n);
+    },
+
+    // 吸收 Qwen 版優點 2：加入水力侵蝕與熱力風化 (Hydraulic Erosion & Thermal Weathering)
+    erodeTerrain(passes = 2) {
+        const tSeg = CONFIG.tSeg;
+        const size = (tSeg + 1) * (tSeg + 1);
+        const flow = new Float32Array(size);
+        const order = new Array(size);
+        for(let i=0; i<size; i++) order[i] = i;
+        // 依高度由上而下排序，模擬水流由高處往低處沖刷
+        order.sort((a, b) => this.hMap[b] - this.hMap[a]);
+
+        const neigh = [-1, 1, -(tSeg+1), (tSeg+1)]; // 左右上下
+
+        for(let pass = 0; pass < passes; pass++) {
+            flow.fill(1.0);
+            for(let oi = 0; oi < size; oi++) {
+                const i = order[oi];
+                const ix = i % (tSeg+1), iz = Math.floor(i / (tSeg+1));
+                if(ix === 0 || ix === tSeg || iz === 0 || iz === tSeg) continue;
+
+                let lowest = -1, lh = this.hMap[i];
+                for(let k = 0; k < 4; k++) {
+                    const j = i + neigh[k];
+                    if(this.hMap[j] < lh) { lh = this.hMap[j]; lowest = j; }
+                }
+                if(lowest < 0) continue; // 已經是坑底
+
+                const slope = this.hMap[i] - lh;
+                const carry = flow[i];
+                flow[lowest] += carry * 0.94; // 水流匯聚
+
+                // 侵蝕量與坡度和水流量成正比 (保護水下河床與深潭不被過度侵蝕)
+                let eros = slope * 0.025 * carry;
+                if (this.hMap[i] < -5) eros *= 0.1; 
+                const maxErode = slope * 0.45;
+                if(eros > maxErode) eros = maxErode;
+
+                if(eros > 0.001) {
+                    this.hMap[i] -= eros;
+                    this.hMap[lowest] += eros * 0.40; // 泥沙沉積
+                }
+            }
+            // 輕量熱力風化 (崩塌平滑化)，消除過度鋸齒，讓陡峭山脈產生滑坡坡度
+            for(let iz = 1; iz < tSeg; iz++) {
+                for(let ix = 1; ix < tSeg; ix++) {
+                    const i = iz * (tSeg+1) + ix;
+                    const h = this.hMap[i];
+                    for(let k = 0; k < 4; k++) {
+                        const j = i + neigh[k];
+                        const diff = h - this.hMap[j];
+                        if(diff > 3.0) { // 坡度過陡發生崩塌
+                            const move = (diff - 3.0) * 0.15;
+                            this.hMap[i] -= move;
+                            this.hMap[j] += move * 0.85;
+                        }
+                    }
+                }
+            }
+        }
     },
 
     buildTerrain() {
@@ -1124,7 +1214,7 @@ const Engine3D = {
                     microTopo += knollBoost * Math.exp(-(x*x + z*z)/250); // 平洋一突實體沙洲
                 }
 
-                y = (state.w === 'none') ? -8 + microTopo : -12 + microTopo;
+                y = (state.w === 'none') ? 2.0 + microTopo : -2.0 + microTopo;
             } else {
                 // 迴龍顧祖：建立真實 C 型半圓弧山脊拓撲（將龍脈尾端大幅彎回朝向太祖山 -Z）
                 let dX = x;
@@ -1424,12 +1514,22 @@ const Engine3D = {
 
             if (state.d !== 'huilong' && state.d !== 'pingyang') y -= (z + 170) * 0.015;
 
-            pos[i+1] = y;
             let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
             this.hMap[gZ*(tSeg+1) + gX] = y;
+        } // 結束階段一：基礎風水地形生成
+
+        // 階段二：執行水力侵蝕與風化平滑 (吸收 Qwen 版優點，讓山脈雕刻出溝壑與自然坡面)
+        this.erodeTerrain(2);
+
+        // 階段三：套用侵蝕後的高度，更新網格頂點與計算地貌顏色
+        for (let i = 0; i < pos.length; i += 3) {
+            let x = pos[i], z = pos[i+2];
+            let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
+            let y = this.hMap[gZ*(tSeg+1) + gX]; // 讀取侵蝕過後的新高度
+            pos[i+1] = y;
 
             // 加入地表噪聲擾動，打破死板的水平顏色分層，產生真實的斑駁植被與鋸齒狀林線
-            let colorNoise = this.pNoise(x * 1.5, z * 1.5) * 0.12; 
+            let colorNoise = this.pNoise(x * 1.5, z * 1.5, 2) * 0.12; 
             let nH = Math.max(0, Math.min(1.0, ((y + 15) / 75) + colorNoise));
 
             if (y < -9) {
