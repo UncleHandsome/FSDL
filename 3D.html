@@ -644,7 +644,7 @@ const Rules = {
 
         return [
             Math.max(0, Math.min(100, D + emergenceBonus * 0.2)),
-            Math.max(0, Math.min(100, X + xiangBonus + emergenceBonus)), // 將原本的 -50 改為 0，防止 UI 印出負數基礎分
+            Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus))), // 死龍/破龍時穴分上限30
             Math.max(0, Math.min(100, S + emergenceBonus * 0.3)),
             Math.max(0, Math.min(100, Wa - dragPenalty)), // 水法直接反映抽吸力
             Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4))
@@ -662,8 +662,8 @@ const Rules = {
         
         // 修正評價系統 Bug 3：若觀測粒子數不足 (剛啟動或暫停切換)，取消不合理的動態加權懲罰，避免分數異常暴跌
         const dynMult = (totalP > 15 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatio * 1.5)) : 1.0; 
-
-        const effectiveAvg = (sc.reduce((a, b) => a + b, 0) / 5) * mult * dynMult;
+        // 修正：評級應基於顯示的有效分數（raw * mult），不應再乘 dynMult，避免因粒子不足導致分數被過度壓縮而與 UI 矛盾
+        const effectiveAvg = (sc.map(s => Math.min(100, Math.max(0, Math.round(s * mult)))).reduce((a, b) => a + b, 0) / 5);
         let rating, color, tail;
         const hasSideSands = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
         const hasWaterControl = (state.yue || state.san || state.w === 'you' || state.w === 'jiuqu');
@@ -679,13 +679,13 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po'){ rating='大凶・來龍枯潰'; color='#a63a2b'; tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。'; }
         else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
         else if(state.w === 'lintou'){ rating='大凶・淋頭煞頂'; color='#a63a2b'; tail='穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。'; }
-        else if(effectiveAvg >= 70 && state.xia && state.mt && hasSideSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP <= 15 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
+        else if(effectiveAvg >= 70 && state.xia && state.mt && hasSideSands && !hasBrokenSands && (dynRatio >= 0.45 || (totalP <= 15 && AppState.gatherAcc > 0) || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
             // 修正：即使分數高，若存在凶水或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan;
             // 修正：增加對風速與亂流度的嚴格檢查，即使無凶煞，若物理異常也應降級
             // 修正：若存在凶煞但感測器數據為0（物理異常），也應降級，避免凶煞被輕放
-            if (hasBadWater || hasSevereSha || AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.0 || AppState.sensors.waterDrag > 0.5) {
+            if (hasBadWater || hasSevereSha || AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || AppState.sensors.waterDrag > 0.5) {
                 rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
             } else {
                 rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
@@ -846,7 +846,10 @@ const DryRunTool = {
         // 4. 收集結果數據
         const rawScore = Rules.computeScores();
         const mult = Rules.getGlobalMultiplier();
-        const effScore = rawScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult))));
+        const totalPForDyn = AppState.gatherAcc + AppState.scatterAcc;
+        const dynRatioForDyn = totalPForDyn > 0 ? (AppState.gatherAcc / totalPForDyn) : 0.5;
+        const dynMult = (totalPForDyn > 15 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatioForDyn * 1.5)) : 1.0;
+        const effScore = rawScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult * dynMult))));
         const verdict = Rules.getVerdictText(AppState.smoothedScores || rawScore);
 
         const resultData = {
@@ -2922,7 +2925,10 @@ const Physics = {
 
         let smoothedScore = AppState.smoothedScores; 
         let mult = Rules.getGlobalMultiplier();
-        let effScore = smoothedScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult)))); 
+        let totalPForDyn = AppState.gatherAcc + AppState.scatterAcc;
+        let dynRatioForDyn = totalPForDyn > 0 ? (AppState.gatherAcc / totalPForDyn) : 0.5;
+        let dynMult = (totalPForDyn > 15 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatioForDyn * 1.5)) : 1.0;
+        let effScore = smoothedScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult * dynMult)))); 
         let vObj = Rules.getVerdictText(smoothedScore); 
 
         document.getElementById('v-rating').innerText = vObj.rating;
