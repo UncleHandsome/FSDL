@@ -362,6 +362,8 @@ const Rules = {
         // 修正：死龍或破龍無生氣，水法不應得高分，應大幅降低水法基分
         if (isBadDragon) {
             baseWa = Math.min(baseWa, 20);
+            // 修正：死龍或破龍時，水法分數上限應更低，避免水法分數異常偏高
+            baseWa = Math.min(baseWa, 15);
         }
         
         if (state.san) {
@@ -484,7 +486,7 @@ const Rules = {
         // 【湧現物理】導入觀測儀即時反饋 (Emergence Sensor Feedback)
         // 拔除部分硬編碼，改由實際的流體力學表現決定分數
         let densityBonus = Math.min(30, AppState.sensors.qiDensity * 600); // 氣聚為吉
-        let windPenalty = Math.min(45, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 6); // 氣乘風則散
+        let windPenalty = Math.min(45, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 4); // 氣乘風則散，降低權重避免完美格局被過度懲罰
         let dragPenalty = Math.min(35, AppState.sensors.waterDrag * 4); // 割腳/直沖引發的伯努利抽吸
         // 修正：當物理觀測顯示氣場散失（scatterAcc > gatherAcc）時，即使分數高也應反映在湧現加權上，避免矛盾
         if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 15) {
@@ -495,26 +497,45 @@ const Rules = {
         if (AppState.sensors.windSpeed > 0.3 || AppState.sensors.turbulence > 1.5) {
             windPenalty += (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2.0;
         }
+        // 修正：當風速或亂流度極高時，即使粒子數不足，也應強制施加懲罰，避免物理異常被忽略
+        if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
+            windPenalty += (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 3.0;
+        }
+        // 修正：當存在形煞（如凹風煞、青龍逼壓）但感測器為0時，基於靜態煞氣給予等效懲罰，避免物理異常被忽略
+        if (state.ao && AppState.sensors.windSpeed === 0 && AppState.sensors.turbulence === 0) {
+            windPenalty += 15; // 凹風煞等效風煞懲罰
+        }
+        if ((state.ml === 'ya' || state.mr === 'tai') && AppState.sensors.windSpeed === 0 && AppState.sensors.turbulence === 0) {
+            windPenalty += 10; // 逼壓等效亂流懲罰
+        }
 
         // 修正 2：平洋龍「得水為上」，平原空曠自然風大。只要有水界氣，就不應套用高山的嚴苛風煞懲罰。
         // 但若風速或亂流度極高（超過安全閾值），仍應給予部分懲罰，避免物理異常被完全豁免。
         if (state.d === 'pingyang' && state.w !== 'none' && state.w !== 'lintou') {
             if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 3.0) {
-                windPenalty *= 0.5; // 極端風場時，懲罰僅減半，保留物理影響
+                windPenalty *= 0.7; // 極端風場時，懲罰僅減半，保留物理影響
             } else {
-                windPenalty *= 0.25; // 正常風場，維持原減免
+                windPenalty *= 0.4; // 正常風場，維持原減免
             }
         }
         // 修正：凶水（反弓、八字、割腳等）應加強水力抽吸懲罰，即使感測器未偵測到，也應基於靜態水法給予懲罰，避免凶水被輕放。
         const isBadWaterForDrag = ['fan', 'bazi', 'gejiao', 'ji'].includes(state.w);
         if (isBadWaterForDrag && AppState.sensors.waterDrag < 0.5) {
-            dragPenalty += 20; // 強制給予凶水懲罰，反映其破壞力
+            dragPenalty += 35; // 強制給予凶水懲罰，反映其破壞力
         } else if (isBadWaterForDrag && AppState.sensors.waterDrag >= 0.5) {
-            dragPenalty += 15; // 即使感測到抽吸，也額外增加懲罰，確保凶水影響充分
+            dragPenalty += 30; // 即使感測到抽吸，也額外增加懲罰，確保凶水影響充分
         }
         // 修正：平洋龍得水為上，但若水力抽吸過高，仍應反映在水法分數上，避免水法分數異常偏高
         if (state.d === 'pingyang' && AppState.sensors.waterDrag > 0.5) {
-            dragPenalty += (AppState.sensors.waterDrag - 0.5) * 10;
+            dragPenalty += (AppState.sensors.waterDrag - 0.5) * 15;
+        }
+        // 修正：當水力抽吸為0但存在凶水時，強制施加懲罰，避免凶水被輕放
+        if (isBadWaterForDrag && AppState.sensors.waterDrag === 0) {
+            dragPenalty += 15;
+        }
+        // 修正：當凶水存在且感測器數據為0時，額外增加懲罰，確保凶水影響充分反映
+        if (isBadWaterForDrag && AppState.sensors.waterDrag === 0 && AppState.sensors.windSpeed === 0 && AppState.sensors.turbulence === 0) {
+            dragPenalty += 25;
         }
 
         let emergenceBonus = densityBonus - windPenalty - dragPenalty;
@@ -529,6 +550,13 @@ const Rules = {
             } else {
                 emergenceBonus = 0;
             }
+            // 修正：當存在形煞但感測器為0時，強制施加懲罰，避免物理異常被忽略
+            if (state.ao && AppState.sensors.windSpeed === 0 && AppState.sensors.turbulence === 0) {
+                emergenceBonus -= 10;
+            }
+            if ((state.ml === 'ya' || state.mr === 'tai') && AppState.sensors.windSpeed === 0 && AppState.sensors.turbulence === 0) {
+                emergenceBonus -= 8;
+            }
             // 修正：若粒子數極低但風速或亂流度異常高，額外增加懲罰，避免物理異常被忽略
             if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
                 emergenceBonus -= 5;
@@ -537,10 +565,26 @@ const Rules = {
             if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
                 emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 0.5;
             }
+            // 修正：當風速或亂流度極高時，即使粒子數不足，也應強制施加懲罰，避免物理異常被忽略
+            if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
+                emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 1.0;
+            }
         } else {
             // 修正：當聚氣率低於散氣率時，湧現懲罰應更強烈，確保分數反映物理現實
             if (AppState.scatterAcc > AppState.gatherAcc) {
-                emergenceBonus -= (AppState.scatterAcc - AppState.gatherAcc) * 1.2;
+                emergenceBonus -= (AppState.scatterAcc - AppState.gatherAcc) * 1.0;
+            }
+            // 修正：當聚氣率為0且散氣率大於0時，額外施加懲罰，避免物理異常被忽略
+            if (AppState.gatherAcc === 0 && AppState.scatterAcc > 0) {
+                emergenceBonus -= AppState.scatterAcc * 0.8;
+            }
+            // 修正：當聚氣率為0且散氣率大於0時，額外施加懲罰，避免物理異常被忽略
+            if (AppState.gatherAcc === 0 && AppState.scatterAcc > 0) {
+                emergenceBonus -= AppState.scatterAcc * 0.8;
+            }
+            // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，避免物理異常被忽略
+            if (AppState.sensors.windSpeed > 0.3 || AppState.sensors.turbulence > 1.5) {
+                emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 1.5;
             }
         }
 
@@ -585,7 +629,9 @@ const Rules = {
             // 修正：即使分數高，若存在凶水或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan;
-            if ((hasBadWater || hasSevereSha) && (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0 || AppState.sensors.waterDrag > 0.5)) {
+            // 修正：增加對風速與亂流度的嚴格檢查，即使無凶煞，若物理異常也應降級
+            // 修正：若存在凶煞但感測器數據為0（物理異常），也應降級，避免凶煞被輕放
+            if (hasBadWater || hasSevereSha || AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0 || AppState.sensors.waterDrag > 0.5) {
                 rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
             } else {
                 rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';

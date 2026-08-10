@@ -472,7 +472,7 @@ class FengShuiEngine {
           }
           if (narrowGapDetected) break;
       }
-      if (frontObstacles === 0 && extWindSpeed >= 8) emptyFrontWind = true; // 前方無遮蔽且強風
+      if (frontObstacles === 0 && extWindSpeed >= 8 && stateManager.wind >= 5) emptyFrontWind = true; // 前方無遮蔽且強風（需實際風速與環境風速均高）
     }
 
     // ==========================================
@@ -481,7 +481,8 @@ class FengShuiEngine {
     let observerText = [];
     
     // 1. 空間壓迫與巒頭湧現
-    if (vLeft > vRight * 1.2) { g += 15; observerText.push("空間｜左側掩護良好 (湧現: 青龍有情)"); }
+    // 【修正】若左側無建築（left='none'），不應湧現青龍有情
+    if (st.left !== 'none' && vLeft > vRight * 1.2) { g += 15; observerText.push("空間｜左側掩護良好 (湧現: 青龍有情)"); }
     else if (vRight > vLeft * 1.5) { s += 20; observerText.push("空間｜右側實體高大逼壓主樓 (湧現: 白虎抬頭)"); wuXingText += "｜白虎逼壓；"; }
 
     if (vBack > (vLeft+vRight)*0.5) { g += 15; observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)"); }
@@ -504,7 +505,7 @@ class FengShuiEngine {
         observerText.push(`空間｜正前方明堂核心遭實體建築突刺，阻礙氣流並產生逆流煞氣 (自然湧現: 擎拳/穿心煞)`);
     }
     // 【新增】探頭煞獨立湧現
-    if (peekSha) {
+    if (peekSha && st.sha.includes('tantou')) {
         s += 15;
         observerText.push(`空間｜案山後方有高樓探出，視覺產生強烈壓迫與窺視感 (自然湧現: 探頭煞)`);
     }
@@ -528,6 +529,8 @@ class FengShuiEngine {
     };
     
     // 在明堂隨機灑下 50 滴虛擬地氣 (水滴) 進行重力測試
+    // 【修正】若無水（water='none'），則不進行虛水匯聚測試，避免無中生有
+    if (st.water !== 'none') {
     for(let i=0; i<50; i++) {
         let px = (Math.random() - 0.5) * 40;
         let pz = 10 + Math.random() * 30; // 起始於明堂
@@ -553,6 +556,7 @@ class FengShuiEngine {
         if (Math.abs(px) < 30 && pz > -10 && pz < 60) gatheredDrops++;
         else escapedDrops++;
     }
+    }
     
     // 【修正】水法陣法的實體攔截效應 (鎖財)
     let waterLock = 0;
@@ -570,11 +574,11 @@ class FengShuiEngine {
 
     // 觀測者根據流體分佈判定風水格局
     if (gatheredDrops > 35) {
-        g += 20; 
+        g += 20 + Math.round((gatheredDrops - 35) * 0.5); // 依匯聚比例增加吉氣
         let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
         observerText.push(`地形｜重力學：${Math.round(gatheredDrops/50*100)}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
     } else if (escapedDrops > 25) {
-        s += 25; 
+        s += 25 + Math.round((escapedDrops - 25) * 0.5); // 依流失比例增加煞氣
         observerText.push(`地形｜重力學：地勢傾斜，${Math.round(escapedDrops/50*100)}% 虛水快速向外流失 (自然湧現: 傾瀉 / 漏財退氣)`);
     } else {
         // 新增：填補地形盲區，當水流處於半聚半散時的回饋
@@ -653,7 +657,7 @@ class FengShuiEngine {
     g += vortexQi;
     
     // 【修正】當物理引擎捕捉到高動能煞氣時，明確標示來源，消除硬編碼
-    if (kineticSha > 10) {
+    if (kineticSha > 10 && extWindSpeed >= 5) {
         if (st.sha.includes('rush') || st.water === 'rush') {
             observerText.push(`流體｜氣流循筆直通道高速直搗穴心，產生破壞性風壓 (自然湧現: 路沖煞)`);
         }
@@ -662,6 +666,7 @@ class FengShuiEngine {
         }
         // 【修正】補上鐮刀煞的物理湧現詮釋，讓引擎能解釋該幾何體造成的破壞
         if (st.sha.includes('sickle')) {
+            kineticSha += 30; // 鐮刀煞應有實質煞氣，而非僅文字
             observerText.push(`流體｜高架彎道產生強烈風切與下壓紊流，如利刃般橫切明堂 (自然湧現: 鐮刀煞)`);
         }
     }
@@ -679,8 +684,8 @@ class FengShuiEngine {
     if (vFront > (vLeft + vRight + vBack) * 0.4) yin += 2;
     if (sunBlocked) yin += 3;
     if (vFront < 50) yang += 2;
-    if (extWindSpeed > 7) yang += 3;
-    if (extWindSpeed < 3) yin += 2;
+    if (stateManager.wind > 7) yang += 3;
+    if (stateManager.wind < 3) yin += 2;
 
     // 【修正】補回穴形 (Hole) 的微氣候流體駐留與陰陽效應
     if (st.hole === 'wo' || st.hole === 'qian') {
@@ -700,6 +705,7 @@ class FengShuiEngine {
     }
     if (st.special.includes('shuqi')) {
         vortexQi = Math.round(vortexQi * 1.5);
+        g += vortexQi; // 確保倍增的吉氣實際加到總分
         observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
     }
     // 【修正】補上文字推播，消除 UI 退回舊版硬編碼的現象
@@ -2261,6 +2267,10 @@ class UIManager {
       vt = '大凶・敗絕之局，人財兩空'; vc = 'worst';
     } else {
       vt = '凶局・煞重氣散，破財傷丁'; vc = 'bad';   
+    }
+    // 若吉氣超過容量，應視為溢散，降低評價
+    if (ana.g > ana.c && realS < 30) {
+      vt = '中平・吉氣過盛，明堂難容，反為洩氣'; vc = 'mid';
     }
     
     vd.textContent = vt; vd.className = 'vd ' + vc;
