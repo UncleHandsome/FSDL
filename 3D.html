@@ -424,8 +424,9 @@ const Rules = {
         if(state.yue && !isBadWater2) baseWa += 8;
         
         // 【新增：水流過急，氣不聚反而被抽走】
+        // 修正：僅在實際有水（w !== 'none'）時才套用水流速懲罰，避免無水格局被錯誤扣分
         let wVel = state.waterVel || 1.0;
-        if (wVel > 1.2) baseWa -= (wVel - 1.0) * 25; 
+        if (state.w !== 'none' && wVel > 1.2) baseWa -= (wVel - 1.0) * 25; 
         
         let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
         // 修正：水法分數應反映水力抽吸懲罰
@@ -722,7 +723,7 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po'){ rating='大凶・來龍枯潰'; color='#a63a2b'; tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。'; }
         else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
         else if(state.w === 'lintou'){ rating='大凶・淋頭煞頂'; color='#a63a2b'; tail='穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。'; }
-        else if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP < 31 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
+        else if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP < 120 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';

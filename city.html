@@ -471,7 +471,8 @@ class FengShuiEngine {
           // 新增：偵測案山後方是否有探頭建築 (z > 55)
           // 【修正】限制探頭煞的深度 (z < 100)，避免將遠處的「朝山」(z=150) 誤判為探頭煞。
           // 同時加入偏移量判斷 (Math.abs(b.x) > 5)，避免將正大光明的「官星」(x=0) 誤判為探頭煞。真正的探頭煞通常帶有鬼祟的偏移。
-          if (b.z > 55 && b.z < 100 && (Math.abs(b.x) > 5 && Math.abs(b.x) < 20) && b.h > 15) peekSha = true;
+          // 【第 2 輪修正】僅在 front='lowcase'（有案樓）時才允許探頭煞湧現，否則只是獨立高樓，非案山後方探頭。
+          if (st.front === 'lowcase' && b.z > 55 && b.z < 100 && (Math.abs(b.x) > 5 && Math.abs(b.x) < 20) && b.h > 15) peekSha = true;
         }
 
         // 1. 光線追蹤：檢查正午陽光是否被遮蔽 (孤陰煞)
@@ -508,7 +509,8 @@ class FengShuiEngine {
                         let cross = face.c.x * rz - face.c.z * rx; // 2D外積判斷射線偏差
                         
                         // 反射朝向中心，且誤差極小
-                        if (toOriginDot > 0 && Math.abs(cross) < 30) {
+                        // 【修正】放寬命中容差，避免反光煞因幾何計算過於嚴格而永遠無法觸發
+                        if (toOriginDot > 0 && Math.abs(cross) < 60) {
                             reflectionHits++;
                         }
                     }
@@ -632,30 +634,32 @@ class FengShuiEngine {
     
     // 平洋龍質量拓撲場 (Urban Density Potential Field)
     let dragonGradient = Math.hypot(gradX, gradZ);
-    if (dragonGradient > 50) {
-        g += 15;
-        observerText.push(`場論｜建築質量拓撲場：偵測到強大的 3D 質量純量場梯度 (強度 ${Math.round(dragonGradient)})，自動湧現隱伏的「平洋龍脈脊線」`);
-    }
-
-    // 頻域剝換 (Spectral Cascade)
-    if (spatialHighFreq > spatialLowFreq * 1.5) {
-        s += 20;
-        observerText.push(`頻域｜龍脈能量濾波：高頻幾何雜訊(尖角/陡降)過高，動能未完成低頻諧波轉換 (自然湧現: 老龍未剝換/帶煞直撞)`);
-    } else if (spatialLowFreq > spatialHighFreq * 2 && spatialLowFreq > 10) {
-        g += 20;
-        observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波 (自然湧現: 剝換完成/真龍結穴)`);
-    }
-
-    // 動態阻抗匹配 (鬼曜撐背)
-    momentumP = (dragonGradient + extWindSpeed * 5); // 來龍動量
-    if (momentumP > 30 && backImpedance > 0) {
-        let impedanceMatch = Math.abs(momentumP - backImpedance * 2);
-        if (impedanceMatch < 20) {
+    if (st.dragon !== 'none') {
+        if (dragonGradient > 50) {
             g += 15;
-            observerText.push(`力學｜動態阻抗匹配：後方結構精準抵消來龍動能，防止邊界層剝離，形成完美靜力平衡點 (自然湧現: 鬼曜撐背)`);
-        } else if (backImpedance < momentumP * 0.2) {
-            s += 15;
-            observerText.push(`力學｜動態阻抗失配：後方質量空虛，強大來龍動能引發嚴重背風反向渦旋 (自然湧現: 氣場撕裂/背後受風)`);
+            observerText.push(`場論｜建築質量拓撲場：偵測到強大的 3D 質量純量場梯度 (強度 ${Math.round(dragonGradient)})，自動湧現隱伏的「平洋龍脈脊線」`);
+        }
+
+        // 頻域剝換 (Spectral Cascade)
+        if (spatialHighFreq > spatialLowFreq * 1.5) {
+            s += 20;
+            observerText.push(`頻域｜龍脈能量濾波：高頻幾何雜訊(尖角/陡降)過高，動能未完成低頻諧波轉換 (自然湧現: 老龍未剝換/帶煞直撞)`);
+        } else if (spatialLowFreq > spatialHighFreq * 2 && spatialLowFreq > 10) {
+            g += 20;
+            observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波 (自然湧現: 剝換完成/真龍結穴)`);
+        }
+
+        // 動態阻抗匹配 (鬼曜撐背)
+        momentumP = (dragonGradient + extWindSpeed * 5); // 來龍動量
+        if (momentumP > 30 && backImpedance > 0) {
+            let impedanceMatch = Math.abs(momentumP - backImpedance * 2);
+            if (impedanceMatch < 20) {
+                g += 15;
+                observerText.push(`力學｜動態阻抗匹配：後方結構精準抵消來龍動能，防止邊界層剝離，形成完美靜力平衡點 (自然湧現: 鬼曜撐背)`);
+            } else if (backImpedance < momentumP * 0.2) {
+                s += 15;
+                observerText.push(`力學｜動態阻抗失配：後方質量空虛，強大來龍動能引發嚴重背風反向渦旋 (自然湧現: 氣場撕裂/背後受風)`);
+            }
         }
     }
 
@@ -943,9 +947,9 @@ class FengShuiEngine {
         observerText.push(`流體｜抬轎煞的穿堂風與水聚明堂的渦流相互衝突，部分煞氣與吉氣抵消`);
     }
 
-    if(st.liqi==='back') {
+    if(st.liqi==='back' && st.water !== 'none' && !isShaWaterForLiqi) {
         s += 14;
-        c = Math.max(10, c - 20); // 背水坐空，氣散而容量大減
+        c = Math.max(10, c - 20); // 背水坐空，氣散而容量大減（僅適用於有水且非煞水）
         g = Math.max(0, g - 6);   // 修正：背水坐空主退氣，但不會完全抹滅吉氣，僅輕微扣減
     }
 
@@ -1070,12 +1074,13 @@ class FengShuiEngine {
     }
 
     if (!directSunlight) yin += 3; 
-    if (stateManager.wind > 7) yang += 3;
-    if (stateManager.wind < 3) yin += 2;
+    if (stateManager.wind >= 7) yang += 3;
+    else if (stateManager.wind >= 5) yang += 1; // 中風速亦稍微偏陽
+    if (stateManager.wind <= 3) yin += 2;
     
     // 修正：加入其他物理因素對陰陽的影響
     // 【第 2 輪修正】進一步提高動能煞氣對陽氣的影響，避免高煞氣時陰陽顯示為「平」的矛盾
-    if (kineticSha > 20) yang += Math.min(12, kineticSha * 0.06); // 高動能煞氣增加陽氣躁動（依強度比例，提高上限與係數）
+    if (kineticSha > 20) yang += Math.min(15, 3 + kineticSha * 0.08); // 提高動能煞氣之陽氣貢獻，避免高煞卻陰陽顯示為平
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
     // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
     // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
@@ -1404,7 +1409,7 @@ class FengShuiEngine {
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:42,dx:0,dz:-1,w:16,pw:8,len:28});
-    if(st.sha.includes('tantou'))A.push({x:13,z:62,dx:0,dz:0,w:14,pw:9,len:0});
+    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:62,dx:0,dz:0,w:14,pw:9,len:0});
     // 現代煞氣源
     if(st.sha.includes('glass'))A.push({x:0,z:80,dx:0,dz:-1,w:18,pw:14,len:80});
     if(st.sha.includes('walledge'))A.push({x:-15,z:60,dx:0,dz:-1,w:28,pw:10,len:60});
@@ -1983,7 +1988,7 @@ class CityBuilder {
       fist.position.set(0,17,42);this.group.add(fist);
       this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,26,42));
     }
-    if(st.sha.includes('tantou')){
+    if(st.sha.includes('tantou') && st.front === 'lowcase'){
       this.box(34,16,12,0,58,0x15293f);this.box(14,28,10,13,68,0x101a2a);
       this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,68));
     }
