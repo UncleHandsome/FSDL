@@ -717,7 +717,7 @@ const Rules = {
         const hasBrokenSands = (state.mn === 'po' || state.ml === 'po' || state.mr === 'po' || state.ms === 'po');
 
         // 新增：極凶形煞偵測，這些煞氣足以直接否定整個格局，即使分數高也必須降為大凶
-        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
 
         if(state.d === 'si' || state.d === 'po'){ rating='大凶・來龍枯潰'; color='#a63a2b'; tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。'; }
         else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
@@ -2459,7 +2459,9 @@ const Physics = {
                 this.pPos[i*3+1] = ty - 2 + Math.random()*4; 
                 this.pPos[i*3+2] = tz;
             } else {
-                let tz = -120 + Math.random()*40;
+                // 【進化：太祖山勢能起點】若有太祖山，發脈起點推至極遠高空 (z: -160 ~ -120)
+                let tzStart = state.zutai ? -160 : -120; 
+                let tz = tzStart + Math.random()*40;
                 let tx = (Math.random()-0.5)*20;
                 if(state.d === 'huilong') tx += Math.sin(Math.max(0,-tz)*0.02)*50;
                 let ty = Engine3D.getTerrainY(tx, tz).y;
@@ -2510,6 +2512,9 @@ const Physics = {
         let baseWind = state.wind * 0.015;
         let capLimit = Rules.getCapacityLimit();
         let frameGather = 0, frameScatter = 0;
+        
+        // 【新增：進階流體觀測儀表計數器】
+        let frameCoanda = 0, frameDowndraft = 0, frameVenturi = 0, frameBounce = 0;
 
         // 【新增：Grid-based CFD 網格流體求解器 (Navier-Stokes 近似)】
         if (Math.abs(baseWind) > 0.001) {
@@ -2934,16 +2939,37 @@ const Physics = {
 
             if (t.y > -100 && y <= t.y + 3.5) {
                 y = t.y + 3.5;
-                // 【修復】：當粒子接觸地面時，削弱向下的重力累積，防止遇到下坡時發生瞬移
-                if (vel.y < 0) vel.y *= 0.5;
+                
+                // 【進化：未剝換的極端彈跳 (廉貞煞氣)】
+                // 粗惡未剝換的岩石地形法線極度不均勻，粒子落地不會平滑滑行，而是產生劇烈反彈與四散
+                if (state.bohuan === 'no' && z < -10) {
+                    if (vel.y < 0) {
+                        frameBounce++; // 【探針：岩石剛體反彈】
+                        vel.y = Math.abs(vel.y) * 0.85; // 劇烈向上反彈
+                        vel.x += (Math.random() - 0.5) * 6.0; // 橫向嚴重散射
+                        if (st === 0 && Math.random() < 0.2 * dt) {
+                            this.pState[i] = 1; // 撞擊岩盤撕裂成紅煞
+                            this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.2;
+                        }
+                    }
+                } else {
+                    // 【修復】：正常地貌當粒子接觸地面時，平滑削弱向下的重力累積，使其貼地滑行
+                    if (vel.y < 0) vel.y *= 0.5;
+                }
                 
                 // 【修復核心】：賦予龍脈基本推進力，避免全數卡在後方
                 if (z < 15) {
                     let pulse = (state.d === 'ji') ? 1.5 : (state.d === 'huan' ? 0.3 : 0.8);
                     
-                    // 【新增：橈棹枝腳 (Branch Momentum)】利用側邊山脈導流
-                    if (state.zhijiao === 'shun' && z < -20) pulse += 1.5; // 順水抱：如漏斗般將風與氣往前推送
-                    else if (state.zhijiao === 'ni' && z < -20) pulse -= 1.8; // 逆水反：氣流被反向分支帶走，向後洩氣倒退
+                    // 【進化：橈棹枝腳 (Branch Momentum)】利用側邊山脈導流與物理側漏
+                    if (state.zhijiao === 'shun' && z < -20) {
+                        pulse += 1.5; // 順水抱：如漏斗般將風與氣往前推送
+                        vel.x += (0 - x) * 0.5 * dt; // 向中心擠壓導流
+                    } else if (state.zhijiao === 'ni' && z < -20) {
+                        pulse -= 1.8; // 逆水反：向後洩氣倒退
+                        vel.x += Math.sign(x) * 1.5 * dt; // 氣流被反向分支向兩側抽離 (側漏退氣)
+                        if (st === 2 && Math.random() < 0.1 * dt) this.pState[i] = 3; // 吉氣流失
+                    }
                     
                     vel.z += pulse * dt;
                     if (state.d === 'huilong') {
@@ -3045,9 +3071,20 @@ const Physics = {
                         }
                     }
 
+                    // 【進化：康達效應 (Coandă Effect) 與 九星剝換】
+                    let ruggedness = Math.sqrt(t.nx*t.nx + t.nz*t.nz);
+                    let isSmoothStar = (state.xing === 'jin' || state.xing === 'tu') && state.bohuan === 'yes';
+                    
+                    if (isSmoothStar && y < t.y + 3.0 && z > -50 && z < 10) {
+                        frameCoanda++; // 【探針：康達附著效應】
+                        // 圓潤山體 (金星/土星) 且已剝換脫煞：引發康達效應，流體完美附著曲面，消除亂流
+                        vel.y -= 2.5 * dt; // 產生負壓將粒子柔和吸附在地形表面
+                        vel.x += (t.nx * 0.5 - vel.x) * 0.8 * dt; // 速度向量平滑對齊地形法線，防止彈跳
+                        ruggedness *= 0.1; // 大幅免疫地表亂流
+                    }
+
                     // 【大一統湧現】以「普遍地表亂流」取代硬編碼的破碎煞 (po)。
                     // 任何地表只要過於崎嶇 (地形法線變化極大，如遭受 this.pNoise 破壞的砂手)，就會引發近地亂流，撕裂氣場
-                    let ruggedness = Math.sqrt(t.nx*t.nx + t.nz*t.nz);
                     if (ruggedness > 4.5 && st !== 1 && Math.random() < ruggedness * 0.02 * dt) {
                         this.pState[i] = 1; 
                         this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
@@ -3094,10 +3131,34 @@ const Physics = {
                     let rearH = Engine3D.getTerrainY(x, z - 25).y;
                     let frontH = Engine3D.getTerrainY(x, z + 45).y; // 延伸探測距離，避免過早判定為空虛
 
+                    // 【進化：起伏屈曲的動能阻尼 (Kinematic Damping)】
+                    // 當粒子撞擊陡峭的側向山壁 (之玄屈曲轉彎處)，或正在上坡時，大幅消耗動能 (煞車抵銷煞氣)
+                    if (z < -10) {
+                        let isUphill = (vel.z > 0 && t.nz > 0.5); // 正在往上爬坡
+                        let isHittingWall = (Math.abs(t.nx) > 1.5 && Math.sign(vel.x) === Math.sign(t.nx)); // 撞擊側壁
+                        if (isUphill || isHittingWall) {
+                            vel.multiplyScalar(Math.pow(0.5, dt)); // 動能急遽衰減
+                        }
+                    }
+
                     if (z > -10 && z < 40) {
                         if (rearH > y + 8) {
-                            vel.multiplyScalar(Math.pow(0.85, dt));
-                            vel.y -= 0.3 * dt;
+                            // 【進化：下洗氣流 (Downdraft / 壓穴)】父母山過高 (如主山比例 > 1.4)，風速極大化轉為下衝氣流
+                            let steepness = rearH - (y + 8);
+                            if (steepness > 15.0) { // 極端高低差，形成壓穴凶龍
+                                frameDowndraft++; // 【探針：下洗氣流】
+                                vel.y -= steepness * 0.6 * dt; // 狠狠砸向地面
+                                vel.z += steepness * 0.4 * dt; // 往前衝散明堂
+                                localTurbulence += steepness * 0.5;
+                                if (st === 2 && Math.random() < steepness * 0.05 * dt) {
+                                    this.pState[i] = 1; // 吉氣被下洗氣流砸成亂流紅煞
+                                    this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.2; this.pCol[i*3+2] = 0.2;
+                                    if (Math.random() < 0.05) Engine3D.createShockwave(x, y, z, 0xff0000);
+                                }
+                            } else {
+                                vel.multiplyScalar(Math.pow(0.85, dt));
+                                vel.y -= 0.3 * dt;
+                            }
                         } else if (rearH < t.y - 2) {
                             vel.z += 2.5 * dt;
                             vel.y += 0.8 * dt;
@@ -3148,6 +3209,7 @@ const Physics = {
                             
                             // 若兩側都有足夠高的護山（迎送砂），則完美層流化脫煞
                             if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
+                                frameVenturi++; // 【探針：文丘里層流】
                                 vel.z += 3.5 * dt; // 峽管效應極速推進
                                 vel.y *= Math.pow(0.6, dt); // 完美壓平上下起伏 (絕對層流)
                                 if (st === 0 && Math.random() < 0.05 * dt) {
@@ -3156,6 +3218,14 @@ const Physics = {
                                 }
                             } else {
                                 vel.z += 1.5 * dt; // 防護不足，僅有微弱推進力
+                                // 【進化：峽風吹斷】缺乏迎送砂防護，側向網格風會直接吹散束氣處的高速真氣
+                                if (Math.abs(globalWindX) > 0.3) {
+                                    vel.x += globalWindX * 3.5 * dt; // 橫風直灌
+                                    if (Math.random() < Math.abs(globalWindX) * 0.25 * dt) {
+                                        this.pState[i] = 3; // 氣脈被吹斷，變為散氣
+                                        this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.5; this.pCol[i*3+2] = 0.8;
+                                    }
+                                }
                             }
                         }
                     }
@@ -3379,7 +3449,8 @@ const Physics = {
                     y = Engine3D.getTerrainY(x, z).y + Math.random()*3;
                     vel.set((Math.random()-0.5)*0.5, 0, 1.0);
                 } else {
-                    z = -140 - Math.random()*20;
+                    // 【進化：能量層級與繼承】出界回收的粒子，依據是否有太祖山，賦予不同的初始勢能與高度
+                    z = (state.zutai ? -160 : -140) - Math.random()*20;
                     let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
                     let dragonCurveX = 0;
                     if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;
@@ -3389,7 +3460,10 @@ const Physics = {
 
                     x = dragonCurveX + (Math.random()-0.5)*15.0;
                     y = Engine3D.getTerrainY(x, z).y - 2 + Math.random()*4; 
-                    vel.set((Math.random()-0.5)*0.5, 0, 3.0);
+                    
+                    // 從太祖山落下的粒子，賦予極大的初始動能 (高空勢能轉換)
+                    let initialThrust = state.zutai ? 6.5 : 3.0;
+                    vel.set((Math.random()-0.5)*0.5, 0, initialThrust);
                 }
 
                 if(state.d === 'si') {
@@ -3556,7 +3630,23 @@ const Physics = {
         AppState.gatherAcc += (weightedCapLimit - AppState.gatherAcc) * 0.05 * dt;
         AppState.scatterAcc += (frameScatter / 20 - AppState.scatterAcc) * 0.1 * dt;
 
-        let sensorHtml = `[湧現觀測儀] 氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}<br>陰陽向陽度: ${(AppState.sensors.sunlight*100).toFixed(1)}%`;
+        // 統整進階物理觀測數據 (轉換為百萬分點或百分比)
+        AppState.sensors.coanda = (frameCoanda / this.pCount) * 100;
+        AppState.sensors.downdraft = (frameDowndraft / this.pCount) * 100;
+        AppState.sensors.venturi = (frameVenturi / this.pCount) * 100;
+        AppState.sensors.bounce = (frameBounce / this.pCount) * 100;
+
+        let sensorHtml = `
+            <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心湧現觀測儀]</div>
+            氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>
+            穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}<br>
+            陰陽向陽度: ${(AppState.sensors.sunlight*100).toFixed(1)}%<br>
+            <div style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.15); color:#3f6b52;">
+                <b style="color:#22201c;">[進階空氣動力與剛體遙測]</b><br>
+                康達附著率: ${AppState.sensors.coanda.toFixed(1)}% | 峽管層流率: ${AppState.sensors.venturi.toFixed(1)}%<br>
+                壓穴下洗率: ${AppState.sensors.downdraft.toFixed(1)}% | 剛體反彈率: ${AppState.sensors.bounce.toFixed(1)}%
+            </div>
+        `;
         let sEl = document.getElementById('sensor-data');
         if(sEl) sEl.innerHTML = sensorHtml;
 

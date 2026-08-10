@@ -389,6 +389,14 @@ class FengShuiEngine {
     let centerBlocker = false;        // ★ 搬移至此提早宣告於迴圈外
 	let peekSha = false;
     
+    // 【高級物理學擴充】場論與波動變數
+    let scalarPotential = 0, gradX = 0, gradZ = 0; // 平洋龍質量拓撲場
+    let spatialHighFreq = 0, spatialLowFreq = 0;   // 龍脈頻域剝換
+    let cavityVolume = 0, cavityOpening = 0;       // 赫姆霍茲共振腔體
+    let coandaDeflection = 0;                      // 康達效應暗拱
+    let momentumP = 0, backImpedance = 0;          // 鬼曜撐背阻抗
+    let entropyGenRate = 0;                        // 熱力學熵增率
+    
     // 光照與射線追蹤變數 (Raycasting)
     let directSunlight = true;
     let reflectionHits = 0;
@@ -423,7 +431,32 @@ class FengShuiEngine {
             if (b.isWater) continue; // 水池不阻擋幾何體積，跳過後續計算
         }
 
-        const volume = b.w * b.h * b.d * weight;
+        const mass = b.w * b.h * b.d; // 建築質量
+        const volume = mass * weight;
+
+        // 1. 平洋龍的城市質量拓撲場 (Scalar Potential Field)
+        const distSq = b.x * b.x + b.z * b.z + 1;
+        scalarPotential += mass / distSq;
+        gradX += -2 * mass * b.x / (distSq * distSq);
+        gradZ += -2 * mass * b.z / (distSq * distSq);
+        
+        // 2. 頻域剝換 (Spectral Cascade)：計算幾何高頻變異
+        if (b.z < 0) {
+            let sharpness = b.h / (b.w + b.d); // 尖銳度 (高頻特徵)
+            if (sharpness > 1.5) spatialHighFreq += mass * sharpness / distSq;
+            else spatialLowFreq += mass / distSq;
+            
+            // 4. 動態阻抗匹配 (鬼曜撐背)
+            if (b.z > -40 && Math.abs(b.x) < 15) {
+                backImpedance += mass * (b.h / hMain) / distSq; // 後方結構的力學阻抗
+            }
+        }
+        
+        // 3. 康達效應 (Coanda Effect) - 偵測暗拱與隱砂
+        if (b.z > 5 && b.z < 30 && Math.abs(b.x) < 20 && b.h <= 5) {
+            let curvature = b.w / (b.h * b.h); // 簡化流體貼壁曲率
+            if (curvature > 2.0) coandaDeflection += curvature * (30 - b.z);
+        }
 
         // 幾何空間劃分與高度壓迫感 (SDF 雛形)
         if (b.x < -5) { vLeft += volume * (b.h / hMain); leftBuildings.push(b); }
@@ -530,17 +563,18 @@ class FengShuiEngine {
       let rightWalls = rightBuildings.filter(b => b.z > 10 && b.z < 80 && b.x < 20 && b.h > hMain);
       for (let lw of leftWalls) {
           for (let rw of rightWalls) {
-              if (Math.abs(lw.z - rw.z) < (lw.d + rw.d) * 0.5) { narrowGapDetected = true; break; }
+              if (Math.abs(lw.z - rw.z) < (lw.d + rw.d) * 0.5) { 
+                  narrowGapDetected = true; 
+                  // 赫姆霍茲共振腔體計算 (Helmholtz Cavity)
+                  if (st.sha.includes('windshaft')) {
+                      cavityOpening = Math.abs(lw.x - rw.x);
+                      cavityVolume = cavityOpening * lw.d * lw.h;
+                  }
+                  break; 
+              }
           }
           if (narrowGapDetected) break;
       }
-      // 修正：若明堂前方有大型水體（如玉帶水、九曲水、水法半月池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
-      // 【修正】若水勢為煞水（cut、rush、bow、tfork、lintou、bazi），則水體不能擋風，反而形成煞氣，故不應視為屏障
-      // 【修正】化煞水池（cure pool）面積較小，無法有效阻擋強風，不應視為屏障，避免無水且風大時誤判
-    // 修正：若明堂前方有大型水體（如玉帶水、九曲水、水法半月池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
-    // 【修正】若水勢為煞水（cut、rush、bow、tfork、lintou、bazi），則水體不能擋風，反而形成煞氣，故不應視為屏障
-    // 【修正】化煞水池（cure pool）面積較小，無法有效阻擋強風，不應視為屏障，避免無水且風大時誤判
-    // 【修正】極速風動能判斷水局是否會被扯破，若已扯破則不應再被視為擋風屏障（例如水局被扯破但仍誤擋八風吹穴）
     const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
     const waterBrokenByWind = !isShaWaterForBarrier && extWindSpeed >= 12 && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     const hasWaterBarrier = !isShaWaterForBarrier && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
@@ -585,6 +619,52 @@ class FengShuiEngine {
     if (narrowGapDetected) {
         kineticSha += 40 + extWindSpeed * 5;
         observerText.push(`流體｜文丘里效應！氣流穿過前方狹縫急遽加速直劈 (自然湧現: 天斬煞)`);
+        
+        // 赫姆霍茲共振 (Helmholtz Resonance)
+        if (cavityVolume > 0 && extWindSpeed > 3) {
+            let f0 = (extWindSpeed / (2 * Math.PI)) * Math.sqrt(cavityOpening / cavityVolume);
+            if (f0 > 0.01 && f0 < 0.5) { // 落在危險低頻共振區
+                kineticSha += 25;
+                observerText.push(`聲學/流體｜赫姆霍茲共振！強風吹過狹縫腔體，激發低頻氣壓劇烈脈動，形成動態撕裂風煞 (自然湧現: 凹風煞共振)`);
+            }
+        }
+    }
+    
+    // 平洋龍質量拓撲場 (Urban Density Potential Field)
+    let dragonGradient = Math.hypot(gradX, gradZ);
+    if (dragonGradient > 50) {
+        g += 15;
+        observerText.push(`場論｜建築質量拓撲場：偵測到強大的 3D 質量純量場梯度 (強度 ${Math.round(dragonGradient)})，自動湧現隱伏的「平洋龍脈脊線」`);
+    }
+
+    // 頻域剝換 (Spectral Cascade)
+    if (spatialHighFreq > spatialLowFreq * 1.5) {
+        s += 20;
+        observerText.push(`頻域｜龍脈能量濾波：高頻幾何雜訊(尖角/陡降)過高，動能未完成低頻諧波轉換 (自然湧現: 老龍未剝換/帶煞直撞)`);
+    } else if (spatialLowFreq > spatialHighFreq * 2 && spatialLowFreq > 10) {
+        g += 20;
+        observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波 (自然湧現: 剝換完成/真龍結穴)`);
+    }
+
+    // 動態阻抗匹配 (鬼曜撐背)
+    momentumP = (dragonGradient + extWindSpeed * 5); // 來龍動量
+    if (momentumP > 30 && backImpedance > 0) {
+        let impedanceMatch = Math.abs(momentumP - backImpedance * 2);
+        if (impedanceMatch < 20) {
+            g += 15;
+            observerText.push(`力學｜動態阻抗匹配：後方結構精準抵消來龍動能，防止邊界層剝離，形成完美靜力平衡點 (自然湧現: 鬼曜撐背)`);
+        } else if (backImpedance < momentumP * 0.2) {
+            s += 15;
+            observerText.push(`力學｜動態阻抗失配：後方質量空虛，強大來龍動能引發嚴重背風反向渦旋 (自然湧現: 氣場撕裂/背後受風)`);
+        }
+    }
+
+    // 康達效應 (Coanda Effect)
+    if (coandaDeflection > 10 && extWindSpeed >= 5) {
+        let shieldedSha = Math.min(kineticSha, coandaDeflection * 2);
+        kineticSha -= shieldedSha;
+        g += 15; c += 15;
+        observerText.push(`空氣動力學｜康達效應：明堂微地形(暗拱/隱砂)使貼地強風沿曲面拋升，越過主樓，奇蹟般形成無風盲區！`);
     }
     if (emptyFrontWind) {
         kineticSha += 15 + extWindSpeed * 2;
@@ -1018,7 +1098,14 @@ class FengShuiEngine {
     // 【修正】補回特殊佈局 (Special Layouts) 的空間補償效應
     if (st.special.includes('hulong')) {
         if (st.left !== 'none' && st.right !== 'none') {
-            g += 15; observerText.push(`空間｜護龍夾送：雙重護衛產生邊界層效應，穩定兩翼氣場`);
+            // 波場相位鎖定與駐波沉積 (Standing Wave Trapping)
+            let phaseShift = Math.abs(vLeft - vRight);
+            if (phaseShift > 10 && phaseShift < 50) { // 左右不完全對稱 (交牙)
+                g += 25; c += 25;
+                observerText.push(`波動力學｜相消干涉：左右護龍幾何錯開，引發流體相位鎖定，於明堂結成穩定的駐波壓力場 (自然湧現: 龍虎交牙/氣聚明堂)`);
+            } else {
+                g += 10; observerText.push(`空間｜護龍夾送：雙重護衛產生邊界層效應，但左右過於對稱，易形成穿堂風`);
+            }
         } else if (st.left !== 'none' || st.right !== 'none') {
             g += 8; observerText.push(`空間｜護龍單護：僅單側有護體，氣場稍弱 (湧現: 單邊護龍)`);
         } else {
@@ -1030,9 +1117,17 @@ class FengShuiEngine {
     }
     if (st.special.includes('shuqi')) {
         let oldVortexQi = vortexQi;
-        vortexQi = Math.round(vortexQi * 1.5);
-        g += vortexQi - oldVortexQi;
-        observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
+        // 氣躍/水躍現象 (Hydraulic Jump)
+        let froudeNumber = extWindSpeed / Math.sqrt(9.8 * 2.0); // 簡化弗勞德數
+        if (froudeNumber > 1.0) { // 達到超臨界流
+            vortexQi = Math.round(vortexQi * 2.5);
+            g += vortexQi - oldVortexQi;
+            observerText.push(`流體力學｜臨界收束與氣躍 (Hydraulic Jump)：氣流經束氣峽加速至超臨界態，進入明堂瞬間流速劇降，動能轉化為立體盤旋位能！(自然湧現: 束氣結穴)`);
+        } else {
+            vortexQi = Math.round(vortexQi * 1.5);
+            g += vortexQi - oldVortexQi;
+            observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
+        }
     }
     // 【修正】補上文字推播，消除 UI 退回舊版硬編碼的現象
     if (st.special.includes('fengyao') || st.special.includes('guiyao')) {
@@ -1099,6 +1194,16 @@ class FengShuiEngine {
     else {
         if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
         else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
+
+    // 拓撲鞍點計算 (Topological Saddle Points) - 界水即止
+    if (!isShaWater && st.water !== 'none') {
+        // 尋找向量場 u=0 且散度特徵值為負的奇點
+        let divergence = (gatheredDrops - escapedDrops) / 50.0;
+        if (divergence > 0.3) {
+            g += 20; c += 20;
+            observerText.push(`拓撲學｜向量場奇點：明堂水界形成 3D 速度鞍點(Saddle Point, ∇·v < 0)，龍脈氣流撞擊後動能完全轉化為壓強無法逃逸 (自然湧現: 界水即止)`);
+        }
     }
 
     // ==========================================
@@ -1207,6 +1312,36 @@ class FengShuiEngine {
         }
     }
 
+    // 生氣與煞氣的熱力學熵增率 (Thermodynamic Entropy Generation Rate)
+    // 熵增 S_gen = (k/T^2)*(∇T)^2 + (μ/T)*Φ_v
+    let thermalGradient = Math.abs(envTemp - 25);
+    let viscousDissipation = kineticSha * (windDrag > 0 ? windDrag : 10) * 0.001;
+    entropyGenRate = (thermalGradient * thermalGradient * 0.1) + (viscousDissipation * 5.0);
+    
+    if (entropyGenRate > 80) {
+        s += 20;
+        wuXingText += `熱力學｜局部熵增率(Entropy Generation)極高 (${Math.round(entropyGenRate)})：摩擦劇烈與溫度梯度暴增，能量陷入高度混亂 (自然湧現: 真實物理煞氣)；`;
+    } else if (entropyGenRate < 15 && vortexQi > 0) {
+        g += 20;
+        wuXingText += `熱力學｜局部熵增率極低 (${Math.round(entropyGenRate)})：微氣候熱量均勻、流速平穩，能量高度有序且負熵匯聚 (自然湧現: 真實物理生氣)；`;
+    }
+
+    // 跨尺度分形自相似性 (Fractal Self-Similarity Across Scales)
+    // 簡化計算：比較遠景(朝山/靠山)、中景(龍虎)、近景(穴場)的高度/體積維度落差
+    const h = stateManager.heights; // 【修正】提早取得高度物件，避免參照錯誤
+    let D_macro = (h.tort + h.bird) / 2;
+    let D_meso = (h.drag + h.tig) / 2;
+    let D_micro = h.main;
+    let fractalDiff = Math.abs(D_macro - D_meso) + Math.abs(D_meso - D_micro);
+    
+    if (fractalDiff < 15) {
+        g += 15; c += 15;
+        wuXingText += `幾何學｜跨尺度分形自相似：區域、街廓至主樓的幾何維度保持極高連續性，大環境能量無縫級聯貫穿穴場 (自然湧現: 龍穴相配/太祖至胎息)；`;
+    } else if (fractalDiff > 60) {
+        s += 15;
+        wuXingText += `幾何學｜分形斷層：大環境與微觀幾何尺度嚴重脫節，能量傳遞中斷 (自然湧現: 龍穴不配/剝換失敗)；`;
+    }
+
     let physicsText = observerText; // 承接觀測者結果
 
     // 【修正】最終數值收斂：限制煞氣/吉氣最大值，並確保容量不低於煞氣值
@@ -1249,7 +1384,14 @@ class FengShuiEngine {
         g: Math.round(g),
         s: Math.round(s),
         c: Math.round(c),
-        cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths // 【新增】將軌跡傳給渲染器
+        cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths,
+        // 【新增】將物理場態回傳給 GPU 粒子系統進行視覺化
+        isHelmholtz: (cavityVolume > 0 && extWindSpeed > 3),
+        isCoanda: (coandaDeflection > 10 && extWindSpeed >= 5),
+        isHydraulicJump: (st.special.includes('shuqi') && (extWindSpeed / Math.sqrt(9.8 * 2.0)) > 1.0),
+        // 【高階場論視覺化標籤】
+        isSaddlePoint: (!isShaWater && st.water !== 'none' && ((gatheredDrops - escapedDrops) / 50.0 > 0.3)),
+        isStandingWave: (st.special.includes('hulong') && Math.abs(vLeft - vRight) > 10 && Math.abs(vLeft - vRight) < 50)
     };
   }
   
@@ -1408,8 +1550,34 @@ class CityBuilder {
     this.dropsGroup = new THREE.Group(); 
     this.scene.add(this.dropsGroup);
     this.dropAnimators = [];
-    this.luopanMesh = null;  // 【新增】羅盤底座
-    this.shieldMesh = null;  // 【新增】能量防護罩
+    this.luopanMesh = null;  
+    this.shieldMesh = null;  
+    
+    // 【高階物理視覺化物件】
+    this.saddleGroup = new THREE.Group(); // 拓撲鞍點視覺化
+    this.saddleGroup.visible = false;
+    this.scene.add(this.saddleGroup);
+    
+    this.waveGroup = new THREE.Group(); // 駐波干涉視覺化
+    this.waveGroup.visible = false;
+    this.scene.add(this.waveGroup);
+    
+    this.initPhysicsVisuals();
+  }
+  
+  initPhysicsVisuals() {
+      // 1. 拓撲鞍點特效 (收斂環)
+      for (let i = 0; i < 3; i++) {
+          let ring = new THREE.Mesh(new THREE.TorusGeometry(15 - i * 4, 0.4, 4, 32), new THREE.MeshBasicMaterial({color: 0x00ffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false}));
+          ring.rotation.x = -Math.PI / 2;
+          this.saddleGroup.add(ring);
+      }
+      // 2. 駐波干涉特效 (相消干涉網格)
+      let gridGeo = new THREE.PlaneGeometry(40, 40, 10, 10);
+      let gridMat = new THREE.MeshBasicMaterial({color: 0xffaa00, wireframe: true, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false});
+      let grid1 = new THREE.Mesh(gridGeo, gridMat); grid1.rotation.x = -Math.PI / 2; grid1.position.y = 0.5;
+      let grid2 = new THREE.Mesh(gridGeo, gridMat); grid2.rotation.x = -Math.PI / 2; grid2.position.y = 1.0;
+      this.waveGroup.add(grid1); this.waveGroup.add(grid2);
   }
 
   updateGhost(x, z, tool) {
@@ -1434,6 +1602,8 @@ class CityBuilder {
     if(this.ghostMesh) this.ghostMesh.visible = false;
     if(this.luopanMesh) { this.luopanMesh.visible = false; }
     if(this.shieldMesh) { this.shieldMesh.visible = false; }
+    if(this.saddleGroup) { this.saddleGroup.visible = false; }
+    if(this.waveGroup) { this.waveGroup.visible = false; }
     
     // 【新增】清除拓撲水流
     this.dropsGroup.traverse(c => {
@@ -1521,6 +1691,37 @@ class CityBuilder {
     if(this.fountainBeam){
       this.fountainBeam.scale.y = 1 + 0.2*Math.sin(time*5);
       this.fountainBeam.material.opacity = 0.5 + 0.3*Math.sin(time*10);
+    }
+    
+    // 【高階物理動畫驅動】
+    if (ana) {
+        // 1. 拓撲鞍點 (Saddle Point)：動能轉化為壓強的內聚收斂視覺
+        if (ana.isSaddlePoint) {
+            this.saddleGroup.visible = true;
+            this.saddleGroup.position.set(0, 0.5, 30); // 位於明堂水界
+            this.saddleGroup.children.forEach((ring, idx) => {
+                let scale = 1.0 - (time * (1.5 + idx * 0.2)) % 1.0; // 不斷向內收縮
+                ring.scale.setScalar(scale);
+                ring.material.opacity = scale * 0.8; // 越向內越亮
+            });
+        } else {
+            this.saddleGroup.visible = false;
+        }
+
+        // 2. 駐波相位鎖定 (Standing Wave)：龍虎交牙造成的相消干涉網格脈動
+        if (ana.isStandingWave) {
+            this.waveGroup.visible = true;
+            this.waveGroup.position.set(0, 0, 15); // 位於龍虎明堂之間
+            let g1 = this.waveGroup.children[0];
+            let g2 = this.waveGroup.children[1];
+            // 兩個網格產生相位差的反向滑動與縮放，模擬干涉條紋
+            g1.scale.setScalar(1.0 + 0.05 * Math.sin(time * 3.0));
+            g2.scale.setScalar(1.0 + 0.05 * Math.sin(time * 3.0 + Math.PI));
+            g1.position.z = 0.5 * Math.sin(time * 2.0);
+            g2.position.z = 0.5 * Math.sin(time * 2.0 + Math.PI);
+        } else {
+            this.waveGroup.visible = false;
+        }
     }
   }
 
@@ -1972,6 +2173,8 @@ uniform float u_simTime; uniform float u_hz; uniform float u_tSpeed;
 uniform bool u_waterJade; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
 uniform bool u_dragonAvenue; uniform bool u_cureFountain; uniform bool u_isWoQian; uniform bool u_specialShuqi;
 uniform bool u_shaTianzhan; uniform int u_terrainType;
+// 【GPU 接收高階物理場】
+uniform bool u_coanda; uniform bool u_hydraulicJump;
 uniform vec3 u_spawns[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife; varying float vIsWater; varying float vIsWind;
@@ -2068,7 +2271,21 @@ void main() {
             v += curlNoise(p * 0.15) * 3.0 * dt; 
         }
         
-        if(u_specialShuqi && p.z<0.0 && p.z>-30.0) { v.x -= p.x * 3.0 * dt; }
+         if(u_specialShuqi && p.z<0.0 && p.z>-30.0) { v.x -= p.x * 3.0 * dt; }
+        
+        // 1. 康達效應 (Coanda Effect)：貼地流體遇微小暗拱，產生向上的升力拋物線，保護主樓
+        if (u_coanda && p.z > 5.0 && p.z < 30.0 && abs(p.x) < 20.0 && !isWater) {
+            v.y += (30.0 - p.z) * 1.5 * dt; // 拋升力
+            v.z -= 8.0 * dt; // 減緩沖擊
+        }
+        
+        // 2. 臨界氣躍 (Hydraulic Jump)：束氣後的超臨界流在明堂轉化為立體駐波盤旋
+        if (u_hydraulicJump && abs(p.z - 25.0) < 15.0 && abs(p.x) < 15.0 && !isWater) {
+            v *= 0.9; // 動能劇降轉為壓強
+            v.x += (-p.z * 2.0) * dt; 
+            v.y += (abs(p.x) - 5.0) * 2.0 * dt; // Y 軸立體渦旋
+        }
+
         if(!isWater) p.y += (ty + 1.0 - p.y) * 2.0 * dt;
         
         // --- GPU 流體力學碰撞 ---
@@ -2119,6 +2336,8 @@ uniform int u_bldCount;
 uniform float u_simTime;
 uniform bool u_cureTrees; uniform bool u_cureMirror; uniform bool u_curePool; uniform bool u_cureStone; uniform bool u_cureGourd;
 uniform bool u_shaTianzhan;
+// 【GPU 接收高階物理場】
+uniform bool u_helmholtz;
 uniform vec3 u_spawns[64]; uniform vec3 u_spawnDirs[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife;
@@ -2172,6 +2391,12 @@ void main() {
         // 【修正 Bug 3】將風切加速通道收縮為精準的 4
         if(u_shaTianzhan && abs(p.x) < 4.0 && p.z > 30.0 && p.z < 80.0) {
             v.z -= 60.0 * dt; v.x *= max(0.0, 1.0 - 5.0 * dt);
+            
+            // 3. 赫姆霍茲共振 (Helmholtz Cavity Resonance)：狹縫引發強烈低頻橫向脈衝震盪
+            if (u_helmholtz) {
+                float resonance = sin(u_simTime * 12.0 + p.z * 0.8) * 60.0;
+                v.x += resonance * dt;
+            }
         }
 
         if(u_cureTrees && abs(p.z-22.0)<8.0 && abs(p.x)<30.0) { v *= max(0.0, 1.0 - 2.0*dt); }
@@ -2295,7 +2520,9 @@ class ParticleSystem {
         u_waterJade: { value: false }, u_shuifaBanyue: { value: false }, u_curePool: { value: false }, u_isRushWind: { value: false },
         u_dragonAvenue: { value: false }, u_cureFountain: { value: false }, u_isWoQian: { value: false }, u_specialShuqi: { value: false },
         u_shaTianzhan: { value: false },
-		u_terrainType: { value: 0 },
+        u_terrainType: { value: 0 },
+        // 【新增】傳遞高階物理場布林值給 GPU
+        u_coanda: { value: false }, u_helmholtz: { value: false }, u_hydraulicJump: { value: false },
         u_cureTrees: { value: false }, u_cureMirror: { value: false }, u_cureStone: { value: false }, u_cureGourd: { value: false },
         u_spawns: { value: Array.from({length:64}, () => new THREE.Vector3()) },
         u_spawnDirs: { value: Array.from({length:64}, () => new THREE.Vector3()) },
@@ -2394,6 +2621,14 @@ class ParticleSystem {
     this.uniforms.u_cureFountain.value = st.cure.includes('fountain');
     this.uniforms.u_specialShuqi.value = st.special.includes('shuqi');
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
+    
+    // 【新增】每幀更新高階物理場參數
+    if (stateManager.analysis) {
+        this.uniforms.u_coanda.value = stateManager.analysis.isCoanda || false;
+        this.uniforms.u_helmholtz.value = stateManager.analysis.isHelmholtz || false;
+        this.uniforms.u_hydraulicJump.value = stateManager.analysis.isHydraulicJump || false;
+    }
+    
     this.uniforms.u_cureTrees.value = st.cure.includes('trees');
     this.uniforms.u_cureMirror.value = st.cure.includes('mirror');
     this.uniforms.u_cureStone.value = st.cure.includes('stone');
