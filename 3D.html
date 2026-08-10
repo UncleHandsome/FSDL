@@ -84,6 +84,13 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- 新增：後期處理 (Post-Processing) 神級光影渲染引擎 -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 </head>
 <body>
 
@@ -1161,6 +1168,22 @@ const Engine3D = {
         this.controls.target.set(0, -5, 20);
         this.controls.maxPolarAngle = Math.PI/2 - 0.05;
 
+        // 【維度三：地貌渲染】實作 Unreal Bloom (輝光泛光特效)
+        // 讓聚氣的「太極暈」、高光水面與凶煞紅光產生極具神聖感的光學溢出
+        if (typeof THREE.EffectComposer !== 'undefined') {
+            this.composer = new THREE.EffectComposer(this.renderer);
+            const renderPass = new THREE.RenderPass(this.scene, this.camera);
+            this.composer.addPass(renderPass);
+
+            this.bloomPass = new THREE.UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                0.75, // 強度 (Intensity)
+                0.85, // 半徑 (Radius) 讓光暈如煙霧般擴散
+                0.55  // 閾值 (Threshold) 僅針對高亮度真氣發光
+            );
+            this.composer.addPass(this.bloomPass);
+        }
+
         this.terrainGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, CONFIG.tSeg, CONFIG.tSeg);
         this.terrainGeo.rotateX(-Math.PI/2);
         this.hMap = new Float32Array((CONFIG.tSeg+1)*(CONFIG.tSeg+1));
@@ -1185,8 +1208,20 @@ const Engine3D = {
 
         terrainMat.onBeforeCompile = (shader) => {
             shader.uniforms.heatmap = { value: this.heatTex };
+            // 抓取世界座標傳遞給像素著色器 (Fragment Shader)
+            shader.vertexShader = `
+                varying vec3 vWorldPosMist;
+                ${shader.vertexShader}
+            `.replace(
+                `#include <worldpos_vertex>`,
+                `
+                #include <worldpos_vertex>
+                vWorldPosMist = (modelMatrix * vec4(transformed, 1.0)).xyz;
+                `
+            );
             shader.fragmentShader = `
                 uniform sampler2D heatmap;
+                varying vec3 vWorldPosMist;
                 ${shader.fragmentShader}
             `.replace(
                 `#include <emissivemap_fragment>`,
@@ -1196,6 +1231,17 @@ const Engine3D = {
                     vec4 heatColor = texture2D(heatmap, vUv);
                     totalEmissiveRadiance += heatColor.rgb * 0.8; // 調降至 0.8，避免熱力圖發光導致地形高光區過曝
                 #endif
+                `
+            ).replace(
+                `#include <fog_fragment>`,
+                `
+                #include <fog_fragment>
+                // 【新增：藏風聚氣山谷霧 (Volumetric Valley Mist)】
+                // 在明堂與低窪盆地 (y 在 10 到 -15 之間) 自動生成氤氳白霧，高度越低霧氣越濃
+                float mistHeight = smoothstep(10.0, -15.0, vWorldPosMist.y); 
+                float mistFactor = mistHeight * 0.45; // 限制最高濃度為 45%
+                vec3 mistColor = vec3(0.92, 0.96, 1.0); // 帶有靈氣的微藍白霧
+                gl_FragColor.rgb = mix(gl_FragColor.rgb, mistColor, mistFactor);
                 `
             );
         };
@@ -1219,12 +1265,13 @@ const Engine3D = {
         const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 100, 100); waterGeo.rotateX(-Math.PI/2); // 提高網格精度以顯示細膩波浪
         // 增加 metalness 與降低 roughness 讓水面具備更真實的鏡面反光特性
         // 修正：調高粗糙度 (roughness: 0.45)、降低金屬度 (metalness: 0.1)，防止太陽高光反射過度爆白
-        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.45, metalness: 0.1 });
+        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.35, metalness: 0.2 });
         waterMat.onBeforeCompile = (shader) => {
             shader.uniforms.time = { value: 0 };
             shader.uniforms.riverType = { value: 0 };
             shader.vertexShader = `
                 varying vec2 vWorldXZ;
+                varying vec3 vWorldPosGeo;
                 uniform float time;
                 ${shader.vertexShader}
             `.replace(
@@ -1232,7 +1279,7 @@ const Engine3D = {
                 `
                 #include <begin_vertex>
                 vWorldXZ = position.xz; // 抓取世界 XZ 座標
-                // 複合波浪模擬：主波浪 + 次級擾動波浪，產生更自然的立體流體起伏
+                vWorldPosGeo = (modelMatrix * vec4(position, 1.0)).xyz; // 抓取全域坐標供光學計算
                 float wave1 = sin(position.x * 0.05 + time * 1.2) * 0.6 * cos(position.z * 0.06 + time * 0.8);
                 float wave2 = sin(position.x * 0.15 - time) * 0.25;
                 transformed.y += wave1 + wave2;
@@ -1242,6 +1289,7 @@ const Engine3D = {
                 uniform float time;
                 uniform int riverType;
                 varying vec2 vWorldXZ;
+                varying vec3 vWorldPosGeo;
                 ${shader.fragmentShader}
             `.replace(
                 `#include <map_fragment>`,
@@ -1250,17 +1298,14 @@ const Engine3D = {
                 float rx = vWorldXZ.x;
                 float shift = 0.0;
 
-                // 使水紋貼圖根據河道真實形狀蜿蜒流動，解決直直平移的問題
-                if (riverType == 1) shift = sin(rx * 0.15) * 8.0; // 九曲水
-                else if (riverType == 0) shift = cos(rx * 0.05) * 15.0; // 玉帶水
-                else if (riverType == 2) shift = -cos(rx * 0.05) * 15.0; // 反弓水
-                else if (riverType == 3) shift = abs(rx) * 0.5; // 八字水
+                if (riverType == 1) shift = sin(rx * 0.15) * 8.0; 
+                else if (riverType == 0) shift = cos(rx * 0.05) * 15.0; 
+                else if (riverType == 2) shift = -cos(rx * 0.05) * 15.0; 
+                else if (riverType == 3) shift = abs(rx) * 0.5; 
 
-                // 雙層 UV 紋理交錯：產生波光粼粼的流體干涉視覺
                 vec2 flowUV1 = flowUV;
-                vec2 flowUV2 = flowUV * 1.5; // 第二層縮放
+                vec2 flowUV2 = flowUV * 1.5; 
                 
-                // 修正 4：為淋頭水 (riverType == 5) 新增垂直 Z 軸(UV中的y)的極速傾瀉流向，並停止橫向 X 流動
                 float flowSpeedX = (riverType == 5) ? 0.0 : (time * 0.04);
                 float flowSpeedY = (riverType == 5) ? (time * 0.15) : (shift / 350.0);
                 
@@ -1270,11 +1315,31 @@ const Engine3D = {
                 flowUV2.x -= flowSpeedX * 0.5;
                 flowUV2.y -= flowSpeedY + (time * 0.01);
 
+                // 【優化：水體光學升級 (Shoreline Foam & Volumetric Depth)】
+                float distToShore = abs(rx - shift); 
+                float depthFactor = clamp(1.0 - (distToShore / 22.0), 0.0, 1.0); // 0=岸邊淺水, 1=河心深潭
+                
+                // Fresnel 視角反射效應 (讓遠處的水面更像鏡子)
+                vec3 viewDir = normalize(cameraPosition - vWorldPosGeo);
+                float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
+
                 #ifdef USE_MAP
                     vec4 tex1 = texture2D(map, flowUV1);
                     vec4 tex2 = texture2D(map, flowUV2);
-                    // 降低水波紋疊加比例至 0.2，還原深青碧水質感，防止水面過曝
-                    diffuseColor.rgb += (tex1.rgb + tex2.rgb) * 0.2;
+                    
+                    // 岸邊激浪白沫 (Foam)：在淺水區與波浪交會處產生白沫
+                    float foam = (tex1.r + tex2.r) * smoothstep(0.15, 0.0, depthFactor);
+                    
+                    // 深度漸變色 (深潭青靛 vs 淺水碧綠)
+                    vec3 deepColor = vec3(0.02, 0.35, 0.45);
+                    vec3 shallowColor = vec3(0.2, 0.75, 0.65);
+                    vec3 baseWaterColor = mix(shallowColor, deepColor, depthFactor);
+                    
+                    // 疊加波光、泡沫與菲涅耳反射
+                    diffuseColor.rgb = baseWaterColor + (tex1.rgb + tex2.rgb) * 0.15 + vec3(foam * 0.9) + (fresnel * 0.4);
+                    
+                    // 岸邊透明漸隱 (Alpha Fade)，完美融合地形消除生硬鋸齒切邊
+                    diffuseColor.a *= mix(0.1, 1.0, smoothstep(0.0, 0.2, depthFactor));
                 #endif
                 `
             );
@@ -1285,36 +1350,84 @@ const Engine3D = {
         this.scene.add(this.waterMesh);
 
         // 吸收 Qwen版：以 HemisphereLight (天藍色/地暗綠) 作為全域基礎漫射光，取代生硬的 AmbientLight
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x445544, 0.7); // 淺色模式：提高半球天光強度與明度，模擬白晝漫射
-        this.scene.add(hemiLight);
+        this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445544, 0.7); 
+        this.scene.add(this.hemiLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2); // 淺色模式：白晝日光稍微調亮並變白
-        dirLight.position.set(70, 120, 40); // 採用 Qwen版 的斜側角光位，讓山脈產生漂亮的高光邊緣與修長陰影
+        this.dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2); 
+        this.dirLight.position.set(70, 120, 40); 
         
         // 設定平行光源投射陰影，精準勾勒地貌深淺
-        dirLight.castShadow = true;
-        // 吸收 Qwen版極速精神：將陰影降至 2048，配合 PCFSoftShadow 達成效能與畫質的最佳化
-        dirLight.shadow.mapSize.width = 2048; 
-        dirLight.shadow.mapSize.height = 2048;
-        const d = 200; // 收束陰影範圍，提升陰影像素密度
-        dirLight.shadow.camera.left = -d;
-        dirLight.shadow.camera.right = d;
-        dirLight.shadow.camera.top = d;
-        dirLight.shadow.camera.bottom = -d;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 800;
-        dirLight.shadow.bias = -0.0005; // 微調陰影偏移
-        dirLight.shadow.normalBias = 0.025; // 加入法線偏移，完美消除山坡面產生的網格狀鋸齒 (Shadow acne)
-        dirLight.shadow.radius = 2.2; // 稍微增加柔化半徑，彌補 2048 解析度，呈現極為柔和的真實陰影
+        this.dirLight.castShadow = true;
+        this.dirLight.shadow.mapSize.width = 2048; 
+        this.dirLight.shadow.mapSize.height = 2048;
+        const d = 200; 
+        this.dirLight.shadow.camera.left = -d;
+        this.dirLight.shadow.camera.right = d;
+        this.dirLight.shadow.camera.top = d;
+        this.dirLight.shadow.camera.bottom = -d;
+        this.dirLight.shadow.camera.near = 0.5;
+        this.dirLight.shadow.camera.far = 800;
+        this.dirLight.shadow.bias = -0.0005; 
+        this.dirLight.shadow.normalBias = 0.025; 
+        this.dirLight.shadow.radius = 2.2; 
         
-        this.scene.add(dirLight);
+        this.scene.add(this.dirLight);
+        this.sunAngle = Math.PI / 4; // 初始設定為早晨黃金時分
 
         this.obsGroup = new THREE.Group(); this.scene.add(this.obsGroup);
         this.swGroup = new THREE.Group(); this.scene.add(this.swGroup);
         this.swGeo.rotateX(-Math.PI/2);
 
+        // 【優化：尋龍點穴黃金光柱 (Auto-Lair Marker)】
+        const markerGeo = new THREE.CylinderGeometry(0.3, 4.0, 150, 16);
+        markerGeo.translate(0, 75, 0); // 讓光柱底部錨定於地面
+        const markerMat = new THREE.MeshBasicMaterial({
+            color: 0xffd700, transparent: true, opacity: 0.0, 
+            blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        this.lairMarker = new THREE.Mesh(markerGeo, markerMat);
+        this.scene.add(this.lairMarker);
+
         this.windGroup = new THREE.Group(); this.scene.add(this.windGroup);
         const lineMat = new THREE.LineBasicMaterial({color: 0x448844, transparent: true, opacity: 0.6});
+        
+        // 【新增：互動雕刻筆刷游標 (Brush Cursor)】
+        const cursorGeo = new THREE.RingGeometry(13.5, 15.0, 32);
+        cursorGeo.rotateX(-Math.PI/2);
+        const cursorMat = new THREE.MeshBasicMaterial({color: 0x22ff44, transparent: true, opacity: 0.0, depthTest: false});
+        this.brushCursor = new THREE.Mesh(cursorGeo, cursorMat);
+        this.scene.add(this.brushCursor);
+        
+        // 【優化：植被實例化網格 (InstancedMesh) 效能極高，可繪製數千棵樹】
+        const treeGeo = new THREE.ConeGeometry(1.2, 4, 5);
+        treeGeo.translate(0, 2, 0); // 讓樹的錨點在底部
+        const treeMat = new THREE.MeshStandardMaterial({ color: 0x22421f, roughness: 0.95, metalness: 0.0 });
+        
+        // 【新增：頂點著色器植被搖曳 (Wind Sway) - 零 CPU 消耗】
+        treeMat.onBeforeCompile = (shader) => {
+            shader.uniforms.time = { value: 0 };
+            shader.vertexShader = `
+                uniform float time;
+                ${shader.vertexShader}
+            `.replace(
+                `#include <project_vertex>`,
+                `
+                // 利用世界座標與時間產生偽隨機風力搖曳
+                vec4 worldPosition = instanceMatrix * vec4(transformed, 1.0);
+                float sway = sin(worldPosition.x * 0.1 + time * 1.5) * cos(worldPosition.z * 0.1 + time * 1.2) * 0.15;
+                // 只有樹冠(y>0)會搖晃，樹根(y=0)不動，產生枝葉抗風彈性
+                transformed.x += sway * position.y; 
+                transformed.z += sway * position.y * 0.5;
+                #include <project_vertex>
+                `
+            );
+            treeMat.userData.shader = shader;
+        };
+
+        this.treeMesh = new THREE.InstancedMesh(treeGeo, treeMat, 3000); // 預留 3000 棵樹的空間
+        this.treeMesh.castShadow = true;
+        this.treeMesh.receiveShadow = true;
+        this.scene.add(this.treeMesh);
         for(let x=-100; x<=100; x+=20) {
             for(let z=-80; z<=100; z+=20) {
                 const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0,z), new THREE.Vector3(x+5,0,z)]);
@@ -1329,36 +1442,136 @@ const Engine3D = {
             this.camera.updateProjectionMatrix();
             this.renderer.setPixelRatio(window.devicePixelRatio); // 保持全設備最高解析度
             this.renderer.setSize(window.innerWidth, window.innerHeight);
+            if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight); // 新增：同步更新後期處理畫布尺寸
         });
 
+        let isPointerDown = false;
         window.addEventListener('pointerdown', e => {
-            if(e.button !== 0 || !AppState.current.shaMode || e.target !== this.renderer.domElement) return;
+            if(e.button !== 0 || e.target !== this.renderer.domElement) return;
+            isPointerDown = true;
             this.mouse.x = (e.clientX / window.innerWidth)*2 - 1;
             this.mouse.y = -(e.clientY / window.innerHeight)*2 + 1;
             this.raycaster.setFromCamera(this.mouse, this.camera);
 
-            // 修復：優先單獨檢測點擊障礙物（無論後方背景是地面還是天空皆可正確移除）
-            const obsIntersects = this.raycaster.intersectObjects(this.obsGroup.children);
-            if(obsIntersects.length > 0) {
-                const hit = obsIntersects[0].object;
-                this.obsGroup.remove(hit);
-                AppState.obstacles = AppState.obstacles.filter(o => o.mesh !== hit);
-                UI.update();
-                return;
-            }
-
-            // 若未點中障礙物，再檢測是否點擊地面新增障礙物
-            const intersects = this.raycaster.intersectObject(this.terrainMesh);
-            if(intersects.length > 0 && AppState.obstacles.length < CONFIG.maxObstacles) {
-                const p = intersects[0].point;
-                const mesh = new THREE.Mesh(this.obsGeo, this.obsMat);
-                mesh.position.copy(p); mesh.position.y += 5;
-                this.obsGroup.add(mesh);
-                AppState.obstacles.push({ mesh: mesh });
-                this.createShockwave(p.x, p.y, p.z, 0xff3333);
-                UI.update();
+            if (AppState.current.shaMode) {
+                // 原有功能：手動置煞
+                const obsIntersects = this.raycaster.intersectObjects(this.obsGroup.children);
+                if(obsIntersects.length > 0) {
+                    const hit = obsIntersects[0].object;
+                    this.obsGroup.remove(hit);
+                    AppState.obstacles = AppState.obstacles.filter(o => o.mesh !== hit);
+                    UI.update();
+                    return;
+                }
+                const intersects = this.raycaster.intersectObject(this.terrainMesh);
+                if(intersects.length > 0 && AppState.obstacles.length < CONFIG.maxObstacles) {
+                    const p = intersects[0].point;
+                    const mesh = new THREE.Mesh(this.obsGeo, this.obsMat);
+                    mesh.position.copy(p); mesh.position.y += 5;
+                    this.obsGroup.add(mesh);
+                    AppState.obstacles.push({ mesh: mesh });
+                    this.createShockwave(p.x, p.y, p.z, 0xff3333);
+                    UI.update();
+                }
             }
         });
+        
+        window.addEventListener('pointerup', () => isPointerDown = false);
+        window.addEventListener('pointerleave', () => isPointerDown = false);
+
+        // 【優化：互動地形雕刻 (Terrain Sculpting)】 
+        // 允許玩家按住 Shift 起山 (培土補砂)，按住 Alt 挖洞 (開闢明堂)
+        window.addEventListener('pointermove', e => {
+            this.mouse.x = (e.clientX / window.innerWidth)*2 - 1;
+            this.mouse.y = -(e.clientY / window.innerHeight)*2 + 1;
+            
+            // 【新增：筆刷視覺化追蹤 (Hover 反饋)】
+            if (e.shiftKey || e.altKey) {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                const hits = this.raycaster.intersectObject(this.terrainMesh);
+                if (hits.length > 0 && this.brushCursor) {
+                    this.brushCursor.position.copy(hits[0].point);
+                    this.brushCursor.position.y += 0.5;
+                    this.brushCursor.material.opacity = 0.8;
+                    this.brushCursor.material.color.setHex(e.shiftKey ? 0x22ff44 : 0xff2222); // 起山綠，挖坑紅
+                }
+            } else if (this.brushCursor) {
+                this.brushCursor.material.opacity = 0.0;
+            }
+
+            if(!isPointerDown || (!e.shiftKey && !e.altKey) || e.target !== this.renderer.domElement) return;
+            
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObject(this.terrainMesh);
+            if(intersects.length > 0) {
+                // 暫停鏡頭旋轉以利雕刻
+                if (this.controls) this.controls.enabled = false;
+                
+                const p = intersects[0].point;
+                const brushRadius = 15.0; // 筆刷大小
+                const sculptStrength = (e.shiftKey ? 1.5 : -1.5); // Shift:起山, Alt:挖坑
+                
+                const pos = this.terrainGeo.attributes.position.array;
+                const cols = this.terrainGeo.attributes.color.array;
+                
+                let terrainModified = false;
+                for (let i = 0; i < pos.length; i += 3) {
+                    let dx = pos[i] - p.x;
+                    let dz = pos[i+2] - p.z;
+                    let distSq = dx*dx + dz*dz;
+                    
+                    if (distSq < brushRadius * brushRadius) {
+                        let influence = Math.exp(-distSq / (brushRadius * brushRadius * 0.5));
+                        pos[i+1] += sculptStrength * influence; // 更新 3D 頂點
+                        
+                        // 同步更新物理碰撞地圖 (hMap)
+                        let gX = Math.round((pos[i]+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                        let gZ = Math.round((pos[i+2]+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                        if(gX >= 0 && gX <= CONFIG.tSeg && gZ >= 0 && gZ <= CONFIG.tSeg) {
+                            this.hMap[gZ*(CONFIG.tSeg+1) + gX] = pos[i+1];
+                        }
+                        
+                        // 即時反饋筆刷顏色 (雕刻過的地方會出現新土顏色)
+                        cols[i] = 0.5; cols[i+1] = 0.35; cols[i+2] = 0.15;
+                        terrainModified = true;
+                    }
+                }
+                
+                if (terrainModified) {
+                    this.terrainGeo.computeVertexNormals(); 
+                    this.terrainGeo.attributes.position.needsUpdate = true;
+                    this.terrainGeo.attributes.color.needsUpdate = true;
+                }
+            }
+        });
+        
+        // 放開滑鼠時恢復鏡頭控制
+        window.addEventListener('pointerup', () => { if (this.controls) this.controls.enabled = true; });
+
+        // 【維度四：互動性】新增「堪輿測風煙霧彈」 (Qi Smoke Bomb)
+        // 雙擊地形，釋放大量高亮粒子，用於直接觀測 CFD 網格流體的風場走向與背風亂流
+        window.addEventListener('dblclick', e => {
+            this.mouse.x = (e.clientX / window.innerWidth)*2 - 1;
+            this.mouse.y = -(e.clientY / window.innerHeight)*2 + 1;
+            this.raycaster.setFromCamera(this.mouse, this.camera);
+            const intersects = this.raycaster.intersectObject(this.terrainMesh);
+            if (intersects.length > 0) {
+                const p = intersects[0].point;
+                // 在滑鼠點擊處製造強大的真氣爆發
+                for (let i = 0; i < 400; i++) {
+                    let idx = Math.floor(Math.random() * Physics.pCount);
+                    Physics.pPos[idx*3] = p.x + (Math.random()-0.5)*5;
+                    Physics.pPos[idx*3+1] = p.y + 2 + Math.random()*5;
+                    Physics.pPos[idx*3+2] = p.z + (Math.random()-0.5)*5;
+                    Physics.pVel[idx].set((Math.random()-0.5)*12, Math.random()*15, (Math.random()-0.5)*12);
+                    Physics.pState[idx] = 2; // 強制設為吉氣
+                    Physics.pCol[idx*3] = 0.2; Physics.pCol[idx*3+1] = 1.0; Physics.pCol[idx*3+2] = 0.5; // 高亮螢光綠
+                    Physics.pLife[idx] = 300;
+                }
+                this.createShockwave(p.x, p.y, p.z, 0x22ff44);
+            }
+        });
+
         window.addEventListener('keydown', (e) => {
             if (e.key === 'c' || e.key === 'C') {
                 // 修正 6：同步補上鉗穴 (qian) 的中心座標 0.0
@@ -1855,28 +2068,42 @@ const Engine3D = {
             let colorNoise = this.pNoise(x * 1.5, z * 1.5, 2) * 0.12; 
             let nH = Math.max(0, Math.min(1.0, ((y + 15) / 75) + colorNoise));
 
+            // 【優化：基於坡度的動態材質混合 (Slope-based Texturing)】
+            // 讀取周圍高度計算真實坡度，陡坡自動裸露岩石，平緩處才生長植被
+            let gX_slope = Math.max(0, Math.min(CONFIG.tSeg, gX));
+            let gZ_slope = Math.max(0, Math.min(CONFIG.tSeg, gZ));
+            let hL = this.hMap[gZ_slope * (tSeg + 1) + Math.max(0, gX_slope - 1)] || y;
+            let hR = this.hMap[gZ_slope * (tSeg + 1) + Math.min(tSeg, gX_slope + 1)] || y;
+            let hU = this.hMap[Math.max(0, gZ_slope - 1) * (tSeg + 1) + gX_slope] || y;
+            let hD = this.hMap[Math.min(tSeg, gZ_slope + 1) * (tSeg + 1) + gX_slope] || y;
+            let slope = Math.max(Math.abs(hL - hR), Math.abs(hU - hD)); // 計算最大高差代表坡度
+
             if (y < -9) {
                 // 河床過渡：越深的水底顏色越呈現深沉的青墨色
                 let depth = Math.max(0, Math.min(1.0, (-9 - y) / 15));
-                c.setRGB(0.05 + depth * 0.05, 0.20 - depth * 0.1, 0.25 - depth * 0.1); // 加深河床色彩對比
+                c.setRGB(0.05 + depth * 0.05, 0.20 - depth * 0.1, 0.25 - depth * 0.1); 
             } else {
-                // 植被與地質生態層次分明：平原 ➔ 森林 ➔ 高山岩石 ➔ 山頂雪線 (色彩飽和度與明度微調，更具史詩感)
+                // 植被與地質生態層次分明：平原 ➔ 森林 ➔ 高山岩石 ➔ 山頂雪線
                 if (nH < 0.28) {
-                    // 1. 平原至淺丘 (翠綠過渡到深草綠)
                     let t = nH / 0.28;
                     c.setHSL(0.33 - t * 0.06, 0.45 - t * 0.15, 0.18 + t * 0.10);
                 } else if (nH < 0.65) {
-                    // 2. 山腰森林至岩盤 (深草綠過渡到墨綠/黃褐岩石)
                     let t = (nH - 0.28) / 0.37;
                     c.setHSL(0.27 - t * 0.15, 0.30 - t * 0.20, 0.28 + t * 0.12);
                 } else if (nH < 0.88) {
-                    // 3. 高山岩石 (黃褐岩石過渡到深灰褐色)
                     let t = (nH - 0.65) / 0.23;
                     c.setHSL(0.10, 0.15 - t * 0.10, 0.40 + t * 0.10);
                 } else {
-                    // 4. 極高山峰雪線 (灰褐過渡到雪白高光)
                     let t = (nH - 0.88) / 0.12;
                     c.setHSL(0.6, 0.05, 0.50 + t * 0.45);
+                }
+
+                // 若坡度過陡 (大於 2.5)，植被無法附著，強制渲染為裸露風化岩石 (廉貞煞氣特徵)
+                if (slope > 2.5) {
+                    let rockFactor = Math.min(1.0, (slope - 2.5) / 3.0);
+                    let rockColor = new THREE.Color();
+                    rockColor.setHSL(0.08, 0.15, 0.35 + colorNoise); // 灰褐色岩盤
+                    c.lerp(rockColor, rockFactor);
                 }
             }
             cols.push(c.r, c.g, c.b);
@@ -1899,6 +2126,35 @@ const Engine3D = {
 
         this.terrainGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cols), 3));
         this.terrainGeo.computeVertexNormals(); this.terrainGeo.attributes.position.needsUpdate = true;
+        
+        // 【優化：動態生成植被 (Dynamic Vegetation)】
+        // 根據地形坡度與高度，自動在平緩的陽坡或明堂周圍生長防風林
+        if (this.treeMesh) {
+            let treeCount = 0;
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < pos.length; i += 3) {
+                let x = pos[i], y = pos[i+1], z = pos[i+2];
+                
+                // 只在特定高度 (平原到淺山腰，不生長於深水或太高的寒冷山頂)
+                if (y > -1 && y < 28) {
+                    let ny = this.terrainGeo.attributes.normal.array[i+1];
+                    
+                    // ny 越接近 1 代表地勢越平坦。只在坡度平緩且隨機機率下生成樹木
+                    if (ny > 0.88 && Math.random() < 0.07 && treeCount < 3000) {
+                        dummy.position.set(x, y, z);
+                        // 隨機縮放與旋轉，打破規律增加自然感
+                        let scale = 0.5 + Math.random() * 0.8;
+                        dummy.scale.set(scale, scale + Math.random() * 0.5, scale);
+                        dummy.rotation.y = Math.random() * Math.PI;
+                        dummy.updateMatrix();
+                        this.treeMesh.setMatrixAt(treeCount, dummy.matrix);
+                        treeCount++;
+                    }
+                }
+            }
+            this.treeMesh.count = treeCount; // 只渲染實際生成的數量
+            this.treeMesh.instanceMatrix.needsUpdate = true;
+        }
     },
 
     getTerrainY(x, z) {
@@ -1948,6 +2204,14 @@ const Physics = {
     pLife: new Float32Array(CONFIG.pCount),
     pGeom: new THREE.BufferGeometry(),
     pSys: null,
+    
+    // 【優化：新增全域氣場熱力網格與最佳穴眼座標】
+    qiGrid: new Float32Array(64 * 64),
+    windGridX: new Float32Array(64 * 64),      // 新增：CFD 橫向風場網格
+    windGridZ: new Float32Array(64 * 64),      // 新增：CFD 縱向風場網格
+    windGridX_next: new Float32Array(64 * 64), // 新增：CFD 雙緩衝區 (Double Buffering)
+    windGridZ_next: new Float32Array(64 * 64), // 新增：CFD 雙緩衝區 (Double Buffering)
+    bestLairPos: new THREE.Vector3(0, 0, 0),
 
     init() {
         for(let i=0; i<this.pCount; i++) this.pVel.push(new THREE.Vector3(0,0,0));
@@ -1965,11 +2229,66 @@ const Physics = {
         ctx1.fillStyle = g1; ctx1.fillRect(0,0,64,64);
         const pTex = new THREE.CanvasTexture(c1);
 
-        const pMat = new THREE.PointsMaterial({
-            size: 4.2, // 微調至 4.2，兼顧遠觀氣場與近看細節
-            map: pTex, vertexColors: true,
-            transparent: true, opacity: 0.75, // 淺色模式：提高不透明度讓氣場在白天更清晰
-            blending: THREE.NormalBlending, depthWrite: false, depthTest: true // 淺色模式改為 NormalBlending，防止粒子與白背景融合消失
+        // 新增：將粒子的速度傳入 GPU，用於動態拉絲計算
+        this.pGeom.setAttribute('velocity', new THREE.BufferAttribute(new Float32Array(CONFIG.pCount * 3), 3));
+
+        // 【維度一：流體物理】將單調的點狀粒子升級為「絲絹流體 (Velocity-Aligned Streaks)」 Shader
+        const pMat = new THREE.ShaderMaterial({
+            uniforms: {
+                pointTexture: { value: pTex }
+            },
+            vertexShader: `
+                attribute vec3 color;
+                attribute vec3 velocity;
+                varying vec3 vColor;
+                varying vec2 vVel;
+                varying float vSpeed;
+                void main() {
+                    vColor = color;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                    
+                    // 將 3D 速度投影到 2D 螢幕空間
+                    vec4 targetPos = modelViewMatrix * vec4(position + velocity * 0.15, 1.0);
+                    vVel = (projectionMatrix * targetPos).xy / (projectionMatrix * targetPos).w - gl_Position.xy / gl_Position.w;
+                    vSpeed = length(velocity);
+                    
+                    // 根據速度動態放大粒子，為拉長變形預留像素空間
+                    gl_PointSize = (60.0 / -mvPosition.z) * (1.0 + vSpeed * 0.25);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D pointTexture;
+                varying vec3 vColor;
+                varying vec2 vVel;
+                varying float vSpeed;
+                void main() {
+                    vec2 uv = gl_PointCoord - 0.5;
+                    
+                    // 計算螢幕空間的流體旋轉角度
+                    float angle = atan(vVel.y, vVel.x);
+                    float s = sin(-angle);
+                    float c = cos(-angle);
+                    mat2 rot = mat2(c, -s, s, c);
+                    
+                    vec2 rotatedUV = rot * uv;
+                    
+                    // 根據流速進行 X 軸 (前進方向) 的拉絲形變 (Motion Blur 視覺化)
+                    float stretch = max(1.0, vSpeed * 1.5);
+                    rotatedUV.x /= stretch; 
+                    rotatedUV += 0.5;
+                    
+                    // 剔除變形出界的像素
+                    if (rotatedUV.x < 0.0 || rotatedUV.x > 1.0 || rotatedUV.y < 0.0 || rotatedUV.y > 1.0) discard;
+                    
+                    vec4 texColor = texture2D(pointTexture, rotatedUV);
+                    // 根據速度降低透明度，速度越快越透，形成煙霧感
+                    gl_FragColor = vec4(vColor, texColor.a * clamp(1.2 - vSpeed*0.1, 0.2, 0.9));
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending, // 改回 Additive 讓重疊的真氣產生極亮太極暈
+            depthWrite: false, depthTest: true
         });
         this.pSys = new THREE.Points(this.pGeom, pMat);
         Engine3D.scene.add(this.pSys);
@@ -2034,10 +2353,47 @@ const Physics = {
             Engine3D.waterMesh.material.userData.shader.uniforms.time.value = AppState.frames * 0.05;
             Engine3D.waterMesh.material.userData.shader.uniforms.riverType.value = rType;
         }
+        if (Engine3D.treeMesh && Engine3D.treeMesh.material.userData.shader) {
+            Engine3D.treeMesh.material.userData.shader.uniforms.time.value = AppState.frames * 0.05;
+        }
 
         let baseWind = state.wind * 0.015;
         let capLimit = Rules.getCapacityLimit();
         let frameGather = 0, frameScatter = 0;
+
+        // 【新增：Grid-based CFD 網格流體求解器 (Navier-Stokes 近似)】
+        if (Math.abs(baseWind) > 0.001) {
+            for (let gz = 1; gz < 63; gz++) {
+                for (let gx = 1; gx < 63; gx++) {
+                    let idx = gz * 64 + gx;
+                    let worldX = (gx / 64) * 200 - 100;
+                    let worldZ = (gz / 64) * 200 - 100;
+                    let t = Engine3D.getTerrainY(worldX, worldZ);
+                    
+                    // 1. 地形邊界阻擋 (No-slip boundary 近似) 與風源注入
+                    if (t.y > -2) { 
+                        this.windGridX[idx] *= 0.5; // 高山阻擋風流
+                        this.windGridZ[idx] *= 0.5;
+                    } else { 
+                        this.windGridX[idx] += (baseWind - this.windGridX[idx]) * 0.08 * dt;
+                        this.windGridZ[idx] += (Math.sin(worldX * 0.05 + AppState.frames * 0.02) * Math.abs(baseWind) * 0.5 - this.windGridZ[idx]) * 0.08 * dt;
+                    }
+                    
+                    // 2. 擴散與壓力鬆弛 (Jacobi Iteration)
+                    let avgX = (this.windGridX[idx-1] + this.windGridX[idx+1] + this.windGridX[idx-64] + this.windGridX[idx+64]) * 0.25;
+                    let avgZ = (this.windGridZ[idx-1] + this.windGridZ[idx+1] + this.windGridZ[idx-64] + this.windGridZ[idx+64]) * 0.25;
+                    
+                    // 3. 旋度計算 (Vorticity Curl) -> 產生背風面卡門渦街氣旋
+                    let curl = (this.windGridZ[idx+1] - this.windGridZ[idx-1]) - (this.windGridX[idx+64] - this.windGridX[idx-64]);
+                    
+                    this.windGridX_next[idx] = avgX + curl * 0.25 * dt * Math.sign(avgZ);
+                    this.windGridZ_next[idx] = avgZ - curl * 0.25 * dt * Math.sign(avgX);
+                }
+            }
+            // Swap Buffers
+            let tmpX = this.windGridX; this.windGridX = this.windGridX_next; this.windGridX_next = tmpX;
+            let tmpZ = this.windGridZ; this.windGridZ = this.windGridZ_next; this.windGridZ_next = tmpZ;
+        }
 
         // 【湧現物理】觀測儀歸零
         let sensorCount = 0;
@@ -2146,8 +2502,13 @@ const Physics = {
             let isWater = ((state.w !== 'none' || state.yue) && t.y <= waterLevel + 0.5);
 
             // 【湧現物理】2. 網格地形向量流體場 
-            let globalWindX = baseWind;
-            let globalWindZ = Math.sin(x * 0.05 + AppState.frames * 0.02) * Math.abs(baseWind) * 0.5;
+            // 升級：從 CFD 網格中採樣真實流體風速 (包含卡門渦街與背風面氣旋)
+            let sampleX = Math.max(0, Math.min(63, Math.floor((x + 100) / 200 * 64)));
+            let sampleZ = Math.max(0, Math.min(63, Math.floor((z + 100) / 200 * 64)));
+            let gridIdx = sampleZ * 64 + sampleX;
+            
+            let globalWindX = this.windGridX[gridIdx] || baseWind;
+            let globalWindZ = this.windGridZ[gridIdx] || 0;
 
             let localWindX = globalWindX;
             let localWindZ = globalWindZ;
@@ -2731,18 +3092,54 @@ const Physics = {
                     vel.z += ((dxTaiji)*0.05 * spiralDir - dzTaiji*0.025*mult) * dt;
                     vel.y += (isYang ? 0.35 : -0.25) * mult * dt;
 
-                    if (st === 2 && Math.random() < 0.2) {
-                        let sampleStep = Math.floor(i + 13) % this.pCount;
-                        if (this.pState[sampleStep] === 2) {
-                            let rx = x - this.pPos[sampleStep*3];
-                            let rz = z - this.pPos[sampleStep*3+2];
-                            let distSq = rx*rx + rz*rz;
-                            if (distSq > 0 && distSq < 16.0) { 
-                                let dist = Math.sqrt(distSq);
-                                vel.x += (rx / dist) * 0.35 * dt;
-                                vel.z += (rz / dist) * 0.35 * dt;
+                    // 【優化：Boids 生氣群集效應】讓吉氣如同魚群般具有生命力，互相吸引與對齊
+                    if (st === 2 && Math.random() < 0.3) {
+                        let cohesionX = 0, cohesionZ = 0;
+                        let alignX = 0, alignZ = 0;
+                        let neighborCount = 0;
+                        
+                        // 採樣附近 3 個粒子，計算質心與平均流向
+                        for (let step = 1; step <= 3; step++) {
+                            let sampleIdx = Math.floor(i + step * 17) % this.pCount;
+                            if (this.pState[sampleIdx] === 2) {
+                                let nx = this.pPos[sampleIdx*3];
+                                let nz = this.pPos[sampleIdx*3+2];
+                                let rx = x - nx;
+                                let rz = z - nz;
+                                let distSq = rx*rx + rz*rz;
+                                
+                                if (distSq > 0 && distSq < 36.0) { // 感知半徑
+                                    cohesionX += nx; cohesionZ += nz;
+                                    alignX += this.pVel[sampleIdx].x; alignZ += this.pVel[sampleIdx].z;
+                                    neighborCount++;
+                                }
                             }
                         }
+
+                        if (neighborCount > 0) {
+                            // 1. 凝聚力 (Cohesion)：向附近同伴的中心靠攏
+                            cohesionX /= neighborCount; cohesionZ /= neighborCount;
+                            vel.x += (cohesionX - x) * 0.8 * dt;
+                            vel.z += (cohesionZ - z) * 0.8 * dt;
+                            
+                            // 2. 對齊力 (Alignment)：與同伴的流向保持一致
+                            alignX /= neighborCount; alignZ /= neighborCount;
+                            vel.x += (alignX - vel.x) * 0.4 * dt;
+                            vel.z += (alignZ - vel.z) * 0.4 * dt;
+                        }
+                        
+                        // 3. 尋龍趨化性 (Chemotaxis)：感應全域地氣網格，自動往能量梯度高處游動 (智能湧現)
+                        let cx = Math.max(0, Math.min(63, Math.floor((x + 100) / 200 * 64)));
+                        let cz = Math.max(0, Math.min(63, Math.floor((z + 100) / 200 * 64)));
+                        let qiLeft = this.qiGrid[cz * 64 + Math.max(0, cx - 1)] || 0;
+                        let qiRight = this.qiGrid[cz * 64 + Math.min(63, cx + 1)] || 0;
+                        let qiUp = this.qiGrid[Math.max(0, cz - 1) * 64 + cx] || 0;
+                        let qiDown = this.qiGrid[Math.min(63, cz + 1) * 64 + cx] || 0;
+                        
+                        let qiGradX = qiRight - qiLeft;
+                        let qiGradZ = qiDown - qiUp;
+                        vel.x += qiGradX * 1.5 * dt;
+                        vel.z += qiGradZ * 1.5 * dt;
                     }
 
                     if (mult > 0.6 && Math.random() < 0.15) {
@@ -2813,10 +3210,14 @@ const Physics = {
                 this.pLife[i] = 100 + Math.random() * 500; 
             }
             this.pPos[i*3]=x; this.pPos[i*3+1]=y; this.pPos[i*3+2]=z;
+            
+            // 同步更新流速供 GPU Shader 產生絲絹拉絲
+            this.pGeom.attributes.velocity.setXYZ(i, vel.x, vel.y, vel.z);
         }
 
         this.pGeom.attributes.position.needsUpdate = true;
         this.pGeom.attributes.color.needsUpdate = true;
+        this.pGeom.attributes.velocity.needsUpdate = true; // 新增：觸發 GPU 絲絹形變
         if(state.vHeat && AppState.frames % 4 === 0) Engine3D.heatTex.needsUpdate = true;
 
         Engine3D.windGroup.visible = state.vWind;
@@ -2911,12 +3312,81 @@ const Physics = {
         }
         AppState.sensors.waterDrag = waterDragCount > 0 ? (sumWaterDrag / waterDragCount) : 0;
 
+        // 【優化：全域氣場熱力網格 (Global Qi Heatmap & True Lair Finder)】
+        // 取代單純的質心追蹤，改用 64x64 空間網格「長期累積」吉氣駐留時間，找出真正的絕對寶地
+        let currentLairCount = 0;
+        
+        // 1. 網格自然衰減 (讓舊的氣場記憶慢慢消散，反應最新的地形改變)
+        for (let j = 0; j < 4096; j++) this.qiGrid[j] *= Math.pow(0.98, dt);
+        
+        // 2. 累積吉氣駐留頻率
+        for (let i = 0; i < this.pCount; i++) {
+            if (this.pState[i] === 2) {
+                let x = this.pPos[i*3], z = this.pPos[i*3+2];
+                let gx = Math.floor((x + 100) / 200 * 64);
+                let gz = Math.floor((z + 100) / 200 * 64);
+                if (gx >= 0 && gx < 64 && gz >= 0 && gz < 64) {
+                    this.qiGrid[gz * 64 + gx] += 1.0 * dt;
+                }
+                currentLairCount++;
+            }
+        }
+        
+        // 3. 找出歷史累積氣場最強的「正穴」網格點
+        let maxQi = 0, bestIdx = -1;
+        for (let j = 0; j < 4096; j++) {
+            if (this.qiGrid[j] > maxQi) { maxQi = this.qiGrid[j]; bestIdx = j; }
+        }
+        
+        if (Engine3D.lairMarker && bestIdx >= 0 && maxQi > 5.0) {
+            let bgX = bestIdx % 64;
+            let bgZ = Math.floor(bestIdx / 64);
+            
+            // 將網格索引轉回真實世界 3D 座標
+            let targetX = (bgX / 64) * 200 - 100 + (200/128);
+            let targetZ = (bgZ / 64) * 200 - 100 + (200/128);
+            let targetY = Engine3D.getTerrainY(targetX, targetZ).y;
+            
+            // 極度平滑的插值移動，光柱會緩慢而堅定地鎖定風水寶地
+            this.bestLairPos.x += (targetX - this.bestLairPos.x) * 0.03;
+            this.bestLairPos.z += (targetZ - this.bestLairPos.z) * 0.03;
+            this.bestLairPos.y = Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z).y;
+            
+            Engine3D.lairMarker.position.copy(this.bestLairPos);
+            
+            let targetOpacity = Math.min(0.5, maxQi / 60.0); // 累積越多光越亮
+            Engine3D.lairMarker.material.opacity += (targetOpacity - Engine3D.lairMarker.material.opacity) * 0.05;
+        } else if (Engine3D.lairMarker) {
+            Engine3D.lairMarker.material.opacity *= 0.9;
+        }
+
+        // 【優化：陰陽向背 (Yin-Yang Sun Exposure Sensor)】
+        // 偵測正穴是否被周圍高山遮蔽陽光，計算陰陽平衡
+        if (typeof AppState.sensors.sunlight === 'undefined') AppState.sensors.sunlight = 1.0;
+        
+        if (Engine3D.dirLight && Engine3D.lairMarker) {
+            let sunDir = Engine3D.dirLight.position.clone().normalize();
+            // 朝太陽方向檢查地形高度 (簡易光線追蹤 Raymarching)
+            let checkDist = 35.0; 
+            let checkX = this.bestLairPos.x + sunDir.x * checkDist;
+            let checkZ = this.bestLairPos.z + sunDir.z * checkDist;
+            let blockH = Engine3D.getTerrainY(checkX, checkZ).y;
+            let sunRayH = this.bestLairPos.y + sunDir.y * checkDist;
+            
+            // 若太陽在水平線上，但光線被前方/側方山脈擋住，則視為陰煞
+            let inShadow = (blockH > sunRayH);
+            let currentSun = (inShadow || sunDir.y < 0) ? 0.0 : 1.0;
+            
+            // 平滑累積日照率 (模擬一整天的平均向陽度)
+            AppState.sensors.sunlight += (currentSun - AppState.sensors.sunlight) * 0.02 * dt;
+        }
+
         let globalMult = Rules.getGlobalMultiplier();
         let weightedCapLimit = Math.min(frameGather / 40, capLimit) * globalMult;
         AppState.gatherAcc += (weightedCapLimit - AppState.gatherAcc) * 0.05 * dt;
         AppState.scatterAcc += (frameScatter / 20 - AppState.scatterAcc) * 0.1 * dt;
 
-        let sensorHtml = `[湧現觀測儀] 氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}`;
+        let sensorHtml = `[湧現觀測儀] 氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}<br>陰陽向陽度: ${(AppState.sensors.sunlight*100).toFixed(1)}%`;
         let sEl = document.getElementById('sensor-data');
         if(sEl) sEl.innerHTML = sensorHtml;
 
@@ -2963,11 +3433,50 @@ function animate() {
     let delta = clock.getDelta();
     if (delta > 0.1) delta = 0.1;
 
-    // 視角 Lerp 平滑插值移動
+    // 【優化：動態日照與陰影系統 (Day-Night Cycle)】
+    if (Engine3D.dirLight && AppState.current.time !== '0') {
+        let timeMult = parseFloat(AppState.current.time);
+        Engine3D.sunAngle += delta * 0.05 * timeMult;
+        
+        // 模擬太陽東昇西落 (軌跡跨越南方天空)
+        let sunX = Math.cos(Engine3D.sunAngle) * 180;
+        let sunY = Math.sin(Engine3D.sunAngle) * 150;
+        let sunZ = 50 + Math.sin(Engine3D.sunAngle * 0.5) * 50; 
+        
+        // 避免太陽落入地底過深，隔天清晨重新升起
+        if (sunY < -20) Engine3D.sunAngle = 0; 
+        
+        Engine3D.dirLight.position.set(sunX, Math.max(5, sunY), sunZ);
+        
+        // 根據太陽高度角調整色溫與強度 (清晨/黃昏的黃金時刻 vs 正午冷白光)
+        let altitude = Math.max(0, sunY / 150);
+        Engine3D.dirLight.intensity = Math.max(0.1, altitude * 1.5);
+        
+        if (altitude < 0.3) {
+            Engine3D.dirLight.color.setHSL(0.08, 0.8, 0.5 + altitude); // 橘紅色暮光
+            Engine3D.hemiLight.color.setHSL(0.6, 0.4, 0.2 + altitude); // 暗藍色天光
+            Engine3D.hemiLight.intensity = 0.4;
+        } else {
+            Engine3D.dirLight.color.setHSL(0.1, 0.2, 0.95); // 正午明亮白光
+            Engine3D.hemiLight.color.setHSL(0.6, 0.3, 0.7); // 明亮天藍色
+            Engine3D.hemiLight.intensity = 0.7;
+        }
+    }
+
+    // 【優化：無人機地形跟隨鏡頭防穿模 (Anti-Clipping Flight)】
     if (Engine3D.isTransitioning && Engine3D.targetCamPos) {
-        Engine3D.camera.position.lerp(Engine3D.targetCamPos, 0.08);
+        // 水平與視角目標平滑插值
+        Engine3D.camera.position.x += (Engine3D.targetCamPos.x - Engine3D.camera.position.x) * 0.06;
+        Engine3D.camera.position.z += (Engine3D.targetCamPos.z - Engine3D.camera.position.z) * 0.06;
         Engine3D.controls.target.lerp(Engine3D.targetLookAt, 0.08);
-        if (Engine3D.camera.position.distanceTo(Engine3D.targetCamPos) < 0.2) {
+        
+        // 高度安全檢測雷達：確保飛行過程中不會撞山 (防穿模)
+        let currentTerrainY = Engine3D.getTerrainY(Engine3D.camera.position.x, Engine3D.camera.position.z).y;
+        let safeY = Math.max(Engine3D.targetCamPos.y, currentTerrainY + 15.0); // 至少與地面保持安全距離
+        
+        Engine3D.camera.position.y += (safeY - Engine3D.camera.position.y) * 0.08;
+
+        if (Engine3D.camera.position.distanceTo(Engine3D.targetCamPos) < 1.5) {
             Engine3D.isTransitioning = false;
         }
     }
@@ -2978,7 +3487,13 @@ function animate() {
     UI.drawRadar(delta);
 
     Engine3D.controls.update();
-    Engine3D.renderer.render(Engine3D.scene, Engine3D.camera);
+    
+    // 【維度三：地貌渲染】輸出帶有後期處理輝光的畫面
+    if (Engine3D.composer) {
+        Engine3D.composer.render();
+    } else {
+        Engine3D.renderer.render(Engine3D.scene, Engine3D.camera);
+    }
 }
 animate();
 

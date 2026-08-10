@@ -362,6 +362,7 @@ class FengShuiEngine {
     // ==========================================
     let kineticSha = 0; // 動能煞氣
     let vortexQi = 0;   // 渦流吉氣
+    let waterBroken = false; // 【修正】紀錄水局是否被極速風動能扯破
     let localField = { metal: 0, wood: 0, water: 0, fire: 0, earth: 0 };
     let wuXingText = "";
     let skyViewFactor = 1.0; // 【修正】提前宣告 SVF 變數，預設全開闊 1.0
@@ -533,10 +534,20 @@ class FengShuiEngine {
           }
           if (narrowGapDetected) break;
       }
-      // 修正：若明堂前方有水體（如玉帶水、九曲水、化煞水池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
-      const hasWaterBarrier = ['jade', 'nine'].includes(st.water) || st.cure.includes('pool') || st.shuifa.includes('banyue');
+      // 修正：若明堂前方有大型水體（如玉帶水、九曲水、水法半月池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
+      // 【修正】若水勢為煞水（cut、rush、bow、tfork、lintou、bazi），則水體不能擋風，反而形成煞氣，故不應視為屏障
+      // 【修正】化煞水池（cure pool）面積較小，無法有效阻擋強風，不應視為屏障，避免無水且風大時誤判
+    // 修正：若明堂前方有大型水體（如玉帶水、九曲水、水法半月池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
+    // 【修正】若水勢為煞水（cut、rush、bow、tfork、lintou、bazi），則水體不能擋風，反而形成煞氣，故不應視為屏障
+    // 【修正】化煞水池（cure pool）面積較小，無法有效阻擋強風，不應視為屏障，避免無水且風大時誤判
+    // 【修正】極速風動能判斷水局是否會被扯破，若已扯破則不應再被視為擋風屏障（例如水局被扯破但仍誤擋八風吹穴）
+    const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    const waterBrokenByWind = !isShaWaterForBarrier && extWindSpeed >= 12 && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
+    const hasWaterBarrier = !isShaWaterForBarrier && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
-      if (frontOpenness > 0.85 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier) emptyFrontWind = true; 
+      // 【修正】若前方有實體案山（lowcase 案樓），即使 SVF 高度開闊，仍不應觸發八風吹穴，因案山本身即具備擋風聚氣功能
+      const hasCloseCase = st.front === 'lowcase';
+      if (frontOpenness > 0.85 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier && !hasCloseCase) emptyFrontWind = true; 
     }
 
     // ==========================================
@@ -784,8 +795,6 @@ class FengShuiEngine {
     if (vFront < 1) c = Math.max(c, 120);
     // 確保容量不低於20，不高於150，但若明堂極度開闊且水聚，可允許較高容量
     c = Math.max(20, Math.min(150, c));
-    // 額外限制：容量不得低於煞氣值，避免淨效益過度負值
-    if (c < s) c = s;
     // 修正：若明堂開闊且無明顯煞氣，容量不應過低，避免吉氣被不合理壓制
     if (vFront < 50 && s < 30) c = Math.max(c, 60);
     if (vFront < 50) g += 15; // 明堂開闊
@@ -848,8 +857,9 @@ class FengShuiEngine {
     }
 
     if(st.liqi==='back') {
-        g -= 12; s += 14;
-        c = Math.max(10, c - 20); // 背水坐空
+        s += 14;
+        c = Math.max(10, c - 20); // 背水坐空，氣散而容量大減
+        g = Math.max(0, g - 6);   // 修正：背水坐空主退氣，但不會完全抹滅吉氣，僅輕微扣減
     }
 
     // ==========================================
@@ -898,11 +908,12 @@ class FengShuiEngine {
         let tearForce = (extWindSpeed - 10) * 15;
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
+        waterBroken = true; // 【修正】水局已破，後續陰陽計算不應再視水體為陰氣來源
         observerText.push(`流體｜極速動能(強度${extWindSpeed})產生強烈氣穴與剪力，徹底扯破了明堂的水局介質，聚氣之水翻轉為【散氣風煞】！`);
-    } else if ((st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue')) && !st.special.includes('qingxie')) {
+    } else if ((st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue')) && !st.special.includes('qingxie') && st.terrain !== 'slope') {
         observerText.push(`流體｜界水則止，真氣遇水盤旋不散 (自然湧現: 水聚明堂)`);
-    } else if (st.special.includes('qingxie') && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
-        observerText.push(`流體｜地勢傾瀉，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
+    } else if ((st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+        observerText.push(`流體｜地勢傾斜，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
     }
 
     // 【修正】物理引擎補捉抬轎懸空的穿堂風效應
@@ -978,6 +989,9 @@ class FengShuiEngine {
     // 修正：加入其他物理因素對陰陽的影響
     if (kineticSha > 20) yang += 2; // 高動能煞氣增加陽氣躁動
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
+    // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
+    // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
+    if (!waterBroken && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'))) yin += 2;
     if (st.cure.includes('pool') || st.cure.includes('fountain')) yin += 1; // 水體增加陰氣
     if (st.cure.includes('stone') || st.cure.includes('mirror')) yang += 1; // 剛體增加陽氣
     // 修正：加入地形與水法對陰陽的影響
@@ -1198,7 +1212,8 @@ class FengShuiEngine {
     if (s > 20) physicsText.push(`動力學｜高動能氣流撞擊明堂，產生紊流，物理煞氣值 ${Math.round(s)}`);
     if (vortexQi > 10) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
     // 【終極修正】陰陽文字完全以數值為準，避免地形/水向造成誤判
-    yyText = yyBalance > 3 ? "陽氣過盛 (明堂空曠或風速極大，氣散不聚)" : yyBalance < -3 ? "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)" : yyBalance === 3 ? "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)" : yyBalance === -3 ? "陰氣略盛 (建築逼壓或氣流停滯)" : "平 (空間開闊度與氣波動能適中)";
+    // 【修正】修正 yyBalance 恰為 ±3 時錯誤引用地形/水向描述（如平地卻顯示地勢傾斜），改為中性但保留實際情境判斷
+    yyText = yyBalance > 3 ? "陽氣過盛 (明堂空曠或風速極大，氣散不聚)" : yyBalance < -3 ? "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)" : yyBalance === 3 ? (st.terrain === 'slope' ? "陽氣略盛 (地勢傾斜，氣流躁動)" : st.waterDir === 'shuai' ? "陽氣略盛 (水勢衰敗，氣流躁動)" : "陽氣略盛 (氣場流動稍快，稍微偏陽)") : yyBalance === -3 ? (st.left === 'oppress' || st.right === 'raise' ? "陰氣略盛 (建築逼壓或氣流停滯)" : "陰氣略盛 (氣場流動稍緩，稍微偏陰)") : "平 (空間開闊度與氣波動能適中)";
     return {
         g: Math.round(g),
         s: Math.round(s),
@@ -2899,7 +2914,7 @@ class UIManager {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
     } else if (netEff >= 15 && realS < 50) {
       vt = '小吉・瑕不掩瑜，微疵可化'; vc = 'good'; 
-    } else if (realG >= 60 && realS >= 60 && netEff > -20) {
+    } else if (realG >= 60 && realS >= 60 && netEff > 0) {
       vt = '險局・富貴險中求 (帶煞發貴)'; vc = 'mid'; 
     } else if (realS < 30 && realG < 30) {
       vt = (yy > 3) ? '平庸・氣局停滯，陰陽偏枯' : '平局・平穩少災，庸碌之象'; vc = 'mid'; 
