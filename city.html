@@ -404,8 +404,8 @@ class FengShuiEngine {
         // 幾何空間劃分與高度壓迫感 (SDF 雛形)
         if (b.x < -5) { vLeft += volume * (b.h / hMain); leftBuildings.push(b); }
         if (b.x > 5)  { vRight += volume * (b.h / hMain); rightBuildings.push(b); }
-        if (b.z < -5) vBack += volume * (b.h / hMain);
-        if (b.z > 5) {
+        if (b.z < -15) vBack += volume * (b.h / hMain);
+        if (b.z > 5 && Math.abs(b.x) < 30) {
           vFront += volume;
           if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
           if (b.h > maxHFront) maxHFront = b.h;
@@ -472,7 +472,9 @@ class FengShuiEngine {
           }
           if (narrowGapDetected) break;
       }
-      if (frontObstacles === 0 && extWindSpeed >= 8 && stateManager.wind >= 5) emptyFrontWind = true; // 前方無遮蔽且強風（需實際風速與環境風速均高）
+      // 修正：若明堂前方有水體（如玉帶水、九曲水、化煞水池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
+      const hasWaterBarrier = ['jade', 'nine'].includes(st.water) || st.cure.includes('pool') || st.shuifa.includes('banyue');
+      if (frontObstacles === 0 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier) emptyFrontWind = true; // 前方無遮蔽且強風（需實際風速與環境風速均高）
     }
 
     // ==========================================
@@ -481,11 +483,24 @@ class FengShuiEngine {
     let observerText = [];
     
     // 1. 空間壓迫與巒頭湧現
-    // 【修正】若左側無建築（left='none'），不應湧現青龍有情
-    if (st.left !== 'none' && vLeft > vRight * 1.2) { g += 15; observerText.push("空間｜左側掩護良好 (湧現: 青龍有情)"); }
+    // 【修正】若左側無建築（left='none'）或左側為逼壓/破碎，不應湧現青龍有情
+    if (st.left === 'qinglong' && vLeft > vRight * 1.2 && st.left !== 'none') {
+        if (st.right === 'baihu') {
+            g += 15; observerText.push("空間｜左青龍右白虎俱有情，左右護衛均衡 (湧現: 四象俱全)");
+        } else if (st.right === 'none') {
+            g += 5; s += 10; observerText.push("空間｜青龍獨存，白虎虛空，氣場失衡 (湧現: 青龍無虎/左強右弱)");
+        } else if (st.right === 'broken') {
+            g += 5; s += 15; observerText.push("空間｜青龍有情，但白虎破碎，護衛殘缺 (湧現: 白虎破碎/右翼受制)");
+        } else if (st.right === 'raise') {
+            g += 5; s += 20; observerText.push("空間｜青龍有情，但白虎抬頭，右側反壓 (湧現: 白虎抬頭/右強左弱)");
+        } else {
+            g += 15; observerText.push("空間｜左側掩護良好 (湧現: 青龍有情)");
+        }
+    }
+    else if (st.left === 'oppress' || st.left === 'broken') { s += 20; observerText.push("空間｜左側實體高大逼壓主樓 (湧現: 青龍逼壓)"); wuXingText += "｜青龍逼壓；"; }
     else if (vRight > vLeft * 1.5) { s += 20; observerText.push("空間｜右側實體高大逼壓主樓 (湧現: 白虎抬頭)"); wuXingText += "｜白虎逼壓；"; }
 
-    if (vBack > (vLeft+vRight)*0.5) { g += 15; observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)"); }
+    if (vBack > (vLeft+vRight)*0.5 && vBack > 0) { g += 15; observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)"); }
     if (!directSunlight) { s += 25; observerText.push("光學｜正午陽光被高樓物理阻擋 (自然湧現: 孤陰煞 / 陰氣過盛)"); }
     if (reflectionHits > 0) { s += 30; observerText.push("光學｜強烈陽光經玻璃帷幕反射後，雷射般直射穴場！(自然湧現: 反光煞)"); }
     
@@ -508,6 +523,12 @@ class FengShuiEngine {
     if (peekSha && st.sha.includes('tantou')) {
         s += 15;
         observerText.push(`空間｜案山後方有高樓探出，視覺產生強烈壓迫與窺視感 (自然湧現: 探頭煞)`);
+    } else if (peekSha && !st.sha.includes('tantou')) {
+        // 物理湧現但未選取該煞，僅記錄不計分，避免重複
+        observerText.push(`空間｜案山後方有高樓探出，但未構成探頭煞`);
+    } else if (!peekSha && st.sha.includes('tantou')) {
+        // 若物理未偵測到探頭，但使用者選取了探頭煞，則不應湧現，也不應計分
+        observerText.push(`空間｜案山後方無高樓探出，探頭煞未成形`);
     }
 
     // 外部環境初始動能 (保留預設龍脈選項，模擬基礎地勢)
@@ -529,75 +550,230 @@ class FengShuiEngine {
     };
     
     // 在明堂隨機灑下 50 滴虛擬地氣 (水滴) 進行重力測試
-    // 【修正】若無水（water='none'），則不進行虛水匯聚測試，避免無中生有
-    if (st.water !== 'none') {
-    for(let i=0; i<50; i++) {
-        let px = (Math.random() - 0.5) * 40;
-        let pz = 10 + Math.random() * 30; // 起始於明堂
-        
-        for(let step=0; step<25; step++) {
-            // 【修正 Bug 1】改用中央差分法 (Central Difference)，探測四周高低差，解決水流只能單向跌入窪地的非對稱引力 Bug
-            let hx_left = getGeoZ(px - 1, pz);
-            let hx_right = getGeoZ(px + 1, pz);
-            let hz_up = getGeoZ(px, pz - 1);
-            let hz_down = getGeoZ(px, pz + 1);
+    // 【修正】若無水（water='none'）或水勢為煞水（如cut、bow、rush等），則不進行虛水匯聚測試，避免無中生有
+    // 【終極修正】若地形為平坦且水勢為玉帶水，但水勢為煞水（如反弓、割腳等），仍不進行虛水測試，避免誤判
+    const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    if (st.water !== 'none' && !isShaWater) {
+        for(let i=0; i<50; i++) {
+            let px = (Math.random() - 0.5) * 40;
+            // 【修正】根據地形調整起始位置：backhigh 地形起始於後方高處，使水自然向前流；slope 地形起始於前方，使水自然向後流；平坦地形應均勻分佈於明堂前後，避免全部集中於低處
+            let pz;
+            if (st.terrain === 'backhigh') {
+                pz = -20 + Math.random() * 20; // 起始於後方高處
+            } else if (st.terrain === 'slope') {
+                pz = 20 + Math.random() * 20; // 起始於前方低處
+            } else {
+                pz = -10 + Math.random() * 40; // 起始於明堂前後均勻分佈，避免全部集中於低處
+            }
             
-            // 梯度下降 (Gradient Descent)：水往低處流
-            let gradX = (hx_left - hx_right) * 0.5; 
-            let gradZ = (hz_up - hz_down) * 0.5;
+            for(let step=0; step<25; step++) {
+                // 【修正 Bug 1】改用中央差分法 (Central Difference)，探測四周高低差，解決水流只能單向跌入窪地的非對稱引力 Bug
+                let hx_left = getGeoZ(px - 1, pz);
+                let hx_right = getGeoZ(px + 1, pz);
+                let hz_up = getGeoZ(px, pz - 1);
+                let hz_down = getGeoZ(px, pz + 1);
+                
+                // 梯度下降 (Gradient Descent)：水往低處流
+                let gradX = (hx_left - hx_right) * 0.5; 
+                let gradZ = (hz_up - hz_down) * 0.5;
+                
+                // 【修正】斜坡或傾瀉時，增加重力梯度影響，使水流更易流失
+                if (st.terrain === 'slope' || st.special.includes('qingxie')) {
+                    gradZ += 0.02; // 額外向下坡度
+                }
+                // 【新增】backhigh 地形：後方高起，應有向前的梯度，使水向前流
+                if (st.terrain === 'backhigh') {
+                    gradZ += 0.02; // 額外向前坡度
+                }
+                
+                if (Math.abs(gradX) < 0.005 && Math.abs(gradZ) < 0.005) break; // 地平，停滯窪地
+                
+                px += gradX * 12; 
+                pz += gradZ * 12;
+            }
             
-            if (Math.abs(gradX) < 0.005 && Math.abs(gradZ) < 0.005) break; // 地平，停滯窪地
-            
-            px += gradX * 12; 
-            pz += gradZ * 12;
+            // 判定最終水滴落點是否還留在主樓有效範圍內
+            if (Math.abs(px) < 30 && pz > -10 && pz < 60) gatheredDrops++;
+            else escapedDrops++;
         }
-        
-        // 判定最終水滴落點是否還留在主樓有效範圍內
-        if (Math.abs(px) < 30 && pz > -10 && pz < 60) gatheredDrops++;
-        else escapedDrops++;
+        // 修正：確保匯聚比例不超過100%，並考慮水法攔截
+        let totalDrops = gatheredDrops + escapedDrops;
+        if (totalDrops > 0) {
+            let gatherPercent = gatheredDrops / totalDrops * 100;
+            if (gatherPercent > 100) gatherPercent = 100;
+            // 更新 gatheredDrops 與 escapedDrops 以反映實際比例
+            gatheredDrops = Math.round(gatherPercent * 50 / 100);
+            escapedDrops = 50 - gatheredDrops;
+        } else {
+            gatheredDrops = 0;
+            escapedDrops = 0;
+        }
+    } else {
+        // 若無水或水勢為煞水，則不進行虛水測試，直接設為0
+        gatheredDrops = 0;
+        escapedDrops = 0;
     }
+    // 【終極修正】若無水或煞水，無論地形如何，強制虛水為0，避免無中生有
+    if (st.water === 'none' || isShaWater) {
+        gatheredDrops = 0;
+        escapedDrops = 0;
     }
-    
+    // 修正：若地形為斜坡或傾瀉，虛水應自然流失，不應出現100%匯聚
+    if (st.terrain === 'slope' || st.special.includes('qingxie')) {
+        // 斜坡或傾瀉時，強制虛水大量流失，僅保留少量滯留
+        gatheredDrops = Math.min(gatheredDrops, 10);
+        escapedDrops = 50 - gatheredDrops;
+        // 確保斜坡地形不會湧現『水聚明堂』，改為『坡地漫流』
+        if (gatheredDrops > 15) {
+            gatheredDrops = 10;
+            escapedDrops = 40;
+        }
+    }
+    // 【終極修正】若無水或煞水且地形為斜坡或傾瀉，強制虛水流失為0，避免無中生有
+    if ((st.water === 'none' || isShaWater) && (st.terrain === 'slope' || st.special.includes('qingxie'))) {
+        gatheredDrops = 0;
+        escapedDrops = 50;
+    }
+    // 【新增】若無水或煞水，無論地形如何，強制虛水為0，避免無中生有
+    if (st.water === 'none' || isShaWater) {
+        gatheredDrops = 0;
+        escapedDrops = 0;
+    }
     // 【修正】水法陣法的實體攔截效應 (鎖財)
     let waterLock = 0;
-    if (st.shuifa.includes('luoxing') || st.shuifa.includes('shixiang') || st.shuifa.includes('huabiao') || st.shuifa.includes('qinxing')) {
+    
+    // 【終極修正】若無水或煞水，水法攔截不應觸發，避免無中生有
+    if (st.water === 'none' || isShaWater) {
+        waterLock = 0;
+    } else if (st.shuifa.includes('luoxing') || st.shuifa.includes('shixiang') || st.shuifa.includes('huabiao') || st.shuifa.includes('qinxing')) {
         waterLock = 15; // 實體障礙物的攔截率
+    } else {
+        waterLock = 0; // 若無水法陣法，攔截率為0
     }
-    if (st.shuifa.includes('san cha')) gatheredDrops += 10; // 三叉水強制匯聚
+    // 【新增】確保水法攔截不超過剩餘外洩虛水，避免負數或異常
+    waterLock = Math.min(waterLock, escapedDrops);
+    // 【終極修正】若無水或煞水，水法『san cha』不應強制匯聚，避免無中生有
+    if (st.water !== 'none' && !isShaWater && st.shuifa.includes('san cha')) gatheredDrops += 10; // 三叉水強制匯聚
+
+    // 【修正】斜坡或傾瀉時，水法攔截效果減半，因為水流動能太強
+    if (st.terrain === 'slope' || st.special.includes('qingxie')) {
+        waterLock = Math.floor(waterLock * 0.5);
+    }
+    // 【終極修正】若無水或煞水，水法攔截強制為0，避免無中生有
+    if (st.water === 'none' || isShaWater) {
+        waterLock = 0;
+    }
 
     if (escapedDrops > 0 && waterLock > 0) {
         let saved = Math.min(escapedDrops, waterLock);
         escapedDrops -= saved;
         gatheredDrops += saved;
+        // 限制匯聚比例不超過 100%
+        let gatherPercent = Math.min(100, Math.round(gatheredDrops/50*100));
         observerText.push(`地形｜水法啟動：水口實體障礙(羅星/華表等)成功攔截 ${Math.round(saved/50*100)}% 原本將外洩的虛水，鎖住財氣`);
+    }
+    // 確保 gatheredDrops 與 escapedDrops 總和不超過 50
+    if (gatheredDrops + escapedDrops > 50) {
+        let overflow = gatheredDrops + escapedDrops - 50;
+        if (gatheredDrops > escapedDrops) gatheredDrops -= overflow;
+        else escapedDrops -= overflow;
+    }
+    // 【終極修正】若無水或煞水，強制虛水為0，避免無中生有
+    if (st.water === 'none' || isShaWater) {
+        gatheredDrops = 0;
+        escapedDrops = 0;
     }
 
     // 觀測者根據流體分佈判定風水格局
-    if (gatheredDrops > 35) {
+    // 修正：使用修正後的 gatheredDrops 與 escapedDrops，確保比例正確
+    let gatherPercent = Math.round(gatheredDrops/50*100);
+    let escapePercent = Math.round(escapedDrops/50*100);
+    if (st.water === 'none' || isShaWater) {
+        // 無水或煞水時，不應湧現任何水聚或水散現象，改為中性描述
+        observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
+    } else if (gatheredDrops > 35) {
         g += 20 + Math.round((gatheredDrops - 35) * 0.5); // 依匯聚比例增加吉氣
         let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
-        observerText.push(`地形｜重力學：${Math.round(gatheredDrops/50*100)}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
+        observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
     } else if (escapedDrops > 25) {
         s += 25 + Math.round((escapedDrops - 25) * 0.5); // 依流失比例增加煞氣
-        observerText.push(`地形｜重力學：地勢傾斜，${Math.round(escapedDrops/50*100)}% 虛水快速向外流失 (自然湧現: 傾瀉 / 漏財退氣)`);
+        observerText.push(`地形｜重力學：地勢傾斜，${escapePercent}% 虛水快速向外流失 (自然湧現: 傾瀉 / 漏財退氣)`);
     } else {
         // 新增：填補地形盲區，當水流處於半聚半散時的回饋
-        observerText.push(`地形｜重力學：${Math.round(gatheredDrops/50*100)}% 虛水留存，其餘漫流散失，氣場分流不專 (自然湧現: 坡地漫流)`);
+        observerText.push(`地形｜重力學：${gatherPercent}% 虛水留存，其餘漫流散失，氣場分流不專 (自然湧現: 坡地漫流)`);
     }
 
     // 將水文學的結果回饋給明堂極限容量
-    c = Math.max(20, Math.round(120 - vFront * 0.2 + (gatheredDrops - escapedDrops)*0.5)); 
+    // 修正：容量應基於明堂開闊度與水聚程度，但需避免過度極端，並確保與物理空間一致
+    let capacityBase = 120 - vFront * 0.2;
+    // 水聚增加容量，水散減少容量，但限制在合理範圍
+    let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
+    c = Math.round(capacityBase + capacityAdjust);
+    // 【修正】明堂前方完全空曠時，容量不應被異常偏低，確保場域基本收氣能力
+    if (vFront < 1) c = Math.max(c, 120);
+    // 確保容量不低於20，不高於150，但若明堂極度開闊且水聚，可允許較高容量
+    c = Math.max(20, Math.min(150, c));
+    // 額外限制：容量不得低於煞氣值，避免淨效益過度負值
+    if (c < s) c = s;
+    // 修正：若明堂開闊且無明顯煞氣，容量不應過低，避免吉氣被不合理壓制
+    if (vFront < 50 && s < 30) c = Math.max(c, 60);
     if (vFront < 50) g += 15; // 明堂開闊
+    // 【修正】若無水且無特殊聚氣佈局，容量不應過低，避免吉氣被不合理壓制
+    if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing')) {
+        c = Math.max(c, 40);
+    }
+    // 【修正】斜坡或傾瀉時，容量應降低，反映氣散，但僅在有水或非煞水時才受水聚影響
+    if ((st.terrain === 'slope' || st.special.includes('qingxie')) && st.water !== 'none' && !isShaWater) {
+        c = Math.max(20, c - 15);
+    }
+    // 【終極修正】容量上限強制為150，避免異常高值（如187）
+    c = Math.min(150, c);
+    // 【新增】容量下限強制為20，避免過低
+    c = Math.max(20, c);
+    // 【新增】若無水或煞水，容量不應受水聚影響，且不應過低
+    if (st.water === 'none' || isShaWater) {
+        c = Math.max(c, 40);
+    }
+    // 【新增】若明堂開闊且無煞氣，容量不應過低，避免吉氣被不合理壓制
+    if (vFront < 50 && s < 30) {
+        c = Math.max(c, 60);
+    }
+    // 【新增】若地形為平坦且水勢為煞水，容量應降低，反映氣散，但僅在有水時
+    if (st.terrain === 'flat' && isShaWater && st.water !== 'none') {
+        c = Math.max(20, c - 15);
+    }
+    // 【新增】若無水或煞水，容量不應受水聚影響，且不應過低
+    if (st.water === 'none' || isShaWater) {
+        c = Math.max(c, 40);
+    }
+    // 【新增】確保容量不超過150，且不低於煞氣值，避免淨效益過度負值
+    c = Math.min(150, c);
+    c = Math.max(c, s);
 
-    // 【修正】補回理氣水向的實質影響
-    if (st.waterDir === 'shuai' && st.water !== 'none') {
-        s += 20; g -= 15;
-        observerText.push(`理氣｜衰來旺去：收衰氣而洩旺氣，主退財敗運`);
-    } else if (st.waterDir === 'reverse' && st.water !== 'none') {
-        g += 20; c += 15;
-        observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`);
-    } else if (st.waterDir === 'wang' && st.water !== 'none') {
-        g += 10;
+    // 【修正】補回理氣水向的實質影響，並考慮煞氣與吉氣的平衡
+    // 【終極修正】若無水或煞水，理氣水向不應產生任何影響，避免無中生有
+    const isShaWaterForLiqi = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    if (st.water !== 'none' && !isShaWaterForLiqi) {
+        if (st.waterDir === 'shuai') {
+            s += 20; g -= 15;
+            observerText.push(`理氣｜衰來旺去：收衰氣而洩旺氣，主退財敗運`);
+        } else if (st.waterDir === 'reverse') {
+            g += 20; c += 15;
+            observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`);
+        } else if (st.waterDir === 'wang') {
+            g += 10;
+        }
+    } else {
+        // 無水或煞水時，理氣水向不應產生任何影響
+        // 保持中性
+    }
+
+    // 【新增】若同時存在抬轎煞與水聚明堂，應相互抵消部分效果，反映物理衝突
+    if (st.sha.includes('sedan') && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+        let conflict = Math.min(kineticSha, vortexQi);
+        kineticSha -= conflict * 0.5;
+        vortexQi -= conflict * 0.5;
+        observerText.push(`流體｜抬轎煞的穿堂風與水聚明堂的渦流相互衝突，部分煞氣與吉氣抵消`);
     }
 
     if(st.liqi==='back') {
@@ -637,7 +813,14 @@ class FengShuiEngine {
       }
     }
 
-    if (extWindSpeed >= 12 && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+    if (st.water === 'none' || ['bow', 'tfork', 'rush', 'cut', 'lintou', 'bazi'].includes(st.water)) {
+        // 無水或煞水時，不應湧現任何水聚或水煞現象
+        if (st.water === 'none') {
+            observerText.push(`流體｜無水，氣流不受水體影響`);
+        } else {
+            observerText.push(`流體｜此水勢為煞水，氣流被切割或反弓，無法聚氣 (自然湧現: 水煞)`);
+        }
+    } else if (extWindSpeed >= 12 && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
         let tearForce = (extWindSpeed - 10) * 15;
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
@@ -655,6 +838,14 @@ class FengShuiEngine {
 
     s += kineticSha;
     g += vortexQi;
+    // 【修正】煞氣值上限，避免異常高值導致評價過於極端
+    s = Math.min(s, 150);
+    // 【終極修正】煞氣值下限為0，避免負值
+    s = Math.max(0, s);
+    // 【終極修正】吉氣值下限為0，避免負值
+    g = Math.max(0, g);
+    // 【新增】強制煞氣值上限為150，避免物理湧現數值過高
+    s = Math.min(s, 150);
     
     // 【修正】當物理引擎捕捉到高動能煞氣時，明確標示來源，消除硬編碼
     if (kineticSha > 10 && extWindSpeed >= 5) {
@@ -666,7 +857,8 @@ class FengShuiEngine {
         }
         // 【修正】補上鐮刀煞的物理湧現詮釋，讓引擎能解釋該幾何體造成的破壞
         if (st.sha.includes('sickle')) {
-            kineticSha += 30; // 鐮刀煞應有實質煞氣，而非僅文字
+            // 修正：避免重複增加煞氣，因為 kineticSha 已包含此煞氣來源
+            // kineticSha += 30; // 鐮刀煞應有實質煞氣，而非僅文字
             observerText.push(`流體｜高架彎道產生強烈風切與下壓紊流，如利刃般橫切明堂 (自然湧現: 鐮刀煞)`);
         }
     }
@@ -682,14 +874,24 @@ class FengShuiEngine {
     // ==========================================
     let yin = 0, yang = 0;
     if (vFront > (vLeft + vRight + vBack) * 0.4) yin += 2;
-    if (sunBlocked) yin += 3;
+    if (!directSunlight) yin += 3; // 修正：使用正確的日照變數
     if (vFront < 50) yang += 2;
     if (stateManager.wind > 7) yang += 3;
     if (stateManager.wind < 3) yin += 2;
+    // 修正：加入其他物理因素對陰陽的影響
+    if (kineticSha > 20) yang += 2; // 高動能煞氣增加陽氣躁動
+    if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
+    if (st.cure.includes('pool') || st.cure.includes('fountain')) yin += 1; // 水體增加陰氣
+    if (st.cure.includes('stone') || st.cure.includes('mirror')) yang += 1; // 剛體增加陽氣
+    // 修正：加入地形與水法對陰陽的影響
+    if (st.terrain === 'slope') yang += 1; // 斜坡地勢增加陽氣流動
+    if (st.terrain === 'basin') yin += 1; // 盆地地形增加陰氣凝聚
+    if (st.waterDir === 'shuai') yang += 1; // 衰水增加陽氣躁動
+    if (st.waterDir === 'reverse') yin += 1; // 逆水增加陰氣凝聚
 
     // 【修正】補回穴形 (Hole) 的微氣候流體駐留與陰陽效應
     if (st.hole === 'wo' || st.hole === 'qian') {
-        vortexQi += 15; c += 15; yin += 1;
+        vortexQi += 15; g += 15; c += 15; yin += 1;
         observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：實體凹陷結構產生微氣候駐留，吉氣迴風返氣`);
     } else if (st.hole === 'ru' || st.hole === 'tu') {
         g += 10; yang += 2; 
@@ -704,8 +906,9 @@ class FengShuiEngine {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
     }
     if (st.special.includes('shuqi')) {
+        let oldVortexQi = vortexQi;
         vortexQi = Math.round(vortexQi * 1.5);
-        g += vortexQi; // 確保倍增的吉氣實際加到總分
+        g += vortexQi - oldVortexQi;
         observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
     }
     // 【修正】補上文字推播，消除 UI 退回舊版硬編碼的現象
@@ -723,8 +926,55 @@ class FengShuiEngine {
 
     let yyBalance = yang - yin;
     let yyText = "平 (空間開闊度與氣波動能適中)";
-    if(yyBalance > 3) { yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)"; s += (yyBalance-3)*5; g -= 5; }
-    else if(yyBalance < -3) { yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)"; g -= (-yyBalance-3)*5; c += 10; }
+    // 【修正】陰陽平衡應以實際風速與動能為主要依據，避免僅因幾何煞氣而過度判定陽氣過盛
+    if (yyBalance > 3 && stateManager.wind >= 5) { yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)"; s += (yyBalance-3)*5; g -= 5; }
+    else if (yyBalance < -3) { yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)"; g -= (-yyBalance-3)*5; c += 10; }
+    // 修正：若陰陽失衡但文字仍顯示'平'，強制更新文字以反映實際狀態
+    if (yyBalance > 3 && stateManager.wind >= 5) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else yyText = "平 (空間開闊度與氣波動能適中)";
+    // 【修正】確保斜坡與衰水等陽氣因素正確反映在陰陽文字上
+    if (st.terrain === 'slope' || st.waterDir === 'shuai') {
+        if (yyBalance <= 3 && yyBalance >= -3) {
+            yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        }
+    }
+    // 【終極修正】若陰陽平衡數值與文字不符，強制以數值為準更新文字
+    if (yyBalance > 3 && stateManager.wind >= 5) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else if (yyBalance >= -3 && yyBalance <= 3) {
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
+    // 【新增】強制同步 yyText 與 yyBalance，避免不一致
+    if (yyBalance > 3 && stateManager.wind >= 5) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else {
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
+    // 【終極修正】若陰陽平衡數值與文字不符，強制以數值為準更新文字
+    // 【修正】陰陽平衡應以實際數值為準，不再依賴風速條件，避免 yyBalance=4 時仍顯示『平』
+    if (yyBalance > 3) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else {
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
+    // 【新增】強制同步 yyText 與 yyBalance，避免不一致
+    if (yyBalance > 3 && stateManager.wind >= 5) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else {
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
+    // 【終極修正】若陰陽平衡數值與文字不符，強制以數值為準更新文字
+    if (yyBalance > 3) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
+    else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    else {
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+        else yyText = "平 (空間開闊度與氣波動能適中)";
+    }
 
     // ==========================================
     // 5. 物質熱力學與空氣動力學 (五行湧現)
@@ -755,6 +1005,16 @@ class FengShuiEngine {
     if (st.sha.includes('pylon') || st.sha.includes('glass') || colEl === 'fire') envTemp += 15; // 熱源
     if (kineticSha > 20 || st.sha.some(x => ['tianzhan', 'walledge', 'sickle'].includes(x))) rigidReflection += 25; // 強烈風切與剛體切割
     if (!directSunlight) envTemp -= 10; // 缺乏日照導致降溫
+    // 【新增】若煞氣值過高，且配置化煞陣法（如樹木、水池、葫蘆等），應顯著降低煞氣值，反映制化效果
+    // 【修正】根據化煞陣法數量與種類疊加削減效果，避免單一化煞效果不足
+    if (s > 100 && (st.cure.includes('trees') || st.cure.includes('pool') || st.cure.includes('gourd') || st.cure.includes('stone') || st.cure.includes('mirror'))) {
+        let cureCount = st.cure.filter(c => ['trees', 'pool', 'gourd', 'stone', 'mirror'].includes(c)).length;
+        // 修正：改為按比例削減，且最多只能消除一半煞氣，避免化煞陣法過度削弱煞氣，導致「物理煞氣值 90」卻僅剩 17 的邏輯矛盾
+        let reduction = Math.round(s * (0.15 + (cureCount - 1) * 0.08));
+        reduction = Math.min(reduction, Math.round(s * 0.5));
+        s = Math.max(0, s - reduction);
+        observerText.push(`制化｜煞氣過重，但化煞陣法啟動，有效削減煞氣 ${reduction} 點`);
+    }
 
     // 主樓外牆材質的物理反應
     if (colEl === 'water') { envHumidity += 15; envTemp -= 2; }
@@ -826,10 +1086,15 @@ class FengShuiEngine {
     if (kineticSha > 20) physicsText.push(`動力學｜高動能氣流撞擊明堂，產生紊流，物理煞氣值 ${Math.round(kineticSha)}`);
     if (vortexQi > 10) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
 
+    // 【修正】最終數值收斂：限制煞氣/吉氣最大值，並確保容量不低於煞氣值
+    s = Math.max(0, Math.min(150, s));
+    g = Math.max(0, Math.min(150, g));
+    c = Math.max(20, Math.min(150, c));
+    if (c < s) c = s;
     return {
-        g: Math.max(0, Math.round(g)),
-        s: Math.max(0, Math.round(s)),
-        c: Math.max(10, Math.round(c)),
+        g: Math.round(g),
+        s: Math.round(s),
+        c: Math.round(c),
         cureText, wuXingText, yyBalance, yyText, physicsText
     };
   }
@@ -2268,9 +2533,9 @@ class UIManager {
     } else {
       vt = '凶局・煞重氣散，破財傷丁'; vc = 'bad';   
     }
-    // 若吉氣超過容量，應視為溢散，降低評價
-    if (ana.g > ana.c && realS < 30) {
-      vt = '中平・吉氣過盛，明堂難容，反為洩氣'; vc = 'mid';
+    // 若吉氣超過容量，且原始吉氣極高、煞氣極低，才可視為氣勢旺盛；否則仍依常規評價
+    if (ana.g > ana.c && ana.g >= 80 && realS < 30) {
+      vt = '上吉・吉氣充盈，明堂飽和，氣勢旺盛'; vc = 'good';
     }
     
     vd.textContent = vt; vd.className = 'vd ' + vc;
