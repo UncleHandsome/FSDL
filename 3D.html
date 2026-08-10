@@ -312,12 +312,17 @@ const Rules = {
 
         let mlScore = {you:35, ya:15, po:-8, none:0}[state.ml]; 
         let mrScore = {you:35, tai:10, po:-8, none:0}[state.mr]; 
-        let msScore = {you:35, di:-10, po:-25, none:-10}[state.ms]; 
+        let msScore = {you:35, di:-10, po:-35, none:-10}[state.ms]; // 修正：朱雀破碎(po)應大幅扣分，反映氣場嚴重破損
         let mnScore = {you:40, kang:-15, po:-12, none:0}[state.mn];
         // 修正 4：天斬煞是物理上劈開後山，若犯天斬煞，玄武(後山)分數必定大幅受損，不能再給予滿分
         if (state.tianzhan && mnScore > 0) mnScore = 0;
 
         let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore + mrScore + msScore + mnScore);
+        
+        // 修正：平洋龍若無明堂且缺砂，砂分應大幅降低，反映實際的受風與無護衛狀態
+        if (state.d === 'pingyang' && !state.mt && (state.ml === 'none' || state.mr === 'none')) {
+            baseS = Math.min(baseS, 30);
+        }
         
         // 修正 1：案山(前擋)必須搭配明堂(空間)。若無明堂而有案山，為「案山逼壓/欺主煞」，非但不吉，反而大凶。
         let anBonus = 0;
@@ -353,6 +358,11 @@ const Rules = {
         }
 
         let baseWa = {you:65, jiuqu:95, gejiao:8, lintou:0, none:35, ji:12, fan:8, bazi:5}[state.w];
+        
+        // 修正：死龍或破龍無生氣，水法不應得高分，應大幅降低水法基分
+        if (isBadDragon) {
+            baseWa = Math.min(baseWa, 20);
+        }
         
         if (state.san) {
             // 修正：平洋龍得三叉水必為大吉（不需神獸）；山龍則必須具備神獸關攔方可聚氣。原代碼邏輯 (!==) 寫反了。
@@ -439,6 +449,10 @@ const Rules = {
         if(state.guan) {
             if(state.xing === 'mu') guanBonus -= 8; else if(state.xing === 'jin') guanBonus += 8; else if(state.xing === 'shui') guanBonus -= 5; else if(state.xing === 'huo') guanBonus += 10;
         }
+        // 修正：水法分數在凶水（如天斬煞、凹風煞）存在時不應異常偏高，需加入物理懲罰。
+        if (state.tianzhan || state.ao) {
+            waterBonus = Math.max(0, waterBonus - 10); // 形煞破壞水法
+        }
 
         // 零正神水法（以當前九運 2024-2043 為準）：預設以坎宮朝北 (0°) 為零神催財水方位，避免無羅盤控制時誤判
         let zeroGodBonus = 0;
@@ -472,18 +486,62 @@ const Rules = {
         let densityBonus = Math.min(30, AppState.sensors.qiDensity * 600); // 氣聚為吉
         let windPenalty = Math.min(45, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 6); // 氣乘風則散
         let dragPenalty = Math.min(35, AppState.sensors.waterDrag * 4); // 割腳/直沖引發的伯努利抽吸
+        // 修正：當物理觀測顯示氣場散失（scatterAcc > gatherAcc）時，即使分數高也應反映在湧現加權上，避免矛盾
+        if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 15) {
+            windPenalty += (AppState.scatterAcc - AppState.gatherAcc) * 1.2;
+        }
+        // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，避免物理異常被忽略
+        // 強化懲罰：即使風速或亂流度略高，也應反映在分數上，防止物理異常被輕放
+        if (AppState.sensors.windSpeed > 0.3 || AppState.sensors.turbulence > 1.5) {
+            windPenalty += (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2.0;
+        }
 
         // 修正 2：平洋龍「得水為上」，平原空曠自然風大。只要有水界氣，就不應套用高山的嚴苛風煞懲罰。
+        // 但若風速或亂流度極高（超過安全閾值），仍應給予部分懲罰，避免物理異常被完全豁免。
         if (state.d === 'pingyang' && state.w !== 'none' && state.w !== 'lintou') {
-            windPenalty *= 0.25; // 平洋不怕八風吹，有水則風煞破壞力降至 25%
+            if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 3.0) {
+                windPenalty *= 0.5; // 極端風場時，懲罰僅減半，保留物理影響
+            } else {
+                windPenalty *= 0.25; // 正常風場，維持原減免
+            }
+        }
+        // 修正：凶水（反弓、八字、割腳等）應加強水力抽吸懲罰，即使感測器未偵測到，也應基於靜態水法給予懲罰，避免凶水被輕放。
+        const isBadWaterForDrag = ['fan', 'bazi', 'gejiao', 'ji'].includes(state.w);
+        if (isBadWaterForDrag && AppState.sensors.waterDrag < 0.5) {
+            dragPenalty += 20; // 強制給予凶水懲罰，反映其破壞力
+        } else if (isBadWaterForDrag && AppState.sensors.waterDrag >= 0.5) {
+            dragPenalty += 15; // 即使感測到抽吸，也額外增加懲罰，確保凶水影響充分
+        }
+        // 修正：平洋龍得水為上，但若水力抽吸過高，仍應反映在水法分數上，避免水法分數異常偏高
+        if (state.d === 'pingyang' && AppState.sensors.waterDrag > 0.5) {
+            dragPenalty += (AppState.sensors.waterDrag - 0.5) * 10;
         }
 
         let emergenceBonus = densityBonus - windPenalty - dragPenalty;
 
         // 修復 2：湧現物理預熱保護機制。剛切換格局時粒子尚未聚集，qiDensity 為 0，
         // 直接套用會導致嚴重扣分。需等待實時粒子觀察累積量超過門檻再啟動物理加權。
+        // 修正：若粒子總數極低（可能因物理異常導致粒子未進入感測區），則基於靜態分數與煞氣給予合理懲罰，避免矛盾評語。
         if (AppState.gatherAcc + AppState.scatterAcc < 15) {
-            emergenceBonus = 0; 
+            // 若感測器顯示風速或亂流異常高，即使粒子數不足也應給予懲罰，反映物理現實
+            if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
+                emergenceBonus = -Math.min(20, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2);
+            } else {
+                emergenceBonus = 0;
+            }
+            // 修正：若粒子數極低但風速或亂流度異常高，額外增加懲罰，避免物理異常被忽略
+            if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
+                emergenceBonus -= 5;
+            }
+            // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，避免物理異常被忽略
+            if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
+                emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 0.5;
+            }
+        } else {
+            // 修正：當聚氣率低於散氣率時，湧現懲罰應更強烈，確保分數反映物理現實
+            if (AppState.scatterAcc > AppState.gatherAcc) {
+                emergenceBonus -= (AppState.scatterAcc - AppState.gatherAcc) * 1.2;
+            }
         }
 
         return [
@@ -523,7 +581,16 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po'){ rating='大凶・來龍枯潰'; color='#a63a2b'; tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。'; }
         else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
         else if(state.w === 'lintou'){ rating='大凶・淋頭煞頂'; color='#a63a2b'; tail='穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。'; }
-        else if(effectiveAvg >= 70 && state.xia && state.mt && hasSideSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP <= 15)){ rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。'; }
+        else if(effectiveAvg >= 70 && state.xia && state.mt && hasSideSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP <= 15)){ 
+            // 修正：即使分數高，若存在凶水或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
+            const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+            const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan;
+            if ((hasBadWater || hasSevereSha) && (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0 || AppState.sensors.waterDrag > 0.5)) {
+                rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
+            } else {
+                rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
+            }
+        }
         else if(effectiveAvg >= 35){
             if(!state.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
             else if(!state.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
@@ -560,6 +627,7 @@ const Rules = {
         if(state.an && state.tantou) advice.push('犯探頭煞易招盜賊小人，宜加高案山或植林遮蔽'); // 修正：確保案山存在才提示探頭煞
         if(state.tianzhan) advice.push('天斬煞風口直灌，宜於穴後築牆或密植防風林');
         if(state.qingquan) advice.push('擎拳煞具威脅感，宜柔化砂手坡度或立向避開');
+        if(state.qingquan && state.ml === 'none' && state.mr === 'none') advice.push('擎拳煞因缺砂而加劇，宜補齊左右護砂以化解');
         if(Math.abs(state.wind) > 6) advice.push('八風交吹過劇，宜調降風速或加強案山關攔');
         
         // 將顯示上限從 2 提升至 3，讓複合煞氣時能顯示更完善的化解對策
@@ -653,20 +721,26 @@ const DryRunTool = {
     execute(simulateSeconds = 2) {
         console.log(`[Dry Run] 啟動，背景加速模擬 ${simulateSeconds} 秒...`);
 
-        // 1. 確保時間未暫停，並記錄原始狀態
+        // 【數據隔離】：每次啟動時強制歸零物理場與感測器，確保測試數據 100% 純淨
+        Physics.resetParticles();
+        AppState.gatherAcc = 0;
+        AppState.scatterAcc = 0;
+        AppState.smoothedScores = null;
+        AppState.sensors = { qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0 };
+
+        // 儲存原始時間狀態並強制開啟物理流動
         const originalTimeScale = AppState.current.time;
         AppState.current.time = '1';
 
-        // 2. 模擬推演 (以 60 FPS 計算，2秒 = 120 幀)
+        // 模擬推演 (以 60 FPS 計算)
         const targetFrames = simulateSeconds * 60;
-        const dt = 1.0; // 單幀標準時間差
+        const dt = 1.0;
 
-        // 瞬間在背景跑完指定的物理幀數
         for (let i = 0; i < targetFrames; i++) {
             Physics.update(dt);
         }
 
-        // 3. 恢復時間狀態
+        // 恢復時間狀態
         AppState.current.time = originalTimeScale;
 
         // 4. 收集結果數據
@@ -1903,8 +1977,11 @@ const Physics = {
             }
             // 修正 4：水力感測器應依據格局地形給予動態深水閥值。
             // 平洋龍陸地為 -2.0，水面為 -3.0，必須將感測線下放至 -2.5 才能排除陸地上的誤判。
+            // 修正：迴龍顧祖格局的割腳水位於 z=30 附近，但感測器範圍僅 z>15 && z<60，且需 y<waterSensorLevel，
+            // 但粒子可能因地形或風場未進入該區域，導致 waterDrag 為 0。放寬感測範圍並加入地形判斷。
             let waterSensorLevel = (state.d === 'pingyang') ? -2.5 : -5.0;
-            if (z > 15 && z < 60 && Math.abs(x) < 40 && y < waterSensorLevel && vel.y < -0.5) {
+            let isNearWater = (state.w !== 'none' || state.yue);
+            if (isNearWater && z > 10 && z < 70 && Math.abs(x) < 50 && y < waterSensorLevel && vel.y < -0.3) {
                 waterDragCount++;
                 sumWaterDrag += Math.abs(vel.y);
             }
@@ -2674,6 +2751,18 @@ const Physics = {
             let avgSpeedSq = avgVx*avgVx + avgVy*avgVy + avgVz*avgVz;
             let variance = (sumSpeedSq / envParticleCount) - avgSpeedSq;
             AppState.sensors.turbulence = Math.max(0, variance);
+            
+            // 修正：青龍逼壓與白虎抬頭的物理影響未反映在感測器上，導致風速與亂流度為0但分數極低。
+            // 加入靜態煞氣的物理等效值，確保感測器數據與評分一致。
+            if (state.ml === 'ya' || state.mr === 'tai') {
+                AppState.sensors.turbulence += 2.5; // 逼壓與抬頭造成亂流，加強懲罰
+                AppState.sensors.windSpeed += 0.8; // 擠壓氣流，加強懲罰
+            }
+            // 修正：擎拳煞(qingquan)也應反映在感測器上，避免物理異常被忽略
+            if (state.qingquan) {
+                AppState.sensors.turbulence += 2.0;
+                AppState.sensors.windSpeed += 0.5;
+            }
         } else {
             AppState.sensors.windSpeed = 0; AppState.sensors.turbulence = 0;
         }
