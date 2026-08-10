@@ -850,7 +850,8 @@ const DryRunTool = {
         const dynRatioForDyn = totalPForDyn > 0 ? (AppState.gatherAcc / totalPForDyn) : 0.5;
         const dynMult = (totalPForDyn > 15 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatioForDyn * 1.5)) : 1.0;
         const effScore = rawScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult * dynMult))));
-        const verdict = Rules.getVerdictText(AppState.smoothedScores || rawScore);
+        // 修正：Dry Run 為短期模擬，平滑分數尚未穩定，評級應直接基於 rawScore，避免與輸出的 raw/effective 不一致。
+        const verdict = Rules.getVerdictText(rawScore);
 
         const resultData = {
             config: { ...AppState.current },

@@ -773,7 +773,8 @@ class FengShuiEngine {
     }
 
     // 【新增】若同時存在抬轎煞與水聚明堂，應相互抵消部分效果，反映物理衝突
-    if (st.sha.includes('sedan') && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+    // 【修正】若無水或煞水，即使有化煞水池也不應觸發水聚衝突，避免『無水』狀態下出現矛盾文本
+    if (st.sha.includes('sedan') && st.water !== 'none' && !isShaWater && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
         let conflict = Math.min(kineticSha, vortexQi);
         kineticSha -= conflict * 0.5;
         vortexQi -= conflict * 0.5;
@@ -832,8 +833,10 @@ class FengShuiEngine {
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
         observerText.push(`流體｜極速動能(強度${extWindSpeed})產生強烈氣穴與剪力，徹底扯破了明堂的水局介質，聚氣之水翻轉為【散氣風煞】！`);
-    } else if (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue')) {
+    } else if ((st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue')) && !st.special.includes('qingxie')) {
         observerText.push(`流體｜界水則止，真氣遇水盤旋不散 (自然湧現: 水聚明堂)`);
+    } else if (st.special.includes('qingxie') && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+        observerText.push(`流體｜地勢傾瀉，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
     }
 
     // 【修正】物理引擎補捉抬轎懸空的穿堂風效應
