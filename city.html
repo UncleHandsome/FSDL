@@ -711,7 +711,9 @@ class FengShuiEngine {
     // 【終極修正】若地形為平坦且水勢為玉帶水，但水勢為煞水（如反弓、割腳等），仍不進行虛水測試，避免誤判
     const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
     let dropPaths = []; // 【新增】記錄地氣水滴的滑落軌跡
+    let waterTestRan = false; // 【第4輪修正】標記虛水測試是否執行，防止吉水被誤判為「無水或煞水」
     if (st.water !== 'none' && !isShaWater) {
+        waterTestRan = true;
         for(let i=0; i<50; i++) {
             let px = (Math.random() - 0.5) * 40;
             // 【修正】根據地形調整起始位置：backhigh 地形起始於後方高處，使水自然向前流；slope 地形起始於前方，使水自然向後流；平坦地形應均勻分佈於明堂前後，避免全部集中於低處
@@ -855,8 +857,8 @@ class FengShuiEngine {
     }
     let gatherPercent = Math.round(gatheredDrops/50*100);
     let escapePercent = Math.round(escapedDrops/50*100);
-    if (st.water === 'none' || isShaWater) {
-        // 無水或煞水時，不應湧現任何水聚或水散現象，改為中性描述
+    if (!waterTestRan) {
+        // 只有當虛水測試未執行（無水或煞水）時，才輸出中性描述
         observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
     } else if (gatheredDrops > 35) {
         g += 20 + Math.round((gatheredDrops - 35) * 0.5); // 依匯聚比例增加吉氣
@@ -1072,7 +1074,8 @@ class FengShuiEngine {
     if (stateManager.wind < 3) yin += 2;
     
     // 修正：加入其他物理因素對陰陽的影響
-    if (kineticSha > 20) yang += 2; // 高動能煞氣增加陽氣躁動
+    // 【第 2 輪修正】進一步提高動能煞氣對陽氣的影響，避免高煞氣時陰陽顯示為「平」的矛盾
+    if (kineticSha > 20) yang += Math.min(12, kineticSha * 0.06); // 高動能煞氣增加陽氣躁動（依強度比例，提高上限與係數）
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
     // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
     // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
@@ -1116,16 +1119,13 @@ class FengShuiEngine {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
     }
     if (st.special.includes('shuqi')) {
-        let oldVortexQi = vortexQi;
         // 氣躍/水躍現象 (Hydraulic Jump)
         let froudeNumber = extWindSpeed / Math.sqrt(9.8 * 2.0); // 簡化弗勞德數
         if (froudeNumber > 1.0) { // 達到超臨界流
             vortexQi = Math.round(vortexQi * 2.5);
-            g += vortexQi - oldVortexQi;
             observerText.push(`流體力學｜臨界收束與氣躍 (Hydraulic Jump)：氣流經束氣峽加速至超臨界態，進入明堂瞬間流速劇降，動能轉化為立體盤旋位能！(自然湧現: 束氣結穴)`);
         } else {
             vortexQi = Math.round(vortexQi * 1.5);
-            g += vortexQi - oldVortexQi;
             observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
         }
     }
@@ -2103,7 +2103,7 @@ class CityBuilder {
     this.mainCore = core;
     this.baseEmHex = emHex;
     // 【修正】將 Y 軸懸空高度 elevY 寫入物理判定屬性中，供熱力圖與 GPU 讀取
-    this.group.add(core); this.blds.push({x:0,z:0,w:16,d:16,h:H + elevY, y:elevY});
+    this.group.add(core); this.blds.push({x:0,z:0,w:16,d:16,h:H, y:elevY});
     
     this.beacon=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,120,12,1,true),
       new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}));
@@ -2770,7 +2770,7 @@ class World3D {
       }
     });
     window.addEventListener('pointerup', e => {
-      if(this.drag && this.drag.moved<6 && this.camMode==='orbit'){
+      if(this.drag && this.drag.moved<6 && this.drag.btn === 0 && !e.shiftKey && this.camMode==='orbit'){
         const rc = new THREE.Raycaster();
         rc.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1), this.camera);
         const pt = Util.v3(0,0,0);
@@ -3180,14 +3180,14 @@ class UIManager {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
     } else if (netEff >= 15 && realS < 50) {
       vt = '小吉・瑕不掩瑜，微疵可化'; vc = 'good'; 
-    } else if (realG >= 60 && realS >= 60 && netEff > 0) {
+    } else if (realG >= 60 && realS >= 60 && netEff >= -10) {
       vt = '險局・富貴險中求 (帶煞發貴)'; vc = 'mid'; 
     } else if (realS < 30 && realG < 30) {
       vt = (yy > 3) ? '平庸・氣局停滯，陰陽偏枯' : '平局・平穩少災，庸碌之象'; vc = 'mid'; 
     } else if (netEff >= -10 && realS <= 65) {
       // 填補黑洞：只要淨收益不低於 -10，且煞氣未爆表，就視為散聚相抵
       vt = '平局・散聚相抵，運勢反覆'; vc = 'mid'; 
-    } else if (realS >= 80 || (realS >= 60 && yy >= 5) || netEff <= -30) {
+    } else if (realS >= 80 && netEff <= -30) {
       vt = '大凶・敗絕之局，人財兩空'; vc = 'worst';
     } else {
       vt = '凶局・煞重氣散，破財傷丁'; vc = 'bad';   

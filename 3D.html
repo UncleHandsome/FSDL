@@ -609,7 +609,7 @@ const Rules = {
         // 直接套用會導致嚴重扣分。需等待實時粒子觀察累積量超過門檻再啟動物理加權。
         // 修正：若粒子總數極低（可能因物理異常導致粒子未進入感測區），則基於靜態分數與煞氣給予合理懲罰，避免矛盾評語。
         // 修正：當存在形煞但感測器為0時，強制施加懲罰，避免物理異常被忽略。
-        if (AppState.gatherAcc + AppState.scatterAcc < 15) {
+        if (AppState.gatherAcc + AppState.scatterAcc < 120) {
             // 若感測器顯示風速或亂流異常高，即使粒子數不足也應給予懲罰，反映物理現實
             if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
                 emergenceBonus = -Math.min(20, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2);
@@ -722,7 +722,7 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po'){ rating='大凶・來龍枯潰'; color='#a63a2b'; tail=state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。'; }
         else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
         else if(state.w === 'lintou'){ rating='大凶・淋頭煞頂'; color='#a63a2b'; tail='穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。'; }
-        else if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP <= 30 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
+        else if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && (dynRatio >= 0.45 || totalP < 31 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
@@ -733,8 +733,8 @@ const Rules = {
             // 修正：合併物理異常與聚氣率過低的雙重判斷，避免單一指標誤判
             // 修正 2：當氣密度高但聚氣率低時，可能只是散氣粒子聚集在感測區，並非真正聚氣。
             // 必須同時滿足「聚氣量 >= 散氣量」才認定為吉氣凝聚，否則不應豁免散氣懲罰。
-            const hasPhysicalBreakdown = (totalP > 15 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)));
-            const hasPoorGatherRatio = (totalP > 15 && dynRatio < 0.45 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8 && AppState.gatherAcc >= AppState.scatterAcc));
+            const hasPhysicalBreakdown = (totalP > 120 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)));
+            const hasPoorGatherRatio = (totalP > 120 && dynRatio < 0.45 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8 && AppState.gatherAcc >= AppState.scatterAcc));
             // 修正：加入「聚氣率過低但粒子數足夠」時強制降級，避免預熱豁免被誤用於上吉
             if (hasBadWater || hasSevereSha || hasPhysicalBreakdown || hasPoorGatherRatio) {
                 rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
@@ -749,12 +749,12 @@ const Rules = {
             else if(!state.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
             else if(!state.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
             else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '左右無護砂關攔，兩邊受風，生氣難聚。';}
-            else if(dynRatio < 0.4 && totalP > 30){rating='中平・氣場散失';color='#3f6b52';tail='靜態巒頭尚可，但實時風場或形煞導致粒子聚氣率低下。';}
+            else if(dynRatio < 0.4 && totalP > 120){rating='中平・氣場散失';color='#3f6b52';tail='靜態巒頭尚可，但實時風場或形煞導致粒子聚氣率低下。';}
             else{rating='中平・有瑕';color='#3f6b52';tail='格局有瑕，聚散互見。';}
         }
         else {
             if(!state.xia){rating='大凶・無穴可立';color='#a63a2b';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '無穴星融結，煞氣肆橫，不可用。';}
-            else if(dynRatio < 0.2 && totalP > 15){rating='大凶・極度吹散';color='#a63a2b';tail='實時動態物理顯示強烈風場/煞氣已完全摧毀穴場氣脈。';}
+            else if(dynRatio < 0.2 && totalP > 120){rating='大凶・極度吹散';color='#a63a2b';tail='實時動態物理顯示強烈風場/煞氣已完全摧毀穴場氣脈。';}
             else{rating='大凶・不聚';color='#a63a2b';tail='煞氣肆橫，生氣耗散。';}
         }
 
@@ -930,7 +930,7 @@ const DryRunTool = {
         const mult = Rules.getGlobalMultiplier();
         const totalPForDyn = AppState.gatherAcc + AppState.scatterAcc;
         const dynRatioForDyn = totalPForDyn > 0 ? (AppState.gatherAcc / totalPForDyn) : 0.5;
-        const dynMult = (totalPForDyn > 30 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatioForDyn * 1.5)) : 1.0;
+        const dynMult = (totalPForDyn > 120 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) ? Math.min(1.4, Math.max(0.2, dynRatioForDyn * 1.5)) : 1.0;
         const effScore = rawScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult))));
         // 修正：Dry Run 為短期模擬，平滑分數尚未穩定，評級應直接基於 rawScore，避免與輸出的 raw/effective 不一致。
         const verdict = Rules.getVerdictText(rawScore);
@@ -1781,7 +1781,7 @@ const Engine3D = {
         this.waterMesh.position.y = (state.d === 'pingyang') ? -3.0 : -10.0;
         const pos = this.terrainGeo.attributes.position.array;
         const cols = [];
-        let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55;
+        let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55; if(state.w==='lintou') wZ = 10;
 
         let defaultY = (state.w === 'none') ? -8 : -18;
         let c = new THREE.Color(); // 修復：將 Color 實例化移出 22800 次的迴圈外，消除切換格局時的 GC 記憶體暴增卡頓
@@ -2591,10 +2591,12 @@ const Physics = {
             let x = this.pPos[i*3], y = this.pPos[i*3+1], z = this.pPos[i*3+2];
             let vel = this.pVel[i]; let st = this.pState[i];
 
-            // 【湧現物理】感測器空間採樣
-            let dynamicTaijiZ_sensor = (state.xue === 'wo') ? -5.0 : (state.xue === 'ru' ? 12.0 : (state.xue === 'qian' ? 0.0 : 5.0));
-            let dxSensor = x - 0;
-            let dzSensor = z - dynamicTaijiZ_sensor;
+            // 【湧現物理】感測器空間採樣（提前初始化 dxTaiji 與 dzTaiji 避免 TDZ 錯誤）
+            let dynamicTaijiZ = (state.xue === 'wo') ? -5.0 : (state.xue === 'ru' ? 12.0 : (state.xue === 'qian' ? 0.0 : 5.0));
+            let dxTaiji = x - 0;
+            let dzTaiji = z - dynamicTaijiZ;
+            let dxSensor = dxTaiji;
+            let dzSensor = dzTaiji;
             let distToSensorSq = dxSensor*dxSensor + dzSensor*dzSensor;
             
             if (distToSensorSq < 400 && y > -8 && y < 20) {
@@ -3373,8 +3375,10 @@ const Physics = {
             // 氣流前進時受地球自轉影響，恆定向速度向量的「右側」產生微小偏向力
             // 叉積計算: (v_x, 0, v_z) cross (0, 1, 0) = (v_z, 0, -v_x) -> 向右向量
             let coriolisStrength = 0.08; 
-            vel.x += vel.z * coriolisStrength * dt;
-            vel.z += -vel.x * coriolisStrength * dt;
+            const oldVelX = vel.x;
+            const oldVelZ = vel.z;
+            vel.x += oldVelZ * coriolisStrength * dt;
+            vel.z += -oldVelX * coriolisStrength * dt;
             
             // 湧現檢測：若右側白虎過高 (tai) 或逼壓，右偏的氣流撞擊後會引發白虎煞氣暴走
             if (state.mr === 'tai' && x > 10 && x < 35 && z > 0 && vel.x > 0) {
@@ -3402,13 +3406,6 @@ const Physics = {
                 Engine3D.hCtx.fillRect(hx - heatSize/2, hz - heatSize/2, heatSize, heatSize);
             }
 
-            let dynamicTaijiZ = 5.0;
-            if (state.xue === 'wo') dynamicTaijiZ = -5.0; 
-            else if (state.xue === 'ru') dynamicTaijiZ = 12.0; 
-            else if (state.xue === 'qian') dynamicTaijiZ = 0.0;
-
-            let dxTaiji = x - 0;
-            let dzTaiji = z - dynamicTaijiZ;
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < 320 && y > -8 && y < 15);
             // 【大一統湧現】移除對 lintou (淋頭) 與 qing (傾瀉) 的例外排除。
             // 太極暈的物理容器若存在 (state.taiji)，渦流潛力就存在。
