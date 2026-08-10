@@ -1145,7 +1145,7 @@ const Engine3D = {
     init() {
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0xdfe9f5); // 淺色模式：明亮的白天天空藍
-        this.scene.fog = new THREE.FogExp2(0xdfe9f5, 0.00145); // 淺色模式：遠景白晝大氣
+        // this.scene.fog = new THREE.FogExp2(0xdfe9f5, 0.00145); // 拿掉：遠景白晝大氣
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         // 優化攝影機初始視角，使明堂與河道居中
@@ -1177,9 +1177,9 @@ const Engine3D = {
 
             this.bloomPass = new THREE.UnrealBloomPass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.75, // 強度 (Intensity)
-                0.85, // 半徑 (Radius) 讓光暈如煙霧般擴散
-                0.55  // 閾值 (Threshold) 僅針對高亮度真氣發光
+                0.35, // 強度 (Intensity)：調降以避免畫面過曝糊在一起
+                0.65, // 半徑 (Radius)：稍微收斂光暈範圍
+                0.95  // 閾值 (Threshold)：大幅提高，確保只有極亮的粒子發光，避免淺色天空背景與地形跟著發白
             );
             this.composer.addPass(this.bloomPass);
         }
@@ -1236,12 +1236,7 @@ const Engine3D = {
                 `#include <fog_fragment>`,
                 `
                 #include <fog_fragment>
-                // 【新增：藏風聚氣山谷霧 (Volumetric Valley Mist)】
-                // 在明堂與低窪盆地 (y 在 10 到 -15 之間) 自動生成氤氳白霧，高度越低霧氣越濃
-                float mistHeight = smoothstep(10.0, -15.0, vWorldPosMist.y); 
-                float mistFactor = mistHeight * 0.45; // 限制最高濃度為 45%
-                vec3 mistColor = vec3(0.92, 0.96, 1.0); // 帶有靈氣的微藍白霧
-                gl_FragColor.rgb = mix(gl_FragColor.rgb, mistColor, mistFactor);
+                // 山谷地氣霧功能已拿掉，保持地貌最原始清晰的色彩
                 `
             );
         };
