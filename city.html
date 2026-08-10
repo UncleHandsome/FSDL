@@ -459,11 +459,13 @@ class FengShuiEngine {
         }
 
         // 幾何空間劃分與高度壓迫感 (SDF 雛形)
-        if (b.x < -5) { vLeft += volume * (b.h / hMain); leftBuildings.push(b); }
-        if (b.x > 5)  { vRight += volume * (b.h / hMain); rightBuildings.push(b); }
-        if (b.z < -15) vBack += volume * (b.h / hMain);
+        // 【第7輪修正】低矮地形特徵 (如突/鉗等 h<5) 不應被視為高層建築阻擋明堂，避免容量被不當壓低
+        const effVol = b.h >= 5 ? volume : 0;
+        if (b.x < -5) { vLeft += effVol * (b.h / hMain); leftBuildings.push(b); }
+        if (b.x > 5)  { vRight += effVol * (b.h / hMain); rightBuildings.push(b); }
+        if (b.z < -15) vBack += effVol * (b.h / hMain);
         if (b.z > 5 && Math.abs(b.x) < 30) {
-          vFront += volume;
+          vFront += effVol;
           if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
           if (b.h > maxHFront) maxHFront = b.h;
           // 修正：限縮明堂核心地帶(z:20~50)，避免誤將後方探頭煞認作擎拳
@@ -583,7 +585,7 @@ class FengShuiEngine {
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
       // 【修正】若前方有實體案山（lowcase 案樓），即使 SVF 高度開闊，仍不應觸發八風吹穴，因案山本身即具備擋風聚氣功能
       const hasCloseCase = st.front === 'lowcase';
-      if (frontOpenness > 0.85 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier && !hasCloseCase) emptyFrontWind = true; 
+      if (frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase) emptyFrontWind = true; 
     }
 
     // ==========================================
@@ -597,11 +599,11 @@ class FengShuiEngine {
         if (st.right === 'baihu') {
             g += 15; observerText.push("空間｜左青龍右白虎俱有情，左右護衛均衡 (湧現: 四象俱全)");
         } else if (st.right === 'none') {
-            g += 5; s += 10; observerText.push("空間｜青龍獨存，白虎虛空，氣場失衡 (湧現: 青龍無虎/左強右弱)");
+            g += 5; s += 25; observerText.push("空間｜青龍獨存，白虎虛空，氣場失衡 (湧現: 青龍無虎/左強右弱)");
         } else if (st.right === 'broken') {
-            g += 5; s += 15; observerText.push("空間｜青龍有情，但白虎破碎，護衛殘缺 (湧現: 白虎破碎/右翼受制)");
+            g += 5; s += 20; observerText.push("空間｜青龍有情，但白虎破碎，護衛殘缺 (湧現: 白虎破碎/右翼受制)");
         } else if (st.right === 'raise') {
-            g += 5; s += 20; observerText.push("空間｜青龍有情，但白虎抬頭，右側反壓 (湧現: 白虎抬頭/右強左弱)");
+            g += 5; s += 25; observerText.push("空間｜青龍有情，但白虎抬頭，右側反壓 (湧現: 白虎抬頭/右強左弱)");
         } else {
             g += 15; observerText.push("空間｜左側掩護良好 (湧現: 青龍有情)");
         }
@@ -664,7 +666,7 @@ class FengShuiEngine {
     }
 
     // 康達效應 (Coanda Effect)
-    if (coandaDeflection > 10 && extWindSpeed >= 5) {
+    if (coandaDeflection > 10 && extWindSpeed >= 5 && st.terrain !== 'slope' && !st.special.includes('qingxie')) {
         let shieldedSha = Math.min(kineticSha, coandaDeflection * 2);
         kineticSha -= shieldedSha;
         g += 15; c += 15;
@@ -672,6 +674,8 @@ class FengShuiEngine {
     }
     if (emptyFrontWind) {
         kineticSha += 15 + extWindSpeed * 2;
+        g = Math.max(0, g - 10);
+        c = Math.max(20, c - 10);
         observerText.push(`流體｜前方毫無案山遮蔽且風大，強風直擊穴場 (自然湧現: 八風吹穴)`);
     }
     
@@ -865,7 +869,9 @@ class FengShuiEngine {
         // 只有當虛水測試未執行（無水或煞水）時，才輸出中性描述
         observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
     } else if (gatheredDrops > 35) {
-        g += 20 + Math.round((gatheredDrops - 35) * 0.5); // 依匯聚比例增加吉氣
+        let bonus = 20 + Math.round((gatheredDrops - 35) * 0.5); // 依匯聚比例增加吉氣
+        if (st.waterDir === 'shuai') bonus = Math.round(bonus * 0.5); // 衰水減半
+        g += bonus;
         let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
         observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
     } else if (escapedDrops > 25) {
@@ -925,7 +931,7 @@ class FengShuiEngine {
     const isShaWaterForLiqi = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
     if (st.water !== 'none' && !isShaWaterForLiqi) {
         if (st.waterDir === 'shuai') {
-            s += 20; g -= 15;
+            s += 20; g -= 15; c = Math.max(20, c - 20);
             observerText.push(`理氣｜衰來旺去：收衰氣而洩旺氣，主退財敗運`);
         } else if (st.waterDir === 'reverse') {
             g += 20; c += 15;
@@ -981,9 +987,9 @@ class FengShuiEngine {
         // 修正：sources 陣列內儲存的全都是「煞氣源」(路沖、天斬、反弓等)。
         // 形體決定本質，直衝與反弓的氣流即使速度再慢，依然是暗箭，絕不可能化為「吉氣渦流(vortexQi)」。
         if (impactForce > 50) {
-            kineticSha += impactForce * 0.25; // 高速動能，強烈煞氣
+            kineticSha += impactForce * 0.35; // 高速動能，強烈煞氣
         } else if (impactForce > 5) {
-            kineticSha += impactForce * 0.1;  // 低速動能，依然是煞氣，只是損耗較輕
+            kineticSha += impactForce * 0.15;  // 低速動能，依然是煞氣，只是損耗較輕
         }
       }
     }
@@ -1064,7 +1070,7 @@ class FengShuiEngine {
     }
     
     if (frontOpenness > 0.85) {
-        yang += 3; 
+        yang += 2; 
         if (skyViewFactor > 0.75) observerText.push(`空間｜SVF 射線探測：明堂開闊度達 ${Math.round(frontOpenness*100)}%，毫無遮攔 (自然湧現: 曠野氣散)`);
     } else if (frontOpenness > 0.6) {
         yang += 1;
@@ -1074,13 +1080,16 @@ class FengShuiEngine {
     }
 
     if (!directSunlight) yin += 3; 
-    if (stateManager.wind >= 7) yang += 3;
-    else if (stateManager.wind >= 5) yang += 1; // 中風速亦稍微偏陽
+    if (stateManager.wind >= 8) yang += 2;
+    else if (stateManager.wind >= 5) yang += 1; // 中風速僅少量偏陽
     if (stateManager.wind <= 3) yin += 2;
+    // 【修正】車流速度也代表「動能」與「人氣」，但僅在極快時才少量偏陽，避免高車流直接導致陽氣過盛
+    if (stateManager.trafficSpeed >= 8) yang += 1;
+    else if (stateManager.trafficSpeed >= 5) yang += 0;
     
     // 修正：加入其他物理因素對陰陽的影響
-    // 【第 2 輪修正】進一步提高動能煞氣對陽氣的影響，避免高煞氣時陰陽顯示為「平」的矛盾
-    if (kineticSha > 20) yang += Math.min(15, 3 + kineticSha * 0.08); // 提高動能煞氣之陽氣貢獻，避免高煞卻陰陽顯示為平
+    // 【第 5 輪修正】降低動能煞氣對陽氣的過度貢獻，避免將「煞氣重」誤判為「陽氣過盛」
+    if (kineticSha > 20) yang += Math.min(8, 2 + kineticSha * 0.04); // 動能煞氣僅提供有限陽氣，主要仍來自風速與車流
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
     // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
     // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
@@ -1105,22 +1114,24 @@ class FengShuiEngine {
 
     // 【修正】補回特殊佈局 (Special Layouts) 的空間補償效應
     if (st.special.includes('hulong')) {
-        if (st.left !== 'none' && st.right !== 'none') {
+        const leftGood = st.left === 'qinglong';
+        const rightGood = st.right === 'baihu';
+        if (leftGood && rightGood) {
             // 波場相位鎖定與駐波沉積 (Standing Wave Trapping)
             let phaseShift = Math.abs(vLeft - vRight);
             if (phaseShift > 10 && phaseShift < 50) { // 左右不完全對稱 (交牙)
                 g += 25; c += 25;
                 observerText.push(`波動力學｜相消干涉：左右護龍幾何錯開，引發流體相位鎖定，於明堂結成穩定的駐波壓力場 (自然湧現: 龍虎交牙/氣聚明堂)`);
             } else {
-                g += 10; observerText.push(`空間｜護龍夾送：雙重護衛產生邊界層效應，但左右過於對稱，易形成穿堂風`);
+                g += 10; observerText.push(`空間｜護龍夾送：雙重有情護衛產生邊界層效應，但左右過於對稱，易形成穿堂風`);
             }
-        } else if (st.left !== 'none' || st.right !== 'none') {
-            g += 8; observerText.push(`空間｜護龍單護：僅單側有護體，氣場稍弱 (湧現: 單邊護龍)`);
+        } else if (leftGood || rightGood) {
+            g += 5; observerText.push(`空間｜護龍夾送但僅單側有情，氣場稍弱 (湧現: 單邊護龍)`);
         } else {
-            observerText.push(`空間｜護龍佈局但兩翼空虛，未成形`);
+            observerText.push(`空間｜護龍佈局但左右砂皆非有情，未成形`);
         }
     }
-    if (st.special.includes('chaoshan') || st.special.includes('guanxing')) {
+    if (!st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'))) {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
     }
     if (st.special.includes('shuqi')) {
@@ -1147,11 +1158,14 @@ class FengShuiEngine {
         observerText.push(`陣法｜太極環島：引導氣流進行完美的陰陽回旋，強制調和磁場`);
     }
 
-    let yyBalance = yang - yin;
+    let yyBalance = Util.clamp(yang - yin, -10, 10);
     let yyText = "平 (空間開闊度與氣波動能適中)";
     // 【修正】陰陽平衡應以實際風速與動能為主要依據，避免僅因幾何煞氣而過度判定陽氣過盛
-    if (yyBalance > 3 && stateManager.wind >= 5) { yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)"; s += (yyBalance-3)*5; g -= 5; }
-    else if (yyBalance < -3) { yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)"; g -= (-yyBalance-3)*5; c += 10; }
+    // 【第4輪修正】降低陰陽失衡的額外罰分，並設上限，避免失衡值太高時煞氣被過度放大
+    const absYY = Math.abs(yyBalance);
+    const yyPenalty = Math.min(12, (absYY - 4) * 2);
+    if (yyBalance > 4 && stateManager.wind >= 5) { yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)"; s += yyPenalty; g -= 5; }
+    else if (yyBalance < -4) { yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)"; g -= yyPenalty; c += 10; }
     // 修正：若陰陽失衡但文字仍顯示'平'，強制更新文字以反映實際狀態
     if (yyBalance > 3 && stateManager.wind >= 5) yyText = "陽氣過盛 (明堂空曠或風速極大，氣散不聚)";
     else if (yyBalance < -3) yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
@@ -1202,7 +1216,7 @@ class FengShuiEngine {
     }
 
     // 拓撲鞍點計算 (Topological Saddle Points) - 界水即止
-    if (!isShaWater && st.water !== 'none') {
+    if (!waterBroken && !isShaWater && st.water !== 'none' && st.waterDir !== 'shuai') {
         // 尋找向量場 u=0 且散度特徵值為負的奇點
         let divergence = (gatheredDrops - escapedDrops) / 50.0;
         if (divergence > 0.3) {
@@ -1351,8 +1365,18 @@ class FengShuiEngine {
 
     // 【修正】最終數值收斂：限制煞氣/吉氣最大值，並確保容量不低於煞氣值
     // 【新增】化煞不得完全抵消基礎形煞：即使有強力化煞陣法，也至少保留原基礎煞氣的 50%，避免重煞（反弓、鐮刀等）被完全消除而誤判為吉局
-    s = Math.max(s, Math.round(shaBaseline * 0.5));
+    s = Math.max(s, Math.round(shaBaseline * 0.65));
+    // 【第4輪修正】以 tanh 平滑 soft-cap 壓縮高煞氣值，使凶局間保留區分度，同時避免任何凶局都逼近150
+    if (s > 100) {
+        s = 100 + 30 * Math.tanh((s - 100) / 60);
+    }
     s = Math.max(0, Math.min(150, s));
+    // 【第3輪診斷修正】煞氣侵蝕吉氣與明堂容量：物理煞氣會破壞聚氣效果，且重煞（反弓、鐮刀、路沖、穿心、壁刀等）應加倍侵蝕，避免吉氣虛高
+    const heavyShaForErosion = ['bow','sickle','tianzhan','rush','pierce','walledge'].some(x => st.sha.includes(x) || st.water === x);
+    const erosionRatio = heavyShaForErosion ? 0.55 : 0.4;
+    const capacityErosionRatio = heavyShaForErosion ? 0.5 : 0.35;
+    g = Math.max(0, g - Math.round(s * erosionRatio));
+    c = Math.max(20, c - Math.round(s * capacityErosionRatio));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
     // 【終極修正】若無水或煞水，容量不應低於40，避免明堂收氣能力過低
@@ -1378,13 +1402,26 @@ class FengShuiEngine {
         }
     } else if (yyBalance < -3) {
         yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
-    } else if (yyBalance === 3) {
-        yyText = st.terrain === 'slope' ? "陽氣略盛 (地勢傾斜，氣流躁動)" : st.waterDir === 'shuai' ? "陽氣略盛 (水勢衰敗，氣流躁動)" : "陽氣略盛 (氣場流動稍快，稍微偏陽)";
-    } else if (yyBalance === -3) {
-        yyText = (st.left === 'oppress' || st.right === 'raise') ? "陰氣略盛 (建築逼壓或氣流停滯)" : "陰氣略盛 (氣場流動稍緩，稍微偏陰)";
+    } else if (yyBalance > 0) {
+        yyText = "陽氣略盛 (氣場流動稍快，稍微偏陽)";
+    } else if (yyBalance < 0) {
+        yyText = "陰氣略盛 (氣場流動稍緩，稍微偏陰)";
     } else {
         yyText = "平 (空間開闊度與氣波動能適中)";
     }
+    // 【第 2 輪診斷修正】統一陰陽文字判定，以 yyBalance 為唯一準則，避免出現與數值矛盾之描述
+    if (yyBalance > 3) {
+        if (stateManager.wind >= 5 && stateManager.trafficSpeed >= 5) yyText = "陽氣過盛 (明堂空曠且風速車流極大，氣散不聚)";
+        else if (stateManager.wind >= 5) yyText = "陽氣過盛 (風速極大，氣散不聚)";
+        else if (stateManager.trafficSpeed >= 5) yyText = "陽氣過盛 (車流極快，氣散不聚)";
+        else yyText = "陽氣過盛 (明堂開闊或氣流躁動，氣散不聚)";
+    } else if (yyBalance < -3) {
+        yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    } else {
+        yyText = "平 (空間開闊度與氣波動能適中)";
+        if (st.terrain === 'slope' || st.waterDir === 'shuai') yyText = "陽氣略盛 (地勢傾斜或水勢衰敗，氣流躁動)";
+    }
+
     return {
         g: Math.round(g),
         s: Math.round(s),
@@ -1404,7 +1441,7 @@ class FengShuiEngine {
     const A=[], st=stateManager.current;
     if(st.sha.includes('tianzhan'))A.push({x:0,z:58,dx:0,dz:-1,w:26,pw:8,len:52});
     if(st.sha.includes('rush'))A.push({x:0,z:60,dx:0,dz:-1,w:24,pw:8,len:50});
-    if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:10,len:34});
+    if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:14,len:40});
     if(st.sha.includes('sickle'))A.push({x:48,z:34,dx:-0.5,dz:-0.85,w:18,pw:9,len:46});
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
@@ -1417,7 +1454,7 @@ class FengShuiEngine {
     
     if(st.water==='rush'&&!st.sha.includes('rush'))A.push({x:0,z:56,dx:0,dz:-1,w:22,pw:8,len:46});
     if(st.water==='tfork')A.push({x:0,z:52,dx:0,dz:-1,w:20,pw:8,len:40});
-    if(st.water==='bow'&&!st.sha.includes('bow'))A.push({x:0,z:42,dx:0,dz:-1,w:18,pw:10,len:30});
+    if(st.water==='bow'&&!st.sha.includes('bow'))A.push({x:0,z:42,dx:0,dz:-1,w:18,pw:14,len:36});
     if(st.water==='cut')A.push({x:10,z:13,dx:0,dz:0,w:14,pw:8,len:0});
     if(st.water==='lintou')A.push({x:0,z:20,dx:0,dz:0,w:16,pw:11,len:0});
     if(st.water==='bazi'){A.push({x:-10,z:34,dx:-0.4,dz:0.9,w:12,pw:8,len:80});A.push({x:10,z:34,dx:0.4,dz:0.9,w:12,pw:8,len:80});}
@@ -2989,7 +3026,7 @@ class UIManager {
     // 新增 Dry Run 按鈕事件監聽
     if (Util.$('btn-dry-run')) {
       Util.$('btn-dry-run').onclick = () => {
-        DryRunTool.execute(2);
+        DryRunTool.execute(6);
       };
     }
   }
@@ -3179,7 +3216,7 @@ class UIManager {
     const yy = Math.abs(ana.yyBalance);   // 陰陽失衡度 (偏離 0 越多越失衡)
     
     // 接近真實風水的綜合判定邏輯 (引入陰陽失衡度與傳統風水格局評價)
-    if (realG >= 80 && realS <= 20 && yy <= 3) {
+    if (realG >= 80 && realS <= 20 && yy <= 3 && st.left !== 'none' && st.right !== 'none' && st.front !== 'none') {
       vt = '上吉・藏風聚氣，陰陽交泰'; vc = 'good'; 
     } else if (realG >= 50 && realS <= 30 && yy <= 4) {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
@@ -3290,7 +3327,7 @@ class App {
    DryRunTool 模組 (提供 auto_tuner 自動測試與 JSON 導出)
 ========================================== */
 const DryRunTool = {
-  execute(simulateSeconds = 2) {
+  execute(simulateSeconds = 6) {
     console.log(`[Dry Run] 啟動，背景加速模擬 ${simulateSeconds} 秒...`);
 
     // 備份時間與暫停狀態
