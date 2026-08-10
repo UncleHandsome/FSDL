@@ -577,7 +577,7 @@ class FengShuiEngine {
         else if (st.right === 'broken') { observerText.push("空間｜右側破碎殘缺，白虎無力"); }
     }
 
-    if (vBack > (vLeft+vRight)*0.5 && vBack > 0) { g += 15; observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)"); }
+    if (st.dragon !== 'none' && vBack > (vLeft+vRight)*0.5 && vBack > 0) { g += 15; observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)"); }
     if (!directSunlight) { s += 25; observerText.push("光學｜正午陽光被高樓物理阻擋 (自然湧現: 孤陰煞 / 陰氣過盛)"); }
     if (reflectionHits > 0) { s += 30; observerText.push("光學｜強烈陽光經玻璃帷幕反射後，雷射般直射穴場！(自然湧現: 反光煞)"); }
     
@@ -768,6 +768,11 @@ class FengShuiEngine {
 
     // 觀測者根據流體分佈判定風水格局
     // 修正：使用修正後的 gatheredDrops 與 escapedDrops，確保比例正確
+    // 【第 3 輪修正】最後保險：確保煞水或無水時虛水絕對為 0，避免任何間接修正造成統計矛盾
+    if (st.water === 'none' || isShaWater) {
+        gatheredDrops = 0;
+        escapedDrops = 0;
+    }
     let gatherPercent = Math.round(gatheredDrops/50*100);
     let escapePercent = Math.round(escapedDrops/50*100);
     if (st.water === 'none' || isShaWater) {
@@ -1001,8 +1006,9 @@ class FengShuiEngine {
     if (st.waterDir === 'reverse') yin += 1; // 逆水增加陰氣凝聚
 
     // 【修正】補回穴形 (Hole) 的微氣候流體駐留與陰陽效應
+    // 【修正】直接將窩/鉗的吉氣計入 g，而非 vortexQi，避免 vortexQi 在 g+=vortexQi 之後才增加而導致的吉氣漏算
     if (st.hole === 'wo' || st.hole === 'qian') {
-        vortexQi += 15; c += 15; yin += 1;
+        g += 15; c += 15; yin += 1;
         observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：實體凹陷結構產生微氣候駐留，吉氣迴風返氣`);
     } else if (st.hole === 'ru' || st.hole === 'tu') {
         g += 10; yang += 2; 
@@ -1011,7 +1017,13 @@ class FengShuiEngine {
 
     // 【修正】補回特殊佈局 (Special Layouts) 的空間補償效應
     if (st.special.includes('hulong')) {
-        g += 15; observerText.push(`空間｜護龍夾送：雙重護衛產生邊界層效應，穩定兩翼氣場`);
+        if (st.left !== 'none' && st.right !== 'none') {
+            g += 15; observerText.push(`空間｜護龍夾送：雙重護衛產生邊界層效應，穩定兩翼氣場`);
+        } else if (st.left !== 'none' || st.right !== 'none') {
+            g += 8; observerText.push(`空間｜護龍單護：僅單側有護體，氣場稍弱 (湧現: 單邊護龍)`);
+        } else {
+            observerText.push(`空間｜護龍佈局但兩翼空虛，未成形`);
+        }
     }
     if (st.special.includes('chaoshan') || st.special.includes('guanxing')) {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
@@ -1213,7 +1225,26 @@ class FengShuiEngine {
     if (vortexQi > 10) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
     // 【終極修正】陰陽文字完全以數值為準，避免地形/水向造成誤判
     // 【修正】修正 yyBalance 恰為 ±3 時錯誤引用地形/水向描述（如平地卻顯示地勢傾斜），改為中性但保留實際情境判斷
-    yyText = yyBalance > 3 ? "陽氣過盛 (明堂空曠或風速極大，氣散不聚)" : yyBalance < -3 ? "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)" : yyBalance === 3 ? (st.terrain === 'slope' ? "陽氣略盛 (地勢傾斜，氣流躁動)" : st.waterDir === 'shuai' ? "陽氣略盛 (水勢衰敗，氣流躁動)" : "陽氣略盛 (氣場流動稍快，稍微偏陽)") : yyBalance === -3 ? (st.left === 'oppress' || st.right === 'raise' ? "陰氣略盛 (建築逼壓或氣流停滯)" : "陰氣略盛 (氣場流動稍緩，稍微偏陰)") : "平 (空間開闊度與氣波動能適中)";
+    // 【第 3 輪修正】細化陽氣過盛的原因描述，根據風速與車速分開描述，避免車速高卻誤導為風速極大
+    if (yyBalance > 3) {
+        if (stateManager.wind >= 5 && stateManager.trafficSpeed >= 5) {
+            yyText = "陽氣過盛 (明堂空曠且風速車流極大，氣散不聚)";
+        } else if (stateManager.wind >= 5) {
+            yyText = "陽氣過盛 (風速極大，氣散不聚)";
+        } else if (stateManager.trafficSpeed >= 5) {
+            yyText = "陽氣過盛 (車流極快，氣散不聚)";
+        } else {
+            yyText = "陽氣過盛 (明堂開闊或氣流躁動，氣散不聚)";
+        }
+    } else if (yyBalance < -3) {
+        yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
+    } else if (yyBalance === 3) {
+        yyText = st.terrain === 'slope' ? "陽氣略盛 (地勢傾斜，氣流躁動)" : st.waterDir === 'shuai' ? "陽氣略盛 (水勢衰敗，氣流躁動)" : "陽氣略盛 (氣場流動稍快，稍微偏陽)";
+    } else if (yyBalance === -3) {
+        yyText = (st.left === 'oppress' || st.right === 'raise') ? "陰氣略盛 (建築逼壓或氣流停滯)" : "陰氣略盛 (氣場流動稍緩，稍微偏陰)";
+    } else {
+        yyText = "平 (空間開闊度與氣波動能適中)";
+    }
     return {
         g: Math.round(g),
         s: Math.round(s),
