@@ -507,8 +507,9 @@ const Rules = {
         let windPenalty = Math.min(45, (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 4); // 氣乘風則散，降低權重避免完美格局被過度懲罰
         let dragPenalty = Math.min(35, AppState.sensors.waterDrag * 4); // 割腳/直沖引發的伯努利抽吸
         // 修正：當物理觀測顯示氣場散失（scatterAcc > gatherAcc）時，即使分數高也應反映在湧現加權上，避免矛盾
-        if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 15) {
-            windPenalty += (AppState.scatterAcc - AppState.gatherAcc) * 1.2;
+        const smoothFactor = Math.min(1, (AppState.gatherAcc + AppState.scatterAcc) / 20);
+        if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0) {
+            windPenalty += (AppState.scatterAcc - AppState.gatherAcc) * 1.2 * smoothFactor;
         }
         // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，但需避免過度懲罰導致高分格局被降級
         // 調整權重：提高懲罰倍率，並加入門檻判斷，確保物理異常能顯著影響分數
@@ -629,12 +630,14 @@ const Rules = {
             }
         } else {
             // 修正：當聚氣率低於散氣率時，湧現懲罰應更強烈，但需考慮預熱階段，避免剛啟動時過度懲罰
-            if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 15) {
-                emergenceBonus -= (AppState.scatterAcc - AppState.gatherAcc) * 1.0;
+            // 限制散射懲罰上限，防止極端散逸導致所有分數歸零
+            let scatterPenalty = Math.min(30, (AppState.scatterAcc - AppState.gatherAcc) * smoothFactor);
+            if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0) {
+                emergenceBonus -= scatterPenalty;
             }
             // 修正：當聚氣率為0且散氣率大於0時，額外施加懲罰，但僅在粒子總數足夠時生效，避免預熱誤判
-            if (AppState.gatherAcc === 0 && AppState.scatterAcc > 0 && AppState.gatherAcc + AppState.scatterAcc > 15) {
-                emergenceBonus -= AppState.scatterAcc * 0.5;
+            if (AppState.gatherAcc === 0 && AppState.scatterAcc > 0 && AppState.gatherAcc + AppState.scatterAcc > 0) {
+                emergenceBonus -= Math.min(15, AppState.scatterAcc * 0.5 * smoothFactor);
             }
             // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，避免物理異常被忽略
             if (AppState.sensors.windSpeed > 0.3 || AppState.sensors.turbulence > 1.5) {
@@ -642,13 +645,20 @@ const Rules = {
             }
         }
 
-        return [
-            Math.max(0, Math.min(100, D + emergenceBonus * 0.2)),
-            Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus))), // 死龍/破龍時穴分上限30
-            Math.max(0, Math.min(100, S + emergenceBonus * 0.3)),
-            Math.max(0, Math.min(100, Wa - dragPenalty)), // 水法直接反映抽吸力
-            Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4))
-        ];
+        // 凶水固定懲罰：風水邏輯上凶水必致分數大損，不能完全依賴湧現物理（尤其在粒子預熱期）
+        const isBadWaterFinal = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+        let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2));
+        let finalX = Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus)));
+        let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.3));
+        let finalWa = Math.max(0, Math.min(100, Wa - dragPenalty));
+        let finalXg = Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4));
+        if (isBadWaterFinal) {
+            finalD *= 0.8;
+            finalX *= 0.5;
+            finalS *= 0.8;
+            finalXg *= 0.5;
+        }
+        return [finalD, finalX, finalS, finalWa, finalXg];
     },
 
     getVerdictText(customScores) {

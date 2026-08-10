@@ -313,6 +313,27 @@ class ResourceManager {
     c.fillStyle=g; c.fillRect(0,0,32,32);
     this.pTex = new THREE.CanvasTexture(cv); return this.pTex;
   }
+
+  // --- 【新增】動態生成全息羅盤/八卦紋理 ---
+  static getLuopanTex() {
+    if(this.luoTex) return this.luoTex;
+    const cv=document.createElement('canvas'); cv.width=512; cv.height=512; const c=cv.getContext('2d');
+    const cx=256, cy=256;
+    c.clearRect(0,0,512,512);
+    c.strokeStyle='rgba(211, 158, 0, 0.6)'; c.lineWidth=2;
+    for(let r of [100, 150, 220, 250]) { c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.stroke(); }
+    c.font='bold 24px "Noto Sans TC", sans-serif'; c.textAlign='center'; c.textBaseline='middle';
+    c.fillStyle='rgba(211, 158, 0, 0.8)';
+    const dirs=['南','西南','西','西北','北','東北','東','東南'];
+    for(let i=0; i<8; i++) {
+        const a = i * Math.PI/4;
+        c.save(); c.translate(cx+Math.cos(a)*185, cy+Math.sin(a)*185); c.rotate(a+Math.PI/2);
+        c.fillText(dirs[i], 0, 0); c.restore();
+        c.beginPath(); c.moveTo(cx+Math.cos(a)*100, cy+Math.sin(a)*100); c.lineTo(cx+Math.cos(a)*250, cy+Math.sin(a)*250); c.stroke();
+    }
+    this.luoTex = new THREE.CanvasTexture(cv); 
+    return this.luoTex;
+  }
   static createLabel(txt, color, size, x, y, z) {
     const cv=document.createElement('canvas'); cv.width=384; cv.height=144;
     const c=cv.getContext('2d'); c.font='bold 60px "Noto Sans TC","Microsoft JhengHei",sans-serif';
@@ -343,6 +364,8 @@ class FengShuiEngine {
     let vortexQi = 0;   // 渦流吉氣
     let localField = { metal: 0, wood: 0, water: 0, fire: 0, earth: 0 };
     let wuXingText = "";
+    let skyViewFactor = 1.0; // 【修正】提前宣告 SVF 變數，預設全開闊 1.0
+    let frontOpenness = 1.0; // 【修正】提前宣告明堂開闊度，預設全開闊 1.0
     const elMap = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土', east:'wood', south:'fire', west:'metal', north:'water', center:'earth' };
 
     // 1-1. 基礎地段五行輻射
@@ -462,8 +485,46 @@ class FengShuiEngine {
         if (dist < 18 && b.h > hMain + 10) s += 15; // 物理壓迫感
       }
       
+      // ==========================================
+      // --- 新增：天空可視率 (Sky View Factor, SVF) 射線追蹤 ---
+      // ==========================================
+      let maxBlockage = new Array(72).fill(0);
+      let obsZ = 15; // 觀測中心：明堂核心
+      if (builder && builder.blds) {
+          for (const b of builder.blds) {
+              if ((b.x === 0 && b.z === 0) || b.isWater || b.y > 5) continue; // 排除主樓、水池與懸空物
+              let dx = b.x - 0, dz = b.z - obsZ;
+              let dist = Math.hypot(dx, dz);
+              if (dist < 1) continue;
+              
+              let centerAngle = Math.atan2(dx, dz); 
+              // 實體建築在視野中佔據的角寬度 (Angular Width，加入距離衰減)
+              let angWidth = Math.abs(Math.atan2(b.w * 0.55, dist)) + Math.abs(Math.atan2(b.d * 0.55, dist));
+              // 實體建築在視野中佔據的仰角 (Elevation Angle)
+              let elevAngle = Math.max(0, Math.atan2(b.h - 5, dist));
+              let blockage = Math.min(1.0, elevAngle / (Math.PI / 2.2)); 
+              
+              // 更新 72 條 360度 射線的遮蔽率
+              for (let i = 0; i < 72; i++) {
+                  let rayAng = (i / 72) * Math.PI * 2 - Math.PI; 
+                  let diff = Math.atan2(Math.sin(rayAng - centerAngle), Math.cos(rayAng - centerAngle));
+                  if (Math.abs(diff) < angWidth) {
+                      if (blockage > maxBlockage[i]) maxBlockage[i] = blockage;
+                  }
+              }
+          }
+      }
+      
+      let svfTotal = 0, svfFront = 0;
+      for (let i = 0; i < 72; i++) {
+          svfTotal += maxBlockage[i];
+          let rayAng = (i / 72) * Math.PI * 2 - Math.PI; 
+          if (Math.abs(rayAng) < Math.PI / 3) svfFront += maxBlockage[i]; // 前方 120 度視野
+      }
+      skyViewFactor = 1.0 - (svfTotal / 72);       // 0=全遮蔽(極陰), 1=全開闊(極陽)
+      frontOpenness = 1.0 - (svfFront / 24);       // 明堂前方開闊度
+      
       // 物理現象探測：文丘里效應 (天斬) 與 氣散效應
-      // 【修正 Bug 2】確保左右兩棟高樓在 Z 軸（深度）上有真實的立體重疊，才能引發狹縫風切
       let leftWalls = leftBuildings.filter(b => b.z > 10 && b.z < 80 && b.x > -20 && b.h > hMain);
       let rightWalls = rightBuildings.filter(b => b.z > 10 && b.z < 80 && b.x < 20 && b.h > hMain);
       for (let lw of leftWalls) {
@@ -474,8 +535,8 @@ class FengShuiEngine {
       }
       // 修正：若明堂前方有水體（如玉帶水、九曲水、化煞水池等），水體本身即為有效的氣流屏障，不應觸發八風吹穴
       const hasWaterBarrier = ['jade', 'nine'].includes(st.water) || st.cure.includes('pool') || st.shuifa.includes('banyue');
-      // 【修正 Bug】使用 vFront 判斷前方開闊度，避免 frontObstacles 因低矮雜物未計數而漏判八風吹穴
-      if (vFront < 30 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier) emptyFrontWind = true; // 前方幾乎無實體遮蔽且強風
+      // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
+      if (frontOpenness > 0.85 && extWindSpeed >= 8 && stateManager.wind >= 5 && !hasWaterBarrier) emptyFrontWind = true; 
     }
 
     // ==========================================
@@ -558,19 +619,22 @@ class FengShuiEngine {
     // 【修正】若無水（water='none'）或水勢為煞水（如cut、bow、rush等），則不進行虛水匯聚測試，避免無中生有
     // 【終極修正】若地形為平坦且水勢為玉帶水，但水勢為煞水（如反弓、割腳等），仍不進行虛水測試，避免誤判
     const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    let dropPaths = []; // 【新增】記錄地氣水滴的滑落軌跡
     if (st.water !== 'none' && !isShaWater) {
         for(let i=0; i<50; i++) {
             let px = (Math.random() - 0.5) * 40;
             // 【修正】根據地形調整起始位置：backhigh 地形起始於後方高處，使水自然向前流；slope 地形起始於前方，使水自然向後流；平坦地形應均勻分佈於明堂前後，避免全部集中於低處
             let pz;
             if (st.terrain === 'backhigh') {
-                pz = -20 + Math.random() * 20; // 起始於後方高處
+                pz = -20 + Math.random() * 20; 
             } else if (st.terrain === 'slope') {
-                pz = 20 + Math.random() * 20; // 起始於前方低處
+                pz = 20 + Math.random() * 20; 
             } else {
-                pz = -10 + Math.random() * 40; // 起始於明堂前後均勻分佈，避免全部集中於低處
+                pz = -10 + Math.random() * 40; 
             }
             
+            let currentPath = [Util.v3(px, getGeoZ(px, pz) + 0.3, pz)]; // 【新增】軌跡起點
+
             for(let step=0; step<25; step++) {
                 // 【修正 Bug 1】改用中央差分法 (Central Difference)，探測四周高低差，解決水流只能單向跌入窪地的非對稱引力 Bug
                 let hx_left = getGeoZ(px - 1, pz);
@@ -595,8 +659,10 @@ class FengShuiEngine {
                 
                 px += gradX * 12; 
                 pz += gradZ * 12;
+                currentPath.push(Util.v3(px, getGeoZ(px, pz) + 0.3, pz)); // 【新增】記錄軌跡點
             }
-            
+            dropPaths.push(currentPath); // 【新增】保存軌跡
+
             // 判定最終水滴落點是否還留在主樓有效範圍內
             if (Math.abs(px) < 30 && pz > -10 && pz < 60) gatheredDrops++;
             else escapedDrops++;
@@ -883,14 +949,32 @@ class FengShuiEngine {
     g -= Math.max(0,stateManager.wind-7)*3;
 
     // ==========================================
-    // 4. 陰陽平衡計算
+    // 4. 陰陽平衡計算 (導入 SVF 精確判定)
     // ==========================================
     let yin = 0, yang = 0;
-    if (vFront > (vLeft + vRight + vBack) * 0.4) yin += 2;
-    if (!directSunlight) yin += 3; // 修正：使用正確的日照變數
-    if (vFront < 50) yang += 2;
+    
+    // 1. 使用精確的 SVF 判定環境壓迫感與開闊度
+    if (skyViewFactor < 0.3) {
+        yin += 4; 
+        observerText.push(`空間｜SVF 射線探測：天空可視率僅 ${Math.round(skyViewFactor*100)}%，遭實體嚴重逼壓 (自然湧現: 陰氣閉塞)`);
+    } else if (skyViewFactor < 0.5) {
+        yin += 2;
+    }
+    
+    if (frontOpenness > 0.85) {
+        yang += 3; 
+        if (skyViewFactor > 0.75) observerText.push(`空間｜SVF 射線探測：明堂開闊度達 ${Math.round(frontOpenness*100)}%，毫無遮攔 (自然湧現: 曠野氣散)`);
+    } else if (frontOpenness > 0.6) {
+        yang += 1;
+    } else if (frontOpenness < 0.2) {
+        yin += 3; 
+        observerText.push(`空間｜SVF 射線探測：明堂開闊度僅 ${Math.round(frontOpenness*100)}%，明堂受阻 (自然湧現: 堂氣難伸)`);
+    }
+
+    if (!directSunlight) yin += 3; 
     if (stateManager.wind > 7) yang += 3;
     if (stateManager.wind < 3) yin += 2;
+    
     // 修正：加入其他物理因素對陰陽的影響
     if (kineticSha > 20) yang += 2; // 高動能煞氣增加陽氣躁動
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
@@ -1119,7 +1203,7 @@ class FengShuiEngine {
         g: Math.round(g),
         s: Math.round(s),
         c: Math.round(c),
-        cureText, wuXingText, yyBalance, yyText, physicsText
+        cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths // 【新增】將軌跡傳給渲染器
     };
   }
   
@@ -1191,37 +1275,62 @@ class FengShuiEngine {
       }
     }
 
-    // --- 【優化二】真實幾何碰撞與氣場擴散 (Raymarching / SDF 概念) ---
+    // --- 【優化三】真實幾何碰撞、空氣動力學 (Aerodynamics) 與 SDF 氣流尾流 ---
     if (builder && builder.blds) {
       let isInsideBuilding = false;
       let minEdgeDist = 9999;
+      let wakeEffect = 0;     // 尾流區 (Wind Wake / 低壓藏風)
+      let ramPressure = 0;    // 迎風面 (Ram Pressure / 高壓煞氣)
       
       for (const b of builder.blds) {
-        // 檢查像素 (x,z) 是否在該建築的 3D Bounding Box 內
+        if (b.isWater) continue; // 水體不阻擋氣流
+
         const dx = Math.abs(x - b.x);
         const dz = Math.abs(z - b.z);
         const insideX = dx < b.w / 2;
         const insideZ = dz < b.d / 2;
         
         if (insideX && insideZ) {
-			// 【修正 Bug 1-B】熱力圖繪製於地表 (y=0)。若建築底部懸空超過 5，則地表為空，熱力氣流可暢通無阻 (穿堂風)
-			if (b.y > 5) isInsideBuilding = false;
+			if (b.y > 5) isInsideBuilding = false; // 抬轎懸空，氣流穿堂
 			else { isInsideBuilding = true; break; }
 		}
         
-        // 計算到建築物邊緣的距離 (SDF - Signed Distance Field 概念)
+        // SDF (Signed Distance Field) 距離邊緣計算
         const distX = Math.max(0, dx - b.w / 2);
         const distZ = Math.max(0, dz - b.d / 2);
         const distToEdge = Math.hypot(distX, distZ);
         if (distToEdge < minEdgeDist) minEdgeDist = distToEdge;
+
+        // 空氣動力學計算：假設主風向為 +Z 吹向 -Z (與粒子預設流向一致)
+        // 1. 迎風面 (Ram Pressure)：位於建築正前方 (+Z側)，產生高壓風煞
+        if (z > b.z + b.d / 2 && z < b.z + b.d / 2 + 18 && insideX) {
+            let p = 1.0 - (z - (b.z + b.d / 2)) / 18;
+            ramPressure += p * 15; 
+        }
+        
+        // 2. 尾流區 (Wake Region)：位於建築正後方 (-Z側)，形成低壓與渦流
+        // 尾流區寬度會隨距離擴散 (dx < b.w/2 + 擴散係數)
+        if (z < b.z - b.d / 2 && z > b.z - b.d / 2 - 45) {
+            let distBehind = (b.z - b.d / 2) - z;
+            if (dx < b.w / 2 + distBehind * 0.35) {
+                let wakeStr = 1.0 - (distBehind / 45);
+                wakeEffect += wakeStr * 20; 
+            }
+        }
       }
 
       if (isInsideBuilding) {
-          return -15; // 實體建築內部阻絕氣場流動 (顯示為深藍色無氣狀態)
-      } else if (minEdgeDist < 12) {
-          // 氣流沿著建築物牆面會產生邊界層滯留效應 (Boundary Layer)，形成微弱聚氣
-          v += 8 * Math.exp(-(minEdgeDist * minEdgeDist) / 30);
+          return -25; // 實體建築內部，深藍色真空無氣狀態
+      } 
+      
+      // 綜合 SDF 與 空氣動力學效應
+      if (minEdgeDist < 8) {
+          // 邊界層 (Boundary Layer) 黏滯效應：氣流貼牆減速，產生微弱聚氣
+          v += 12 * Math.exp(-(minEdgeDist * minEdgeDist) / 12);
       }
+      
+      v -= ramPressure; // 迎風面高壓 -> 偏向紅色煞氣
+      v += wakeEffect;  // 尾流區低壓 -> 偏向黃綠色吉氣(藏風)
     }
 
     // 3. 明堂核心聚氣點 (仍給予一個基礎引力中心)
@@ -1247,9 +1356,47 @@ class CityBuilder {
     this.auraRing = null;
     this.beacon = null;
     this.fountainBeam = null;
+    this.ghostMesh = null;
+    this.mainCore = null;  
+    this.baseEmHex = 0;    
+    this.dropsGroup = new THREE.Group(); 
+    this.scene.add(this.dropsGroup);
+    this.dropAnimators = [];
+    this.luopanMesh = null;  // 【新增】羅盤底座
+    this.shieldMesh = null;  // 【新增】能量防護罩
+  }
+
+  updateGhost(x, z, tool) {
+      if (!this.ghostMesh) {
+          this.ghostMesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color:0x00ff88, transparent:true, opacity:0.6, emissive:0x00aa44}));
+          this.scene.add(this.ghostMesh);
+      }
+      this.ghostMesh.visible = true;
+      if (tool === 'wood') { this.ghostMesh.geometry = new THREE.BoxGeometry(12, 60, 12); this.ghostMesh.material.color.setHex(0x2a6b3c); }
+      else if (tool === 'earth') { this.ghostMesh.geometry = new THREE.BoxGeometry(24, 25, 24); this.ghostMesh.material.color.setHex(0x7c6a4a); }
+      else if (tool === 'water') { this.ghostMesh.geometry = new THREE.CylinderGeometry(5, 5, 2, 32); this.ghostMesh.material.color.setHex(0x4fa6ff); }
+      
+      let ty = Util.terrainY(x, z, this.currentTerrain || 'flat');
+      let h = this.ghostMesh.geometry.parameters.height || 2;
+      this.ghostMesh.position.set(x, ty + h/2, z);
+      
+      // 若為中心不可建區域，顯示紅色警示
+      if (Math.abs(x) < 15 && Math.abs(z) < 15) this.ghostMesh.material.color.setHex(0xff0000);
   }
   
   clear() {
+    if(this.ghostMesh) this.ghostMesh.visible = false;
+    if(this.luopanMesh) { this.luopanMesh.visible = false; }
+    if(this.shieldMesh) { this.shieldMesh.visible = false; }
+    
+    // 【新增】清除拓撲水流
+    this.dropsGroup.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) c.material.dispose();
+    });
+    this.dropsGroup.clear();
+    this.dropAnimators = [];
+
     this.group.traverse((child) => {
       if (child.isMesh || child.isLine || child.isPoints) {
         if (child.geometry) child.geometry.dispose();
@@ -1264,11 +1411,63 @@ class CityBuilder {
     this.curves.length = 0;
     this.fountainBeam = null;
   }
-
-  update(time) {
-    if(this.auraRing){
-      this.auraRing.scale.setScalar(1+0.12*Math.sin(time*2.4));
-      this.auraRing.material.opacity=0.45+0.3*Math.sin(time*2.4);
+  drawWaterTopology(paths) {
+      this.dropsGroup.traverse(c => {
+          if (c.geometry) c.geometry.dispose();
+          if (c.material) c.material.dispose();
+      });
+      this.dropsGroup.clear();
+      this.dropAnimators = [];
+      
+      if (!paths || paths.length === 0) return;
+      
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x00aadd, transparent: true, opacity: 0.15 });
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+      const dotGeo = new THREE.SphereGeometry(0.35, 8, 8);
+      
+      paths.forEach(p => {
+          if (p.length < 2) return;
+          const geo = new THREE.BufferGeometry().setFromPoints(p);
+          this.dropsGroup.add(new THREE.Line(geo, lineMat));
+          
+          // 為每條軌跡綁定一顆動態光點
+          const dot = new THREE.Mesh(dotGeo, dotMat);
+          this.dropsGroup.add(dot);
+          this.dropAnimators.push({ mesh: dot, path: p, t: Math.random() });
+      });
+  }
+  update(time, ana) {
+    if (this.mainCore && ana) {
+        let baseIntensity = 0.3;
+        if (ana.s > 60) {
+            this.mainCore.material.emissive.setHex(0xff2200); // 煞氣過重，警報紅光
+            baseIntensity = 0.4 + 0.3 * Math.sin(time * 8); 
+        } else {
+            this.mainCore.material.emissive.setHex(Util.brighten(this.baseEmHex)); // 恢復本命五行光
+            if (ana.g > 30) baseIntensity = 0.3 + 0.2 * Math.sin(time * 2); // 吉氣滋養，平穩呼吸
+        }
+        this.mainCore.material.emissiveIntensity = baseIntensity;
+    }
+    if (this.dropAnimators && this.dropAnimators.length > 0) {
+        this.dropAnimators.forEach(d => {
+            d.t += 0.006 + (Math.random() * 0.005); // 模擬水流速度差異
+            if (d.t > 1) d.t = 0;
+            const len = d.path.length - 1;
+            const idx = Math.floor(d.t * len);
+            const nextIdx = Math.min(idx + 1, len);
+            const lerpFactor = (d.t * len) - idx;
+            d.mesh.position.lerpVectors(d.path[idx], d.path[nextIdx], lerpFactor);
+        });
+    }
+    if(this.luopanMesh){
+        this.luopanMesh.rotation.z = time * 0.15; // 羅盤緩慢自轉
+    }
+    
+    if(this.shieldMesh){
+        // 防護罩呼吸脈動效果，並根據煞氣強度產生頻率變化
+        let pulseSpeed = (ana && ana.s > 50) ? 8.0 : 2.0; 
+        let scale = 1.0 + 0.03 * Math.sin(time * pulseSpeed);
+        this.shieldMesh.scale.setScalar(scale);
     }
     if(this.beacon){
       this.beacon.material.opacity=0.12+0.08*Math.sin(time*1.6);
@@ -1654,6 +1853,8 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('抬轎懸空','#d31515',9,0,7,0));
     }
 
+    this.mainCore = core;
+    this.baseEmHex = emHex;
     // 【修正】將 Y 軸懸空高度 elevY 寫入物理判定屬性中，供熱力圖與 GPU 讀取
     this.group.add(core); this.blds.push({x:0,z:0,w:16,d:16,h:H + elevY, y:elevY});
     
@@ -1661,8 +1862,39 @@ class CityBuilder {
       new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}));
     this.beacon.position.y=60; this.group.add(this.beacon);
     
-    this.auraRing=new THREE.Mesh(new THREE.RingGeometry(10,11,48),new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.7,side:THREE.DoubleSide}));
-    this.auraRing.rotation.x=-Math.PI/2; this.auraRing.position.y=0.2; this.group.add(this.auraRing);
+    // --- 【新增】3D 全息羅盤底座 ---
+    this.luopanMesh = new THREE.Mesh(new THREE.RingGeometry(16, 42, 64), new THREE.MeshBasicMaterial({map: ResourceManager.getLuopanTex(), transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false}));
+    this.luopanMesh.rotation.x = -Math.PI/2; this.luopanMesh.position.y = 0.3; this.group.add(this.luopanMesh);
+    
+    // --- 【新增】GPU Fresnel 邊緣發光能量防護罩 (制化陣法光罩) ---
+    const hasCure = st.cure.some(c => ['stone','mirror','gourd','pool','trees','fountain'].includes(c));
+    if (hasCure) {
+        let sColor = new THREE.Color(0x00aaff); // 預設水局藍色
+        if (st.cure.includes('mirror') || st.cure.includes('stone') || st.cure.includes('gourd')) sColor.setHex(0xffaa00); // 剛體金黃色
+        else if (st.cure.includes('trees')) sColor.setHex(0x00ff88); // 植栽翠綠色
+
+        const shieldMat = new THREE.ShaderMaterial({
+            uniforms: { glowColor: { value: sColor } },
+            vertexShader: `
+                varying float intensity;
+                void main() {
+                    vec3 worldNormal = normalize(mat3(modelMatrix) * normal);
+                    vec3 worldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+                    vec3 viewDirection = normalize(cameraPosition - worldPosition);
+                    intensity = pow(0.65 - max(dot(worldNormal, viewDirection), 0.0), 3.0);
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor; varying float intensity;
+                void main() { gl_FragColor = vec4(glowColor, intensity * 0.95); }
+            `,
+            side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+        });
+        this.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(30, 48, 24, 0, Math.PI*2, 0, Math.PI/2), shieldMat);
+        this.shieldMesh.position.y = elevY; this.group.add(this.shieldMesh);
+    }
+    // ----------------------------------------------
     
     this.group.add(ResourceManager.createLabel('主樓（穴場）','#d39e00',10,0,H+(st.sha.includes('sedan')?28:16),0));
 	// --- 【優化四】渲染沙盒物件，並自動寫入 blds 給物理引擎讀取 ---
@@ -1697,8 +1929,32 @@ uniform bool u_shaTianzhan; uniform int u_terrainType;
 uniform vec3 u_spawns[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife; varying float vIsWater; varying float vIsWind;
+varying vec2 vDir; varying float vSpeed; // 【新增】傳遞螢幕空間方向與速度
 
 float rand(vec2 co){ return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
+
+// --- 新增：3D 雜訊與旋度向量場 (Curl Noise) ---
+vec3 hash3(vec3 p) {
+    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+float noise(vec3 p) {
+    vec3 i = floor(p); vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(dot(hash3(i + vec3(0,0,0)), f - vec3(0,0,0)), dot(hash3(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+                   mix(dot(hash3(i + vec3(0,1,0)), f - vec3(0,1,0)), dot(hash3(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
+               mix(mix(dot(hash3(i + vec3(0,0,1)), f - vec3(0,0,1)), dot(hash3(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+                   mix(dot(hash3(i + vec3(0,1,1)), f - vec3(0,1,1)), dot(hash3(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+}
+vec3 curlNoise(vec3 p) {
+    float e = 0.1;
+    float dx = noise(p + vec3(e, 0, 0)) - noise(p - vec3(e, 0, 0));
+    float dy = noise(p + vec3(0, e, 0)) - noise(p - vec3(0, e, 0));
+    float dz = noise(p + vec3(0, 0, e)) - noise(p - vec3(0, 0, e));
+    return vec3(dy - dz, dz - dx, dx - dy) / (2.0 * e);
+}
+// ---------------------------------------------
+
 float getTerrainY(float x, float z) {
     if(u_terrainType == 1) return max(0.0, -z * 0.15);
     if(u_terrainType == 2) return -z * 0.1;
@@ -1756,8 +2012,15 @@ void main() {
             v.x = mix(v.x, (tx / tLen) * 4.5, 3.0 * dt);
             v.z = mix(v.z, (tz / tLen) * 4.5, 3.0 * dt);
             p.y += (ty + 0.4 - p.y) * 4.0 * dt;
-        } else if(isWind) { v.z -= 15.0 * dt; 
-        } else { v *= max(0.0, 1.0 - 0.6*dt); }
+        } else if(isWind) { 
+            v.z -= 15.0 * dt; 
+            // 新增：風氣帶有和緩的旋度擾動，呈現自然風流
+            v += curlNoise(p * 0.08 + u_simTime * 0.5) * 8.0 * dt;
+        } else { 
+            v *= max(0.0, 1.0 - 0.6*dt); 
+            // 新增：滯留吉氣產生微觀的太極渦旋盤旋感
+            v += curlNoise(p * 0.15) * 3.0 * dt; 
+        }
         
         if(u_specialShuqi && p.z<0.0 && p.z>-30.0) { v.x -= p.x * 3.0 * dt; }
         if(!isWater) p.y += (ty + 1.0 - p.y) * 2.0 * dt;
@@ -1789,8 +2052,16 @@ void main() {
     vLife = 1.0 - (age / a_life);
     if(p.y < -900.0) vLife = 0.0;
     vIsWater = isWater ? 1.0 : 0.0; vIsWind = isWind ? 1.0 : 0.0;
+    
     vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
-    gl_PointSize = 4.5 * (300.0 / -mvPosition.z);
+    vec4 mvNext = modelViewMatrix * vec4(p + v * 0.1, 1.0); // 預測下一步位置
+    vec2 sVel = mvNext.xy - mvPosition.xy; // 螢幕空間向量
+    
+    vSpeed = length(v);
+    vDir = length(sVel) > 0.001 ? normalize(sVel) : vec2(1.0, 0.0);
+    
+    float stretch = clamp(1.0 + vSpeed * 0.12, 1.0, 4.0); // 根據速度決定拉伸倍率
+    gl_PointSize = 4.5 * (300.0 / -mvPosition.z) * stretch; // 放大繪圖視窗以容納拖影
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
@@ -1805,8 +2076,31 @@ uniform bool u_shaTianzhan;
 uniform vec3 u_spawns[64]; uniform vec3 u_spawnDirs[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife;
+varying vec2 vDir; varying float vSpeed; // 【新增】
 
 float rand(vec2 co){ return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
+
+// --- 新增：煞氣專用的高頻旋度向量場 (Turbulence) ---
+vec3 hash3(vec3 p) {
+    p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
+}
+float noise(vec3 p) {
+    vec3 i = floor(p); vec3 f = fract(p);
+    vec3 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(dot(hash3(i + vec3(0,0,0)), f - vec3(0,0,0)), dot(hash3(i + vec3(1,0,0)), f - vec3(1,0,0)), u.x),
+                   mix(dot(hash3(i + vec3(0,1,0)), f - vec3(0,1,0)), dot(hash3(i + vec3(1,1,0)), f - vec3(1,1,0)), u.x), u.y),
+               mix(mix(dot(hash3(i + vec3(0,0,1)), f - vec3(0,0,1)), dot(hash3(i + vec3(1,0,1)), f - vec3(1,0,1)), u.x),
+                   mix(dot(hash3(i + vec3(0,1,1)), f - vec3(0,1,1)), dot(hash3(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
+}
+vec3 curlNoise(vec3 p) {
+    float e = 0.1;
+    float dx = noise(p + vec3(e, 0, 0)) - noise(p - vec3(e, 0, 0));
+    float dy = noise(p + vec3(0, e, 0)) - noise(p - vec3(0, e, 0));
+    float dz = noise(p + vec3(0, 0, e)) - noise(p - vec3(0, 0, e));
+    return vec3(dy - dz, dz - dx, dx - dy) / (2.0 * e);
+}
+// ---------------------------------------------
 
 void main() {
     float timeSinceStart = u_simTime + a_seed * 100.0;
@@ -1844,6 +2138,11 @@ void main() {
         }
         v.y += 1.2 * dt;
         
+        // 新增：當煞氣衝刺時，產生卡門渦街般的狂暴紊流 (破壞力視覺化)
+        // 速度越快、時間越久，旋度干擾越強烈
+        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (15.0 + length(v) * 0.5);
+        v += turbulence * dt;
+        
         // --- GPU 流體力學碰撞 ---
         bool hitObstacle = false;
         for(int j = 0; j < 32; j++) {
@@ -1869,20 +2168,43 @@ void main() {
     
     vLife = 1.0 - (age / a_life);
     if(p.y < -900.0) vLife = 0.0;
+    
     vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
-    gl_PointSize = 5.0 * (300.0 / -mvPosition.z);
+    vec4 mvNext = modelViewMatrix * vec4(p + v * 0.1, 1.0);
+    vec2 sVel = mvNext.xy - mvPosition.xy;
+    
+    vSpeed = length(v);
+    vDir = length(sVel) > 0.001 ? normalize(sVel) : vec2(1.0, 0.0);
+    
+    float stretch = clamp(1.0 + vSpeed * 0.12, 1.0, 5.0); // 煞氣拉伸倍率更高 (更銳利)
+    gl_PointSize = 5.0 * (300.0 / -mvPosition.z) * stretch;
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
 
 const frag = `
 uniform sampler2D map; varying float vLife;
+varying vec2 vDir; varying float vSpeed; // 【新增】接收速度資訊
 #ifdef IS_GOOD
 varying float vIsWater; varying float vIsWind;
 #endif
 void main() {
     if(vLife <= 0.0) discard;
-    vec4 tex = texture2D(map, gl_PointCoord);
+    
+    // --- 【新增】UV 旋轉與拉伸變形 (Velocity Streak) ---
+    vec2 uv = gl_PointCoord - 0.5;
+    float c = vDir.x; float s = vDir.y;
+    uv = mat2(c, s, -s, c) * uv; // 將 UV 座標旋轉對齊速度向量
+    
+    float stretch = clamp(1.0 + vSpeed * 0.12, 1.0, 5.0);
+    uv.y *= stretch; // 壓扁 Y 軸，讓圖形維持原來的厚度，形成拉伸錯覺
+    uv += 0.5;
+    
+    // 捨棄超出範圍的像素，避免紋理重複 (Wrap) 造成破圖
+    if(uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
+    // ------------------------------------------------
+    
+    vec4 tex = texture2D(map, uv);
     if(tex.a < 0.1) discard;
     vec3 col = vec3(0.9, 0.6, 0.0);
 #ifdef IS_GOOD
@@ -2125,6 +2447,21 @@ class World3D {
     // 【修改】紀錄觸發事件的按鍵 btn（0為左鍵，2為右鍵）
     cv.addEventListener('pointerdown', e => { this.drag = {x:e.clientX, y:e.clientY, moved:0, btn:e.button}; });
     window.addEventListener('pointermove', e => {
+      // --- 【新增】沙盒虛影 (Ghosting) 即時預覽 ---
+      if (!this.drag && this.app.state.tool) {
+          const rc = new THREE.Raycaster();
+          rc.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1), this.camera);
+          const pt = Util.v3(0,0,0);
+          if (rc.ray.intersectPlane(new THREE.Plane(Util.v3(0,1,0),0), pt)) {
+              let snapX = Math.round(pt.x / 12) * 12;
+              let snapZ = Math.round(pt.z / 12) * 12;
+              this.app.builder.updateGhost(snapX, snapZ, this.app.state.tool);
+          }
+      } else if (!this.app.state.tool && this.app.builder.ghostMesh) {
+          this.app.builder.ghostMesh.visible = false;
+      }
+      // ------------------------------------------
+
       if(!this.drag) return;
       const dx=e.clientX-this.drag.x, dy=e.clientY-this.drag.y;
       this.drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -2249,8 +2586,25 @@ class World3D {
         const x = px/W*360-180;
         const v = FengShuiEngine.heatField(x, z, stateManager, curves, builder);
         let r=0, g=0, b=0, a=0;
-        if(v>1){const t=Math.min(1,v/60);r=240;g=160-60*t;b=20;a=Math.min(160,20+t*140);}
-        else if(v<-1){const t=Math.min(1,-v/55);r=60;g=80;b=220;a=Math.min(160,20+t*140);}
+        
+        if(v > 1) { 
+            // 吉氣聚 (黃綠色)
+            const t = Math.min(1, v/60);
+            r = 140 + 60*t; g = 180 + 55*t; b = 40; 
+            a = Math.min(180, 20+t*160);
+        } 
+        else if(v < -1) { 
+            if (v === -25) { 
+                // 實體建築內部 (深藍色真空)
+                r = 15; g = 25; b = 45; a = 180;
+            } else { 
+                // 煞氣散 (紅橘色，統一圖例與粒子的視覺)
+                const t = Math.min(1, -v/55);
+                r = 220 + 35*t; g = 80 - 50*t; b = 20; 
+                a = Math.min(160, 20+t*140);
+            }
+        }
+        
         const i=(py*W+px)*4; img.data[i]=r; img.data[i+1]=g; img.data[i+2]=b; img.data[i+3]=a;
       }
     }
@@ -2615,6 +2969,8 @@ class App {
     this.world.drawHeatmap(this.state, this.builder.curves, this.builder);
     // 【修改】將 3D 實體建築與曲線資料傳入引擎，作為湧現物理與幾何計算的基礎
     this.state.analysis = FengShuiEngine.analyze(this.state, this.builder);
+    // 【新增】將物理引擎解算出的地氣軌跡發送給渲染器
+    this.builder.drawWaterTopology(this.state.analysis.dropPaths);
     this.ui.refreshPanels(this.state);
   }
 
@@ -2637,7 +2993,7 @@ class App {
     const time = now / 1000;
 
     this.world.updateCamera();
-    this.builder.update(time);
+    this.builder.update(time, this.state.analysis); // 將觀測數據傳入控制發光
     this.particles.step(dt, time, this.state, this.builder);
     this.ui.updateBars(time, this.state.analysis);
     this.world.render();
