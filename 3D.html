@@ -2515,6 +2515,8 @@ const Physics = {
         
         // 【新增：進階流體觀測儀表計數器】
         let frameCoanda = 0, frameDowndraft = 0, frameVenturi = 0, frameBounce = 0;
+        let framePhreatic = 0, frameTensorFracture = 0, frameHelicity = 0, frameThermalShear = 0, frameWaveletSpike = 0;
+        let frameCoriolisCrash = 0, frameDarcyDrag = 0, frameBoundarySep = 0; // 【終極探針】
 
         // 【新增：Grid-based CFD 網格流體求解器 (Navier-Stokes 近似)】
         if (Math.abs(baseWind) > 0.001) {
@@ -2938,6 +2940,34 @@ const Physics = {
             }
 
             if (t.y > -100 && y <= t.y + 3.5) {
+                
+                // 【進化：地下水頭壓強 (Hydraulic Head & Phreatic Surface)】
+                // 地下水位線動態分佈：高山水位深，平洋水位淺。
+                let waterTable = (state.d === 'pingyang') ? -2.5 : Math.max(-10.0, -z * 0.08 - 4.0);
+                let phreaticDepth = waterTable - t.y; // 地下水層與地表的距離
+                
+                // 當龍脈下行，地表接近地下水位時，水頭壓強將地氣「逼出地表」 (界水則止)
+                if (phreaticDepth > -5.0 && phreaticDepth < 2.0) {
+                    vel.y += (2.0 - phreaticDepth) * 1.5 * dt; // 潛水層上浮力 (Buoyancy)
+                    if (st === 0 && Math.random() < 0.05 * dt) framePhreatic++; // 【探針：水壓結穴懸浮】
+                } else if (phreaticDepth >= 2.0) {
+                    vel.y -= phreaticDepth * 2.0 * dt; // 水壓過大，沖心洗穴 (凶)
+                    if (st === 2) this.pState[i] = 3; 
+                }
+
+                // 【進化：高斯曲率與主應力張量斷裂 (Tensor Fracture)】
+                // 計算鄰近地形的法線變化率 (近似曲率)
+                let tLeft = Engine3D.getTerrainY(x - 2, z).nx;
+                let tRight = Engine3D.getTerrainY(x + 2, z).nx;
+                let gaussianCurvature = Math.abs(tLeft - tRight);
+                
+                if (gaussianCurvature > 1.2 && z < 0) { // 曲率不連續，發生應力斷裂
+                    frameTensorFracture++; // 【探針：張力斷裂漏氣】
+                    vel.x += Math.sign(t.nx) * gaussianCurvature * 5.0 * dt; // 氣脈從裂縫噴出側漏
+                    vel.y -= 1.5 * dt; // 失去張力支撐，下墜
+                    if (st === 2 && Math.random() < 0.1 * dt) this.pState[i] = 3;
+                }
+
                 y = t.y + 3.5;
                 
                 // 【進化：未剝換的極端彈跳 (廉貞煞氣)】
@@ -2973,9 +3003,28 @@ const Physics = {
                     
                     vel.z += pulse * dt;
                     if (state.d === 'huilong') {
-                        let curveAngle = Math.max(0, Math.min(Math.PI, (z + 100) / 110 * Math.PI));
-                        let targetX = Math.sin(curveAngle) * 65.0;
-                        vel.x += (targetX - x) * 0.15 * dt; 
+                        // 【進化：螺旋渦流與動量倒灌 (Helical Vorticity & Momentum Inversion)】
+                        // 計算 C 型山體迴旋內弧側的低壓中心點
+                        let vortexCenterX = 65.0;
+                        let vortexCenterZ = -50.0;
+                        let rx = x - vortexCenterX;
+                        let rz = z - vortexCenterZ;
+                        let rSq = rx*rx + rz*rz;
+                        
+                        if (rSq < 10000.0) { // 進入低壓渦旋陷阱區
+                            frameHelicity++; // 【探針：螺旋倒灌】
+                            // 流體力學叉積 (Cross Product) 產生旋轉向心力
+                            let vortexForceX = -rz * 0.05;
+                            let vortexForceZ = rx * 0.05;
+                            // 伯努利低壓抽吸 (Bernoulli Suction)
+                            let suction = 1500.0 / Math.max(10.0, rSq);
+                            
+                            vel.x += (vortexForceX - rx * suction) * dt;
+                            vel.z += (vortexForceZ - rz * suction) * dt;
+                            
+                            // 動量反轉 (Momentum Inversion)：在到達穴場前強行將 z 方向動量翻轉為負 (朝向太祖山)
+                            if (z > -20 && vel.z > 0) vel.z -= 4.5 * dt; 
+                        }
                     }
                 }
                 
@@ -3013,15 +3062,39 @@ const Physics = {
                         }
                     }
 
-                    // 修正 3：直沖水與割腳水極限速度僅約 6.3，門檻設 8.5 永遠不會觸發。
-                    // 必須下修至 5.5，確保吉水安然無恙，而凶水能正確觸發毀滅性紅煞。
-                    if (waterSpeed > 5.5) {
+                    // 【進化：彎道二次流與邊界層剝離 (Helicoidal Secondary Flow)】
+                    // 根據水流速度與彎道曲率，計算垂直於主流方向的螺旋剪切力
+                    let isOuterBank = (state.w === 'gejiao' || state.w === 'fan');
+                    let isInnerBank = (state.w === 'you' || state.w === 'jiuqu');
+                    
+                    if (isOuterBank && Math.abs(x) < 30) {
+                        frameBoundarySep++; // 【探針：邊界層剝離撕裂】
+                        // 反弓/割腳 (凹岸)：強烈的下切二次流 (Downwelling Secondary Flow)
+                        let helicoidalShear = waterSpeed * 0.45;
+                        vel.z += Math.sign(z - t.y) * helicoidalShear * dt; // 將岸上粒子強制扯入河心
+                        vel.y -= helicoidalShear * 0.8 * dt; // 垂直絞殺拖入深水
+                        
+                        if (st === 0 || st === 2) {
+                            if (Math.random() < helicoidalShear * 0.15 * dt) {
+                                this.pState[i] = 1; 
+                                this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
+                                if (Math.random() < 0.05) Engine3D.createShockwave(x, y, z, 0xff1111);
+                            }
+                        }
+                    } else if (isInnerBank && Math.abs(x) < 30) {
+                        // 玉帶/九曲 (凸岸)：溫和的上升二次流 (Upwelling)，將水氣與生氣輕柔推上岸邊
+                        let gentleUpwelling = waterSpeed * 0.15;
+                        vel.z += (dzTaiji > 0 ? -1 : 1) * gentleUpwelling * dt; // 推向太極中心
+                        vel.y += gentleUpwelling * 0.5 * dt; // 輕柔托舉
+                    }
+
+                    // 修正 3：直沖水與極端洪水的直線沖刷破壞
+                    if (waterSpeed > 5.5 && state.w === 'ji') {
                         vel.y -= waterSpeed * 0.15 * dt; 
                         if (st === 0 || st === 2) {
                             if (Math.random() < waterSpeed * 0.02 * dt) {
                                 this.pState[i] = 1; 
                                 this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
-                                if (Math.random() < 0.05) Engine3D.createShockwave(x, y, z, 0xff1111);
                             }
                         }
                     }
@@ -3071,8 +3144,43 @@ const Physics = {
                         }
                     }
 
-                    // 【進化：康達效應 (Coandă Effect) 與 九星剝換】
+                    // 【進化：熱力學斜坡風 (Diurnal Thermal Slope-Wind)】
+                    // 利用太陽向量與地形法線的內積計算熱輻射吸收 (Solar Flux)
+                    let sunVec = new THREE.Vector3(70, 140, 60).normalize();
+                    let surfaceNormal = new THREE.Vector3(-t.nx, 1.0, -t.nz).normalize();
+                    let solarFlux = surfaceNormal.dot(sunVec);
+                    
+                    if (Math.abs(x) < 40 && z > -20 && z < 40) {
+                        // 陽坡受熱上升 (Updraft)，陰坡冷卻下沉 (Downdraft)
+                        let thermalDeltaP = (solarFlux - 0.5) * 3.5; 
+                        vel.y += thermalDeltaP * dt;
+                        
+                        // 若兩側護砂不對稱 (如逼壓 vs 無)，會引發單向橫切風，撕裂氣場腔室
+                        let leftH = Engine3D.getTerrainY(x - 20, z).y;
+                        let rightH = Engine3D.getTerrainY(x + 20, z).y;
+                        if (Math.abs(leftH - rightH) > 10.0) {
+                            frameThermalShear++; // 【探針：熱力學橫切風撕裂】
+                            vel.x += Math.sign(rightH - leftH) * Math.abs(thermalDeltaP) * 1.5 * dt;
+                            if (st === 2 && Math.random() < 0.05 * dt) this.pState[i] = 1; // 吉氣被熱切風吹散
+                        }
+                    }
+
+                    // 【進化：傅立葉/小波變換的能譜衰減 (Wavelet Energy Cascade)】
                     let ruggedness = Math.sqrt(t.nx*t.nx + t.nz*t.nz);
+                    
+                    // 檢查穴星附近的高頻噪聲頻譜是否呈現指數級衰減 (Exponential Decay)
+                    if (z > -10 && z < 20 && Math.abs(x) < 25) {
+                        let expectedDecay = Math.exp(-Math.pow(z + 10, 2) / 50.0); // 理論應衰減至此
+                        if (ruggedness > expectedDecay + 1.0) {
+                            // 殘留高頻分量：煞氣未化，引發微觀量子態亂流 (Micro-turbulence)
+                            frameWaveletSpike++; // 【探針：高頻煞氣未化】
+                            vel.x += (Math.random() - 0.5) * ruggedness * 3.0 * dt;
+                            vel.z += (Math.random() - 0.5) * ruggedness * 3.0 * dt;
+                            if (st === 2 && Math.random() < ruggedness * 0.1 * dt) this.pState[i] = 1;
+                        }
+                    }
+
+                    // 【進化：康達效應 (Coandă Effect) 與 九星剝換】
                     let isSmoothStar = (state.xing === 'jin' || state.xing === 'tu') && state.bohuan === 'yes';
                     
                     if (isSmoothStar && y < t.y + 3.0 && z > -50 && z < 10) {
@@ -3261,6 +3369,21 @@ const Physics = {
                 vel.z += (Math.random()-0.5)*0.8;
             }
 
+            // 【進化：北半球科里奧利力 (Coriolis Force)】
+            // 氣流前進時受地球自轉影響，恆定向速度向量的「右側」產生微小偏向力
+            // 叉積計算: (v_x, 0, v_z) cross (0, 1, 0) = (v_z, 0, -v_x) -> 向右向量
+            let coriolisStrength = 0.08; 
+            vel.x += vel.z * coriolisStrength * dt;
+            vel.z += -vel.x * coriolisStrength * dt;
+            
+            // 湧現檢測：若右側白虎過高 (tai) 或逼壓，右偏的氣流撞擊後會引發白虎煞氣暴走
+            if (state.mr === 'tai' && x > 10 && x < 35 && z > 0 && vel.x > 0) {
+                frameCoriolisCrash++; // 【探針：科里奧利白虎撞擊】
+                vel.x *= -1.5; // 被白虎陡壁猛烈反彈
+                vel.y += 2.5 * dt;
+                if (st === 2 && Math.random() < 0.15 * dt) this.pState[i] = 1;
+            }
+
             vel.clampLength(0, 5);
             x += vel.x*dt; y += vel.y*dt; z += vel.z*dt;
 
@@ -3293,21 +3416,26 @@ const Physics = {
             if (inTaiji && state.taiji) {
                 let mult = globalMultCache;
 
-                // 【新增：穴土五行屬性 (Soil Quality Physics)】
+                // 【進化：達西定律與多孔介質滲透流 (Darcy's Law of Porous Media)】
                 if (state.soil === 'wanshi' && y < 2.0) {
-                    // 頑石不生氣：地表堅硬如鐵，粒子觸底直接暴亂反彈
+                    // 頑石 (零孔隙率)：地表堅硬如鐵，無法發生滲透，粒子觸底產生絕緣反彈
                     vel.y += 3.5 * dt; 
                     vel.x += (Math.random()-0.5) * 4.0 * dt;
                     vel.z += (Math.random()-0.5) * 4.0 * dt;
                     mult *= 0.6; 
                 } else if (state.soil === 'yuni' && y < 1.0) {
-                    // 淤泥爛肉：陰濕陷落，吸乾生氣壽命
+                    frameDarcyDrag++; // 【探針：達西高黏滯阻力】
+                    // 淤泥 (高黏滯度, 極低滲透率)：極端 Viscous Drag (黏滯阻力) 吞噬動能
+                    let viscousDrag = 0.02; // 流體在泥沼中的極速衰減系數
+                    vel.x *= viscousDrag; vel.z *= viscousDrag;
                     vel.y -= 2.5 * dt; 
-                    this.pLife[i] -= 3.0 * dt; // 壽命急遽流失
+                    this.pLife[i] -= 5.0 * dt; // 缺氧/壽命急遽流失
                     mult *= 0.5; 
                 } else if (state.soil === 'wuse') {
-                    // 五色土：土質潤澤堅實，完美緩衝，粒子安靜沉降
-                    vel.multiplyScalar(Math.pow(0.85, dt));
+                    // 五色土 (理想孔隙率 $\kappa$)：形成穩定的微觀滲透流 (Seepage Flow)
+                    let seepagePermeability = 0.85; 
+                    vel.multiplyScalar(Math.pow(seepagePermeability, dt)); // 均勻柔和減速
+                    vel.y += (0.1 - vel.y) * 0.5 * dt; // 保持懸浮在土層表面的完美呼吸態
                     this.pLife[i] += 1.5 * dt; // 延年益壽
                 }
 
@@ -3635,16 +3763,34 @@ const Physics = {
         AppState.sensors.downdraft = (frameDowndraft / this.pCount) * 100;
         AppState.sensors.venturi = (frameVenturi / this.pCount) * 100;
         AppState.sensors.bounce = (frameBounce / this.pCount) * 100;
+        
+        // 統整深層 PDE/地質物理觀測數據
+        AppState.sensors.phreatic = (framePhreatic / this.pCount) * 200;
+        AppState.sensors.tensorFrac = (frameTensorFracture / this.pCount) * 500;
+        AppState.sensors.helicity = (frameHelicity / this.pCount) * 100;
+        AppState.sensors.thermalShear = (frameThermalShear / this.pCount) * 300;
+        AppState.sensors.waveletSpike = (frameWaveletSpike / this.pCount) * 200;
+        
+        // 終極三大地球物理探針
+        AppState.sensors.coriolisCrash = (frameCoriolisCrash / this.pCount) * 500;
+        AppState.sensors.darcyDrag = (frameDarcyDrag / this.pCount) * 100;
+        AppState.sensors.boundarySep = (frameBoundarySep / this.pCount) * 300;
 
         let sensorHtml = `
             <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心湧現觀測儀]</div>
             氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>
             穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}<br>
             陰陽向陽度: ${(AppState.sensors.sunlight*100).toFixed(1)}%<br>
-            <div style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.15); color:#3f6b52;">
-                <b style="color:#22201c;">[進階空氣動力與剛體遙測]</b><br>
+            <div style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.15); color:#3f6b52; font-size:10.5px;">
+                <b style="color:#22201c; font-size:11px;">[進階 PDE 與非線性地質遙測]</b><br>
+                水壓懸浮率: ${AppState.sensors.phreatic.toFixed(1)}% | 螺旋倒灌率: ${AppState.sensors.helicity.toFixed(1)}%<br>
                 康達附著率: ${AppState.sensors.coanda.toFixed(1)}% | 峽管層流率: ${AppState.sensors.venturi.toFixed(1)}%<br>
-                壓穴下洗率: ${AppState.sensors.downdraft.toFixed(1)}% | 剛體反彈率: ${AppState.sensors.bounce.toFixed(1)}%
+                <span style="color:#a63a2b;">
+                張力斷裂: ${AppState.sensors.tensorFrac.toFixed(1)}% | 熱切風撕裂: ${AppState.sensors.thermalShear.toFixed(1)}%<br>
+                壓穴下洗: ${AppState.sensors.downdraft.toFixed(1)}% | 高頻煞殘留: ${AppState.sensors.waveletSpike.toFixed(1)}%<br>
+                科氏力撞擊: ${AppState.sensors.coriolisCrash.toFixed(1)}% | 達西泥沼阻力: ${AppState.sensors.darcyDrag.toFixed(1)}%<br>
+                邊界層二次流剝離: ${AppState.sensors.boundarySep.toFixed(1)}%
+                </span>
             </div>
         `;
         let sEl = document.getElementById('sensor-data');
