@@ -443,7 +443,8 @@ class FengShuiEngine {
         gradZ += -2 * mass * b.z / (distSq * distSq);
         
         // 2. 頻域剝換 (Spectral Cascade)：計算幾何高頻變異
-        if (b.z < 0) {
+        // 【第14輪修正】加入中軸限制 |x|<15，避免左右砂(青龍白虎)的尖高建築干擾龍脈自身的頻域判別
+        if (b.z < 0 && Math.abs(b.x) < 15) {
             let sharpness = b.h / (b.w + b.d); // 尖銳度 (高頻特徵)
             if (sharpness > 1.5) spatialHighFreq += mass * sharpness / distSq;
             else spatialLowFreq += mass / distSq;
@@ -943,18 +944,28 @@ class FengShuiEngine {
     // 【修正】補回理氣水向的實質影響，並考慮煞氣與吉氣的平衡
     // 【終極修正】若無水或煞水，理氣水向不應產生任何影響，避免無中生有
     const isShaWaterForLiqi = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
-    if (st.water !== 'none' && !isShaWaterForLiqi) {
+    if (!waterBroken && st.water !== 'none' && !isShaWaterForLiqi) {
+        // 【第10輪修正】若虛水大量外洩，理氣成效應打折，避免與「傾瀉散氣」矛盾
+        const waterEscaped = waterTestRan && escapedDrops > 25;
         if (st.waterDir === 'shuai') {
             s += 20; g -= 15; c = Math.max(20, c - 20);
             observerText.push(`理氣｜衰來旺去：收衰氣而洩旺氣，主退財敗運`);
         } else if (st.waterDir === 'reverse') {
-            g += 20; c += 15;
-            observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`);
+            if (waterEscaped) {
+                observerText.push(`理氣｜逆水朝迎：但地勢傾斜水氣外洩，朝迎之勢渙散，反成虛水`);
+            } else {
+                g += 20; c += 15;
+                observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`);
+            }
         } else if (st.waterDir === 'wang') {
-            g += 10;
+            if (waterEscaped) {
+                observerText.push(`理氣｜旺水迎朝：但水氣外洩，旺氣難收`);
+            } else {
+                g += 10;
+            }
         }
     } else {
-        // 無水或煞水時，理氣水向不應產生任何影響
+        // 無水、煞水或水局已破時，理氣水向不應產生任何影響
         // 保持中性
     }
 
@@ -967,7 +978,7 @@ class FengShuiEngine {
         observerText.push(`流體｜抬轎煞的穿堂風與水聚明堂的渦流相互衝突，部分煞氣與吉氣抵消`);
     }
 
-    if(st.liqi==='back' && st.water !== 'none' && !isShaWaterForLiqi) {
+    if(st.liqi==='back' && st.water !== 'none' && !isShaWaterForLiqi && !waterBroken) {
         s += 14;
         c = Math.max(10, c - 20); // 背水坐空，氣散而容量大減（僅適用於有水且非煞水）
         g = Math.max(0, g - 6);   // 修正：背水坐空主退氣，但不會完全抹滅吉氣，僅輕微扣減
@@ -980,6 +991,7 @@ class FengShuiEngine {
     // extWindSpeed 已提早至上方宣告
 
     for (const src of stateManager.sources) {
+      if (src.isTantou && !peekSha) continue; // 【第7輪修正】物理未偵測到探頭煞時，跳過煞源，避免無中生有
       const dx = 0 - src.x;
       const dz = sensorFrontZ - src.z;
       const dist = Math.hypot(dx, dz);
@@ -1011,12 +1023,10 @@ class FengShuiEngine {
     const hasMitigatingWater = st.cure.includes('pool') || st.shuifa.includes('banyue');
     const isShaWaterForFluid = ['bow', 'tfork', 'rush', 'cut', 'lintou', 'bazi'].includes(st.water);
     if (isShaWaterForFluid && hasMitigatingWater) {
-        // 化煞水池或水法提供實質制化力量
-        const mitigateBonus = 12;
+        // 化煞水池或水法僅能化解煞氣，不能將煞水轉為吉水，故不增加吉氣
         const mitigateShaReduction = 8;
-        g += mitigateBonus;
         s = Math.max(0, s - mitigateShaReduction);
-        observerText.push(`制化｜化煞水池/水法啟動，有效化解煞水，煞氣-${mitigateShaReduction}，吉氣+${mitigateBonus}`);
+        observerText.push(`制化｜化煞水池/水法啟動，有效化解煞水，煞氣-${mitigateShaReduction}`);
     }
     if (st.water === 'none' || (isShaWaterForFluid && !hasMitigatingWater)) {
         // 無水，或煞水且無其他水體時，不應湧現任何水聚或水煞現象
@@ -1025,17 +1035,16 @@ class FengShuiEngine {
         } else {
             observerText.push(`流體｜此水勢為煞水，氣流被切割或反弓，無法聚氣 (自然湧現: 水煞)`);
         }
-    } else if (extWindSpeed >= 12 && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
+    } else if (extWindSpeed >= 12 && !isShaWaterForFluid && (st.water === 'jade' || st.water === 'nine')) {
         let tearForce = (extWindSpeed - 10) * 15;
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
-        waterBroken = true; // 【修正】水局已破，後續陰陽計算不應再視水體為陰氣來源
+        waterBroken = true; // 【修正】僅吉水（玉帶/九曲）有真正水局介質可被強風扯破；煞水本身不聚氣，即使有化煞水體也不應誤報水破
         observerText.push(`流體｜極速動能(強度${extWindSpeed})產生強烈氣穴與剪力，徹底扯破了明堂的水局介質，聚氣之水翻轉為【散氣風煞】！`);
-    } else if ((st.water === 'jade' || st.water === 'nine' || (isShaWaterForFluid && hasMitigatingWater)) && !st.special.includes('qingxie') && st.terrain !== 'slope') {
+    } else if ((st.water === 'jade' || st.water === 'nine') && !st.special.includes('qingxie') && st.terrain !== 'slope') {
         observerText.push(`流體｜界水則止，真氣遇水盤旋不散 (自然湧現: 水聚明堂)`);
-        if (isShaWaterForFluid) {
-            observerText.push(`流體｜主水為煞水，但化煞水池/水法提供部分聚氣與化解 (自然湧現: 煞水被部分制化)`);
-        }
+    } else if (isShaWaterForFluid && hasMitigatingWater) {
+        observerText.push(`流體｜主水為煞水，但化煞水池/水法提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
     } else if (st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
         observerText.push(`流體｜地勢傾斜，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
         if (isShaWaterForFluid) {
@@ -1124,14 +1133,17 @@ class FengShuiEngine {
     if (vortexQi > 10) yin += 1; // 渦流吉氣增加陰氣凝聚
     // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
     // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
-    if (!waterBroken && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'))) yin += 2;
+    if (!waterBroken && (['jade', 'nine'].includes(st.water) || (st.shuifa.includes('banyue') && !isShaWater))) yin += 2;
     if (st.cure.includes('pool') || st.cure.includes('fountain')) yin += 1; // 水體增加陰氣
     if (st.cure.includes('stone') || st.cure.includes('mirror')) yang += 1; // 剛體增加陽氣
     // 修正：加入地形與水法對陰陽的影響
     if (st.terrain === 'slope') yang += 1; // 斜坡地勢增加陽氣流動
     if (st.terrain === 'basin') yin += 1; // 盆地地形增加陰氣凝聚
-    if (st.waterDir === 'shuai') yang += 1; // 衰水增加陽氣躁動
-    if (st.waterDir === 'reverse') yin += 1; // 逆水增加陰氣凝聚
+    // 【第5輪修正】無水或煞水時，水向不應影響陰陽平衡（與理氣分數邏輯一致）
+    if (st.water !== 'none' && !isShaWater && !waterBroken) {
+        if (st.waterDir === 'shuai') yang += 1; // 衰水增加陽氣躁動
+        if (st.waterDir === 'reverse') yin += 1; // 逆水增加陰氣凝聚
+    }
 
     // 【修正】補回穴形 (Hole) 的微氣候流體駐留與陰陽效應
     // 【修正】直接將窩/鉗的吉氣計入 g，而非 vortexQi，避免 vortexQi 在 g+=vortexQi 之後才增加而導致的吉氣漏算
@@ -1498,7 +1510,7 @@ class FengShuiEngine {
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:42,dx:0,dz:-1,w:16,pw:8,len:28});
-    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:62,dx:0,dz:0,w:14,pw:9,len:0});
+    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:62,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
     // 現代煞氣源
     if(st.sha.includes('glass'))A.push({x:0,z:80,dx:0,dz:-1,w:18,pw:14,len:80});
     if(st.sha.includes('walledge'))A.push({x:-15,z:60,dx:0,dz:-1,w:28,pw:10,len:60});
@@ -3272,6 +3284,8 @@ class UIManager {
     // 接近真實風水的綜合判定邏輯 (引入陰陽失衡度與傳統風水格局評價)
     if (realG >= 80 && realS <= 20 && yy <= 3 && st.left !== 'none' && st.right !== 'none' && st.front !== 'none') {
       vt = '上吉・藏風聚氣，陰陽交泰'; vc = 'good'; 
+    } else if (netEff >= 30 && realS < 60) {
+      vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good';
     } else if (realG >= 80 && realS <= 55 && yy <= 4) {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
     } else if (realG >= 50 && realS <= 30 && yy <= 4) {
