@@ -226,6 +226,8 @@ const AppState = {
         let p = presetName === 'random' ? Rules.generateRandomPreset() : CONFIG.presets[presetName];
         Object.assign(this.current, CONFIG.baseState);
         Object.keys(p).forEach(k => this.current[k] = p[k]);
+        // 【修正】重置幀計數，讓預熱保護機制在每次切換格局時從零開始，避免舊幀數干擾上吉判定
+        this.frames = 0;
 
         while(Engine3D.obsGroup.children.length > 0) {
             let child = Engine3D.obsGroup.children[0];
@@ -287,6 +289,8 @@ const Rules = {
         if(state.bohuan === 'no') m *= 0.55; // 未剝換，煞氣未除，全域降級
         if(state.zhijiao === 'ni') m *= 0.75; // 逆水反，氣脈倒退
         if(state.sherui) m *= 0.4; // 射肋煞直插太極，極凶
+        if(state.fenzhi) m *= 0.7; // 枝龍分流，龍氣散佚
+        if(state.ml === 'ya' || state.mr === 'tai') m *= 0.75; // 青龍逼壓/白虎抬頭，主客失衡
         // 致命形煞全域懲罰，確保分數與大凶評級一致
         if(state.ao) m *= 0.8; // 凹風煞漏風灌穴
         if(state.tantou) m *= 0.8; // 探頭煞小人窺視
@@ -362,6 +366,8 @@ const Rules = {
             if(state.bohuan === 'yes') D_raw += 15; else D_raw -= 30; // 剝換加分/扣分
             if(state.zhijiao === 'shun') D_raw += 12; else if(state.zhijiao === 'ni') D_raw -= 25;
         }
+        // 【修正】死龍或破龍為絕地，龍脈行度與太祖山等正面加分不得使龍分虛高，強制封頂於 15
+        if(isBadDragon) D_raw = Math.min(D_raw, 15);
         let D = Math.max(0, Math.min(100, D_raw));
 
         let mlScore = {you:35, ya:15, po:-8, none:0}[state.ml]; 
@@ -451,9 +457,13 @@ const Rules = {
         if (state.w !== 'none' && wVel > 1.2) baseWa -= (wVel - 1.0) * 25; 
         
         let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
-        // 修正：水法分數應反映水力抽吸懲罰
-        if (AppState.sensors.waterDrag > 0.5) {
+        // 修正：水法分數應反映水力抽吸懲罰（僅當有實際天然水時，避免無水格局半月池誤傷）
+        if (AppState.sensors.waterDrag > 0.5 && state.w !== 'none') {
             Wa = Math.max(0, Wa - (AppState.sensors.waterDrag - 0.5) * 20);
+        }
+        // 修正：死龍或破龍為生氣枯竭之絕地，水法總分必須封頂於 15，避免水口神獸加成突破上限
+        if (isBadDragon) {
+            Wa = Math.min(Wa, 15);
         }
 
         let xueScore = 0;
@@ -534,7 +544,7 @@ const Rules = {
         let X = Math.max(0, Math.min(100, X_base)); // 將原本的 -50 下限統一改為 0
 
         let hasFrontGoodWaterSc = (state.w === 'jiuqu' || state.w === 'you' || state.yue || state.san);
-        let Xg_base = state.face === '1' ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 25 : 90) : 20);
+        let Xg_base = state.face === '1' ? 65 : (state.d === 'pingyang' && state.w !== 'none' ? (hasFrontGoodWaterSc ? 90 : 25) : 20);
         // 修正：若為迴龍顧祖格局，太祖山作為大朝案，理氣基分不應受「坐空」懲罰，反轉為大吉
         if (state.d === 'huilong' && state.face === '0' && state.zutai) {
             Xg_base = 75; 
@@ -558,10 +568,11 @@ const Rules = {
         let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (deg >= 75 && deg <= 105);
         let isDirectGodWaterClash = (state.w !== 'none') && (state.face === '1') && (deg >= 135 && deg <= 225); // 南方正神見水犯下水煞
 
-        if (isZeroGodWater) zeroGodBonus += 15; // 零神(北)得水催財大吉
-        if (isZhaoGodWater) zeroGodBonus += 10; // 照神(東)得水催貴聚氣
+        const isBadWaterZero = ['fan','bazi','gejiao','ji','lintou'].includes(state.w);
+        if (isZeroGodWater && !isBadWaterZero) zeroGodBonus += 15; // 零神(北)得水催財大吉 (凶水除外)
+        if (isZhaoGodWater && !isBadWaterZero) zeroGodBonus += 10; // 照神(東)得水催貴聚氣 (凶水除外)
         if (isDirectGodWaterClash) zeroGodBonus -= 25; // 正神(南)下水破財大凶
-        if (state.face === '0' && state.d === 'pingyang') zeroGodBonus += 10; // 平洋龍「坐空朝滿/倒騎龍」水繞後背不以正神下水論
+        if (state.face === '0' && state.d === 'pingyang' && !isBadWaterZero) zeroGodBonus += 10; // 平洋龍「坐空朝滿/倒騎龍」水繞後背不以正神下水論
 
         let Xg = state.face === '1'
             ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus + zeroGodBonus)
@@ -640,15 +651,7 @@ const Rules = {
 
         let emergenceBonus = densityBonus - windPenalty - dragPenalty;
 
-        // 【修正】統一散氣懲罰：即使粒子總數少於預熱門檻，只要散氣明顯大於聚氣，也必須反映在湧現加權中，
-        // 防止完美格局在粒子尚未聚集時被錯誤豁免。
-        if (AppState.scatterAcc > AppState.gatherAcc) {
-            const scatterDiff = AppState.scatterAcc - AppState.gatherAcc;
-            // 使用閾值避免微小差異過度敏感，並限制最大懲罰量
-            if (scatterDiff > 10) {
-                emergenceBonus -= Math.min(25, (scatterDiff - 10) * 0.6);
-            }
-        }
+        // 散氣懲罰已整合至下方預熱保護分支與正常分支內，避免雙重計分。
 
         // 修復 2：湧現物理預熱保護機制。剛切換格局時粒子尚未聚集，qiDensity 為 0，
         // 直接套用會導致嚴重扣分。需等待實時粒子觀察累積量超過門檻再啟動物理加權。
@@ -681,6 +684,10 @@ const Rules = {
             if (state.tianzhan && AppState.sensors.windSpeed < 0.3 && AppState.sensors.turbulence < 1.0) {
                 emergenceBonus -= 10;
             }
+            // 【新增】即使粒子總數低於預熱門檻，若散氣明顯大於聚氣，仍須施加懲罰，避免完美格局被錯誤豁免
+            if (AppState.scatterAcc > AppState.gatherAcc + 10) {
+                emergenceBonus -= Math.min(15, (AppState.scatterAcc - AppState.gatherAcc - 10) * 0.4);
+            }
         } else {
             // 修正：當聚氣率低於散氣率時，湧現懲罰應更強烈，但需考慮預熱階段，避免剛啟動時過度懲罰
             // 限制散射懲罰上限，防止極端散逸導致所有分數歸零
@@ -710,8 +717,8 @@ const Rules = {
         const totalPForCoherence = AppState.gatherAcc + AppState.scatterAcc;
         if (totalPForCoherence > 20 && AppState.scatterAcc > AppState.gatherAcc) {
             const scatterDiffForCoherence = AppState.scatterAcc - AppState.gatherAcc;
-            // 散射差距越大，凝聚力越弱，最多降到 0.5
-            coherenceFactor = Math.max(0.5, 1.0 - (scatterDiffForCoherence - 10) * 0.01);
+            // 增強散射差距的懲罰力道，使分數與評級一致；最低降到 0.3
+            coherenceFactor = Math.max(0.3, 1.0 - (scatterDiffForCoherence - 10) * 0.03);
         }
         let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2)) * coherenceFactor;
         let finalX = Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus))) * coherenceFactor;
@@ -763,44 +770,48 @@ const Rules = {
         }
         if(state.d === 'pingyang' && state.w === 'none'){ return { rating:'大凶・平洋無水', color:'#a63a2b', text:'平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。' }; }
         if(state.w === 'lintou'){ return { rating:'大凶・淋頭煞頂', color:'#a63a2b', text:'穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。' }; }
-        if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && ((AppState.gatherAcc > 0) || (AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.sensors.windSpeed < 0.5 && AppState.sensors.turbulence < 1.0)) && ((totalP < 50 && AppState.sensors.windSpeed < 0.8 && AppState.sensors.turbulence < 3.0) || (totalP >= 50 && dynRatio >= 0.45 && !((AppState.scatterAcc > Math.max(20, AppState.gatherAcc * 2)))))){ 
+        // 【修正】加入粒子活動門檻：若模擬時間已超過 10 幀（即非初始預熱期），
+        // 必須有實際粒子聚氣（gatherAcc > 0）才能判定上吉，否則即使全零感測也可能為假性高分。
+        const hasMinParticleActivity = (AppState.gatherAcc >= 1.0);
+        if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && hasMinParticleActivity && dynRatio >= 0.5 && AppState.gatherAcc > AppState.scatterAcc && AppState.sensors.windSpeed < 3.0 && AppState.sensors.turbulence < 5.0){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.posui || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
-            // 修正：增加對風速與亂流度的嚴格檢查，即使無凶煞，若物理異常也應降級
-            // 修正：若存在凶煞但感測器數據為0（物理異常），也應降級，避免凶煞被輕放
-            // 平洋龍得水為上，水力牽引屬正常現象，不應視為煞氣
             const isPingyangGoodWater = (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu'));
-            // 修正：合併物理異常與聚氣率過低的雙重判斷，避免單一指標誤判
-            // 修正 2：當氣密度高但聚氣率低時，可能只是散氣粒子聚集在感測區，並非真正聚氣。
-            // 必須同時滿足「聚氣量 >= 散氣量」才認定為吉氣凝聚，否則不應豁免散氣懲罰。
-            const hasPhysicalBreakdown = (totalP > 50 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)) && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8));
-            // 修正：提高總粒子數門檻至 50，避免在粒子尚未到達穴場的預熱階段（totalP<50）誤將完美格局降級。
-            // 只要總粒子數足夠（>50）且聚氣率過低，才強制降級，確保物理觀測與評級一致。
+            const hasPhysicalBreakdown = (totalP > 50 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.tensorFrac && AppState.sensors.tensorFrac > 100.0) || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)));
+            // 修正：維持 50 門檻，確保粒子數充足後再依聚氣率降級，避免過早誤判完美格局。
             const hasPoorGatherRatio = (totalP > 50 && dynRatio < 0.35);
             // 修正：同樣提高門檻，只有當總粒子數足夠且完全無聚氣時才降級，避免預熱期誤判。
             const hasZeroGatherWithScatter = (totalP > 50 && AppState.gatherAcc === 0 && AppState.scatterAcc > 0);
             // 修正：加入「聚氣率過低但粒子數足夠」時強制降級，避免預熱豁免被誤用於上吉
             if (hasBadWater || hasSevereSha || hasPhysicalBreakdown || hasPoorGatherRatio || hasZeroGatherWithScatter) {
-                rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
+                rating='中平・有瑕'; color='#3f6b52'; 
+                if (hasPoorGatherRatio || hasZeroGatherWithScatter) {
+                    tail='巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。';
+                } else {
+                    tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
+                }
             } else {
                 rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
             }
         }
         else if(effectiveAvg >= 35){
-            if (hasFatalSha) {
+            // 修正：即使理論分數高，若實時物理顯示完全無氣場流動，仍應強制大凶，避免評級與物理矛盾
+            if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
+            else if (hasFatalSha) {
                 rating='大凶・形煞沖射'; color='#a63a2b'; tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
             }
-            else if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && effectiveAvg < 35 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
+
             else if(AppState.gatherAcc === 0 && AppState.scatterAcc > 30 && AppState.frames > 120 && (AppState.sensors.windSpeed > 0.2 || AppState.sensors.turbulence > 1.0)){rating='大凶・氣場竭散';color='#a63a2b';tail='實時物理顯示真氣完全無法凝聚，生氣耗散殆盡，不可用。';}
             else if(!state.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
             else if(!state.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
             else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '左右無護砂關攔，兩邊受風，生氣難聚。';}
             else if(dynRatio < 0.4 && totalP > 50){rating='中平・氣場散失';color='#3f6b52';tail='靜態巒頭尚可，但實時風場或形煞導致粒子聚氣率低下。';}
-            else{rating='中平・有瑕';color='#3f6b52';tail='格局有瑕，聚散互見。';}
+            else{rating='中平・有瑕';color='#3f6b52';tail=(AppState.frames < 120 && AppState.gatherAcc > 0) ? '巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。' : '格局有瑕，聚散互見。';}
         }
         else {
-            if(!state.xia){rating='大凶・無穴可立';color='#a63a2b';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '無穴星融結，煞氣肆橫，不可用。';}
+            if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
+            else if(!state.xia){rating='大凶・無穴可立';color='#a63a2b';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '無穴星融結，煞氣肆橫，不可用。';}
             else if(dynRatio < 0.2 && totalP > 50){rating='大凶・極度吹散';color='#a63a2b';tail='實時動態物理顯示強烈風場/煞氣已完全摧毀穴場氣脈。';}
             else{rating='大凶・不聚';color='#a63a2b';tail='煞氣肆橫，生氣耗散。';}
         }
@@ -818,6 +829,7 @@ const Rules = {
         if(state.sherui) shaNotes.push('射肋煞');
         if(state.posui) shaNotes.push('破碎崖');
         if(state.bohuan === 'no') shaNotes.push('未剝換');
+        if(state.zhijiao === 'ni') shaNotes.push('橈棹逆水反');
         let shaStr = shaNotes.length > 0 ? `【犯煞：${shaNotes.join('、')}】\n` : '';
         let multStr = mult < 1 ? `【總加權 ×${mult.toFixed(2)}】\n` : '';
 
@@ -877,6 +889,19 @@ const Rules = {
         }
 
         // 【大一統改良】廢除凶水對「極限容量(Capacity)」的強制閹割腳本。
+        // 【新增：形煞對容量的負面影響】射肋、天斬、擎拳、凹風、破碎、探頭、傾瀉等形煞均嚴重破壞氣場，容量應隨之降低
+        if(state.sherui) cap -= 30;
+        if(state.tianzhan) cap -= 25;
+        if(state.qingquan) cap -= 20;
+        if(state.ao) cap -= 15;
+        if(state.posui) cap -= 20;
+        if(state.tantou) cap -= 15;
+        if(state.qing) cap -= 15;
+        if(state.fenzhi) cap -= 15; // 枝龍分流，龍氣不聚
+        if(state.ml === 'ya') cap -= 15; // 青龍逼壓
+        if(state.mr === 'tai') cap -= 15; // 白虎抬頭
+        // 【修正】死龍或破龍為絕地，凝氣容量極低，反映實質上不可立穴
+        if(state.d === 'si' || state.d === 'po') cap = Math.min(cap, 10);
         return Math.max(0, Math.min(100, cap));
     },
 
@@ -973,6 +998,8 @@ const DryRunTool = {
         AppState.scatterAcc = 0;
         AppState.smoothedScores = null;
         AppState.sensors = { qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0 };
+        // 【修正】同時重置幀計數，確保每次測試的粒子活動門檻從零計算，避免累積幀數破壞預熱判斷
+        AppState.frames = 0;
 
         // 儲存原始時間狀態並強制開啟物理流動
         const originalTimeScale = AppState.current.time;
@@ -1025,20 +1052,21 @@ const DryRunTool = {
 		const riverY = Engine3D.getTerrainY(0, 30).y;
 
 		// 1. 生成生效形煞結構化清單 (activeShaList)
-		const activeShaList = [];
-		if (st.tianzhan) activeShaList.push('天斬煞');
-		if (st.ao) activeShaList.push('凹風煞');
-		if (st.qingquan) activeShaList.push('擎拳煞');
-		if (st.tantou) activeShaList.push('探頭煞');
-		if (st.sherui) activeShaList.push('射肋煞');
-		if (st.posui) activeShaList.push('破碎崖');
-		if (st.fenzhi) activeShaList.push('枝龍分流');
-		if (st.ml === 'ya') activeShaList.push('青龍逼壓');
-		if (st.mr === 'tai') activeShaList.push('白虎抬頭');
-		if (['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(st.w)) activeShaList.push(`凶水(${st.w})`);
-		if (st.bohuan === 'no') activeShaList.push('未剝換');
-		if (st.zhijiao === 'ni') activeShaList.push('橈棹逆水反');
-		if (AppState.obstacles.length > 0) activeShaList.push(`手動置煞(${AppState.obstacles.length}處)`);
+        const activeShaList = [];
+        if (st.tianzhan) activeShaList.push('天斬煞');
+        if (st.ao) activeShaList.push('凹風煞');
+        if (st.qingquan) activeShaList.push('擎拳煞');
+        if (st.tantou) activeShaList.push('探頭煞');
+        if (st.sherui) activeShaList.push('射肋煞');
+        if (st.posui) activeShaList.push('破碎崖');
+        if (st.fenzhi) activeShaList.push('枝龍分流');
+        if (st.ml === 'ya') activeShaList.push('青龍逼壓');
+        if (st.mr === 'tai') activeShaList.push('白虎抬頭');
+        if (st.qing) activeShaList.push('明堂傾瀉');
+        if (['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(st.w)) activeShaList.push(`凶水(${st.w})`);
+        if (st.bohuan === 'no') activeShaList.push('未剝換');
+        if (st.zhijiao === 'ni') activeShaList.push('橈棹逆水反');
+        if (AppState.obstacles.length > 0) activeShaList.push(`手動置煞(${AppState.obstacles.length}處)`);
 
 		// 2. 計算朝向與九運理氣方位名稱 (compassOrientation)
 		const deg = st.degree !== undefined ? st.degree : 0;
@@ -1047,13 +1075,14 @@ const DryRunTool = {
 		else if (deg >= 135 && deg < 225) facingName = "朝南 (離宮)";
 		else if (deg >= 225 && deg < 315) facingName = "朝西 (兌宮)";
 
-		let zeroGodStatus = "無見水";
-		if (st.w !== 'none') {
-			if (st.face === '1' && (deg <= 45 || deg >= 315)) zeroGodStatus = "九運坎宮見水 (零神催財大吉)";
-			else if (st.face === '1' && (deg >= 75 && deg <= 105)) zeroGodStatus = "九運震宮見水 (照神催官吉)";
-			else if (st.face === '1' && (deg >= 135 && deg <= 225)) zeroGodStatus = "九運離宮見水 (正神下水大凶)";
-			else zeroGodStatus = "一般水法方位";
-		}
+        const isBadWaterCompass = ['fan','bazi','gejiao','ji','lintou'].includes(st.w);
+        let zeroGodStatus = "無見水";
+        if (st.w !== 'none') {
+            if (st.face === '1' && (deg <= 45 || deg >= 315)) zeroGodStatus = isBadWaterCompass ? "九運坎宮見水 (零神方位但為凶水, 不吉反凶)" : "九運坎宮見水 (零神催財大吉)";
+            else if (st.face === '1' && (deg >= 75 && deg <= 105)) zeroGodStatus = isBadWaterCompass ? "九運震宮見水 (照神方位但為凶水, 不吉反凶)" : "九運震宮見水 (照神催官吉)";
+            else if (st.face === '1' && (deg >= 135 && deg <= 225)) zeroGodStatus = isBadWaterCompass ? "九運離宮見水 (正神下水且為凶水, 大凶)" : "九運離宮見水 (正神下水大凶)";
+            else zeroGodStatus = isBadWaterCompass ? `凶水(${st.w})` : "一般水法方位";
+        }
 
 		// 3. 計算容量利用率與物理收斂指標 (physicsStability)
 		const capLimit = Rules.getCapacityLimit();
@@ -2101,7 +2130,11 @@ const Engine3D = {
         this.waterMesh.position.y = (state.d === 'pingyang') ? -3.0 : -10.0;
         const pos = this.terrainGeo.attributes.position.array;
         const cols = [];
-        let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55; if(state.w==='lintou') wZ = 10;
+                let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55; if(state.w==='lintou') wZ = 10;
+                // 【修正】高山點穴/手動點穴導致穴位水平位移 (lz 偏移) 時，河道位置必須連動，
+                // 否則原本在穴前的玉帶水可能跑到穴後，或淋頭水跑到穴前，造成風水邏輯錯亂
+                let lairZRef = (state.manualXue ? (state.xueZ || 0) : (5.0 - (state.xueHeight || 0) * 2.2));
+                if (state.w !== 'none') wZ += (lairZRef - 5.0);
 
         let defaultY = (state.w === 'none') ? -8 : -18;
         let c = new THREE.Color(); // 修復：將 Color 實例化移出 22800 次的迴圈外，消除切換格局時的 GC 記憶體暴增卡頓
@@ -2387,8 +2420,9 @@ const Engine3D = {
             }
             
             // 三叉水交會處：雕塑「水聚天心」深潭（天心水暈）
-            if(state.san && Math.abs(x) < 25 && z > 45 && z < 75) {
-                let junctionDist = Math.sqrt(x*x + Math.pow(z - 60, 2));
+            // 【修正】三叉水的位置也應隨穴位水平位移 (lairZRef) 連動，否則高山點穴後水聚天心與明堂錯位
+            if(state.san && Math.abs(x) < 25 && z > 45 + (state.w !== 'none' ? (lairZRef - 5.0) : 0) && z < 75 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)) {
+                let junctionDist = Math.sqrt(x*x + Math.pow(z - (60 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)), 2));
                 if (junctionDist < 20) {
                     // 修正：幾何深度悖論！平洋龍河床極淺(僅-4.5)，若強行挖出 -22 的深潭會產生荒謬的直井黑洞。
                     let sanDepth = (state.d === 'pingyang') ? -6.5 : -22;
@@ -2405,7 +2439,8 @@ const Engine3D = {
             // 修正：地理拓撲悖論！當立向為背水(face=0)時，若將半月池建在 z: -35 處，
             // 會直接挖穿背後高聳的主山峰，造成嚴重的 3D 地形撕裂與邏輯悖論。
             // 半月池實體必須建於前方的平坦明堂(z: 30)，與人面朝向無關。
-            let targetYueZ = 30;
+            // 【修正】半月池也應隨穴位水平位移 (lairZRef) 連動，確保池體位於明堂前方
+            let targetYueZ = lairZRef + 25;
             // 修正 2：半月池的總半徑為 18，邊界裁切範圍必須大於 18 (放寬至 20)，否則池堤前後端會被像切蛋糕一樣削平
             let yueZMin = targetYueZ - 20, yueZMax = targetYueZ + 20;
             if(state.yue && Math.abs(x)<22 && z > yueZMin && z < yueZMax) {
@@ -2476,7 +2511,11 @@ const Engine3D = {
 
                 let dR = Math.abs(z - rS);
 
-                if(dR < 25) {
+            if(dR < 25) {
+                // 【新增：關鍵巒頭保護】案山與朝山為風水上的重要屏障，不得被河道侵蝕挖除。
+                // 若當前點位於案山(55-100)或朝山(z>110)範圍，則跳過河道混合，保留山體。
+                let isKeyMountain = (state.an && z > 55 && z < 100 && Math.abs(x) < 40) || (state.chao && z > 110 && Math.abs(x) < 80);
+                if (!isKeyMountain) {
                     let t = Math.max(0, dR / 25);
                     let smoothT = t * t * (3 - 2 * t);
                     // 修正：平洋為平原微地形，水體不應刻出極深峽谷，將河床深度大幅調淺至 -4.5
@@ -2496,6 +2535,7 @@ const Engine3D = {
 
                     // 修復：移除 dR < 15 的硬限制，讓貝茲曲線平滑過渡 (smoothT) 完整涵蓋 25 單位的河岸，消除 3D 地形撕裂斷崖
                     y = y * smoothT + targetRiverY * (1 - smoothT);
+                }
                     
                     if (state.w === 'gejiao' && dR >= 15) {
                         // 修正 3：移除 dR >= 15 的硬切判斷，改為全域平滑套用的高指數切削，
@@ -2505,22 +2545,22 @@ const Engine3D = {
                     }
                 }
 
-                if(state.luo && Math.abs(x) < 12 && z > 65 && z < 85) {
+                if(state.luo && Math.abs(x) < 12 && z > 65 + (state.w !== 'none' ? (lairZRef - 5.0) : 0) && z < 85 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)) {
                     // 羅星塞水口：河道正中央聳立獨立石墩山包（羅星），高出水面逼水分流
-                    let luoH = 8.0 * Math.exp(-(x*x + Math.pow(z-75, 2))/35);
+                    let luoH = 8.0 * Math.exp(-(x*x + Math.pow(z-(75 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)), 2))/35);
                     y = Math.max(y, -15 + luoH); // 從河床抬升為水中央山洲
                 }
                 // 【華表捍門與獅象把水口】：左右兩岸對峙聳立陡峭雙峰峽谷門（捍門雙峰）
-                if((state.shixiang || state.hua) && z > 65 && z < 85) {
+                if((state.shixiang || state.hua) && z > 65 + (state.w !== 'none' ? (lairZRef - 5.0) : 0) && z < 85 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)) {
                     let bankDist = Math.abs(Math.abs(x) - 52); // 河道兩岸52距離處聳立雙峰
                     if (bankDist < 16) {
-                        let gateH = (state.shixiang ? 28.0 : 22.0) * Math.exp(-bankDist*bankDist / 80) * Math.exp(-Math.pow(z-75, 2)/100);
+                        let gateH = (state.shixiang ? 28.0 : 22.0) * Math.exp(-bankDist*bankDist / 80) * Math.exp(-Math.pow(z-(75 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)), 2)/100);
                         y = Math.max(y, gateH);
                     }
                 }
-                if(state.qin && z > 48 && z < 68) {
+                if(state.qin && z > 48 + (state.w !== 'none' ? (lairZRef - 5.0) : 0) && z < 68 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)) {
                     // 水尾禽星：溪流出口兩側橫臥龜蛇形巨石洲（禽星砥柱）
-                    let qinRock = 6.0 * Math.exp(-(Math.pow(Math.abs(x) - 15, 2) + Math.pow(z - 58, 2)) / 25);
+                    let qinRock = 6.0 * Math.exp(-(Math.pow(Math.abs(x) - 15, 2) + Math.pow(z - (58 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)), 2)) / 25);
                     y = Math.max(y, -12 + qinRock); // 凸起出水面的龜蛇奇石
                 }
             }
@@ -2950,7 +2990,7 @@ const Physics = {
             let xueH = state.xueHeight || 0;
             let lx = state.xueX || 0;
             let lz = state.manualXue ? state.xueZ : (5.0 - xueH * 2.2);
-            let dynamicTaijiZ = (state.xue === 'wo') ? lz - 5.0 : (state.xue === 'ru' ? lz + 7.0 : lz);
+            let dynamicTaijiZ = (state.xue === 'wo') ? lz : (state.xue === 'ru' ? lz - 5.0 : lz);
             let dxTaiji = x - lx;
             let dzTaiji = z - dynamicTaijiZ;
             let dxSensor = dxTaiji;
@@ -2971,7 +3011,10 @@ const Physics = {
             // 但粒子可能因地形或風場未進入該區域，導致 waterDrag 為 0。放寬感測範圍並加入地形判斷。
             let waterSensorLevel = (state.d === 'pingyang') ? -2.5 : -5.0;
             let isNearWater = (state.w !== 'none' || state.yue);
-            if (isNearWater && z > 10 && z < 70 && Math.abs(x) < 50 && y < waterSensorLevel && vel.y < -0.3) {
+            // 【修正】水感測範圍應隨穴位動態移動，否則高山點穴後固定範圍與實際河道錯位
+            let waterSenseZStart = lz - 5;
+            let waterSenseZEnd = lz + 60;
+            if (isNearWater && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && y < waterSensorLevel && vel.y < -0.3) {
                 waterDragCount++;
                 sumWaterDrag += Math.abs(vel.y);
             }
@@ -3115,12 +3158,15 @@ const Physics = {
             // 永遠達不到 0.25 的門檻，導致一般強風形同虛設，完全無法吹散粒子。
             // 必須將門檻下修至 0.02，讓無地形保護的強風能正確發揮物理吹散作用。
             let speedSq = localWindX*localWindX + localWindZ*localWindZ;
-            if (speedSq > 0.02 && st === 0 && Math.random() < speedSq * 2.5 * dt) {
+            // 【太極暈防護罩】穴心周圍為藏風聚氣之地，風場與亂流不得干擾凝聚中的吉氣。
+            let distToTaijiShieldSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
+            let inTaijiShield = (distToTaijiShieldSq < 320 && y > -8 && y < 15);
+            if (speedSq > 0.02 && st === 0 && !(inTaijiShield && state.taiji) && Math.random() < speedSq * 2.5 * dt) {
                 this.pState[i] = 3; 
                 this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
             }
 
-            if (localTurbulence > 0.3 && st !== 1 && Math.random() < localTurbulence * 0.5 * dt) {
+            if (localTurbulence > 0.3 && st !== 1 && !(inTaijiShield && state.taiji) && Math.random() < localTurbulence * 0.5 * dt) {
                 this.pState[i] = 1; 
                 this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.1;
                 if (Math.random() < 0.05) Engine3D.createShockwave(x, y, z, 0xff3333);
@@ -3814,7 +3860,7 @@ const Physics = {
                     radialVel = (dxTaiji*vel.x + dzTaiji*vel.z) / distTaiji;
                 }
                     let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
-                    let escapeDistThreshold = (mult > 0.8) ? 15.0 : 12.0;
+                    let escapeDistThreshold = (mult > 0.8) ? 22.0 : 15.0;
                     let escapeVelThreshold = (mult > 0.8) ? 10.0 : 7.0;
                     let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.0);
                     if (st === 1 || (vel.lengthSq() > escapeVelThreshold*escapeVelThreshold && isEscaping) || mult < 0.3) {
@@ -3861,12 +3907,12 @@ const Physics = {
                     let spiralDir = isYang ? 1.0 : -1.0; 
 
                     // 【診斷修正】增強太極暈凝聚效果：提高向心吸引係數與阻尼，解決完美格局聚氣不足
-                    let attractStrength = 0.24 * mult;
+                    let attractStrength = (mult > 0.8 ? 0.36 : 0.24) * mult;
                     vel.x += ((-dzTaiji)*0.06 * spiralDir - dxTaiji*attractStrength) * dt;
                     vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt;
                     vel.y += (isYang ? 0.35 : -0.25) * mult * dt;
-                    // 在太極暈內增加額外阻尼，使粒子更容易被束縛
-                    vel.multiplyScalar(Math.pow(0.88, dt));
+                    // 在太極暈內增加額外阻尼，使粒子更容易被束縛 (吉格局加強阻尼至0.80)
+                    vel.multiplyScalar(Math.pow(mult > 0.8 ? 0.80 : 0.88, dt));
 
                     // 【優化：Boids 生氣群集效應】讓吉氣如同魚群般具有生命力，互相吸引與對齊
                     if (st === 2 && Math.random() < 0.3) {
@@ -3924,7 +3970,7 @@ const Physics = {
                         vel.y *= Math.pow(0.8, dt); 
                     }
 
-                    if (st === 0 && Math.random() < 0.1 * dt) {
+                    if (st === 0 && Math.random() < (globalMultCache > 0.8 ? 0.35 : 0.1) * dt) {
                         this.pState[i]=2;
                         if (state.xing === 'jin') {
                             this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; // 金：淺色模式加深銀灰
@@ -4059,9 +4105,32 @@ const Physics = {
                 AppState.sensors.turbulence += 2.0;
                 AppState.sensors.windSpeed += 0.5;
             }
+            // 【新增：其餘致命形煞的靜態物理等效值】確保即使粒子尚未進入感測區，
+            // 射肋煞、破碎崖、探頭煞、天斬煞、凹風煞也能反映在風速與亂流度上。
+            if (state.sherui) {
+                AppState.sensors.turbulence += 5.0;
+                AppState.sensors.windSpeed += 1.5;
+            }
+            if (state.posui) {
+                AppState.sensors.turbulence += 3.0;
+            }
+            if (state.tantou) {
+                AppState.sensors.turbulence += 2.0;
+                AppState.sensors.windSpeed += 0.8;
+            }
+            if (state.tianzhan) {
+                AppState.sensors.turbulence += 3.0;
+                AppState.sensors.windSpeed += 2.0;
+            }
+            if (state.ao) {
+                AppState.sensors.turbulence += 2.0;
+                AppState.sensors.windSpeed += 1.0;
+            }
         } else {
             // 【修復：無粒子時改用 CFD 網格採樣，避免形煞風場被忽略】
-            let dynTaijiZ_sensor = (state.xue === 'wo') ? -5.0 : (state.xue === 'ru' ? 12.0 : (state.xue === 'qian' ? 0.0 : 5.0));
+            let xueH_sensor = state.xueHeight || 0;
+            let lz_sensor = state.manualXue ? state.xueZ : (5.0 - xueH_sensor * 2.2);
+            let dynTaijiZ_sensor = (state.xue === 'wo') ? lz_sensor : (state.xue === 'ru' ? lz_sensor - 5.0 : lz_sensor);
             let sensX = 0;
             let sensZ = dynTaijiZ_sensor;
             let sGX = Math.max(0, Math.min(63, Math.floor((sensX + 100) / 200 * 64)));
@@ -4093,6 +4162,26 @@ const Physics = {
             if (state.qingquan) {
                 AppState.sensors.turbulence += 2.0;
                 AppState.sensors.windSpeed += 0.5;
+            }
+            // 【新增：無粒子時同樣補上致命形煞的風場等效值】
+            if (state.sherui) {
+                AppState.sensors.turbulence += 5.0;
+                AppState.sensors.windSpeed += 1.5;
+            }
+            if (state.posui) {
+                AppState.sensors.turbulence += 3.0;
+            }
+            if (state.tantou) {
+                AppState.sensors.turbulence += 2.0;
+                AppState.sensors.windSpeed += 0.8;
+            }
+            if (state.tianzhan) {
+                AppState.sensors.turbulence += 3.0;
+                AppState.sensors.windSpeed += 2.0;
+            }
+            if (state.ao) {
+                AppState.sensors.turbulence += 2.0;
+                AppState.sensors.windSpeed += 1.0;
             }
         }
         // 已移除過度強制的感測器等效值，交由粒子實際湧現與評分邏輯自然反映
