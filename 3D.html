@@ -81,6 +81,15 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
     #panel-left { width: calc(100vw - 20px); height: 50vh; top: 10px; left: 10px; }
     #panel-right { width: calc(100vw - 20px); top: calc(50vh + 20px); right: 10px; left: 10px; }
 }
+#controls-hint {
+    position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+    background: rgba(34, 32, 28, 0.85); color: #f6f1e7; padding: 10px 20px;
+    border-radius: 30px; font-size: 13px; letter-spacing: 1px;
+    pointer-events: none; z-index: 1000; font-family: 'Noto Sans TC', sans-serif;
+    border: 1px solid var(--gold); box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    white-space: nowrap; backdrop-filter: blur(4px);
+}
+@media (max-width: 768px) { #controls-hint { display: none; } }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -128,7 +137,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label">水流速</span><div class="seg" style="align-items:center;"><input type="range" id="wvel-slider" min="1" max="25" value="5" title="水流速度"><span id="wvel-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">x1</span></div></div>
 
         <div class="ctrl-row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;"><span class="ctrl-label">理氣</span><div class="seg" data-k="face"><button data-v="1">向水</button><button data-v="0">背水(坐空)</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">視效</span><div class="seg"><button class="tog" data-k="vHeat">3D熱力圖</button><button class="tog" data-k="vWind">風場矩陣</button><button id="btn-cam-cave">堪輿視角(C)</button><button id="btn-cam-reset">預設視角</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">視效</span><div class="seg"><button class="tog" data-k="vHeat">3D熱力圖</button><button class="tog" data-k="vWind">風場矩陣</button><button class="tog" data-k="zhihua">制化佈局</button><button id="btn-cam-cave">堪輿視角(C)</button><button id="btn-cam-reset">預設視角</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">時間</span><div class="seg" data-k="time"><button data-v="0">暫停</button><button data-v="1">1x</button><button data-v="2">2x</button></div></div>
 
         <div class="ctrl-row" style="margin-top:10px;"><span class="ctrl-label">預設</span>
@@ -166,7 +175,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         </div>
     </div>
 </div>
-
+<div id="controls-hint">🖱 左鍵或方向鍵(↑↓←→)：旋轉視角・鍵盤WASD：移動 (QE升降 / Shift加速)・右鍵平移・滾輪：縮放・C：堪輿視角</div>
 <script>
 /* ==========================================
    1. CONFIGURATION & CORE STATE
@@ -187,7 +196,7 @@ const CONFIG = {
         bohuan:'yes', zhijiao:'shun', soil:'wuse', sherui:false, posui:false, // 新增：龍脈與材質狀態
         zhuScale: 1.0, mtScale: 1.0, waterVel: 1.0, // 新增：比例與流速狀態
         xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5, showCompass: true, showDragonLine: true, // 新增：山體點穴與 3D 穴飾狀態
-        vHeat:true, vWind:true, shaMode:false, wind: 5
+        vHeat:true, vWind:true, zhihua:false, shaMode:false, wind: 5
     },
     presets: {
         // 修改：精簡完美巒頭，移除衝突的三叉水、過度尖銳的鬼曜，以及擠成一團的水口神獸
@@ -1044,8 +1053,99 @@ const DryRunTool = {
             sanityWarnings.push('【數值爆破】計算分數包含 NaN 或 Infinity 異常值');
         }
 
+        // ==========================================
+        // 【新增】：全局幾何與熱力學抽象掃描器 (Global Geometry & Thermodynamic Scanner)
+        // ==========================================
+        const spatialAnomalies = [];
+        
+        let lx = st.manualXue ? (st.xueX || 0) : 0;
+        let lz = st.manualXue ? (st.xueZ || 5) : (5.0 - (st.xueHeight || 0) * 2.2);
+
+        // 1. 生成 11x11 降維微縮地圖 (Downsampled Topo-Matrix)
+        // 讓 AI 直觀看見地形全貌 (範圍覆蓋 165x165 單位，以穴心為中心)
+        const topoMatrix = [];
+        const step = 15;
+        for (let z = -5; z <= 5; z++) {
+            let row = [];
+            for (let x = -5; x <= 5; x++) {
+                row.push(Math.round(Engine3D.getTerrainY(lx + x * step, lz + z * step).y));
+            }
+            topoMatrix.push(row);
+        }
+
+        // 2. 八方天際線雷達 (8-Directional Skyline Radar)
+        // 從穴心向外發射射線，尋找周圍山峰的最高點與落差，通用判斷左右失衡或明堂受阻
+        const skyline = { N:-99, NE:-99, E:-99, SE:-99, S:-99, SW:-99, W:-99, NW:-99 };
+        const dirs = { N:[0,-1], NE:[0.7,-0.7], E:[1,0], SE:[0.7,0.7], S:[0,1], SW:[-0.7,0.7], W:[-1,0], NW:[-0.7,-0.7] };
+        for (let d in dirs) {
+            for (let dist = 10; dist <= 80; dist += 10) {
+                let sy = Engine3D.getTerrainY(lx + dirs[d][0] * dist, lz + dirs[d][1] * dist).y;
+                if (sy > skyline[d]) skyline[d] = Math.round(sy);
+            }
+        }
+
+        // 3. 全局拓撲奇異點 (Singularity / Tearing) 掃描 與 Z-Fighting 檢測
+        let maxSlope = 0, tearingCount = 0, zFightingCount = 0;
+        let waterLevel = (st.d === 'pingyang') ? -3.0 : -10.0;
+        for (let idx = 0; idx < Engine3D.hMap.length - (CONFIG.tSeg + 1) - 1; idx++) {
+            let h = Engine3D.hMap[idx];
+            let slopeX = Math.abs(h - Engine3D.hMap[idx + 1]);
+            let slopeZ = Math.abs(h - Engine3D.hMap[idx + (CONFIG.tSeg + 1)]);
+            let localMaxSlope = Math.max(slopeX, slopeZ);
+            if (localMaxSlope > maxSlope) maxSlope = localMaxSlope;
+            if (localMaxSlope > 18.0) tearingCount++; 
+            // 掃描 Z-Fighting (地形高度與水面幾乎完全重疊)
+            if (st.w !== 'none' && Math.abs(h - waterLevel) < 0.05) zFightingCount++;
+        }
+        if (tearingCount > 0) {
+            spatialAnomalies.push(`【拓撲奇異點】偵測到 ${tearingCount} 處地形撕裂，最大網格落差達 ${maxSlope.toFixed(1)}。`);
+            sanityWarnings.push('【幾何異常】地形發生嚴重撕裂破圖');
+        }
+        if (zFightingCount > 10) {
+            spatialAnomalies.push(`【渲染閃爍警告】發現 ${zFightingCount} 個地形頂點與水面高度重疊，將導致嚴重的 Z-Fighting 破圖！(請確保河床深於水面)`);
+            sanityWarnings.push('【視覺異常】地形與水面發生深度衝突 (Z-Fighting)');
+        }
+
+        // 4. 系統動能熵值與流體散度 (CFD Divergence & Entropy)
+        let clippingCount = 0, maxSpeedSq = 0, avgDeathZ = 0, deathCount = 0;
+        for (let i = 0; i < Physics.pCount; i += 10) {
+            let py = Physics.pPos[i*3+1];
+            let pz = Physics.pPos[i*3+2];
+            let groundY = Engine3D.getTerrainY(Physics.pPos[i*3], pz).y;
+            if (py < groundY - 3.0) clippingCount++;
+            
+            let speedSq = Physics.pVel[i].lengthSq();
+            if (speedSq > maxSpeedSq) maxSpeedSq = speedSq;
+            
+            // 統計處於散氣/死氣狀態的粒子位置 (流動拓撲掃描)
+            if (Physics.pState[i] === 3 || Physics.pState[i] === 0) {
+                avgDeathZ += pz;
+                deathCount++;
+            }
+        }
+        if (clippingCount > 0) spatialAnomalies.push(`【碰撞衰減】抽樣發現 ${clippingCount} 個粒子掉入地底，地表約束失效。`);
+        if (maxSpeedSq > 400.0) {
+            spatialAnomalies.push(`【動能暴走】系統偵測到粒子速度異常 (SpeedSq=${maxSpeedSq.toFixed(1)})，物理引擎發散。`);
+            sanityWarnings.push('【物理異常】系統動能熵值暴走');
+        }
+        
+        // 5. 氣脈流動拓撲掃描 (Dragon Vein Continuity)
+        if (deathCount > 0) avgDeathZ /= deathCount;
+        let expectedLairZ = st.manualXue ? (st.xueZ||5) : (5.0 - (st.xueHeight||0)*2.2);
+        if (avgDeathZ < expectedLairZ - 60.0 && st.d !== 'pingyang' && !st.manualXue) {
+            // 大量粒子死在深山老林，根本沒有流到明堂
+            spatialAnomalies.push(`【氣脈截斷】大量粒子死亡於 Z=${avgDeathZ.toFixed(1)}，距離穴心(${expectedLairZ.toFixed(1)})過遠。龍脈可能被異常地形或逆風截斷！`);
+            sanityWarnings.push('【物理異常】氣脈無法抵達穴心');
+        }
+
+        // 6. 防呆狀態機悖論掃描 (State Desync)
+        if (st.d === 'pingyang' && (st.xueHeight > 0 || st.tianzhan || st.posui || st.sherui)) {
+            spatialAnomalies.push(`【狀態悖論】平洋龍(平原)不應存在穴高、天斬煞或破碎崖，防呆邏輯 (UI.update) 發生漏洞！`);
+            sanityWarnings.push('【邏輯異常】出現不可能的風水狀態組合');
+        }
+
         // 提取 4 個關鍵節點高程（不佔 Token 的輕量地形摘要，讓 AI 掌握高低差）
-		const xueY = Engine3D.getTerrainY(st.xueX || 0, st.manualXue ? st.xueZ : (5.0 - (st.xueHeight||0)*2.2)).y;
+        const xueY = Engine3D.getTerrainY(st.xueX || 0, st.manualXue ? st.xueZ : (5.0 - (st.xueHeight||0)*2.2)).y;
 		const zhuY = Engine3D.getTerrainY(0, -60).y;
 		const anY = Engine3D.getTerrainY(0, 75).y;
 		const riverY = Engine3D.getTerrainY(0, 30).y;
@@ -1112,6 +1212,11 @@ const DryRunTool = {
 					mainMountainElevation: Number(zhuY.toFixed(1)),
 					frontAnElevation: Number(anY.toFixed(1)),
 					riverBedElevation: Number(riverY.toFixed(1))
+				},
+				spatialProfile: { 
+					topoMatrix_11x11: topoMatrix,     // 全局微縮地形圖 (行:Z, 列:X)
+					skylineRadar: skyline,            // 八方天際線 (E/W判斷左右, S/N判斷前後)
+					geometryAnomalies: spatialAnomalies // 奇異點與熵值警告
 				},
 				microTopography: microTopo
 			},
@@ -1307,15 +1412,19 @@ const UI = {
             let xueH = AppState.current.xueHeight || 0;
             let lx = AppState.current.xueX || 0;
             let lz = AppState.current.manualXue ? AppState.current.xueZ : (5.0 - xueH * 2.2);
-            let caveY = Engine3D.getTerrainY(lx, lz).y + 3.0;
-            Engine3D.targetCamPos = new THREE.Vector3(lx, caveY, lz);
-            Engine3D.targetLookAt = new THREE.Vector3(lx, caveY + 2.0, lz + 80.0);
+            let lookDir = AppState.current.face === '1' ? 1.0 : -1.0;
+            let caveY = Engine3D.getTerrainY(lx, lz).y + 8.0;
+            // 修正旋轉中心：將相機置於穴後，旋轉中心 (targetLookAt) 設定於穴場前緣 (10單位)，旋轉時完美圍繞穴場
+            Engine3D.targetCamPos = new THREE.Vector3(lx, caveY + 4.0, lz - lookDir * 15.0);
+            Engine3D.targetLookAt = new THREE.Vector3(lx, caveY, lz + lookDir * 10.0);
+            Engine3D.targetFov = 70; // 廣角視野
             Engine3D.isTransitioning = true;
         });
 
         document.getElementById('btn-cam-reset')?.addEventListener('click', () => {
             Engine3D.targetCamPos = new THREE.Vector3(0, 150, 190);
             Engine3D.targetLookAt = new THREE.Vector3(0, -5, 20);
+            Engine3D.targetFov = 45; // 恢復預設 45° 標準視角
             Engine3D.isTransitioning = true;
         });
 
@@ -1556,6 +1665,7 @@ const Engine3D = {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.target.set(0, -5, 20);
         this.controls.maxPolarAngle = Math.PI/2 - 0.05;
+        this.controls.enableKeys = false; // 禁用 OrbitControls 預設按鍵平移，避免與手動旋轉衝突
 
         // 【維度三：地貌渲染】實作 Unreal Bloom (輝光泛光特效)
         // 讓聚氣的「太極暈」、高光水面與凶煞紅光產生極具神聖感的光學溢出
@@ -1809,6 +1919,21 @@ const Engine3D = {
         const dragonLineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.85, linewidth: 3 });
         this.dragonLineMesh = new THREE.Line(dragonLineGeo, dragonLineMat);
         this.scene.add(this.dragonLineMesh);
+		
+		// 【新增 4：制化佈局 (Zhihua Formation Array) 3D 法陣】
+        this.zhihuaGroup = new THREE.Group();
+        const zhGeo = new THREE.RingGeometry(18, 24, 64);
+        zhGeo.rotateX(-Math.PI/2);
+        // 底座發光八卦陣盤
+        const zhMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+        this.zhihuaMesh1 = new THREE.Mesh(zhGeo, zhMat);
+        // 半球形能量護罩
+        const shieldGeo = new THREE.SphereGeometry(24, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true });
+        this.zhihuaMesh2 = new THREE.Mesh(shieldGeo, shieldMat);
+        
+        this.zhihuaGroup.add(this.zhihuaMesh1, this.zhihuaMesh2);
+        this.scene.add(this.zhihuaGroup);
 
         this.windGroup = new THREE.Group(); this.scene.add(this.windGroup);
         const lineMat = new THREE.LineBasicMaterial({color: 0x448844, transparent: true, opacity: 0.6});
@@ -2015,19 +2140,22 @@ const Engine3D = {
                 let xueH = AppState.current.xueHeight || 0;
                 let lx = AppState.current.xueX || 0;
                 let lz = AppState.current.manualXue ? AppState.current.xueZ : (5.0 - xueH * 2.2);
-                let caveY = Engine3D.getTerrainY(lx, lz).y + 3.0;
-                Engine3D.targetCamPos = new THREE.Vector3(lx, caveY, lz);
-                Engine3D.targetLookAt = new THREE.Vector3(lx, caveY + 2.0, lz + 80.0);
+                let lookDir = AppState.current.face === '1' ? 1.0 : -1.0;
+                let caveY = Engine3D.getTerrainY(lx, lz).y + 8.0;
+                Engine3D.targetCamPos = new THREE.Vector3(lx, caveY + 4.0, lz - lookDir * 15.0);
+                Engine3D.targetLookAt = new THREE.Vector3(lx, caveY, lz + lookDir * 10.0);
+                Engine3D.targetFov = 70; // 廣角視野
                 Engine3D.isTransitioning = true;
             } else if (k === 'r') {
                 Engine3D.targetCamPos = new THREE.Vector3(0, 150, 190);
                 Engine3D.targetLookAt = new THREE.Vector3(0, -5, 20);
+                Engine3D.targetFov = 45; // 恢復預設 45° 標準視角
                 Engine3D.isTransitioning = true;
             } else if (k === 'm') {
                 document.getElementById('btn-manualXue')?.click();
-            } else if (k === 's') {
+            } else if (k === 'x') {  // 【修正】將 S 改為 X，避免跟 WASD(後退) 衝突
                 document.getElementById('btn-shaMode')?.click();
-            } else if (k === 'd') {
+            } else if (k === 't') {  // 【修正】將 D 改為 T (Test)，避免跟 WASD(向右) 衝突
                 document.getElementById('btn-dry-run')?.click();
             }
         });
@@ -2145,12 +2273,12 @@ const Engine3D = {
                 let microTopo = this.pNoise(x*0.8, z*0.8) * 1.5 + this.ridgeNoise(x*2, z*2) * 0.8;
 
                 // 【平洋水纏砂 / 平洋一突】：穴場周圍隆起平洋微丘，若選突穴/乳穴則大幅墊高顯現「平洋一突勝千峰」
-                if (Math.abs(x) < 25 && z > -25 && z < 25) {
+                // 【修復幾何 BUG】：動態追蹤真實的物理太極中心 (lx, lz)，確保手動點穴或物理漩渦不會與實體土丘發生空間脫節
+                let lx_ping = state.manualXue ? (state.xueX || 0) : 0;
+                let lz_ping = state.manualXue ? (state.xueZ || 5.0) : 5.0; // 平洋 xueHeight 恆為 0
+                if (Math.abs(x - lx_ping) < 25 && Math.abs(z - lz_ping) < 25) {
                     let knollBoost = (state.xue === 'tu' || state.xue === 'ru') ? 12.0 : 3.5;
-                    // 修正 5：平洋實體丘陵忘了跟隨穴形(wo, ru, qian)改變 Z 軸中心。
-                    // 導致物理漩渦中心與 3D 幾何隆起中心錯位，粒子會卡在錯誤的半山腰。
-                    let dynamicTaijiZ = (state.xue === 'wo') ? -5.0 : (state.xue === 'ru' ? 12.0 : (state.xue === 'qian' ? 0.0 : 5.0));
-                    microTopo += knollBoost * Math.exp(-(x*x + Math.pow(z - dynamicTaijiZ, 2))/250); 
+                    microTopo += knollBoost * Math.exp(-(Math.pow(x - lx_ping, 2) + Math.pow(z - lz_ping, 2))/250); 
                 }
 
                 y = (state.w === 'none') ? 2.0 + microTopo : -2.0 + microTopo;
@@ -2169,12 +2297,17 @@ const Engine3D = {
                 if(['sheng','ji','huan'].includes(state.d)) sBase += (Math.sin(z*(state.d==='ji'?0.15:0.08)) + this.pNoise(x*0.5, z*0.5)*0.5)*(state.d==='ji'?15:8)*Math.min(2.0, Math.max(0,-z/50));
                 if(state.d==='si') sBase *= 0.3; if(state.d==='po') sBase += this.pNoise(x,z)*15;
 
-                // 【能量層級與繼承】：太祖山(極高) -> 少祖山(中等) -> 父母山(平緩)
+                // 【進化：能量層級與真龍骨脈 (Mountain Spine & Hierarchy)】
+                // 讓龍脈的骨幹隨機隆起，展現「過峽跌斷、起伏頓跌」的真實山脊起伏，而不只是平滑的圓管
                 let hierarchyBoost = 0;
-                if (z < -120) hierarchyBoost = 35; // 太祖山勢能最高
-                else if (z < -80) hierarchyBoost = 15; // 少祖山降壓
-                else if (z < -40) hierarchyBoost = 5; // 父母山平緩
-                sBase += hierarchyBoost * Math.exp(-(x*x)/300);
+                let spinePulse = Math.sin(z * 0.15) * 8.0 + Math.cos(z * 0.07) * 12.0; // 骨脈的頓跌與波浪起伏
+                
+                if (z < -120) hierarchyBoost = 45 + spinePulse * 1.5; // 太祖山勢能最高，山脊極端起伏
+                else if (z < -80) hierarchyBoost = 22 + spinePulse;   // 少祖山降壓，保留強烈骨感
+                else if (z < -40) hierarchyBoost = 8 + spinePulse * 0.5; // 父母山平緩，逐漸柔和
+                
+                // 將骨脈起伏與左右寬度結合 (越高的山體，基底延伸越寬厚)
+                sBase += hierarchyBoost * Math.exp(-(x*x)/(300 + Math.max(0, hierarchyBoost)*10));
 
                 // 【龍脈剝換脫煞 (Metamorphosis)】：未剝換則全線佈滿尖銳岩石
                 let roughFactor = (state.bohuan === 'no') ? 1.0 : Math.min(1.0, Math.max(0, (-z - 40) / 60));
@@ -2247,15 +2380,6 @@ const Engine3D = {
                             // 火星尖焰：頂部陡峭刺天且帶 jagged 尖牙
                             h = 50 * Math.exp(-mD/12) + this.pNoise(x*0.8, z*0.8) * 14;
                         }
-
-                        // 【堪輿微觀：蟬翼砂與蟹眼分水】
-                        if (z > -30 && z < -10 && Math.abs(x) < 20) {
-                            // 蟬翼砂：穴星兩側薄如蟬翼的微型隱砂護衛穴心
-                            let wing = Math.exp(-Math.pow(Math.abs(x) - 10, 2) / 12) * Math.exp(-Math.pow(z + 20, 2) / 40) * 4.0;
-                            // 蟹眼分水溝：穴星頂部兩側微深之導水溝，將山頂雨水向兩側引開
-                            let crabEyeDrain = Math.exp(-Math.pow(Math.abs(x) - 5, 2) / 6) * Math.exp(-Math.pow(z + 25, 2) / 20) * 3.5;
-                            h = h + wing - crabEyeDrain;
-                        }
                     }
                     if(state.mn==='you') {
                         if (z > -50 && z < -25) {
@@ -2267,11 +2391,41 @@ const Engine3D = {
                     // 【主客比例 (Mountain Scale)】：應用 UI 滑桿的主山縮放
                     h *= state.zhuScale; 
 
-                    if(state.zhu && z < -40 && z > -80) h += 18 * state.zhuScale * Math.exp(-(x*x + Math.pow(z+60,2))/800);
-                    if(state.xu && z < -70 && z > -120) h += 25 * state.zhuScale * Math.exp(-(x*x + Math.pow(z+95,2))/1200);
+                    if(state.zhu && z < -40 && z > -80) {
+                        // 主山：增加山峰的側翼支脈，打破單調圓錐，呈現山腳的延伸感
+                        let zhuCore = 18 * Math.exp(-(x*x + Math.pow(z+60,2))/800);
+                        let zhuRidges = Math.max(0, Math.cos(x * 0.08) * Math.sin(z * 0.1)) * 6.0 * Math.exp(-(x*x)/1500);
+                        h += (zhuCore + zhuRidges) * state.zhuScale;
+                    }
+                    if(state.xu && z < -70 && z > -120) {
+                        // 玄武山 (後靠)：重巒疊嶂，橫向展開如屏障護衛
+                        let xuCore = 25 * Math.exp(-(x*x*0.6 + Math.pow(z+95,2))/1200); // 橢圓形主核心
+                        let xuScreen = 15 * Math.exp(-(Math.pow(z+100,2))/400) * Math.cos(x * 0.05); // 橫向屏風山脈
+                        h += Math.max(xuCore, xuScreen * (Math.abs(x) < 80 ? 1 : 0)) * state.zhuScale;
+                    }
                     y = Math.max(y, h);
                 }
-                if(state.zutai && z < -90) y = Math.max(y, 80 * state.zhuScale * Math.exp(-(x*x + Math.pow(z+120,2))/1000));
+                
+                // 【進化：太祖山與遠方群山大背景 (Majestic Ancestral Mountain Range)】
+                if(state.zutai && z < -90) {
+                    // 太祖山不再是單一圓丘，而是插天巨峰群 (中心主峰 + 左右輔弼護衛)
+                    let zuMain = 85 * Math.exp(-(x*x*0.8 + Math.pow(z+135,2))/900); // 挺拔高聳主峰
+                    let zuSide1 = 55 * Math.exp(-(Math.pow(x-45, 2) + Math.pow(z+125,2))/1000); // 左輔峰
+                    let zuSide2 = 60 * Math.exp(-(Math.pow(x+50, 2) + Math.pow(z+130,2))/1200); // 右弼峰
+                    
+                    // 背景連綿萬山朝拜 (利用 FBM 噪聲生成廣袤山脈基底與雲海感)
+                    let bgMountains = (this.pNoise(x * 0.35, z * 0.35, 3) * 35.0 + 15.0) * Math.exp(-Math.pow(z+90, 2)/15000);
+                    
+                    // 龍脈發源的深切溝壑與岩骨紋理 (模擬高山冰川切削)
+                    let glacialCrevasses = -Math.abs(this.pNoise(x * 1.2, z * 1.2)) * 10.0; 
+                    
+                    let zuTotal = Math.max(zuMain, Math.max(zuSide1, zuSide2)) + Math.max(0, bgMountains) + glacialCrevasses;
+                    y = Math.max(y, zuTotal * state.zhuScale);
+                } else if (state.d !== 'pingyang' && z < -110) {
+                    // 即使未點選太祖山，山龍遠處也不該是平地，補上連綿的背景遠山 (Background Ranges)
+                    let distantRanges = (this.ridgeNoise(x * 0.4, z * 0.4) * 30.0 + this.pNoise(x * 0.2, z * 0.2, 2) * 20.0) * Math.min(1.0, (-z - 110) / 40.0);
+                    y = Math.max(y, distantRanges * state.zhuScale);
+                }
 
                 let brokenNoise = state.posui ? (this.pNoise(x*2.0, z*2.0) * 20.0 - 5.0) : 0; // 破碎崖崩塌地貌
 
@@ -2292,7 +2446,9 @@ const Engine3D = {
                     let r = state.mr==='tai'?15:35;
                     let curve = Math.max(0, (z - 20) * 0.45);
                     if (z > 75 && z < 105) curve += Math.sin((z - 75) / 30 * Math.PI) * 45;
-                    let centerX = Math.min(10, r - curve); 
+                    // 【修復】原本是 Math.min(10...)，導致白虎整條山脈被強行擠壓在 x=10 的中軸線上！
+                    // 應改為 Math.max(-10...)，讓它從 x=35 開始，完美與青龍對稱並向內交牙環抱。
+                    let centerX = Math.max(-10, r - curve); 
                     let sH = (state.mr==='tai'?45:35)*Math.exp(-Math.pow(x-centerX,2)/200)*Math.max(0,1-(z+20)/130);
                     if(z > 70 && state.an) sH += 15 * Math.exp(-(Math.pow(x-10,2)+Math.pow(z-85,2))/100); 
                     if(state.mr==='po') sH *= (1+this.pNoise(x,z)*0.5); if(state.ao && z>0 && z<30) sH *= 0.1;
@@ -2360,18 +2516,18 @@ const Engine3D = {
                     tY = (-5 * pScale) + wall + (qianArm * pScale);
                 }
 
-                // 【新增：山體穴場四大金剛微地形雕塑】
+                // 【進化：山體穴場四大金剛與微地貌終極豐富雕塑】
                 if (state.xia) {
-                    // 1. 球檐 / 頂枕 (Back Cushion Hillock)
+                    // 1. 球檐 / 頂枕 (Back Cushion Hillock - 後靠化煞)
                     if (dzLair < 0 && dzLair > -18 && Math.abs(dxLair) < 15) {
                         tY += 8.0 * pScale * Math.exp(-(dxLair*dxLair + Math.pow(dzLair + 7, 2))/45);
                     }
-                    // 2. 氈唇 / 吐唇 (Velvet Lip Terrace - 托氣平台)
+                    // 2. 氈唇 / 吐唇 (Velvet Lip Terrace - 托氣餘氣平台)
                     if (dzLair >= 0 && dzLair < 22 && Math.abs(dxLair) < 20) {
                         let lipFactor = Math.exp(-(dxLair*dxLair + Math.pow(dzLair - 8, 2))/80);
                         tY = tY * (1.0 - lipFactor * 0.75) + (1.5 * pScale) * lipFactor;
                     }
-                    // 3. 蟬翼砂 (Cicada Wings - 微型貼身護衛)
+                    // 3. 蟬翼砂 (Cicada Wings - 微型貼身護衛，防八風)
                     if (Math.abs(dzLair) < 20) {
                         let wingLeft = Math.exp(-(Math.pow(x - (lx - 12), 2) + dzLair*dzLair)/35) * 4.0 * pScale;
                         let wingRight = Math.exp(-(Math.pow(x - (lx + 12), 2) + dzLair*dzLair)/35) * 4.0 * pScale;
@@ -2383,26 +2539,72 @@ const Engine3D = {
                         let drainRight = Math.exp(-(Math.pow(x - (lx + 6), 2) + Math.pow(dzLair + 5, 2))/12) * 2.5 * pScale;
                         tY -= (drainLeft + drainRight);
                     }
+                    
+                    // 5. 太極暈 (Taiji Halo - 穴心微微隆起的同心圓波紋，生氣凝聚之象)
+                    if (mtD < 8) {
+                        let halo = Math.cos(mtD * 1.5) * Math.exp(-(mtD*mtD)/15) * 1.2 * pScale;
+                        tY += halo;
+                    }
+
+                    // 6. 蝦鬚水 (Shrimp Whisker Water - 包裹穴心的極細微界水分水線)
+                    if (dzLair > -5 && dzLair < 12) {
+                        let whiskerCurve = 3.5 + dzLair * 0.5; // 呈現八字向外微擴展
+                        let whiskerDist = Math.abs(Math.abs(dxLair) - whiskerCurve);
+                        if (whiskerDist < 2.5) {
+                            let whiskerDepth = Math.exp(-(whiskerDist*whiskerDist)/2) * Math.exp(-(dzLair*dzLair)/50) * 1.5 * pScale;
+                            tY -= whiskerDepth;
+                        }
+                    }
+
+                    // 7. 四大穴形 (窩、鉗、乳、突) 專屬微地貌強化
+                    if (state.xue === 'wo') {
+                        // 窩穴：強化「弦稜」 (窩緣的圓潤包覆) 與前方的開口平滑
+                        if (mtD > 6 && mtD < 16) {
+                            let rim = Math.sin((mtD - 6) / 10 * Math.PI) * 4.0 * pScale;
+                            tY += rim * Math.max(0, (12 - dzLair) / 15); // 前方開口放低，背側隆起
+                        }
+                    } else if (state.xue === 'qian') {
+                        // 鉗穴：牛角砂 (雙臂微向內彎曲延伸，抱緊穴心)
+                        if (dzLair > -2 && dzLair < 22) {
+                            let armCurve = 11 + Math.sin(dzLair * 0.15) * 4; 
+                            let armDist = Math.abs(Math.abs(dxLair) - armCurve);
+                            if (armDist < 5) {
+                                let horn = 5.5 * Math.exp(-(armDist*armDist)/8) * Math.exp(-(dzLair - 10)*(dzLair - 10)/150) * pScale;
+                                tY += horn;
+                            }
+                        }
+                    } else if (state.xue === 'ru') {
+                        // 乳穴：強化「垂珠」的飽滿度與尖端突起，讓乳穴更圓潤立體
+                        if (mtD < 11 && dzLair < 6) {
+                            let drop = 4.5 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair + 2, 2))/20) * pScale;
+                            tY += drop;
+                        }
+                    } else if (state.xue === 'tu') {
+                        // 突穴：突起四周挖出隱約的「微型界水」 (護城溝)，凸顯平中生突的孤高感
+                        if (mtD > 4.5 && mtD < 10) {
+                            let moat = 1.8 * Math.exp(-(Math.pow(mtD - 7.5, 2))/4) * pScale;
+                            tY -= moat;
+                        }
+                    }
                 }
 
-                if (state.xia && z >= -8 && z <= 12 && Math.abs(x) <= 12) {
-                    let zhanFactor = Math.exp(-(x*x + Math.pow(z-2, 2))/60);
-                    tY = tY * (1 - zhanFactor) + (2.5 * pScale) * zhanFactor; 
-                }
-                
-                if (state.xia && z >= 12 && z <= 20 && Math.abs(x) <= 8) {
-                    let hejinPit = Math.exp(-(x*x + Math.pow(z-16, 2))/20) * 3.0 * pScale;
+                // 【修復】移除寫死的重複氈唇(已由上方的 lipFactor 動態取代)
+                // 並將合襟水(穴前匯水微坑)改為相對坐標 (dzLair 與 dxLair)，完美跟隨穴場移動
+                if (state.xia && dzLair >= 7 && dzLair <= 15 && Math.abs(dxLair) <= 8) {
+                    let hejinPit = Math.exp(-(dxLair*dxLair + Math.pow(dzLair-11, 2))/20) * 3.0 * pScale;
                     tY -= hejinPit; 
                 }
 
-                if (z >= -5 && z < 15) {
-                    let innerHall = Math.exp(-(x*x + Math.pow(z-5, 2))/120) * 1.8 * pScale;
+                // 【修復】明堂的階梯式下切全面使用 dxLair 與 dzLair，
+                // 讓「手動點穴」在 X 軸偏移時，明堂凹陷也能完美跟隨穴星！
+                if (dzLair >= -10 && dzLair < 10) {
+                    let innerHall = Math.exp(-(dxLair*dxLair + Math.pow(dzLair, 2))/120) * 1.8 * pScale;
                     tY = tY * (1 - Math.min(1, innerHall)) + (1.2 * pScale) * Math.min(1, innerHall);
-                } else if (z >= 15 && z < 42 * state.mtScale) {
-                    let midHallDrop = (3.5 + Math.sin((z - 15) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale;
+                } else if (dzLair >= 10 && dzLair < 37 * state.mtScale) {
+                    let midHallDrop = (3.5 + Math.sin((dzLair - 10) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale;
                     tY -= midHallDrop;
-                } else if (z >= 42 * state.mtScale && z < scaledMtRadius) {
-                    let outerHallDrop = (7.0 + Math.exp(-Math.pow(x/25, 2)) * 3.0) * pScale;
+                } else if (dzLair >= 37 * state.mtScale && dzLair < scaledMtRadius) {
+                    let outerHallDrop = (7.0 + Math.exp(-Math.pow(dxLair/25, 2)) * 3.0) * pScale;
                     tY -= outerHallDrop;
                 }
 
@@ -2411,12 +2613,11 @@ const Engine3D = {
             }
             if(state.taiji && mtD < 18) y = Math.max(y, -2.5);
             
-            // 修正 1：空間錯位 Bug。明堂傾瀉(qing)必須跟隨坐向(face)改變方向。
-            // 否則背水(face=0)時，傾瀉會挖空背後的玄武主山，而明堂卻是平的。
-            // (風水幾何防呆：必須有明堂 state.mt 才能發生傾瀉，避免挖破非明堂的地形)
+            // 【修復】明堂傾瀉(qing)必須使用相對座標 (dzLair)！
+            // 否則點高山穴時，傾瀉會發生在幾十單位外的遠方平地，導致凶煞失效。
             if (state.mt && state.qing && mtD < 40) {
-                if (state.face === '1' && z > 15) y -= (z - 15) * 0.35; // 向前傾瀉
-                else if (state.face === '0' && z < -15) y -= (-15 - z) * 0.35; // 向後傾瀉
+                if (state.face === '1' && dzLair > 10) y -= (dzLair - 10) * 0.35; // 向前傾瀉
+                else if (state.face === '0' && dzLair < -20) y -= (-20 - dzLair) * 0.35; // 向後傾瀉
             }
             
             // 三叉水交會處：雕塑「水聚天心」深潭（天心水暈）
@@ -2511,39 +2712,38 @@ const Engine3D = {
 
                 let dR = Math.abs(z - rS);
 
-            if(dR < 25) {
-                // 【新增：關鍵巒頭保護】案山與朝山為風水上的重要屏障，不得被河道侵蝕挖除。
-                // 若當前點位於案山(55-100)或朝山(z>110)範圍，則跳過河道混合，保留山體。
-                let isKeyMountain = (state.an && z > 55 && z < 100 && Math.abs(x) < 40) || (state.chao && z > 110 && Math.abs(x) < 80);
-                if (!isKeyMountain) {
-                    let t = Math.max(0, dR / 25);
-                    let smoothT = t * t * (3 - 2 * t);
-                    // 修正：平洋為平原微地形，水體不應刻出極深峽谷，將河床深度大幅調淺至 -4.5
-                    let riverBottom = (state.d === 'pingyang') ? -4.5 : ((state.w === 'gejiao') ? -18 : -15);
+				if(dR < 25) {
+					// 【新增：關鍵巒頭保護】案山與朝山為風水上的重要屏障，不得被河道侵蝕挖除。
+					// 若當前點位於案山(55-100)或朝山(z>110)範圍，則跳過河道混合，保留山體。
+					let isKeyMountain = (state.an && z > 55 && z < 100 && Math.abs(x) < 40) || (state.chao && z > 110 && Math.abs(x) < 80);
+					if (!isKeyMountain) {
+						let t = Math.max(0, dR / 25);
+						let smoothT = t * t * (3 - 2 * t);
+						// 修正：平洋為平原微地形，水體不應刻出極深峽谷，將河床深度大幅調淺至 -4.5
+						let riverBottom = (state.d === 'pingyang') ? -4.5 : ((state.w === 'gejiao') ? -18 : -15);
 
-                    // 真實流體力學：加入河道物理高低差 (梯度)，讓重力自然引導水流，取代魔法向量
-                    let flowTilt = 0;
-                    if (state.w === 'bazi') flowTilt = -Math.abs(x) * 0.08; 
-                    else if (state.w === 'lintou') flowTilt = (z < 20) ? (z - 20) * 0.5 : -Math.abs(x) * 0.05; 
-                    else flowTilt = -x * 0.03; 
+						// 真實流體力學：加入河道物理高低差 (梯度)，讓重力自然引導水流，取代魔法向量
+						let flowTilt = 0;
+						if (state.w === 'bazi') flowTilt = -Math.abs(x) * 0.08; 
+						else if (state.w === 'lintou') flowTilt = (z < 20) ? (z - 20) * 0.5 : -Math.abs(x) * 0.05; 
+						else flowTilt = -x * 0.03; 
 
-                    let targetRiverY = riverBottom + flowTilt;
-                    
-                    // 【幾何安全鎖】確保河床絕對不會高於兩側陸地，且【必須】低於水面
-                    let waterLevel = (state.d === 'pingyang') ? -3.0 : -10.0;
-                    targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.5));
+						let targetRiverY = riverBottom + flowTilt;
+						
+						// 【幾何安全鎖】確保河床絕對不會高於兩側陸地，且【必須】低於水面
+						let waterLevel = (state.d === 'pingyang') ? -3.0 : -10.0;
+						targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.5));
 
-                    // 修復：移除 dR < 15 的硬限制，讓貝茲曲線平滑過渡 (smoothT) 完整涵蓋 25 單位的河岸，消除 3D 地形撕裂斷崖
-                    y = y * smoothT + targetRiverY * (1 - smoothT);
-                }
-                    
-                    if (state.w === 'gejiao' && dR >= 15) {
-                        // 修正 3：移除 dR >= 15 的硬切判斷，改為全域平滑套用的高指數切削，
-                        // 讓割腳水產生連續且深 V 型的沖刷絕壁，徹底消除網格撕裂與尖刺
-                        let gejiaoCut = Math.pow(Math.max(0, 25 - dR), 1.2) * 0.5;
-                        y -= gejiaoCut;
-                    }
-                }
+						// 修復：移除 dR < 15 的硬限制，讓貝茲曲線平滑過渡 (smoothT) 完整涵蓋 25 單位的河岸，消除 3D 地形撕裂斷崖
+						y = y * smoothT + targetRiverY * (1 - smoothT);
+						if (state.w === 'gejiao' && dR >= 15) {
+							// 修正 3：移除 dR >= 15 的硬切判斷，改為全域平滑套用的高指數切削，
+							// 讓割腳水產生連續且深 V 型的沖刷絕壁，徹底消除網格撕裂與尖刺
+							let gejiaoCut = Math.pow(Math.max(0, 25 - dR), 1.2) * 0.5;
+							y -= gejiaoCut;
+						}
+					}
+				}
 
                 if(state.luo && Math.abs(x) < 12 && z > 65 + (state.w !== 'none' ? (lairZRef - 5.0) : 0) && z < 85 + (state.w !== 'none' ? (lairZRef - 5.0) : 0)) {
                     // 羅星塞水口：河道正中央聳立獨立石墩山包（羅星），高出水面逼水分流
@@ -3031,7 +3231,8 @@ const Physics = {
             let waterSenseZEnd = Math.max(lz + 40, riverRefZ + 20);
             const isBadWaterSensor = ['gejiao','fan','bazi','ji','lintou'].includes(state.w) || state.qing || (state.waterVel || 1.0) > 1.8;
             // 修正：水感測器不應依賴垂直速度，只要粒子位於凶水河道且深度足夠即觸發，確保凶水的伯努利抽吸能被穩定偵測
-            if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5) {
+            // 【修復空間 BUG】：補上對粒子本身高度 (y) 的空間攔截，避免飛越高空的氣場被錯誤判定為落水
+            if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 waterDragCount++;
                 sumWaterDrag += Math.max(0.2, Math.abs(vel.y) * 0.5 + 0.3);
             }
@@ -3556,7 +3757,8 @@ const Physics = {
 
                     // 修正 1：物理引擎漏洞！平洋河床僅 -4.5 深，寫死 -16.5 會導致平洋龍免疫割腳抽吸。
                     // 應改為「相對地形落差」，只要前方突然下切超過特定深度，即觸發伯努利抽吸效應。
-                    if (t.y > -12 && t.y < 8 && z > 15 && z < 60 && Math.abs(x) < 40) {
+                    // 【修復物理 BUG】：將絕對座標改為相對穴心的 dzTaiji，讓死亡抽吸力場完美跟隨動態河道移動
+                    if (t.y > -12 && t.y < 8 && dzTaiji > 10 && dzTaiji < 55 && Math.abs(x) < 40) {
                         let cliffCheck = Engine3D.getTerrainY(x, z + 8); 
                         let dropThreshold = (state.d === 'pingyang') ? 2.0 : 8.0; 
                         if (t.y - cliffCheck.y > dropThreshold) { 
@@ -3598,8 +3800,9 @@ const Physics = {
                     let ruggedness = Math.sqrt(t.nx*t.nx + t.nz*t.nz);
                     
                     // 檢查穴星附近的高頻噪聲頻譜是否呈現指數級衰減 (Exponential Decay)
-                    if (z > -10 && z < 20 && Math.abs(x) < 25) {
-                        let expectedDecay = Math.exp(-Math.pow(z + 10, 2) / 50.0); // 理論應衰減至此
+                    // 【修復物理 BUG】：將檢測區間與衰減中心點全面改為動態相對座標 (dzTaiji)，避免高山點穴時引發毀滅性的假亂流
+                    if (dzTaiji > -15 && dzTaiji < 15 && Math.abs(x) < 25) {
+                        let expectedDecay = Math.exp(-Math.pow(dzTaiji + 15, 2) / 50.0); // 理論應衰減至此
                         if (ruggedness > expectedDecay + 1.0) {
                             // 殘留高頻分量：煞氣未化，引發微觀量子態亂流 (Micro-turbulence)
                             frameWaveletSpike++; // 【探針：高頻煞氣未化】
@@ -3679,7 +3882,8 @@ const Physics = {
                         }
                     }
 
-                    if (z > -10 && z < 40) {
+                    // 【修復物理 BUG】：將下洗氣流與拒屍煞的作用域改為相對於動態穴星的區間 (dzTaiji)，確保明堂永遠能正確受測
+                    if (dzTaiji > -15 && dzTaiji < 35) {
                         if (rearH > y + 8) {
                             // 【進化：下洗氣流 (Downdraft / 壓穴)】父母山過高 (如主山比例 > 1.4)，風速極大化轉為下衝氣流
                             let steepness = rearH - (y + 8);
@@ -3780,12 +3984,13 @@ const Physics = {
 
             // 【湧現物理】5. 水口神獸關攔 (實體反向渦流取代空間傳送)
             let hasGuards = state.luo || state.hua || state.shixiang || state.qin;
-            // 修正 2：將 Math.abs(x) > 30 改為 < 50，讓神獸的反向渦流能精準覆蓋整個中央河道，完美發揮關攔實效。
-            if (hasGuards && z > 50 && z < 90 && Math.abs(x) < 50) {
+            // 【修復空間 BUG】：神獸的物理反向渦流也必須跟隨穴位 Z 軸位移 (lz)，否則手動點穴後物理力場會留在原地，與 3D 模型完全脫節
+            let guardZOffset = (state.w !== 'none' ? (lz - 5.0) : 0);
+            if (hasGuards && z > 50 + guardZOffset && z < 90 + guardZOffset && Math.abs(x) < 50) {
                 let guardStrength = (state.luo ? 0.4 : 0) + (state.hua ? 0.4 : 0) + (state.shixiang ? 0.8 : 0) + (state.qin ? 0.3 : 0);
-                // 產生向明堂中心 (x:0, z:30) 的向心引力，模擬氣流被交鎖地形擋下並迴旋
+                // 產生向明堂中心 (x:0, z:30+offset) 的向心引力，模擬氣流被交鎖地形擋下並迴旋
                 let dxToCenter = 0 - x;
-                let dzToCenter = 30 - z;
+                let dzToCenter = (30 + guardZOffset) - z;
                 let distToCenter = Math.sqrt(dxToCenter*dxToCenter + dzToCenter*dzToCenter);
                 if (distToCenter > 0) {
                     vel.x += (dxToCenter / distToCenter) * guardStrength * 3.5 * dt;
@@ -4034,9 +4239,11 @@ const Physics = {
                 if(st === 1) frameScatter += 5;
 
                 if(state.d === 'pingyang') {
-                    z = -100 - Math.random()*50; x = (Math.random()-0.5)*40;
+                    // 【修復空間 BUG】: 平洋龍的回收重生點必須與初始發脈點一致，不能丟到 -150 的深淵，否則平洋局會因粒子無法抵達明堂而慘遭滅絕判定
+                    z = -15 - Math.random()*20; 
+                    x = (Math.random()-0.5)*20;
                     y = Engine3D.getTerrainY(x, z).y + Math.random()*3;
-                    vel.set((Math.random()-0.5)*0.5, 0, 1.0);
+                    vel.set((Math.random()-0.5)*0.5, 0, 2.5); // 補足初速度
                 } else {
                     // 【進化：能量層級與繼承】出界回收的粒子，依據是否有太祖山，賦予不同的初始勢能與高度
                     z = (state.zutai ? -160 : -140) - Math.random()*20;
@@ -4241,23 +4448,21 @@ const Physics = {
             }
         }
         
-        // 3. 找出歷史累積氣場最強的「正穴」網格點
-        let maxQi = 0, bestIdx = -1;
+        // 3. 找出歷史累積氣場的最高值 (用於控制光柱亮度)
+        let maxQi = 0;
         for (let j = 0; j < 4096; j++) {
-            if (this.qiGrid[j] > maxQi) { maxQi = this.qiGrid[j]; bestIdx = j; }
+            if (this.qiGrid[j] > maxQi) { maxQi = this.qiGrid[j]; }
         }
         
-        if (Engine3D.lairMarker && bestIdx >= 0 && maxQi > 5.0) {
-            let bgX = bestIdx % 64;
-            let bgZ = Math.floor(bestIdx / 64);
+        if (Engine3D.lairMarker) {
+            let xueH_target = state.xueHeight || 0;
             
-            // 將網格索引轉回真實世界 3D 座標
-            let targetX = (bgX / 64) * 200 - 100 + (200/128);
-            let targetZ = (bgZ / 64) * 200 - 100 + (200/128);
+            // 直接鎖定地形設定的真實「穴眼」位置，避免光柱與羅盤被氣流吹著到處亂飄
+            let targetX = state.manualXue ? (state.xueX || 0) : 0;
+            let targetZ = state.manualXue ? state.xueZ : (5.0 - xueH_target * 2.2);
             
-            // 極度平滑的插值移動，光柱會緩慢而堅定地鎖定風水寶地
-            this.bestLairPos.x += (targetX - this.bestLairPos.x) * 0.03;
-            this.bestLairPos.z += (targetZ - this.bestLairPos.z) * 0.03;
+            this.bestLairPos.x = targetX;
+            this.bestLairPos.z = targetZ;
             this.bestLairPos.y = Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z).y;
             
             Engine3D.lairMarker.position.copy(this.bestLairPos);
@@ -4280,12 +4485,20 @@ const Physics = {
 
             // 【動態更新 3D 龍脈中脊線】
             if (Engine3D.dragonLineMesh) {
-                Engine3D.dragonLineMesh.visible = !!state.showDragonLine;
+                // 【修復空間 BUG】：平洋龍無高山發脈應隱藏龍脈線；且必須還原迴龍顧祖的 C 型空間扭曲，避免光線直接穿透空氣或切入地下
+                Engine3D.dragonLineMesh.visible = !!state.showDragonLine && state.d !== 'pingyang';
                 const linePositions = Engine3D.dragonLineMesh.geometry.attributes.position.array;
                 let stepZ = (-150 - this.bestLairPos.z) / 99;
                 for (let k = 0; k < 100; k++) {
                     let curZ = -150 - stepZ * k;
                     let curX = this.bestLairPos.x * (k / 99.0);
+                    
+                    // 根據迴龍顧祖的地形方程式復原脊線曲率
+                    if (state.d === 'huilong') {
+                        let curveAngle = Math.max(0, Math.min(Math.PI, (curZ + 100) / 110 * Math.PI));
+                        curX += Math.sin(curveAngle) * 65.0; 
+                    }
+                    
                     let curY = Engine3D.getTerrainY(curX, curZ).y + 1.5;
                     linePositions[k*3] = curX;
                     linePositions[k*3+1] = curY;
@@ -4293,11 +4506,18 @@ const Physics = {
                 }
                 Engine3D.dragonLineMesh.geometry.attributes.position.needsUpdate = true;
             }
+			
+			// 【動態更新制化佈局法陣】
+            if (Engine3D.zhihuaGroup) {
+                Engine3D.zhihuaGroup.visible = !!state.zhihua && hasRealXue;
+                Engine3D.zhihuaGroup.position.set(this.bestLairPos.x, this.bestLairPos.y + 0.5, this.bestLairPos.z);
+                Engine3D.zhihuaMesh1.rotation.z -= 0.5 * dt; // 法陣底座逆時針緩慢旋轉
+                Engine3D.zhihuaMesh2.rotation.y += 0.2 * dt; // 護罩順時針緩慢旋轉
+            }
             
-            let targetOpacity = Math.min(0.5, maxQi / 60.0); // 累積越多光越亮
+            // 當穴星存在且氣場累積大於 5.0 時才發出金色光柱
+            let targetOpacity = (hasRealXue && maxQi > 5.0) ? Math.min(0.5, maxQi / 60.0) : 0.0;
             Engine3D.lairMarker.material.opacity += (targetOpacity - Engine3D.lairMarker.material.opacity) * 0.05;
-        } else if (Engine3D.lairMarker) {
-            Engine3D.lairMarker.material.opacity *= 0.9;
         }
 
         // 【優化：陰陽向背 (Yin-Yang Sun Exposure Sensor)】
@@ -4395,9 +4615,29 @@ const Physics = {
 /* ==========================================
    6. MAIN LOOP
    ========================================== */
+const Input = {
+    keys: { w:false, a:false, s:false, d:false, q:false, e:false, shift:false, arrowup:false, arrowdown:false, arrowleft:false, arrowright:false },
+    init() {
+        window.addEventListener('keydown', e => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const k = e.key.toLowerCase();
+            if (this.keys.hasOwnProperty(k)) {
+                this.keys[k] = true;
+                if (k.startsWith('arrow')) e.preventDefault(); // 防止方向鍵影響 UI 焦點元件
+            }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const k = e.key.toLowerCase();
+            if (this.keys.hasOwnProperty(k)) this.keys[k] = false;
+        });
+    }
+};
+
 Engine3D.init();
 Physics.init();
 UI.init();
+Input.init(); // 啟動鍵盤監聽
 
 const clock = new THREE.Clock();
 function animate() {
@@ -4417,21 +4657,84 @@ function animate() {
         Engine3D.hemiLight.intensity = 0.85;
     }
 
-    // 【優化：無人機地形跟隨鏡頭防穿模 (Anti-Clipping Flight)】
+    // 【優化：無人機地形跟隨鏡頭防穿模與平滑廣角切換 (Anti-Clipping Flight & Dynamic FOV)】
     if (Engine3D.isTransitioning && Engine3D.targetCamPos) {
         // 水平與視角目標平滑插值
         Engine3D.camera.position.x += (Engine3D.targetCamPos.x - Engine3D.camera.position.x) * 0.06;
         Engine3D.camera.position.z += (Engine3D.targetCamPos.z - Engine3D.camera.position.z) * 0.06;
         Engine3D.controls.target.lerp(Engine3D.targetLookAt, 0.08);
         
+        // FOV 廣角視角平滑過渡 (拉開廣角拉伸感)
+        if (Engine3D.targetFov && Math.abs(Engine3D.camera.fov - Engine3D.targetFov) > 0.1) {
+            Engine3D.camera.fov += (Engine3D.targetFov - Engine3D.camera.fov) * 0.08;
+            Engine3D.camera.updateProjectionMatrix();
+        }
+
         // 高度安全檢測雷達：確保飛行過程中不會撞山 (防穿模)
         let currentTerrainY = Engine3D.getTerrainY(Engine3D.camera.position.x, Engine3D.camera.position.z).y;
-        let safeY = Math.max(Engine3D.targetCamPos.y, currentTerrainY + 15.0); // 至少與地面保持安全距離
+        // 將安全距離降低為 +2.0 (避免與堪輿視角的 +3.0 衝突)，解除過場無限鎖定
+        let safeY = Math.max(Engine3D.targetCamPos.y, currentTerrainY + 2.0); 
         
         Engine3D.camera.position.y += (safeY - Engine3D.camera.position.y) * 0.08;
 
         if (Engine3D.camera.position.distanceTo(Engine3D.targetCamPos) < 1.5) {
             Engine3D.isTransitioning = false;
+        }
+    }
+	
+	// 【修復：WASD 水平漫遊與方向鍵圍繞中心旋轉邏輯】
+    if (!Engine3D.isTransitioning) {
+        let speed = Input.keys.shift ? 100.0 * delta : 35.0 * delta;
+        let moveDir = new THREE.Vector3();
+        
+        // 修正 1：平移時強制鎖定水平 XZ 平面
+        let forward = new THREE.Vector3();
+        Engine3D.camera.getWorldDirection(forward);
+        forward.y = 0; 
+        // 防呆：如果完全垂直俯視，forward.y 歸零後會變成 0 向量，需賦予預設方向防止座標崩壞
+        if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
+        forward.normalize();
+        
+        let right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+        
+        if (Input.keys.w) moveDir.add(forward);
+        if (Input.keys.s) moveDir.sub(forward);
+        if (Input.keys.a) moveDir.sub(right);
+        if (Input.keys.d) moveDir.add(right);
+        if (Input.keys.q) moveDir.y -= 1; // Q 鍵：垂直下降
+        if (Input.keys.e) moveDir.y += 1; // E 鍵：垂直上升
+        
+        if (moveDir.lengthSq() > 0) {
+            moveDir.normalize().multiplyScalar(speed);
+            Engine3D.camera.position.add(moveDir);
+            Engine3D.controls.target.add(moveDir); // 旋轉中心同步平移，維持正確半徑
+        }
+        
+        const rotX = (Input.keys.arrowright ? 1 : 0) - (Input.keys.arrowleft ? 1 : 0);
+        const rotY = (Input.keys.arrowdown ? 1 : 0) - (Input.keys.arrowup ? 1 : 0);
+
+        // 修正 2：方向鍵精準圍繞旋轉中心 (參考 city.html 做法修正旋轉方向與邏輯)
+        if (rotX !== 0 || rotY !== 0) {
+            let rotSpeed = 1.5 * delta;
+            let offset = Engine3D.camera.position.clone().sub(Engine3D.controls.target);
+            
+            // 將攝影機與中心的距離差，轉換為精準的 3D 球座標
+            let spherical = new THREE.Spherical().setFromVector3(offset);
+            
+            // 改變水平方位角與垂直極角
+            spherical.theta -= rotX * rotSpeed;
+            spherical.phi -= rotY * rotSpeed;
+            
+            // 限制上下俯仰角度，避免翻轉或穿模
+            let maxPolar = Engine3D.controls.maxPolarAngle || (Math.PI/2 - 0.05);
+            spherical.phi = Math.max(0.01, Math.min(maxPolar, spherical.phi));
+            
+            spherical.makeSafe(); // 確保角度在合法範圍內
+            
+            // 轉換回直角座標，重新賦予相機，保證絕對是個正圓球體軌道
+            offset.setFromSpherical(spherical);
+            Engine3D.camera.position.copy(Engine3D.controls.target.clone().add(offset));
+            Engine3D.camera.lookAt(Engine3D.controls.target);
         }
     }
 

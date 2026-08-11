@@ -350,14 +350,31 @@ def rollback_file(html_path, logger):
 # ============================================================
 # 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
-UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者與湧現物理引擎專家。
+UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
 我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
-1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON，找出物理與評分異常並提供代碼修正。
-2. 【靜態代碼審查】：分析傳入的最新 JS 代碼，找出潛在的邏輯漏洞、風水規則衝突或語法錯誤並提供代碼修正。
+1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
+2. 【靜態代碼審查】：分析傳入的最新 JS 代碼。
+
+🔥🔥🔥 【特別注意：全能空間、物理與渲染合規性 (兼容雙版本)】 🔥🔥🔥
+動態診斷時，請深入解析 `spatialProfile` 內的警告與數據：
+
+1. **解讀 11x11 降維微縮地圖與八方雷達 (Topo & Radar)**：
+   - 觀察 `topoMatrix_11x11` 與 `skylineRadar` 是否出現斷崖錯位、或左右極度不對稱（如 W=45, E=15）。
+   - 💡 常見原因：誤用絕對座標 (`z` 而非 `dzLair`) 導致穴星位移時破圖；或是邊界鉗制寫反 (`Math.min` 誤用為 `Math.max`) 導致山脈被強行向內擠壓。
+
+2. **城市建築穿模與重疊 (City Blds Overlap)**：
+   - 若異常陣列中出現【建築穿模警告】，代表 `app.builder.blds` 中生成的方塊幾何 (x, z, w, d) 發生了不合理的重疊（例如青龍和白虎擠在一起）。請調整生成坐標或寬度。
+
+3. **系統熵值、防穿模與流體 (Entropy & Clipping)**：
+   - 【山林版 (3D.html)】：若出現【動能暴走】或【碰撞衰減(穿模)】，代表 `Physics.update` 中的引力或法線推力發生除以零。請增加阻尼 (`velocity.multiplyScalar`)。
+   - 【城市版 (city.html)】：若 `entropyGenRate` 異常飆高或 SVF (`skyViewFactor`) 不合理，代表 `FengShuiEngine.analyze` 中的建築遮擋計算出現了無效邊界，導致熱力學失控。
+
+4. **防呆狀態悖論 (State Desync)**：
+   - 若出現不可能的組合 (如平洋龍 + 高山懸崖，或城市無水卻有三叉水)，請檢查 `UI` 層的 `rules` 或相關防呆判斷是否遺漏。
 
 【注意事項】
 1. 你的程式碼修改必須是「增量 (Incremental)」的。
-2. 每次擷取 search 區塊時，請注意先前的對話中你已經修改過哪些程式碼，務必以「當前最新」的代碼狀態進行比對與擷取。
+2. 每次擷取 search 區塊時，請務必以「當前最新」的代碼狀態進行比對與擷取。
 
 【輸出要求】
 你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字：
@@ -690,6 +707,19 @@ def main():
                 time.sleep(2)
                 continue
                 
+            # ================= 終端機高亮顯示幾何與物理異常 =================
+            for res in run_results:
+                if res.get("sanityWarnings"):
+                    for warn in res["sanityWarnings"]:
+                        if "幾何" in warn or "物理異常" in warn or "穿模" in warn:
+                            logger.error(f"📐 🚨 【幾何與物理嚴重警告】: {warn}")
+                
+                spatial = res.get("lairInfo", {}).get("spatialProfile", {})
+                anomalies = spatial.get("geometryAnomalies", [])
+                for anomaly in anomalies:
+                    logger.warning(f"⛰️ 空間與物理掃描: {anomaly}")
+            # ================================================================
+
             # ⚡ [Cache 優化] 加入 sort_keys=True 確保 JSON 結構鍵值順序 100% 決定論
             compact_json = json.dumps(run_results, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
             
