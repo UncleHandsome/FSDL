@@ -2814,6 +2814,7 @@ const Engine3D = {
         if (state.w !== 'none') {
             let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
             let minRiverDepth = waterLevel - 0.8;
+            let guardOffset = lairZRef - 5.0;
             for (let gz = 0; gz <= tSeg; gz++) {
                 for (let gx = 0; gx <= tSeg; gx++) {
                     let x = (gx / tSeg) * tSize - tSize / 2;
@@ -2826,6 +2827,16 @@ const Engine3D = {
                     if (state.w === 'bazi') rS += Math.abs(x) * 0.5;
                     let dR = Math.abs(z - rS);
                     if (dR < 25) {
+                        // 保護關鍵巒頭：案山、朝山、水口神獸等水上構造不得被河道深度保護削平
+                        let isProtectedLandmark = false;
+                        if (state.an && z > 55 && z < 100 && Math.abs(x) < 40) isProtectedLandmark = true;
+                        if (state.chao && z > 110 && Math.abs(x) < 80) isProtectedLandmark = true;
+                        if (!isProtectedLandmark) {
+                            if (state.luo && z > 65 + guardOffset && z < 85 + guardOffset && Math.abs(x) < 12) isProtectedLandmark = true;
+                            if (state.qin && z > 48 + guardOffset && z < 68 + guardOffset && Math.abs(Math.abs(x) - 15) < 10) isProtectedLandmark = true;
+                            if ((state.hua || state.shixiang) && z > 65 + guardOffset && z < 85 + guardOffset && Math.abs(Math.abs(x) - 52) < 16) isProtectedLandmark = true;
+                        }
+                        if (isProtectedLandmark) continue;
                         let idx = gz * (tSeg + 1) + gx;
                         let maxRiverbedY = minRiverDepth + (dR / 25) * 0.6;
                         if (this.hMap[idx] > maxRiverbedY) this.hMap[idx] = maxRiverbedY;

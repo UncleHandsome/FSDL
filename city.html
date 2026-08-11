@@ -493,7 +493,7 @@ class FengShuiEngine {
           // 【修正】限制探頭煞的深度 (z < 100)，避免將遠處的「朝山」(z=150) 誤判為探頭煞。
           // 同時加入偏移量判斷 (Math.abs(b.x) > 5)，避免將正大光明的「官星」(x=0) 誤判為探頭煞。真正的探頭煞通常帶有鬼祟的偏移。
           // 【第 2 輪修正】僅在 front='lowcase'（有案樓）時才允許探頭煞湧現，否則只是獨立高樓，非案山後方探頭。
-          if (st.front === 'lowcase' && b.z > 55 && b.z < 100 && (Math.abs(b.x) > 5 && Math.abs(b.x) < 20) && b.h > 15) peekSha = true;
+          if (st.front === 'lowcase' && b.z > 80 && b.z < 100 && (Math.abs(b.x) > 5 && Math.abs(b.x) < 20) && b.h > 15) peekSha = true;
         }
 
         // 1. 光線追蹤：檢查正午陽光是否被遮蔽 (孤陰煞)
@@ -1747,7 +1747,7 @@ class FengShuiEngine {
     if(st.sha.includes('sickle'))A.push({x:48,z:34,dx:-0.5,dz:-0.85,w:18,pw:9,len:46});
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
-    if(st.sha.includes('qingquan'))A.push({x:0,z:42,dx:0,dz:-1,w:16,pw:8,len:28});
+    if(st.sha.includes('qingquan'))A.push({x:0,z:34,dx:0,dz:-1,w:16,pw:8,len:28});
     if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft'))A.push({x:13,z:84,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
     // 現代煞氣源
     if(st.sha.includes('glass'))A.push({x:0,z:100,dx:0,dz:-1,w:18,pw:14,len:100});
@@ -2284,10 +2284,10 @@ class CityBuilder {
     }
     if(st.shuifa.includes('banyue')){this.poolCrescent(0,52,16,30);this.group.add(ResourceManager.createLabel('半月池','#0077ff',9,0,8,52));}
     if(st.shuifa.includes('luoxing')){
-      this.box(10,18,10,0,96,0x1a3352);
-      this.ribbon(Util.curve3([Util.v3(-40,0,60),Util.v3(-30,0,96),Util.v3(-24,0,140)]),4,0x12283e,0x0088cc);
-      this.ribbon(Util.curve3([Util.v3(40,0,60),Util.v3(30,0,96),Util.v3(24,0,140)]),4,0x12283e,0x0088cc);
-      this.group.add(ResourceManager.createLabel('羅星塞水口','#0077ff',8,0,24,96));
+      this.box(10,18,10,0,112,0x1a3352);
+      this.ribbon(Util.curve3([Util.v3(-40,0,60),Util.v3(-30,0,112),Util.v3(-24,0,140)]),4,0x12283e,0x0088cc);
+      this.ribbon(Util.curve3([Util.v3(40,0,60),Util.v3(30,0,112),Util.v3(24,0,140)]),4,0x12283e,0x0088cc);
+      this.group.add(ResourceManager.createLabel('羅星塞水口','#0077ff',8,0,24,112));
     }
     if(st.shuifa.includes('huabiao')){
       const t1=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2.6,56,12),new THREE.MeshLambertMaterial({color:0xc9a53d}));
@@ -2357,7 +2357,7 @@ class CityBuilder {
       }
       this.group.add(ResourceManager.createLabel('傾瀉・洩氣','#cc4f14',8,0,6,100));
     }
-    if(st.special.includes('guanxing')){this.box(8,20,8,0,74,0x1f3a5c);this.group.add(ResourceManager.createLabel('官星','#b87a00',7,0,26,74));}
+    if(st.special.includes('guanxing')){this.box(8,20,8,0,130,0x1f3a5c);this.group.add(ResourceManager.createLabel('官星','#b87a00',7,0,26,130));}
     if(st.special.includes('chaoshan')){
       this.box(14,64,14,0,150,0x16283f);
       const top=new THREE.Mesh(new THREE.ConeGeometry(5,10,4),new THREE.MeshLambertMaterial({color:0xc9a53d}));
@@ -2382,12 +2382,12 @@ class CityBuilder {
     if(st.sha.includes('bow')){this.elevated([Util.v3(-120,10,100),Util.v3(0,10,40),Util.v3(120,10,100)],true);this.group.add(ResourceManager.createLabel('反弓煞','#d31515',9,0,17,44));}
     if(st.sha.includes('sickle')){this.elevated([Util.v3(150,11,-70),Util.v3(80,11,-16),Util.v3(48,11,34),Util.v3(76,11,86),Util.v3(140,11,116)],true);this.group.add(ResourceManager.createLabel('鐮刀煞','#d31515',9,52,19,34));}
     if(st.sha.includes('pierce')){this.elevated([Util.v3(-150,9.5,26),Util.v3(150,9.5,26)],true);this.group.add(ResourceManager.createLabel('穿心煞','#d31515',9,0,16,26));}
-    if(st.sha.includes('windshaft')){this.box(13,64,13,-22,82,0x16203a);this.box(13,64,13,22,82,0x16203a);this.box(11,50,11,-26,92,0x141c33);this.box(11,50,11,26,92,0x141c33);this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,72,92));}
+    if(st.sha.includes('windshaft')){this.box(13,64,13,-22,82);this.box(13,64,13,22,82);this.box(11,50,11,-40,100);this.box(11,50,11,40,100);this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,72,100));}
     if(st.sha.includes('qingquan')){
-      this.box(6,14,6,0,42,0x1d2c44);
+      this.box(6,14,6,0,34);
       const fist=new THREE.Mesh(new THREE.SphereGeometry(5,16,12),new THREE.MeshLambertMaterial({color:Util.brighten(0x33203a),emissive:0x331111,emissiveIntensity:.4}));
-      fist.position.set(0,17,42);this.group.add(fist);
-      this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,26,42));
+      fist.position.set(0,17,34);this.group.add(fist);
+      this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,26,34));
     }
     if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft')){
       this.box(14,28,10,13,84);

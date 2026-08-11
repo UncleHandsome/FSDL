@@ -25,7 +25,8 @@ def setup_logger(log_file):
     sh.setFormatter(fmt)
     logger.addHandler(sh)
     
-    fh = logging.FileHandler(log_file, encoding="utf-8")
+    # ⚡ [優化 1] 加上 mode='w'，讓腳本每次啟動時清空並覆寫 log，而不是無限接在後面 (預設為 'a')
+    fh = logging.FileHandler(log_file, mode='w', encoding="utf-8")
     fh.setFormatter(fmt)
     logger.addHandler(fh)
     return logger
@@ -326,12 +327,17 @@ def apply_code_modifications(html_path, changes, logger):
                         best_idx = i
                         best_w_len = w_len
 
-            if best_ratio >= 0.75 and best_idx != -1:
+            # ⚡ [優化 2] 提高模糊匹配的安全門檻 (從 0.75 提高至 0.92)
+            # 在代碼替換中，低於 92% 的相似度極高機率會導致覆蓋錯行或丟失大段邏輯，必須嚴格攔截！
+            if best_ratio >= 0.92 and best_idx != -1:
                 lines[best_idx : best_idx + best_w_len] = replace_text.split('\n')
                 content = '\n'.join(lines)
                 applied_count += 1
                 logger.info(f"  ✅ [超強模糊匹配模式] 成功套用修改片段 #{idx+1} (相似度: {best_ratio*100:.1f}%)")
                 continue
+            elif best_idx != -1 and best_ratio >= 0.70:
+                # 攔截並警告：雖然找到很像的，但差異太大，拒絕套用
+                logger.warning(f"  ⚠️ 拒絕模糊匹配！找到最相似的片段僅 {best_ratio*100:.1f}% 相似度，為防代碼損毀，強制退回重寫！")
 
             logger.warning(f"  ❌ 找不到匹配的字串，無法套用修改片段 #{idx+1}！")
         
