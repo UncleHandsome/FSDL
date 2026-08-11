@@ -245,6 +245,13 @@ const AppState = {
         // 重置感測器數據，避免上一個格局的湧現物理懲罰污染新格局
         this.sensors = { qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0 };
 
+        // 【新增：重置 CFD 風場與氣場網格，防止切換格局時風速/氣場殘留影響新格局】
+        Physics.windGridX.fill(0);
+        Physics.windGridZ.fill(0);
+        Physics.windGridX_next.fill(0);
+        Physics.windGridZ_next.fill(0);
+        Physics.qiGrid.fill(0);
+
         UI.syncDOM();
         // 修復：移除獨立的 Engine3D.buildTerrain()，改用 UI.update(true) 統一校驗與單次建構
         // 防止無效狀態引發防呆機制，導致同一幀重複渲染兩次地形
@@ -261,6 +268,8 @@ const Rules = {
     getGlobalMultiplier() {
         const state = AppState.current;
         let m = 1.0;
+        // 死龍或破龍為生氣枯竭的絕地，全域嚴厲降級，確保最終分數與大凶評級一致
+        if(state.d === 'si' || state.d === 'po') m *= 0.15;
         if(!state.xia) m *= 0.4;
         if(!state.mt) m *= 0.6;
 
@@ -563,7 +572,7 @@ const Rules = {
         let dragPenalty = Math.min(35, AppState.sensors.waterDrag * 4); // 割腳/直沖引發的伯努利抽吸
         // 修正：當物理觀測顯示氣場散失（scatterAcc > gatherAcc）時，即使分數高也應反映在湧現加權上，避免矛盾
         const smoothFactor = Math.min(1, (AppState.gatherAcc + AppState.scatterAcc) / 20);
-        if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) {
+        if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0) {
             windPenalty += (AppState.scatterAcc - AppState.gatherAcc) * 1.2 * smoothFactor;
         }
         // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，但需避免過度懲罰導致高分格局被降級
@@ -615,6 +624,16 @@ const Rules = {
 
         let emergenceBonus = densityBonus - windPenalty - dragPenalty;
 
+        // 【修正】統一散氣懲罰：即使粒子總數少於預熱門檻，只要散氣明顯大於聚氣，也必須反映在湧現加權中，
+        // 防止完美格局在粒子尚未聚集時被錯誤豁免。
+        if (AppState.scatterAcc > AppState.gatherAcc) {
+            const scatterDiff = AppState.scatterAcc - AppState.gatherAcc;
+            // 使用閾值避免微小差異過度敏感，並限制最大懲罰量
+            if (scatterDiff > 10) {
+                emergenceBonus -= Math.min(25, (scatterDiff - 10) * 0.6);
+            }
+        }
+
         // 修復 2：湧現物理預熱保護機制。剛切換格局時粒子尚未聚集，qiDensity 為 0，
         // 直接套用會導致嚴重扣分。需等待實時粒子觀察累積量超過門檻再啟動物理加權。
         // 修正：若粒子總數極低（可能因物理異常導致粒子未進入感測區），則基於靜態分數與煞氣給予合理懲罰，避免矛盾評語。
@@ -634,25 +653,11 @@ const Rules = {
             if ((state.ml === 'ya' || state.mr === 'tai') && AppState.sensors.windSpeed < 0.3 && AppState.sensors.turbulence < 1.0) {
                 emergenceBonus -= 8;
             }
-            // 修正：若粒子數極低但風速或亂流度異常高，額外增加懲罰，避免物理異常被忽略
+            // 高風速/高亂流附加懲罰，合併多重觸發，避免重複疊加
             if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
-                emergenceBonus -= 5;
-            }
-            // 修正：完美格局中風速與亂流度偏高時，也應給予懲罰，避免物理異常被忽略
-            // 修正：提高懲罰倍率，確保物理異常能顯著影響分數
-            if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
+                emergenceBonus -= 5 + (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2.0;
+            } else if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
                 emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 1.0;
-            }
-            // 修正：當風速或亂流度極高時，即使粒子數不足，也應強制施加懲罰，避免物理異常被忽略
-            if (AppState.sensors.windSpeed > 1.0 || AppState.sensors.turbulence > 4.0) {
-                emergenceBonus -= (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 2.0;
-            }
-            // 修正：當存在形煞但感測器為0時，強制施加懲罰，避免物理異常被忽略
-            if (state.ao && AppState.sensors.windSpeed < 0.3 && AppState.sensors.turbulence < 1.0) {
-                emergenceBonus -= 10;
-            }
-            if ((state.ml === 'ya' || state.mr === 'tai') && AppState.sensors.windSpeed < 0.3 && AppState.sensors.turbulence < 1.0) {
-                emergenceBonus -= 8;
             }
             if (state.qingquan && AppState.sensors.windSpeed < 0.3 && AppState.sensors.turbulence < 1.0) {
                 emergenceBonus -= 10;
@@ -664,7 +669,7 @@ const Rules = {
             // 修正：當聚氣率低於散氣率時，湧現懲罰應更強烈，但需考慮預熱階段，避免剛啟動時過度懲罰
             // 限制散射懲罰上限，防止極端散逸導致所有分數歸零
             let scatterPenalty = Math.min(30, (AppState.scatterAcc - AppState.gatherAcc) * smoothFactor);
-            if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) {
+            if (AppState.scatterAcc > AppState.gatherAcc && AppState.gatherAcc + AppState.scatterAcc > 0) {
                 emergenceBonus -= scatterPenalty;
             }
             // 修正：當聚氣率為0且散氣率大於0時，額外施加懲罰，但僅在粒子總數足夠時生效，避免預熱誤判
@@ -684,11 +689,19 @@ const Rules = {
         const isBadWaterFinal = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
         // 新增：極凶形煞固定懲罰，涵蓋天斬煞、凹風煞、擎拳煞、探頭煞及凶水，避免分數與物理觀測嚴重矛盾
         const hasFatalShaFinal = isBadWaterFinal || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui;
-        let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2));
-        let finalX = Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus)));
-        let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.3));
-        let finalWa = Math.max(0, Math.min(100, Wa - dragPenalty));
-        let finalXg = Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4));
+        // 【修正】加入物理凝聚因子：若散氣遠大於聚氣，即使靜態巒頭完美，也應降低最終分數，避免評級與分數矛盾
+        let coherenceFactor = 1.0;
+        const totalPForCoherence = AppState.gatherAcc + AppState.scatterAcc;
+        if (totalPForCoherence > 20 && AppState.scatterAcc > AppState.gatherAcc) {
+            const scatterDiffForCoherence = AppState.scatterAcc - AppState.gatherAcc;
+            // 散射差距越大，凝聚力越弱，最多降到 0.5
+            coherenceFactor = Math.max(0.5, 1.0 - (scatterDiffForCoherence - 10) * 0.01);
+        }
+        let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2)) * coherenceFactor;
+        let finalX = Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + xiangBonus + emergenceBonus, 30) : X + xiangBonus + emergenceBonus))) * coherenceFactor;
+        let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.3)) * coherenceFactor;
+        let finalWa = Math.max(0, Math.min(100, Wa - dragPenalty)) * coherenceFactor;
+        let finalXg = Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4)) * coherenceFactor;
         if (hasFatalShaFinal) {
             finalD *= 0.5;
             finalX *= 0.3;
@@ -732,9 +745,9 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po'){ 
             return { rating:'大凶・來龍枯潰', color:'#a63a2b', text: (state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。') };
         }
-        else if(state.d === 'pingyang' && state.w === 'none'){ rating='大凶・平洋無水'; color='#a63a2b'; tail='平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。'; }
-        else if(state.w === 'lintou'){ rating='大凶・淋頭煞頂'; color='#a63a2b'; tail='穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。'; }
-        if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && !((totalP > 50) && (AppState.scatterAcc > Math.max(20, AppState.gatherAcc * 2)) && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8)) && (dynRatio >= 0.45 || totalP < 50 || (AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8))){ 
+        if(state.d === 'pingyang' && state.w === 'none'){ return { rating:'大凶・平洋無水', color:'#a63a2b', text:'平洋龍以水為界，無水則氣散無依，屬於空亡絕地，不可立穴。' }; }
+        if(state.w === 'lintou'){ return { rating:'大凶・淋頭煞頂', color:'#a63a2b', text:'穴後水體灌頂傾瀉，犯風水極凶之「淋頭煞」，主人丁滅絕、破家絕嗣，絕不可立穴。' }; }
+        if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && (AppState.gatherAcc > 0) && ((totalP < 50 && AppState.sensors.windSpeed < 0.8 && AppState.sensors.turbulence < 3.0) || (totalP >= 50 && dynRatio >= 0.45 && !((AppState.scatterAcc > Math.max(20, AppState.gatherAcc * 2)))))){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.posui || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
@@ -746,10 +759,11 @@ const Rules = {
             // 修正 2：當氣密度高但聚氣率低時，可能只是散氣粒子聚集在感測區，並非真正聚氣。
             // 必須同時滿足「聚氣量 >= 散氣量」才認定為吉氣凝聚，否則不應豁免散氣懲罰。
             const hasPhysicalBreakdown = (totalP > 50 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)) && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8));
-            // 修正：降低聚氣率門檻，讓粒子數較少但明顯散氣重於聚氣的格局也無法獲得「上吉」評價
-            const hasPoorGatherRatio = (totalP > 20 && dynRatio < 0.35 && !(AppState.sensors.qiDensity > 0.03 && AppState.sensors.windSpeed < 0.8));
-            // 修正：若完全無聚氣（gatherAcc=0）但存在散氣，即使預熱中也應降級，避免「0% 聚氣率」的完美評語
-            const hasZeroGatherWithScatter = (AppState.gatherAcc === 0 && AppState.scatterAcc > 0);
+            // 修正：提高總粒子數門檻至 50，避免在粒子尚未到達穴場的預熱階段（totalP<50）誤將完美格局降級。
+            // 只要總粒子數足夠（>50）且聚氣率過低，才強制降級，確保物理觀測與評級一致。
+            const hasPoorGatherRatio = (totalP > 50 && dynRatio < 0.35);
+            // 修正：同樣提高門檻，只有當總粒子數足夠且完全無聚氣時才降級，避免預熱期誤判。
+            const hasZeroGatherWithScatter = (totalP > 50 && AppState.gatherAcc === 0 && AppState.scatterAcc > 0);
             // 修正：加入「聚氣率過低但粒子數足夠」時強制降級，避免預熱豁免被誤用於上吉
             if (hasBadWater || hasSevereSha || hasPhysicalBreakdown || hasPoorGatherRatio || hasZeroGatherWithScatter) {
                 rating='中平・有瑕'; color='#3f6b52'; tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
@@ -761,11 +775,11 @@ const Rules = {
             if (hasFatalSha) {
                 rating='大凶・形煞沖射'; color='#a63a2b'; tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
             }
+            else if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && effectiveAvg < 35 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
+            else if(AppState.gatherAcc === 0 && AppState.scatterAcc > 30 && AppState.frames > 120 && (AppState.sensors.windSpeed > 0.2 || AppState.sensors.turbulence > 1.0)){rating='大凶・氣場竭散';color='#a63a2b';tail='實時物理顯示真氣完全無法凝聚，生氣耗散殆盡，不可用。';}
             else if(!state.xia){rating='中平・有龍無穴';color='#3f6b52';tail='龍脈護從雖美，惟穴星未結，難以乘氣。';}
             else if(!state.mt){rating='中平・明堂未成';color='#3f6b52';tail='穴星已成但明堂不足，生氣易散。';}
             else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '左右無護砂關攔，兩邊受風，生氣難聚。';}
-            else if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
-            else if(AppState.gatherAcc === 0 && AppState.scatterAcc > 10 && AppState.frames > 120){rating='大凶・氣場竭散';color='#a63a2b';tail='實時物理顯示真氣完全無法凝聚，生氣耗散殆盡，不可用。';}
             else if(dynRatio < 0.4 && totalP > 50){rating='中平・氣場散失';color='#3f6b52';tail='靜態巒頭尚可，但實時風場或形煞導致粒子聚氣率低下。';}
             else{rating='中平・有瑕';color='#3f6b52';tail='格局有瑕，聚散互見。';}
         }
@@ -917,11 +931,16 @@ const Rules = {
    新增：DRY RUN TOOL (AI 測試與除錯引擎)
    ========================================== */
 const DryRunTool = {
-    execute(simulateSeconds = 6) {
+    execute(simulateSeconds = 3) {
         console.log(`[Dry Run] 啟動，背景加速模擬 ${simulateSeconds} 秒...`);
 
         // 【數據隔離】：每次啟動時強制歸零物理場與感測器，確保測試數據 100% 純淨
         Physics.resetParticles();
+        // 重置 CFD 風場網格，避免前次格局的風場殘留污染新測試
+        Physics.windGridX.fill(0);
+        Physics.windGridZ.fill(0);
+        Physics.windGridX_next.fill(0);
+        Physics.windGridZ_next.fill(0);
         AppState.gatherAcc = 0;
         AppState.scatterAcc = 0;
         AppState.smoothedScores = null;
@@ -1087,7 +1106,7 @@ const UI = {
                 AppState.gatherAcc = 0; AppState.scatterAcc = 0;
                 AppState.smoothedScores = null;
                 // 執行 6 秒的 Dry Run 使粒子充分流動與數值收斂穩定
-                DryRunTool.execute(6);
+                DryRunTool.execute(3);
             });
         }
 
@@ -1528,8 +1547,8 @@ const Engine3D = {
                 `#include <project_vertex>`,
                 `
                 // 利用世界座標與時間產生偽隨機風力搖曳
-                vec4 worldPosition = instanceMatrix * vec4(transformed, 1.0);
-                float sway = sin(worldPosition.x * 0.1 + time * 1.5) * cos(worldPosition.z * 0.1 + time * 1.2) * 0.15;
+                vec4 treeWorldPos = instanceMatrix * vec4(transformed, 1.0);
+                float sway = sin(treeWorldPos.x * 0.1 + time * 1.5) * cos(treeWorldPos.z * 0.1 + time * 1.2) * 0.15;
                 // 只有樹冠(y>0)會搖晃，樹根(y=0)不動，產生枝葉抗風彈性
                 transformed.x += sway * position.y; 
                 transformed.z += sway * position.y * 0.5;
@@ -2545,7 +2564,9 @@ const Physics = {
                     let t = Engine3D.getTerrainY(worldX, worldZ);
                     
                     // 1. 地形邊界阻擋 (No-slip boundary 近似) 與風源注入
-                    if (t.y > -2) { 
+                    // 修正：平洋地面高度約 -2~0，若以 -2 為界會誤判為高山阻擋風。改為僅顯著高地 (>5，平洋 >0.5) 才阻擋。
+                    let blockingThreshold = (state.d === 'pingyang') ? 0.5 : 5.0;
+                    if (t.y > blockingThreshold) { 
                         this.windGridX[idx] *= 0.5; // 高山阻擋風流
                         this.windGridZ[idx] *= 0.5;
                     } else { 
@@ -3405,6 +3426,18 @@ const Physics = {
                 if (st === 2 && Math.random() < 0.15 * dt) this.pState[i] = 1;
             }
 
+            // 【全局太極吸引場】吉格局粒子在靠近穴場時受到向心力，強化聚氣
+            if (state.taiji && globalMultCache > 0.8) {
+                let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
+                if (attractDistSq < 2500) {
+                    let attractDist = Math.sqrt(attractDistSq);
+                    if (attractDist > 0.1) {
+                        let attractForce = 0.06 * globalMultCache * (1 - attractDist/50);
+                        vel.x += (-dxTaiji/attractDist) * attractForce * dt;
+                        vel.z += (-dzTaiji/attractDist) * attractForce * dt;
+                    }
+                }
+            }
             vel.clampLength(0, 5);
             x += vel.x*dt; y += vel.y*dt; z += vel.z*dt;
 
@@ -3453,9 +3486,20 @@ const Physics = {
                     this.pLife[i] += 1.5 * dt; // 延年益壽
                 }
 
-                if (st === 1 || vel.lengthSq() > 4.0 || mult < 0.3) {
-                    frameScatter++;
+                let velLenSq = vel.lengthSq();
+                let velSpeed = velLenSq > 0 ? Math.sqrt(velLenSq) : 0;
+                let radialVel = 0;
+                let distTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
+                if (distTaiji > 0.1) {
+                    radialVel = (dxTaiji*vel.x + dzTaiji*vel.z) / distTaiji;
                 }
+                    let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
+                    let escapeDistThreshold = (mult > 0.8) ? 15.0 : 12.0;
+                    let escapeVelThreshold = (mult > 0.8) ? 10.0 : 7.0;
+                    let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.0);
+                    if (st === 1 || (vel.lengthSq() > escapeVelThreshold*escapeVelThreshold && isEscaping) || mult < 0.3) {
+                        frameScatter++;
+                    }
 
                 if (mult < 0.45) {
                     let pushX = x === 0 ? (Math.random()-0.5) : x;
@@ -3496,9 +3540,13 @@ const Physics = {
                     let isYang = (i % 2 === 0);
                     let spiralDir = isYang ? 1.0 : -1.0; 
 
-                    vel.x += ((-dzTaiji)*0.05 * spiralDir - dxTaiji*0.025*mult) * dt;
-                    vel.z += ((dxTaiji)*0.05 * spiralDir - dzTaiji*0.025*mult) * dt;
+                    // 【診斷修正】增強太極暈凝聚效果：提高向心吸引係數與阻尼，解決完美格局聚氣不足
+                    let attractStrength = 0.12 * mult;
+                    vel.x += ((-dzTaiji)*0.06 * spiralDir - dxTaiji*attractStrength) * dt;
+                    vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt;
                     vel.y += (isYang ? 0.35 : -0.25) * mult * dt;
+                    // 在太極暈內增加額外阻尼，使粒子更容易被束縛
+                    vel.multiplyScalar(Math.pow(0.88, dt));
 
                     // 【優化：Boids 生氣群集效應】讓吉氣如同魚群般具有生命力，互相吸引與對齊
                     if (st === 2 && Math.random() < 0.3) {
