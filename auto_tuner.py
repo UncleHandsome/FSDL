@@ -126,9 +126,9 @@ def run_browser_simulations(html_path, num_runs, logger):
                     page.reload()
                     page.wait_for_timeout(1000)
 
-                if i % 2 == 1:
-                    page.click(".preset-btn[data-p='random']")
-                    page.wait_for_timeout(800)
+                # ⚡ [最大化覆蓋率] 改為每次 Dry Run 都點擊隨機生成，確保收集到 15 種完全不同的獨立格局
+                page.click(".preset-btn[data-p='random']")
+                page.wait_for_timeout(800)
                 
                 if page_errors:
                     logger.error(f"❌ 模擬過程發現 JavaScript 執行階段錯誤:\n   {page_errors[0]}")
@@ -182,8 +182,10 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 "max_tokens": 65536
             }
             
-            if "reasoner" not in model.lower() and "r1" not in model.lower():
-                kwargs["response_format"] = {"type": "json_object"}
+            # ⚡ [修復空回覆 Bug] 移除 API 層級的強制 JSON 模式 (response_format)
+            # 當上下文中(如測試數據)充滿大量 JSON 時，強制 JSON 模式極易觸發模型產生幻覺，
+            # 以為 JSON 已經結束而直接輸出停止詞 (EOS Token)，導致 100% 空回覆。
+            # 我們已在 System Prompt 要求輸出 JSON，且有強大的 Regex 擷取函數，故無需此參數。
 
             response = client.chat.completions.create(**kwargs)
             
@@ -209,11 +211,21 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                     time.sleep(sleep_time)
                     continue
             # ====================================================================
+            
+            # ⚡ [省錢優化] 拔除冗長的 <think> 思考過程，不塞入歷史紀錄，避免 Context 爆炸與無謂 Input 計費
+            history_text = re.sub(r'<think>.*?</think>', '', raw_response, flags=re.DOTALL).strip()
 
-            return extracted_json, raw_response
+            return extracted_json, history_text
             
         except Exception as e:
+            error_msg = str(e).lower()
             logger.error(f"❌ API 請求失敗 (嘗試 {attempt+1}/{max_retries}): {e}")
+            
+            # ⚡ [防閃退保護] 若觸發 Context Token 上限，強制回傳特殊狀態，讓主循環執行硬重置清空記憶
+            if "context_length_exceeded" in error_msg or "context length" in error_msg or "too large" in error_msg:
+                logger.error("🚨 偵測到 Token 歷史爆量！準備緊急觸發硬重置...")
+                return {"status": "CONTEXT_LIMIT", "reason": "歷史 Token 爆量，觸發緊急重置"}, error_msg
+
             if attempt < max_retries - 1:
                 sleep_time = (2 ** attempt) + random.random()
                 logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後重試...")
@@ -234,8 +246,9 @@ def apply_code_modifications(html_path, changes, logger):
         applied_count = 0
         
         for idx, change in enumerate(changes):
-            search_text = clean_code_block(change.get("search", "")).replace('\r\n', '\n')
-            replace_text = clean_code_block(change.get("replace", "")).replace('\r\n', '\n')
+            # ⚡ [容錯優化] 消除 AI 生成區塊首尾常附帶的隱形空行干擾
+            search_text = clean_code_block(change.get("search", "")).replace('\r\n', '\n').strip('\n')
+            replace_text = clean_code_block(change.get("replace", "")).replace('\r\n', '\n').strip('\n')
             
             if not search_text:
                 continue
@@ -322,13 +335,14 @@ def apply_code_modifications(html_path, changes, logger):
 
             logger.warning(f"  ❌ 找不到匹配的字串，無法套用修改片段 #{idx+1}！")
         
-        if applied_count > 0:
+        # ⚡ [防呆與原子寫入優化] 必須「所有片段」都匹配成功才准許存檔，否則整批退回要求 AI 重寫
+        if applied_count == len(changes) and applied_count > 0:
             # 備份原始檔
             backup_path = html_path + ".bak"
             with open(backup_path, 'w', encoding='utf-8') as f:
                 f.write(original_content)
                 
-            # 原子寫入：先寫入 .tmp 再覆蓋，防止寫入中途崩潰導致檔案損毀
+            # 原子寫入：先寫入 .tmp 再覆蓋
             tmp_path = html_path + ".tmp"
             with open(tmp_path, 'w', encoding='utf-8') as f:
                 f.write(content)
@@ -336,6 +350,10 @@ def apply_code_modifications(html_path, changes, logger):
             
             logger.info(f"💾 檔案已儲存更新: {html_path} (舊檔備份於 {backup_path})")
             return True
+        elif applied_count > 0:
+            logger.error(f"❌ [部分套用失敗] 只有 {applied_count}/{len(changes)} 個片段匹配成功。為防止代碼損毀，已撤銷整批修改！")
+            return False
+            
         return False
     except Exception as e:
         logger.error(f"❌ 修改檔案失敗: {e}")
@@ -377,7 +395,11 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 2. 每次擷取 search 區塊時，請務必以「當前最新」的代碼狀態進行比對與擷取。
 
 【輸出要求】
-你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字：
+你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字。
+
+🔥🔥🔥【特別嚴禁】🔥🔥🔥
+1. 絕對禁止在 `replace` 中使用 `// ... (省略)` 或 `// 原有代碼保持不變`！你提供的 `replace` 必須是完整且可直接運行的真實代碼，否則系統會崩潰。
+2. `search` 區塊至少需要 5~10 行，必須包含「完整的上下文」，絕不能只有單行代碼（否則會導致多處匹配衝突而失敗）！
 
 如果當前測試數據完美，或經過靜態審查代碼邏輯完美無需修改，請回傳：
 {
@@ -400,7 +422,7 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 # ============================================================
 # 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
 # ============================================================
-def run_static_review(target_file, client, model, logger, report_path, max_rounds=50):
+def run_static_review(target_file, client, model, logger, report_path, max_rounds=125):
     logger.info("="*60)
     logger.info(f"🕵️‍♂️ 啟動多輪靜態代碼審查模式 (目標檔案: {target_file} | 模型: {model} | 最大輪數: {max_rounds})")
     logger.info("="*60)
@@ -409,7 +431,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
     history_logs = []
     needs_full_snapshot = True
     
-    RESET_EVERY_N_ROUNDS = 10
+    RESET_EVERY_N_ROUNDS = 25
 
     for current_round in range(1, max_rounds + 1):
         logger.info(f"\n【 靜態審查 - 第 {current_round}/{max_rounds} 輪 】")
@@ -441,13 +463,20 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             time.sleep(2)
             continue
             
-        # ⚡ [Cache 優化] 只存入純 JSON 字串，極大幅度精簡多輪上下文 Token 數 (加入 sort_keys=True)
-        clean_assistant_msg = json.dumps(ai_json, ensure_ascii=False, sort_keys=True)
-        conversation_history.append({"role": "assistant", "content": clean_assistant_msg})
+        # ⚡ [Cache 優化] 保留助理原始回覆 (raw_text)，觸發 API 端 100% KV Cache 完全命中
+        conversation_history.append({"role": "assistant", "content": raw_text})
         
         status = ai_json.get("status", "UNKNOWN")
         reason = ai_json.get("reason", "無說明")
         changes = ai_json.get("changes", [])
+
+        # ⚡ [防閃退保護] 接收到 Token 爆量訊號，立即清空記憶並重新快照
+        if status == "CONTEXT_LIMIT":
+            logger.warning("🔄 [自救機制] 已清空所有對話歷史，下一輪將重新讀取最新代碼快照！")
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
+            needs_full_snapshot = True
+            time.sleep(2)
+            continue
         
         # 標記是否成功套用，用於報告顯示
         applied_success = False
@@ -472,11 +501,10 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
                 apply_retries += 1
                 logger.warning(f"⚠️ 檔案更新失敗！(嘗試重試 {apply_retries}/3) 尾部追加最新代碼修正提示...")
                 
-                current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
                 retry_prompt = (
-                    f"```javascript\n{current_js}\n```\n\n"
                     "❌ 修改套用失敗！你在上一輪提供的 search 區塊在當前檔案中找不到完全匹配的字串。\n"
-                    "請嚴格基於上述最新代碼，重新提供正確的 search 與 replace JSON。"
+                    "⚠️ 常見錯誤原因：你可能自己縮寫或省略了原始代碼中的某些參數（例如顏色的 Hex 碼）。\n"
+                    "請『一字不漏』地複製當前最新代碼作為 search，並擴大上下文行數，重新提供正確的 JSON。"
                 )
                 conversation_history.append({"role": "user", "content": retry_prompt})
                 
@@ -542,7 +570,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
 def main():
     parser = argparse.ArgumentParser(description="3D 模擬器多輪對話自動 Dry Run 與 AI 修正工具")
     parser.add_argument("--file", type=str, default="3D.html", help="HTML 檔案路徑")
-    parser.add_argument("--rounds", type=int, default=50, help="最高執行幾輪修正循環")
+    parser.add_argument("--rounds", type=int, default=125, help="最高執行幾輪修正循環")
     parser.add_argument("--runs-per-round", type=int, default=15, help="每一輪執行幾次 Dry Run 取樣")
     parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
@@ -576,7 +604,7 @@ def main():
     MAX_ROUNDS = args.rounds
     RUNS_PER_ROUND = args.runs_per_round
     SUCCESS_TARGET = 6
-    RESET_EVERY_N_ROUNDS = 10  
+    RESET_EVERY_N_ROUNDS = 25  
     
     consecutive_perfects = 0
     history_logs = []
@@ -598,12 +626,12 @@ def main():
             apply_retries += 1
             logger.warning(f"⚠️ 檔案更新失敗！(嘗試重試 {apply_retries}/3) 尾部追加最新代碼修正提示...")
             
-            current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
             retry_prompt = (
-                f"```javascript\n{current_js}\n```\n\n"
                 "❌ 修改套用失敗！你在上一輪提供的 search 區塊在當前檔案中找不到完全匹配的字串。\n"
-                "這通常是因為經過前面幾輪的修改後，代碼內容已經改變。\n"
-                "請嚴格基於上述最新代碼，重新提供正確的 search 與 replace JSON。"
+                "⚠️ 常見錯誤原因：\n"
+                "1. 你省略了原本代碼中的某些參數（例如顏色的 Hex 碼 `0x16203a` 等），導致字串比對失敗。\n"
+                "2. 經過前面的修改，目標代碼已經長得不一樣了。\n"
+                "請『一字不漏』地複製當前最新代碼作為 search，並擴大上下文行數，重新提供正確的 JSON。"
             )
             
             conversation_history.append({"role": "user", "content": retry_prompt})
@@ -612,9 +640,8 @@ def main():
             if not retry_json:
                 break
             
-            # ⚡ [Cache 優化] 只存入壓縮後的純 JSON，避免 AI 冗長廢話膨脹歷史 Token 長度 (加入 sort_keys=True)
-            clean_retry_msg = json.dumps(retry_json, ensure_ascii=False, sort_keys=True)
-            conversation_history.append({"role": "assistant", "content": clean_retry_msg})
+            # ⚡ [Cache 優化] 保留助理原始回覆，確保前綴一字不漏匹配
+            conversation_history.append({"role": "assistant", "content": retry_raw})
             if retry_json.get("status") == "MODIFIED":
                 retry_changes = retry_json.get("changes", [])
                 if retry_changes:
@@ -680,8 +707,7 @@ def main():
                 fix_json, raw_text = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
                 
                 if fix_json and fix_json.get("status") == "MODIFIED":
-                    clean_fix_msg = json.dumps(fix_json, ensure_ascii=False)
-                    conversation_history.append({"role": "assistant", "content": clean_fix_msg})
+                    conversation_history.append({"role": "assistant", "content": raw_text})
                     fix_changes = fix_json.get("changes", [])
                     logger.info(f"🩹 AI 重新診斷並提供了 {len(fix_changes)} 處語法修正方案，嘗試重新套用...")
                     success, fix_changes = try_apply_with_retries(target_file, fix_changes, conversation_history, client, args.model, logger)
@@ -706,6 +732,22 @@ def main():
                 consecutive_perfects = 0
                 time.sleep(2)
                 continue
+
+            # ⚡ [極致省錢優化] 數據去重與瘦身：移除多趟 Dry Run 中重複的 JSON 結果，並刪去無用的時間戳
+            unique_results = []
+            seen_hashes = set()
+            for res in run_results:
+                if "meta" in res:
+                    del res["meta"] # 移除 timestamp 等會干擾去重的變動雜訊，因為 AI 也不需要知道測試時間
+                
+                # 使用排序後的 json 字串作為 Hash Key，過濾掉結構與數值完全相同的重複測試
+                res_str = json.dumps(res, sort_keys=True)
+                if res_str not in seen_hashes:
+                    seen_hashes.add(res_str)
+                    unique_results.append(res)
+            
+            logger.info(f"  ✂️ 數據去重壓縮：從 {len(run_results)} 筆冗餘數據，大幅瘦身至 {len(unique_results)} 筆獨立特徵 (省下海量 Token)")
+            run_results = unique_results
                 
             # ================= 終端機高亮顯示幾何與物理異常 =================
             for res in run_results:
@@ -749,16 +791,23 @@ def main():
             time.sleep(3)
             continue
             
-        # ⚡ [Cache 優化] 將助理回覆替換為壓縮純 JSON，顯著降速並減少每輪 Cache Read Token 開銷 (加入 sort_keys=True)
-        clean_assistant_msg = json.dumps(ai_json, ensure_ascii=False, sort_keys=True)
-        conversation_history.append({"role": "assistant", "content": clean_assistant_msg})
+        # ⚡ [Cache 優化] 保留助理原始回覆 (raw_text)，觸發 API 端 100% KV Cache 完全命中
+        conversation_history.append({"role": "assistant", "content": raw_text})
 
         status = ai_json.get("status", "UNKNOWN")
         reason = ai_json.get("reason", "無說明")
         changes = ai_json.get("changes", [])
-        
-        applied_success = False
 
+        # ⚡ [防閃退保護] 接收到爆量訊號，立即清空記憶重新快照
+        if status == "CONTEXT_LIMIT":
+            logger.warning("🔄 [自救機制] 已清空所有對話歷史，下一輪將重新讀取最新代碼快照！")
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
+            needs_full_snapshot = True
+            time.sleep(2)
+            continue
+            
+        applied_success = False
+        
         logger.info(f"📊 AI 診斷結果: [{status}]")
         logger.info(f"💡 AI 說明: {reason}")
         

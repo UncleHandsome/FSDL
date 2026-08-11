@@ -808,7 +808,8 @@ class FengShuiEngine {
     // 【終極修正】若地形為平坦且水勢為玉帶水，但水勢為煞水（如反弓、割腳等），仍不進行虛水測試，避免誤判
     let dropPaths = []; // 【新增】記錄地氣水滴的滑落軌跡
     let waterTestRan = false; // 【第4輪修正】標記虛水測試是否執行，防止吉水被誤判為「無水或煞水」
-    if (st.water !== 'none' && !isShaWater && !waterBroken) {
+    const isTornMingtang = ['none','sunken','rubble'].includes(st.front); // 【第5輪】明堂破敗時無法蓄水
+    if (st.water !== 'none' && !isShaWater && !waterBroken && !isTornMingtang) {
         waterTestRan = true;
         for(let i=0; i<50; i++) {
             // 【修正】平坦/盆地地形擴大初始範圍，避免水滴集中於明堂導致 100% 水聚的虛高
@@ -976,8 +977,13 @@ class FengShuiEngine {
         // 水局已遭強風扯破時，不應湧現「水聚明堂」吉格，改為揭示破水之象
         observerText.push(`地形｜重力學：水局已被強風動能扯破，未能在明堂形成水聚 (自然湧現: 水破風煞)`);
     } else if (!waterTestRan) {
-        // 只有當虛水測試未執行（無水或煞水）時，才輸出中性描述
-        observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
+        if (isTornMingtang && st.water !== 'none' && !isShaWater) {
+            const tornDesc = st.front === 'none' ? '空無收氣' : (st.front === 'sunken' ? '低陷難聚' : '破碎散亂');
+            observerText.push(`地形｜重力學：明堂破敗(${tornDesc})，虛水無法蓄積，水聚不成`);
+        } else {
+            // 只有當虛水測試未執行（無水或煞水）時，才輸出中性描述
+            observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
+        }
     } else if (gatheredDrops >= 30) {
         let bonus = 20 + Math.round((gatheredDrops - 30) * 0.4); // 依匯聚比例增加吉氣，門檻調降並平滑化
         if (st.waterDir === 'shuai') bonus = Math.round(bonus * 0.5); // 衰水減半
@@ -1385,6 +1391,10 @@ class FengShuiEngine {
     g += Math.max(0, vortexQi - initialVortexQi);
 
     let yyBalance = Util.clamp(yang - yin, -10, 10);
+    // 【防呆】太極陣法制衡：若已啟動太極，強制陰陽絕對平衡，避免任何路徑造成狀態悖論
+    if (st.special.includes('taiji')) {
+        yyBalance = 0;
+    }
     let yyText = "平 (空間開闊度與氣波動能適中)";
     // 【修正】陰陽平衡應以實際風速與動能為主要依據，避免僅因幾何煞氣而過度判定陽氣過盛
     // 【第4輪修正】降低陰陽失衡的額外罰分，並設上限，避免失衡值太高時煞氣被過度放大
@@ -1738,11 +1748,11 @@ class FengShuiEngine {
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:42,dx:0,dz:-1,w:16,pw:8,len:28});
-    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:62,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
+    if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft'))A.push({x:13,z:84,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
     // 現代煞氣源
-    if(st.sha.includes('glass'))A.push({x:0,z:80,dx:0,dz:-1,w:18,pw:14,len:80});
+    if(st.sha.includes('glass'))A.push({x:0,z:100,dx:0,dz:-1,w:18,pw:14,len:100});
     if(st.sha.includes('walledge'))A.push({x:-15,z:60,dx:0,dz:-1,w:28,pw:10,len:60});
-    if(st.sha.includes('pylon'))A.push({x:0,z:50,dx:0,dz:0,w:15,pw:8,len:0});
+    if(st.sha.includes('pylon'))A.push({x:0,z:90,dx:0,dz:0,w:15,pw:8,len:0});
     
     if(st.water==='rush'&&!st.sha.includes('rush'))A.push({x:0,z:56,dx:0,dz:-1,w:22,pw:8,len:46});
     if(st.water==='tfork')A.push({x:0,z:52,dx:0,dz:-1,w:20,pw:8,len:40});
@@ -2061,6 +2071,7 @@ class CityBuilder {
 
   // --- Helpers ---
   box(w, h, d, x, z, col, em) {
+    h = Math.max(1, h);
     const ty = Util.terrainY(x, z, this.currentTerrain || 'flat');
     const t = ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.repeat.set(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
@@ -2197,8 +2208,8 @@ class CityBuilder {
         const pts=c.getPoints(200).map(p=>Util.v3(p.x,0.25,p.z));
         const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:0x009977,dashSize:5,gapSize:3,transparent:true,opacity:.9}));
         l.computeLineDistances(); this.group.add(l);
-        this.box(16,5,10,-55,18,0x14403c,0x0d5a4e);
-        this.group.add(ResourceManager.createLabel('地鐵站・氣口','#00a388',9,-55,10,18));
+        this.box(16,5,10,-55,-5,0x14403c,0x0d5a4e);
+        this.group.add(ResourceManager.createLabel('地鐵站・氣口','#00a388',9,-55,10,-5));
       }
     }
     
@@ -2223,7 +2234,7 @@ class CityBuilder {
       }
       this.group.add(ResourceManager.createLabel('朱雀翔舞・明堂','#d39e00',9,0,8,32));
     }
-    if(st.front==='lowcase'){this.box(46,h.bird,12,0,52,0x15293f);this.box(20,h.bird-5,8,-30,44,0x132438);this.box(20,h.bird-5,8,30,44,0x132438);this.group.add(ResourceManager.createLabel('案樓','#0077ff',8,0,h.bird+6,52));}
+    if(st.front==='lowcase'){this.box(46,h.bird,12,0,52,0x15293f);this.box(20,h.bird-5,8,-35,44,0x132438);this.box(20,h.bird-5,8,35,44,0x132438);this.group.add(ResourceManager.createLabel('案樓','#0077ff',8,0,h.bird+6,52));}
     if(st.front==='sunken'){
       const pit=new THREE.Mesh(new THREE.BoxGeometry(50,2,40),new THREE.MeshLambertMaterial({color:Util.brighten(0x05090f)}));
       pit.position.set(0,-0.9,34); this.group.add(pit);
@@ -2231,8 +2242,21 @@ class CityBuilder {
       rim.position.copy(pit.position); this.group.add(rim);
     }
     if(st.front==='rubble'){
+      const overlapsExisting = (x, z, w, d) => {
+        for (const b of this.blds) {
+          if (b.isWater || b.isGlass || b.h < 5) continue;
+          if (Math.abs(x - b.x) < (w + b.w)/2 - 0.5 && Math.abs(z - b.z) < (d + b.d)/2 - 0.5) return true;
+        }
+        return false;
+      };
       for(let i=0;i<14;i++){
-        const s=Util.R(2,6); const h=Util.R(1.5,5); const x=Util.R(-40,40); const z=Util.R(16,60);
+        let s,h,x,z;
+        let attempts = 0;
+        do {
+          s=Util.R(2,6); h=Util.R(1.5,5); x=Util.R(-40,40); z=Util.R(16,60);
+          attempts++;
+        } while (overlapsExisting(x, z, s, s) && attempts < 20);
+        if (attempts >= 20) continue;
         const m=new THREE.Mesh(new THREE.BoxGeometry(s,h,s),new THREE.MeshLambertMaterial({color:Util.brighten(0x233043)}));
         m.position.set(x,1,z); m.rotation.y=Util.R(0,3); this.group.add(m);
         this.blds.push({x, z, w:s, d:s, h});
@@ -2275,18 +2299,18 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('華表','#d39e00',8,-34,64,92));this.group.add(ResourceManager.createLabel('華表','#d39e00',8,34,64,92));
     }
     if(st.shuifa.includes('shixiang')){
-      this.box(12,22,12,-26,80,0x1f3a5c);this.box(12,22,12,26,80,0x1f3a5c);
+      this.box(12,22,12,-42,80);this.box(12,22,12,42,80);
       const h1=new THREE.Mesh(new THREE.SphereGeometry(6,16,10),new THREE.MeshLambertMaterial({color:Util.brighten(0x2a4a72)}));
-      h1.position.set(-26,25,80);this.group.add(h1);
-      const h2=h1.clone();h2.position.x=26;this.group.add(h2);
-      this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,-26,34,80));this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,26,34,80));
+      h1.position.set(-42,25,80);this.group.add(h1);
+      const h2=h1.clone();h2.position.x=42;this.group.add(h2);
+      this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,-42,34,80));this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,42,34,80));
     }
     if(st.shuifa.includes('qinxing')){
-      this.poolCrescent(0,56,13,24);
-      this.box(6,10,6,0,56,0x1f4a6c);
+      this.poolCrescent(40,60,13,24);
+      this.box(6,10,6,40,60,0x1f4a6c);
       const roof=new THREE.Mesh(new THREE.ConeGeometry(5,5,4),new THREE.MeshLambertMaterial({color:0xc9a53d}));
-      roof.position.set(0,12.5,56);roof.rotation.y=Math.PI/4;this.group.add(roof);
-      this.group.add(ResourceManager.createLabel('禽星','#0077ff',8,0,18,56));
+      roof.position.set(40,12.5,60);roof.rotation.y=Math.PI/4;this.group.add(roof);
+      this.group.add(ResourceManager.createLabel('禽星','#0077ff',8,40,18,60));
     }
 
     // Hole
@@ -2298,8 +2322,8 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('穴形・窩','#8844cc',7,0,6,20));
     }
     if(st.hole==='qian'){
-      this.box(4,3,18,-10,10,0x1c3a5f);this.box(4,3,18,10,10,0x1c3a5f);
-      this.box(6,4,6,-10,20,0x22456e);this.box(6,4,6,10,20,0x22456e);
+      this.decoBox(4,3,18,-10,10,0x1c3a5f);this.decoBox(4,3,18,10,10,0x1c3a5f);
+      this.decoBox(6,4,6,-10,20,0x22456e);this.decoBox(6,4,6,10,20,0x22456e);
       this.group.add(ResourceManager.createLabel('穴形・鉗','#8844cc',7,0,8,16));
     }
     if(st.hole==='ru'){
@@ -2308,7 +2332,7 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('穴形・乳','#8844cc',7,0,6,22));
     }
     if(st.hole==='tu'){
-      this.box(22,2.5,18,0,6,0x1c3a5f);
+      this.decoBox(22,2.5,18,0,6,0x1c3a5f);
       this.group.add(ResourceManager.createLabel('穴形・突','#8844cc',7,0,7,12));
     }
 
@@ -2358,45 +2382,45 @@ class CityBuilder {
     if(st.sha.includes('bow')){this.elevated([Util.v3(-120,10,100),Util.v3(0,10,40),Util.v3(120,10,100)],true);this.group.add(ResourceManager.createLabel('反弓煞','#d31515',9,0,17,44));}
     if(st.sha.includes('sickle')){this.elevated([Util.v3(150,11,-70),Util.v3(80,11,-16),Util.v3(48,11,34),Util.v3(76,11,86),Util.v3(140,11,116)],true);this.group.add(ResourceManager.createLabel('鐮刀煞','#d31515',9,52,19,34));}
     if(st.sha.includes('pierce')){this.elevated([Util.v3(-150,9.5,26),Util.v3(150,9.5,26)],true);this.group.add(ResourceManager.createLabel('穿心煞','#d31515',9,0,16,26));}
-    if(st.sha.includes('windshaft')){this.box(13,64,13,-17,64,0x16203a);this.box(13,64,13,17,64,0x16203a);this.box(11,50,11,-26,92,0x141c33);this.box(11,50,11,26,92,0x141c33);this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,72,80));}
+    if(st.sha.includes('windshaft')){this.box(13,64,13,-22,82,0x16203a);this.box(13,64,13,22,82,0x16203a);this.box(11,50,11,-26,92,0x141c33);this.box(11,50,11,26,92,0x141c33);this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,72,92));}
     if(st.sha.includes('qingquan')){
       this.box(6,14,6,0,42,0x1d2c44);
       const fist=new THREE.Mesh(new THREE.SphereGeometry(5,16,12),new THREE.MeshLambertMaterial({color:Util.brighten(0x33203a),emissive:0x331111,emissiveIntensity:.4}));
       fist.position.set(0,17,42);this.group.add(fist);
       this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,26,42));
     }
-    if(st.sha.includes('tantou') && st.front === 'lowcase'){
-      this.box(34,16,12,0,58,0x15293f);this.box(14,28,10,13,68,0x101a2a);
-      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,68));
+    if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft')){
+      this.box(14,28,10,13,84);
+      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,84));
     }
     // 現代擴充煞氣
     if(st.sha.includes('glass')){
       const gm = new THREE.MeshLambertMaterial({color:0xaaddff, emissive:0x224455, transparent:true, opacity:0.85});
       const gBld = new THREE.Mesh(new THREE.BoxGeometry(40, 80, 5), gm);
-      gBld.position.set(0, 40, 75); this.group.add(gBld);
+      gBld.position.set(0, 40, 100); this.group.add(gBld);
       
-      this.blds.push({x:0, z:75, w:40, d:5, h:80, isGlass:true}); 
+      this.blds.push({x:0, z:100, w:40, d:5, h:80, isGlass:true}); 
       
-      const beam = new THREE.Mesh(new THREE.ConeGeometry(25, 75, 16, 1, true), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.12, side:THREE.DoubleSide, depthWrite:false}));
-      beam.rotation.x = Math.PI/2; beam.position.set(0, 25, 37.5); this.group.add(beam);
-      this.group.add(ResourceManager.createLabel('物理標籤:高反光材質','#d31515',9,0,45,68));
+      const beam = new THREE.Mesh(new THREE.ConeGeometry(25, 100, 16, 1, true), new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.12, side:THREE.DoubleSide, depthWrite:false}));
+      beam.rotation.x = Math.PI/2; beam.position.set(0, 25, 50); this.group.add(beam);
+      this.group.add(ResourceManager.createLabel('物理標籤:高反光材質','#d31515',9,0,45,100));
     }
     if(st.sha.includes('walledge')){
-      this.box(50, 70, 20, -25, 55, 0x16203a); 
-      this.group.add(ResourceManager.createLabel('壁刀煞','#d31515',9,-12,35,45));
+      this.box(50, 70, 20, -75, 55); 
+      this.group.add(ResourceManager.createLabel('壁刀煞','#d31515',9,-75,35,45));
     }
     if(st.sha.includes('pylon')){
       const pMat = new THREE.MeshLambertMaterial({color:0x333344});
       const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.5,40,4), pMat);
-      c1.position.set(-4,20,50); c1.rotation.z = -0.06; this.group.add(c1);
+      c1.position.set(-4,20,90); c1.rotation.z = -0.06; this.group.add(c1);
       const c2 = new THREE.Mesh(new THREE.CylinderGeometry(0.5,1.5,40,4), pMat);
-      c2.position.set(4,20,50); c2.rotation.z = 0.06; this.group.add(c2);
+      c2.position.set(4,20,90); c2.rotation.z = 0.06; this.group.add(c2);
       for(let i=1; i<4; i++){
          const b = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 0.5), pMat);
-         b.position.set(0, 10 + i*8, 50); this.group.add(b);
+         b.position.set(0, 10 + i*8, 90); this.group.add(b);
       }
-      this.group.add(ResourceManager.createLabel('蜈蚣煞','#d31515',9,0,45,50));
-	  this.blds.push({x:0, z:50, w:12, d:6, h:40});
+      this.group.add(ResourceManager.createLabel('蜈蚣煞','#d31515',9,0,45,90));
+	  this.blds.push({x:0, z:88, w:8, d:4, h:40});
     }
     stateManager.markers.forEach(m=>this.addSpike(m));
 
@@ -2990,7 +3014,8 @@ class ParticleSystem {
         const b = builder.blds[i];
         if (b.isWater || b.h < 5) continue; // 水池與過扁的物體不阻擋風速
         vec4Arr[bCount].set(b.x, b.z, b.w, b.d);
-        let elev = b.y || 0; // 讀取建築物懸空高度，無則為0
+        // 【修正】將地形高度納入建築底部計算，確保斜坡/盆地等非平坦地形上的粒子碰撞正確
+        let elev = (b.y || 0) + Util.terrainY(b.x, b.z, stateManager.current.terrain);
         vec2Arr[bCount].set(elev, elev + b.h); // 將 [底部高度, 頂部高度] 傳給 GPU
         bCount++;
     }
@@ -3766,7 +3791,8 @@ const DryRunTool = {
         let y = getGeoZ(x, z);
         for(let b of app.builder.blds) {
             if(!b.isWater && Math.abs(x - b.x) < b.w/2 && Math.abs(z - b.z) < b.d/2) {
-                y = Math.max(y, (b.y || 0) + b.h + Util.terrainY(b.x, b.z, st.terrain)); 
+                // 修正：使用 getGeoZ 統一天際線計算，納入傾瀉/低陷特殊地形，避免建築頂部被低估
+                y = Math.max(y, (b.y || 0) + b.h + getGeoZ(b.x, b.z)); 
             }
         }
         return y;
@@ -3796,10 +3822,10 @@ const DryRunTool = {
     let intersectingBlds = 0;
     for (let i = 0; i < app.builder.blds.length; i++) {
         const b1 = app.builder.blds[i];
-        if (b1.isWater || b1.isGlass) continue; // 排除水體與貼皮物件
+        if (b1.isWater || b1.isGlass || b1.h < 5) continue; // 排除水體、貼皮物件與低矮裝飾
         for (let j = i + 1; j < app.builder.blds.length; j++) {
             const b2 = app.builder.blds[j];
-            if (b2.isWater || b2.isGlass) continue;
+            if (b2.isWater || b2.isGlass || b2.h < 5) continue;
             // AABB 碰撞偵測 (Axis-Aligned Bounding Box)
             if (Math.abs(b1.x - b2.x) < (b1.w + b2.w)/2 - 0.5 && Math.abs(b1.z - b2.z) < (b1.d + b2.d)/2 - 0.5) {
                 // 如果 Y 軸也有重疊才算真穿模

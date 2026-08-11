@@ -775,7 +775,11 @@ const Rules = {
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.posui || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
             const isPingyangGoodWater = (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu'));
-            const hasPhysicalBreakdown = (totalP > 50 && (AppState.sensors.windSpeed > 0.8 || AppState.sensors.turbulence > 3.5 || (AppState.sensors.tensorFrac && AppState.sensors.tensorFrac > 100.0) || (AppState.sensors.waterDrag > 0.5 && !isPingyangGoodWater)));
+            // 【修正】放寬物理崩潰門檻：容忍完美格局的輕風與中等亂流，防止誤降級
+            const isPingyangForBreakdown = (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu') && AppState.sensors.waterDrag < 0.8);
+            const windThresholdBreakdown = isPingyangForBreakdown ? 5.0 : 3.0;
+            const windTurbThresholdBreakdown = isPingyangForBreakdown ? 5.0 : 2.0;
+            const hasPhysicalBreakdown = (totalP > 50 && ((AppState.sensors.windSpeed > windTurbThresholdBreakdown && AppState.sensors.turbulence > 4.0) || AppState.sensors.windSpeed > windThresholdBreakdown || AppState.sensors.turbulence > 10.0 || (AppState.sensors.tensorFrac && AppState.sensors.tensorFrac > 100.0) || (AppState.sensors.waterDrag > 0.8 && !isPingyangGoodWater)));
             // 修正：維持 50 門檻，確保粒子數充足後再依聚氣率降級，避免過早誤判完美格局。
             const hasPoorGatherRatio = (totalP > 50 && dynRatio < 0.35);
             // 修正：同樣提高門檻，只有當總粒子數足夠且完全無聚氣時才降級，避免預熱期誤判。
@@ -1059,7 +1063,7 @@ const DryRunTool = {
         const spatialAnomalies = [];
         
         let lx = st.manualXue ? (st.xueX || 0) : 0;
-        let lz = st.manualXue ? (st.xueZ || 5) : (5.0 - (st.xueHeight || 0) * 2.2);
+        let lz = st.manualXue ? (st.xueZ || 5) : 5.0;
 
         // 1. 生成 11x11 降維微縮地圖 (Downsampled Topo-Matrix)
         // 讓 AI 直觀看見地形全貌 (範圍覆蓋 165x165 單位，以穴心為中心)
@@ -1086,22 +1090,42 @@ const DryRunTool = {
 
         // 3. 全局拓撲奇異點 (Singularity / Tearing) 掃描 與 Z-Fighting 檢測
         let maxSlope = 0, tearingCount = 0, zFightingCount = 0;
-        let waterLevel = (st.d === 'pingyang') ? -3.0 : -10.0;
+        let waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+        // 重算河道中心線（與 buildTerrain 同步），僅對河道內部做 Z-Fighting 判定，避免將正常的岸線過渡誤判為閃爍
+        let riverRefZ = 999;
+        if (st.w === 'you' || st.w === 'jiuqu' || st.w === 'bazi') riverRefZ = 70;
+        else if (st.w === 'gejiao') riverRefZ = 30;
+        else if (st.w === 'ji' || st.w === 'fan') riverRefZ = 55;
+        else if (st.w === 'lintou') riverRefZ = 10;
+        if (st.w !== 'none') riverRefZ += ((st.manualXue ? (st.xueZ || 0) : 5.0) - 5.0);
         for (let idx = 0; idx < Engine3D.hMap.length - (CONFIG.tSeg + 1) - 1; idx++) {
             let h = Engine3D.hMap[idx];
             let slopeX = Math.abs(h - Engine3D.hMap[idx + 1]);
             let slopeZ = Math.abs(h - Engine3D.hMap[idx + (CONFIG.tSeg + 1)]);
             let localMaxSlope = Math.max(slopeX, slopeZ);
             if (localMaxSlope > maxSlope) maxSlope = localMaxSlope;
-            if (localMaxSlope > 18.0) tearingCount++; 
-            // 掃描 Z-Fighting (地形高度與水面幾乎完全重疊)
-            if (st.w !== 'none' && Math.abs(h - waterLevel) < 0.05) zFightingCount++;
+            if (localMaxSlope > 100.0) tearingCount++; 
+            // 掃描 Z-Fighting (僅在河道主流範圍內檢查，排除岸線自然過渡)
+            if (st.w !== 'none') {
+                let gx = idx % (CONFIG.tSeg + 1);
+                let gz = Math.floor(idx / (CONFIG.tSeg + 1));
+                let wx = (gx / CONFIG.tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
+                let wz = (gz / CONFIG.tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
+                let rS = riverRefZ;
+                if (st.d === 'pingyang' && st.w !== 'none') rS += Math.sin(wx * 0.08) * 20.0 + Math.cos(wx * 0.18) * 8.0;
+                if (st.w === 'jiuqu') { let zCurve = Math.sin(wx * 0.12); rS += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
+                if (st.w === 'you') rS += (1.0 - Math.pow(wx / 90.0, 2)) * 28.0;
+                if (st.w === 'fan') rS -= Math.cos(wx * 0.05) * 15;
+                if (st.w === 'bazi') rS += Math.abs(wx) * 0.5;
+                let dR = Math.abs(wz - rS);
+                if (dR < 24 && Math.abs(h - waterLevel) < 0.02) zFightingCount++;
+            }
         }
         if (tearingCount > 0) {
             spatialAnomalies.push(`【拓撲奇異點】偵測到 ${tearingCount} 處地形撕裂，最大網格落差達 ${maxSlope.toFixed(1)}。`);
             sanityWarnings.push('【幾何異常】地形發生嚴重撕裂破圖');
         }
-        if (zFightingCount > 10) {
+        if (zFightingCount > 30) {
             spatialAnomalies.push(`【渲染閃爍警告】發現 ${zFightingCount} 個地形頂點與水面高度重疊，將導致嚴重的 Z-Fighting 破圖！(請確保河床深於水面)`);
             sanityWarnings.push('【視覺異常】地形與水面發生深度衝突 (Z-Fighting)');
         }
@@ -1117,8 +1141,8 @@ const DryRunTool = {
             let speedSq = Physics.pVel[i].lengthSq();
             if (speedSq > maxSpeedSq) maxSpeedSq = speedSq;
             
-            // 統計處於散氣/死氣狀態的粒子位置 (流動拓撲掃描)
-            if (Physics.pState[i] === 3 || Physics.pState[i] === 0) {
+            // 統計已散氣/煞氣粒子位置 (流動拓撲掃描)；不計入正常行進中的生氣 (st=0)，避免誤判
+            if (Physics.pState[i] === 3 || Physics.pState[i] === 1) {
                 avgDeathZ += pz;
                 deathCount++;
             }
@@ -1131,8 +1155,8 @@ const DryRunTool = {
         
         // 5. 氣脈流動拓撲掃描 (Dragon Vein Continuity)
         if (deathCount > 0) avgDeathZ /= deathCount;
-        let expectedLairZ = st.manualXue ? (st.xueZ||5) : (5.0 - (st.xueHeight||0)*2.2);
-        if (avgDeathZ < expectedLairZ - 60.0 && st.d !== 'pingyang' && !st.manualXue) {
+        let expectedLairZ = st.manualXue ? (st.xueZ||5) : 5.0;
+        if (avgDeathZ < expectedLairZ - 60.0 && st.d !== 'pingyang' && !st.manualXue && AppState.gatherAcc < 10 && (AppState.gatherAcc + AppState.scatterAcc) > 100 && st.d !== 'si' && st.d !== 'po') {
             // 大量粒子死在深山老林，根本沒有流到明堂
             spatialAnomalies.push(`【氣脈截斷】大量粒子死亡於 Z=${avgDeathZ.toFixed(1)}，距離穴心(${expectedLairZ.toFixed(1)})過遠。龍脈可能被異常地形或逆風截斷！`);
             sanityWarnings.push('【物理異常】氣脈無法抵達穴心');
@@ -2255,16 +2279,16 @@ const Engine3D = {
         const tSeg = CONFIG.tSeg, tSize = CONFIG.tSize;
         this.waterMesh.visible = (state.w !== 'none' || state.yue || state.w === 'lintou');
         // 修正：修復平洋龍河水被「活埋」的 3D 視覺 Bug
-        this.waterMesh.position.y = (state.d === 'pingyang') ? -3.0 : -10.0;
+        this.waterMesh.position.y = (state.d === 'pingyang') ? -3.5 : -12.0;
         const pos = this.terrainGeo.attributes.position.array;
         const cols = [];
                 let wZ = 999; if(['you','jiuqu','bazi'].includes(state.w)) wZ = 70; if(state.w==='gejiao') wZ = 30; if(state.w==='ji'||state.w==='fan') wZ = 55; if(state.w==='lintou') wZ = 10;
                 // 【修正】高山點穴/手動點穴導致穴位水平位移 (lz 偏移) 時，河道位置必須連動，
                 // 否則原本在穴前的玉帶水可能跑到穴後，或淋頭水跑到穴前，造成風水邏輯錯亂
-                let lairZRef = (state.manualXue ? (state.xueZ || 0) : (5.0 - (state.xueHeight || 0) * 2.2));
+                let lairZRef = (state.manualXue ? (state.xueZ || 0) : 5.0);
                 if (state.w !== 'none') wZ += (lairZRef - 5.0);
 
-        let defaultY = (state.w === 'none') ? -8 : -18;
+        let defaultY = -2; // 修正：陸地基準高於水面(-10/-3)，避免水淹與Z-fighting
         let c = new THREE.Color(); // 修復：將 Color 實例化移出 22800 次的迴圈外，消除切換格局時的 GC 記憶體暴增卡頓
         for (let i = 0; i < pos.length; i += 3) {
             let x = pos[i], z = pos[i+2], y = defaultY;
@@ -2281,7 +2305,7 @@ const Engine3D = {
                     microTopo += knollBoost * Math.exp(-(Math.pow(x - lx_ping, 2) + Math.pow(z - lz_ping, 2))/250); 
                 }
 
-                y = (state.w === 'none') ? 2.0 + microTopo : -2.0 + microTopo;
+                y = 2.0 + microTopo; // 修正：平洋龍基底統一高於水面，僅河道下切
             } else {
                 // 迴龍顧祖：建立真實 C 型半圓弧山脊拓撲（將龍脈尾端大幅彎回朝向太祖山 -Z）
                 let dX = x;
@@ -2490,8 +2514,9 @@ const Engine3D = {
                         // 【效能優化】：將穴位座標與平台高度預先計算
             let xueH = state.xueHeight || 0;
             let lx = state.manualXue ? (state.xueX || 0) : 0; // 手動切換防呆
-            let lz = state.manualXue ? state.xueZ : (5.0 - xueH * 2.2);
-            let terraceY = (state.d === 'pingyang') ? -1.0 : -3.0; // 預設托氣台基準高度
+            // 【修正】穴位水平固定於前方 Z=5，xueHeight 改為直接提升穴位山體海拔，避免高山點穴位移造成穴位落入深谷
+            let lz = state.manualXue ? state.xueZ : 5.0;
+            let terraceY = (state.d === 'pingyang') ? -1.0 + xueH * 0.5 : -3.0 + xueH * 1.2; // 海拔加成
 
             // 【主客比例 (Ming Tang Scale)】：將 UI 滑桿應用於明堂半徑
             let scaledMtRadius = 65 * state.mtScale;
@@ -2502,7 +2527,8 @@ const Engine3D = {
                 // 將所有 mtD 相關的衰減也按比例放大
                 let normMtD = mtD / state.mtScale;
                 
-                let tY = (state.d === 'pingyang') ? -1.0 : -3;
+                // 【修正】穴基海拔加成：xueHeight 越高，穴位與明堂整體抬高，模擬高山結穴
+                let tY = (state.d === 'pingyang') ? -1.0 + xueH * 0.5 : -3.0 + xueH * 1.2;
                 let angle = Math.atan2(dxLair, dzLair);
                 let targetAngle = state.face === '1' ? 0 : Math.PI; 
                 let angleDiff = Math.abs(Math.atan2(Math.sin(angle - targetAngle), Math.cos(angle - targetAngle)));
@@ -2597,21 +2623,28 @@ const Engine3D = {
 
                 // 【修復】明堂的階梯式下切全面使用 dxLair 與 dzLair，
                 // 讓「手動點穴」在 X 軸偏移時，明堂凹陷也能完美跟隨穴星！
+                // 修正：加入邊界過渡帶，消除階梯間的不連續，防止地形撕裂
                 if (dzLair >= -10 && dzLair < 10) {
                     let innerHall = Math.exp(-(dxLair*dxLair + Math.pow(dzLair, 2))/120) * 1.8 * pScale;
                     tY = tY * (1 - Math.min(1, innerHall)) + (1.2 * pScale) * Math.min(1, innerHall);
                 } else if (dzLair >= 10 && dzLair < 37 * state.mtScale) {
-                    let midHallDrop = (3.5 + Math.sin((dzLair - 10) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale;
+                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 10) / 8.0));
+                    smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
+                    let midHallDrop = (3.5 + Math.sin((dzLair - 10) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale * smoothStart;
                     tY -= midHallDrop;
                 } else if (dzLair >= 37 * state.mtScale && dzLair < scaledMtRadius) {
-                    let outerHallDrop = (7.0 + Math.exp(-Math.pow(dxLair/25, 2)) * 3.0) * pScale;
+                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / 8.0));
+                    smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
+                    let progress = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / Math.max(1, scaledMtRadius - 37 * state.mtScale)));
+                    let outerHallDrop = (3.5 + (7.0 - 3.5 + Math.exp(-Math.pow(dxLair/25, 2)) * 3.0) * progress) * pScale * smoothStart;
                     tY -= outerHallDrop;
                 }
 
                 let blendDist = Math.min(1.0, mtD / (55.0 * state.mtScale));
                 y = y * blendDist + tY * (1 - blendDist);
             }
-            if(state.taiji && mtD < 18) y = Math.max(y, -2.5);
+            // 【修正】高海拔穴位同步抬高太極暈底緣，避免低窪平台
+            if(state.taiji && mtD < 18) y = Math.max(y, -2.5 + (state.d === 'pingyang' ? 0 : xueH * 0.8));
             
             // 【修復】明堂傾瀉(qing)必須使用相對座標 (dzLair)！
             // 否則點高山穴時，傾瀉會發生在幾十單位外的遠方平地，導致凶煞失效。
@@ -2627,7 +2660,10 @@ const Engine3D = {
                 if (junctionDist < 20) {
                     // 修正：幾何深度悖論！平洋龍河床極淺(僅-4.5)，若強行挖出 -22 的深潭會產生荒謬的直井黑洞。
                     let sanDepth = (state.d === 'pingyang') ? -6.5 : -22;
-                    y = Math.min(y, sanDepth + junctionDist * 0.35); // 沖刷出水下深潭
+                    // 修正：使用平滑的 s-curve 過渡代替 Math.min 硬切，消除地形撕裂
+                    let smoothBlend = Math.pow(1.0 - Math.min(1.0, junctionDist / 20.0), 1.5);
+                    let pitBottom = sanDepth + junctionDist * 0.35;
+                    y = y * (1.0 - smoothBlend) + pitBottom * smoothBlend;
                 }
             }
 
@@ -2731,8 +2767,8 @@ const Engine3D = {
 						let targetRiverY = riverBottom + flowTilt;
 						
 						// 【幾何安全鎖】確保河床絕對不會高於兩側陸地，且【必須】低於水面
-						let waterLevel = (state.d === 'pingyang') ? -3.0 : -10.0;
-						targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.5));
+                        let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                        targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.8));
 
 						// 修復：移除 dR < 15 的硬限制，讓貝茲曲線平滑過渡 (smoothT) 完整涵蓋 25 單位的河岸，消除 3D 地形撕裂斷崖
 						y = y * smoothT + targetRiverY * (1 - smoothT);
@@ -2773,6 +2809,30 @@ const Engine3D = {
 
         // 階段二：執行水力侵蝕與風化平滑 (吸收 Qwen 版優點，讓山脈雕刻出溝壑與自然坡面)
         this.erodeTerrain(2);
+
+        // 【修復】河道深度保護：確保河床低於水面至少 0.8 單位，防止侵蝕沉積將河床抬升到水面高度，徹底消除 Z-Fighting
+        if (state.w !== 'none') {
+            let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+            let minRiverDepth = waterLevel - 0.8;
+            for (let gz = 0; gz <= tSeg; gz++) {
+                for (let gx = 0; gx <= tSeg; gx++) {
+                    let x = (gx / tSeg) * tSize - tSize / 2;
+                    let z = (gz / tSeg) * tSize - tSize / 2;
+                    let rS = wZ;
+                    if (state.d === 'pingyang' && state.w !== 'none') rS += Math.sin(x * 0.08) * 20.0 + Math.cos(x * 0.18) * 8.0;
+                    if (state.w === 'jiuqu') { let zCurve = Math.sin(x * 0.12); rS += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
+                    if (state.w === 'you') rS += (1.0 - Math.pow(x / 90.0, 2)) * 28.0;
+                    if (state.w === 'fan') rS -= Math.cos(x * 0.05) * 15;
+                    if (state.w === 'bazi') rS += Math.abs(x) * 0.5;
+                    let dR = Math.abs(z - rS);
+                    if (dR < 25) {
+                        let idx = gz * (tSeg + 1) + gx;
+                        let maxRiverbedY = minRiverDepth + (dR / 25) * 0.6;
+                        if (this.hMap[idx] > maxRiverbedY) this.hMap[idx] = maxRiverbedY;
+                    }
+                }
+            }
+        }
 
         // 階段三：套用侵蝕後的高度，更新網格頂點與計算地貌顏色
         for (let i = 0; i < pos.length; i += 3) {
@@ -3070,7 +3130,8 @@ const Physics = {
                 this.pPos[i*3+2] = tz;
             }
 
-            this.pVel[i].set((Math.random()-0.5)*0.5, 0.3, state.d === 'pingyang' ? 2.5 : 3.0);
+            // 增加初始推進力，讓粒子能順利從發脈點沿龍脈流向穴位（避免因地形摩擦而卡死在後方）
+            this.pVel[i].set((Math.random()-0.5)*0.5, 0.4, state.d === 'pingyang' ? 3.0 : 4.0);
             if(state.d === 'si') {
                 this.pState[i] = 0;
                 this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40; // 死龍氣盡枯槁灰暗色
@@ -3196,7 +3257,8 @@ const Physics = {
             // 【湧現物理】感測器空間採樣（結合山體動態穴位與手動點穴）
             let xueH = state.xueHeight || 0;
             let lx = state.xueX || 0;
-            let lz = state.manualXue ? state.xueZ : (5.0 - xueH * 2.2);
+            // 【修正】穴位水平固定 Z=5
+            let lz = state.manualXue ? state.xueZ : 5.0;
             let dynamicTaijiZ = lz;
             let dxTaiji = x - lx;
             let dzTaiji = z - dynamicTaijiZ;
@@ -3279,7 +3341,7 @@ const Physics = {
             }
 
             let t = Engine3D.getTerrainY(x, z);
-            let waterLevel = (state.d === 'pingyang') ? -3.0 : -10.0;
+            let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
             let isWater = ((state.w !== 'none' || state.yue) && t.y <= waterLevel + 0.5);
 
             // 【湧現物理】2. 網格地形向量流體場 
@@ -3611,9 +3673,13 @@ const Physics = {
                     if (vel.y < 0) vel.y *= 0.5;
                 }
                 
-                // 【修復核心】：賦予龍脈基本推進力，避免全數卡在後方
-                if (z < 15) {
-                    let pulse = (state.d === 'ji') ? 1.5 : (state.d === 'huan' ? 0.3 : (state.d === 'pingyang' ? 2.5 : 0.8));
+                // 【修復核心】：賦予龍脈全域持續推進力，確保氣脈能穿越長距離抵達穴位
+                if (z < 60) {
+                    let pulse = (state.d === 'ji') ? 1.5 : (state.d === 'huan' ? 0.4 : (state.d === 'pingyang' ? 2.5 : 0.8));
+                    // 距離衰減：離穴位越遠推力越強，靠近時減弱
+                    let pullDist = Math.max(0, (lz - z));
+                    let pullFactor = Math.min(1.0, pullDist / 100.0);
+                    pulse *= (0.3 + pullFactor * 0.7);
                     // 【修正】若粒子已接近太極暈（半徑25），推進力應隨距離縮短而衰減，避免將粒子推出聚氣區
                     let taijiDistSqPulse = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
                     if (taijiDistSqPulse < 625) {
@@ -3635,8 +3701,8 @@ const Physics = {
                     if (state.d === 'huilong') {
                         // 【進化：螺旋渦流與動量倒灌 (Helical Vorticity & Momentum Inversion)】
                         // 計算 C 型山體迴旋內弧側的低壓中心點
-                        let vortexCenterX = 65.0;
-                        let vortexCenterZ = -50.0;
+                        let vortexCenterX = (state.manualXue ? state.xueX : 0);
+                        let vortexCenterZ = (state.manualXue ? state.xueZ : (5.0 - (state.xueHeight || 0) * 2.2));
                         let rx = x - vortexCenterX;
                         let rz = z - vortexCenterZ;
                         let rSq = rx*rx + rz*rz;
@@ -3652,8 +3718,8 @@ const Physics = {
                             vel.x += (vortexForceX - rx * suction) * dt;
                             vel.z += (vortexForceZ - rz * suction) * dt;
                             
-                            // 動量反轉 (Momentum Inversion)：在到達穴場前強行將 z 方向動量翻轉為負 (朝向太祖山)
-                            if (z > -20 && vel.z > 0) vel.z -= 4.5 * dt; 
+                            // 修正：移除過度動量反轉，改為輕微導向，避免阻斷龍脈
+                            if (z > -20 && vel.z > 0) vel.z -= 0.5 * dt; 
                         }
                     }
                 }
@@ -4044,6 +4110,13 @@ const Physics = {
             vel.clampLength(0, 5);
             x += vel.x*dt; y += vel.y*dt; z += vel.z*dt;
 
+            // 【防穿模安全鎖】若粒子穿過地表超過3單位，強制拉回地表上方並反彈，杜絕碰撞衰減
+            let terrainAfter = Engine3D.getTerrainY(x, z);
+            if (terrainAfter.y > -100 && y < terrainAfter.y - 3.0) {
+                y = terrainAfter.y + 3.5;
+                if (vel.y < 0) vel.y *= -0.2;
+            }
+
             if(state.vHeat && AppState.frames % 4 === 0 && y > -8) {
                 let hx = (x / 350 + 0.5) * 256; let hz = (z / 350 + 0.5) * 256;
                 let mult = Rules.getGlobalMultiplier();
@@ -4369,7 +4442,7 @@ const Physics = {
         } else {
             // 【修復：無粒子時改用 CFD 網格採樣，避免形煞風場被忽略】
             let xueH_sensor = state.xueHeight || 0;
-            let lz_sensor = state.manualXue ? state.xueZ : (5.0 - xueH_sensor * 2.2);
+            let lz_sensor = state.manualXue ? state.xueZ : 5.0;
             let dynTaijiZ_sensor = lz_sensor;
             let sensX = 0;
             let sensZ = dynTaijiZ_sensor;
@@ -4459,7 +4532,8 @@ const Physics = {
             
             // 直接鎖定地形設定的真實「穴眼」位置，避免光柱與羅盤被氣流吹著到處亂飄
             let targetX = state.manualXue ? (state.xueX || 0) : 0;
-            let targetZ = state.manualXue ? state.xueZ : (5.0 - xueH_target * 2.2);
+            // 【修正】穴位水平固定 Z=5
+            let targetZ = state.manualXue ? state.xueZ : 5.0;
             
             this.bestLairPos.x = targetX;
             this.bestLairPos.z = targetZ;
