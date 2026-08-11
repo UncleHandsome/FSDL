@@ -389,9 +389,16 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 2. **城市建築穿模與重疊 (City Blds Overlap)**：
    - 若異常陣列中出現【建築穿模警告】，代表 `app.builder.blds` 中生成的方塊幾何 (x, z, w, d) 發生了不合理的重疊（例如青龍和白虎擠在一起）。請調整生成坐標或寬度。
 
-3. **系統熵值、防穿模與流體 (Entropy & Clipping)**：
+3. **系統熵值、高維物理與流體 (Thermodynamics & CFD)**：
    - 【山林版 (3D.html)】：若出現【動能暴走】或【碰撞衰減(穿模)】，代表 `Physics.update` 中的引力或法線推力發生除以零。請增加阻尼 (`velocity.multiplyScalar`)。
-   - 【城市版 (city.html)】：若 `entropyGenRate` 異常飆高或 SVF (`skyViewFactor`) 不合理，代表 `FengShuiEngine.analyze` 中的建築遮擋計算出現了無效邊界，導致熱力學失控。
+   - 【城市版 (city.html)】：若 `entropyGenRate` 異常飆高或 SVF (`skyViewFactor`) 不合理，代表 `FengShuiEngine.analyze` 出現無效邊界，導致熱力學失控。
+   - ⚡【全新高維指標】：請嚴格關注 JSON 中 `thermodynamicsAndTopology` 節點。
+     * **Shannon Entropy (香農熵)**：若熵值過高 (通常 >5.0 代表混亂)，代表氣場未聚。
+     * **Betti-1 Closure (拓撲閉合度)**：若閉合度過低 (<50%)，代表盆地漏風或缺砂。
+     * **Resonant Q-Factor (駐波共振)**：觀察是否有效發揮太極暈聚氣。
+     * **Reynolds & Froude (流體力學)**：判斷是否產生超臨界流煞氣 (Fr > 1.0) 或極端湍流 (Re > 4000)。
+     * **Fractal Dimension (分形維度)**：觀察大環境能量級聯是否連續。
+     請將這些數據的異常納入修正判斷，若發現矛盾（如：評分給予完美，但香農熵極高或閉合度極低），請務必修改程式碼以修復計算邏輯。
 
 4. **防呆狀態悖論 (State Desync)**：
    - 若出現不可能的組合 (如平洋龍 + 高山懸崖，或城市無水卻有三叉水)，請檢查 `UI` 層的 `rules` 或相關防呆判斷是否遺漏。
@@ -437,7 +444,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
     history_logs = []
     needs_full_snapshot = True
     
-    RESET_EVERY_N_ROUNDS = 25
+    RESET_EVERY_N_ROUNDS = 50 if "pro" in model.lower() else 25
 
     for current_round in range(1, max_rounds + 1):
         logger.info(f"\n【 靜態審查 - 第 {current_round}/{max_rounds} 輪 】")
@@ -607,10 +614,13 @@ def main():
     # ==========================
     # 以下為動靜交替實測循環模式 (3次動態 + 3次靜態)
     # ==========================
+    is_pro = "pro" in args.model.lower()
     MAX_ROUNDS = args.rounds
-    RUNS_PER_ROUND = args.runs_per_round
+    # 若為 pro 模型且未手動指定 runs-per-round，預設提高至 30 次
+    RUNS_PER_ROUND = (30 if args.runs_per_round == 15 else args.runs_per_round) if is_pro else args.runs_per_round
+    EXAM_RUNS = 50 if is_pro else 25
     SUCCESS_TARGET = 6
-    RESET_EVERY_N_ROUNDS = 25  
+    RESET_EVERY_N_ROUNDS = 50 if is_pro else 25
     
     consecutive_perfects = 0
     history_logs = []
@@ -688,9 +698,9 @@ def main():
                 
             conversation_history.append({"role": "user", "content": user_msg})
         else:
-            runs = 25 if is_exam else RUNS_PER_ROUND
+            runs = EXAM_RUNS if is_exam else RUNS_PER_ROUND
             if is_exam:
-                logger.info("🎓 進入【畢業大考階段】！正在啟動 25 次高強度高壓測試 (涵蓋所有預設案例與極端組合)...")
+                logger.info(f"🎓 進入【畢業大考階段】！正在啟動 {EXAM_RUNS} 次高強度高壓測試 (涵蓋所有預設案例與極端組合)...")
                 
             run_results = run_browser_simulations(target_file, runs, logger)
             
