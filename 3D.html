@@ -414,8 +414,8 @@ const Rules = {
             }
         }
         let S = Math.max(0, Math.min(100, baseS));
-        // 修正：左右皆無砂時，砂分不應虛高，設置合理上限
-        if (state.ml === 'none' && state.mr === 'none' && state.d !== 'pingyang') {
+        // 修正：左右皆無砂時，砂分不應虛高，設置合理上限（迴龍顧祖具太祖山自成護衛，不受此限）
+        if (state.ml === 'none' && state.mr === 'none' && state.d !== 'pingyang' && !(state.d === 'huilong' && state.zutai)) {
             S = Math.min(S, 50);
         }
 
@@ -457,10 +457,7 @@ const Rules = {
         if (state.w !== 'none' && wVel > 1.2) baseWa -= (wVel - 1.0) * 25; 
         
         let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
-        // 修正：水法分數應反映水力抽吸懲罰（僅當有實際天然水時，避免無水格局半月池誤傷）
-        if (AppState.sensors.waterDrag > 0.5 && state.w !== 'none') {
-            Wa = Math.max(0, Wa - (AppState.sensors.waterDrag - 0.5) * 20);
-        }
+        // 【修正】已移除水法分數的直接水力抽吸扣減，因為 dragPenalty 已在湧現物理加權中統一懲罰，避免雙重計分。
         // 修正：死龍或破龍為生氣枯竭之絕地，水法總分必須封頂於 15，避免水口神獸加成突破上限
         if (isBadDragon) {
             Wa = Math.min(Wa, 15);
@@ -629,24 +626,16 @@ const Rules = {
         // 修正：凶水（反弓、八字、割腳等）應加強水力抽吸懲罰，但需與感測器數據結合，避免過度懲罰
         const isBadWaterForDrag = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
         if (isBadWaterForDrag) {
-            // 調整：若感測器已偵測到水力抽吸，則疊加較小懲罰；否則施加基礎懲罰
+            // 若感測器已偵測到水力抽吸，則疊加較小懲罰；否則施加基礎懲罰
             if (AppState.sensors.waterDrag > 0.5) {
                 dragPenalty += 20; // 物理已反映，減少額外懲罰
             } else {
                 dragPenalty += 35; // 物理未反映，強制施加懲罰
             }
         }
-        // 修正：平洋龍得水為上，但若水力抽吸過高，仍應反映在水法分數上，避免水法分數異常偏高
-        // 修正：提高懲罰倍率，並加入門檻，確保水力抽吸能有效降低水法分數
+        // 平洋龍得水為上，但若水力抽吸過高，仍應反映在水法分數上
         if (state.d === 'pingyang' && AppState.sensors.waterDrag > 0.5) {
-            dragPenalty += (AppState.sensors.waterDrag - 0.5) * 15;
-        }
-        // 修正：當水力抽吸為0但存在凶水時，強制施加懲罰，避免水法分數異常偏高
-        const isBadWaterForDrag2 = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
-        if (isBadWaterForDrag2 && AppState.sensors.waterDrag < 0.5) {
-            dragPenalty += 15; // 凶水等效抽吸懲罰
-            // 修正：強制設定感測器數據，確保物理異常被反映
-            AppState.sensors.waterDrag = 0.5;
+            dragPenalty += Math.min(15, (AppState.sensors.waterDrag - 0.5) * 15);
         }
 
         let emergenceBonus = densityBonus - windPenalty - dragPenalty;
@@ -749,9 +738,8 @@ const Rules = {
         // 修正：評級應基於顯示的有效分數（raw * mult），不應再乘 dynMult，避免因粒子不足導致分數被過度壓縮而與 UI 矛盾
         const effectiveAvg = (sc.map(s => Math.min(100, Math.max(0, Math.round(s * mult)))).reduce((a, b) => a + b, 0) / 5);
         let rating, color, tail;
-        const hasSideSands = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang');
-        // 上吉必須具備完整左右雙砂（平洋以水代砂，但至少需一側有砂或水）
-        const hasCompleteSands = (state.d === 'pingyang') ? (state.ml !== 'none' || state.mr !== 'none') : (state.ml !== 'none' && state.mr !== 'none');
+        const hasSideSands = (state.ml !== 'none' || state.mr !== 'none' || state.d === 'pingyang' || (state.d === 'huilong' && state.zutai));
+        const hasCompleteSands = (state.d === 'pingyang') ? (state.ml !== 'none' || state.mr !== 'none' || state.w !== 'none') : ((state.ml !== 'none' && state.mr !== 'none') || (state.d === 'huilong' && state.zutai));
         const hasWaterControl = (state.yue || state.san || state.w === 'you' || state.w === 'jiuqu');
         
         // 【大一統改良】廢除 Verdict 評價文本對物理引擎的「強制覆寫 (Override)」。
@@ -784,21 +772,24 @@ const Rules = {
             // 修正：同樣提高門檻，只有當總粒子數足夠且完全無聚氣時才降級，避免預熱期誤判。
             const hasZeroGatherWithScatter = (totalP > 50 && AppState.gatherAcc === 0 && AppState.scatterAcc > 0);
             // 修正：加入「聚氣率過低但粒子數足夠」時強制降級，避免預熱豁免被誤用於上吉
-            if (hasBadWater || hasSevereSha || hasPhysicalBreakdown || hasPoorGatherRatio || hasZeroGatherWithScatter) {
-                rating='中平・有瑕'; color='#3f6b52'; 
-                if (hasPoorGatherRatio || hasZeroGatherWithScatter) {
-                    tail='巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。';
-                } else {
-                    tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
-                }
+        // 修正：加入「聚氣率過低但粒子數足夠」時強制降級，避免預熱豁免被誤用於上吉
+        if (hasFatalSha) {
+            rating='大凶・形煞沖射'; color='#a63a2b'; tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
+        } else if (hasBadWater || hasSevereSha || hasPhysicalBreakdown || hasPoorGatherRatio || hasZeroGatherWithScatter) {
+            rating='中平・有瑕'; color='#3f6b52'; 
+            if (hasPoorGatherRatio || hasZeroGatherWithScatter) {
+                tail='巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。';
             } else {
-                rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
+                tail='巒頭尚可，但凶煞或風場導致氣場不穩，需化解。';
             }
+        } else {
+            rating='上吉・龍真穴的'; color='#b98a2e'; tail='巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
+        }
         }
         else if(effectiveAvg >= 35){
-            // 修正：即使理論分數高，若實時物理顯示完全無氣場流動，仍應強制大凶，避免評級與物理矛盾
-            if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
-            else if (hasFatalSha) {
+            // 修正：高分格局即使粒子感測尚未凝聚，也不應直接判大凶，需結合分數與煞氣綜合判斷。
+            // 移除原本「氣場斷絕」強制大凶，避免高分平洋龍因粒子尚未到達穴場而誤判絕地。
+            if (hasFatalSha) {
                 rating='大凶・形煞沖射'; color='#a63a2b'; tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
             }
 
@@ -854,7 +845,7 @@ const Rules = {
         if(state.sherui) advice.push('犯射肋煞，凶風刺穴，極凶之局，宜棄用或築厚牆遮擋');
         if(state.bohuan === 'no') advice.push('龍脈未剝換，帶有高山岩石粗惡煞氣，宜尋找過峽平緩處再行點穴');
         if(state.zhijiao === 'ni') advice.push('龍脈橈棹逆水反生，氣脈倒退散失，難以結穴');
-        if((state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
+        if(state.w !== 'none' && (state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) advice.push('主山過高而明堂狹小，犯「逼壓欺主」，氣場狂躁不聚');
 
         // 將顯示上限從 2 提升至 4，讓複合煞氣時能顯示更完善的化解對策
@@ -877,11 +868,17 @@ const Rules = {
         if(state.luo) cap+=10; if(state.hua) cap+=10; if(state.shixiang) cap+=15; if(state.qin) cap+=5;
 
         if(!state.mt) cap = Math.min(cap, 25);
-        if(state.ml==='none' && state.mr==='none' && state.d !== 'pingyang') cap = Math.min(cap, 30);
+        if(state.ml==='none' && state.mr==='none' && state.d !== 'pingyang' && !(state.d === 'huilong' && state.zutai)) cap = Math.min(cap, 30);
         if(state.d === 'pingyang' && state.w === 'none') cap = Math.min(cap, 15);
         
         // 【新增：明堂實體大小直接影響容量上限】
         cap *= (state.mtScale || 1.0);
+        
+        // 【修正：容量上限保護】先將容量限制在 0~100 之間，確保後續形煞扣分能實際反映在容量上，避免大凶局仍顯示滿載
+        cap = Math.max(0, Math.min(100, cap));
+        
+        // 【修正：無穴星容量限制】沒有穴星則氣場無法凝聚，容量最高僅30，避免無穴格局仍顯示高容量
+        if (!state.xia) cap = Math.min(cap, 30);
         
         // 【新增：高山穴容量防呆】若在高山立穴（xueHeight > 10）且缺乏案山關攔，容量上限受限
         if ((state.xueHeight || 0) > 10 && !state.an && state.d !== 'pingyang') {
@@ -890,6 +887,8 @@ const Rules = {
 
         // 【大一統改良】廢除凶水對「極限容量(Capacity)」的強制閹割腳本。
         // 【新增：形煞對容量的負面影響】射肋、天斬、擎拳、凹風、破碎、探頭、傾瀉等形煞均嚴重破壞氣場，容量應隨之降低
+        // 【修正】凶水（割腳、反弓、八字、直沖、淋頭）破壞水聚氣格局，容量應大幅下降，避免大凶局仍顯示容量滿載
+        if(['gejiao','fan','bazi','ji','lintou'].includes(state.w)) cap -= 25;
         if(state.sherui) cap -= 30;
         if(state.tianzhan) cap -= 25;
         if(state.qingquan) cap -= 20;
@@ -1038,7 +1037,7 @@ const DryRunTool = {
         if (st.d === 'si' || st.d === 'po') {
             if (!verdict.rating.includes('大凶')) sanityWarnings.push('【邏輯異常】死/破龍未判定為大凶評級');
         }
-        if (['fan', 'gejiao', 'lintou', 'ji'].includes(st.w)) {
+        if (['fan', 'bazi', 'gejiao', 'lintou', 'ji'].includes(st.w)) {
             if (effScore[3] > 60) sanityWarnings.push('【邏輯異常】凶水格局水法有效分數過高');
         }
         if (rawScore.some(s => isNaN(s) || !isFinite(s))) {
@@ -1221,7 +1220,8 @@ const UI = {
                 if(seg.dataset.k === 'd' && oldD !== AppState.current.d) {
                     Physics.resetParticles();
                     Engine3D.clearHeatmap();
-                    // 【修復】切換龍勢時重置實體粒子，必須同步歸零湧現物理觀測與聚散累計，正確觸發預熱保護機制
+                    // 【修復】切換龍勢時重置實體粒子與幀計數，必須同步歸零湧現物理觀測與聚散累計，正確觸發預熱保護機制
+                    AppState.frames = 0;
                     AppState.gatherAcc = 0;
                     AppState.scatterAcc = 0;
                     AppState.sensors = { qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0 };
@@ -2845,11 +2845,18 @@ const Physics = {
             // 尋龍點穴：發脈沿著地表/骨脈內部湧出，而非從天而降
             if(state.d === 'pingyang') {
                 // 【修復】：改為動態讀取平洋地形高度，防止粒子在切換時從地底瞬間彈出
-                let tz = -100 - Math.random()*50;
-                let tx = (Math.random()-0.5)*40;
-                let ty = Engine3D.getTerrainY(tx, tz).y;
+                // 【第四輪優化】平洋龍粒子初始位置縮短至 -15~-35，並透過檢查地形高度避免在河道中出生，
+                // 確保粒子在模擬時長內能順利抵達穴場感測區，解決 GatherAcc 恆為 0 的湧現物理失效問題。
+                let tz, tx, ty;
+                let attempts = 0;
+                do {
+                    tz = -15 - Math.random()*20;
+                    tx = (Math.random()-0.5)*20;
+                    ty = Engine3D.getTerrainY(tx, tz).y;
+                    attempts++;
+                } while(ty < -2.0 && attempts < 30);
                 this.pPos[i*3] = tx;
-                this.pPos[i*3+1] = ty - 2 + Math.random()*4; 
+                this.pPos[i*3+1] = ty - 1 + Math.random()*3; 
                 this.pPos[i*3+2] = tz;
             } else {
                 // 【進化：太祖山勢能起點】若有太祖山，發脈起點推至極遠高空 (z: -160 ~ -120)
@@ -2863,7 +2870,7 @@ const Physics = {
                 this.pPos[i*3+2] = tz;
             }
 
-            this.pVel[i].set((Math.random()-0.5)*0.5, 0, state.d === 'pingyang' ? 1.0 : 3.0);
+            this.pVel[i].set((Math.random()-0.5)*0.5, 0.3, state.d === 'pingyang' ? 2.5 : 3.0);
             if(state.d === 'si') {
                 this.pState[i] = 0;
                 this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40; // 死龍氣盡枯槁灰暗色
@@ -2990,14 +2997,15 @@ const Physics = {
             let xueH = state.xueHeight || 0;
             let lx = state.xueX || 0;
             let lz = state.manualXue ? state.xueZ : (5.0 - xueH * 2.2);
-            let dynamicTaijiZ = (state.xue === 'wo') ? lz : (state.xue === 'ru' ? lz - 5.0 : lz);
+            let dynamicTaijiZ = lz;
             let dxTaiji = x - lx;
             let dzTaiji = z - dynamicTaijiZ;
             let dxSensor = dxTaiji;
             let dzSensor = dzTaiji;
             let distToSensorSq = dxSensor*dxSensor + dzSensor*dzSensor;
-            
-            if (distToSensorSq < 400 && y > -8 && y < 20) {
+            // 平洋龍地勢平坦，氣場範圍較廣，感測半徑從 20 擴大至 30，讓粒子更容易被捕獲
+            let sensorRadiusSq = (state.d === 'pingyang') ? 900 : 400;
+            if (distToSensorSq < sensorRadiusSq && y > -8 && y < 20) {
                 sensorCount++;
                 if (st !== 2) { // 修復 1：排除已完美結成太極暈的吉氣 (st===2)，只計算環境游離風煞，避免太極旋渦被誤判為亂流
                     envParticleCount++;
@@ -3009,14 +3017,23 @@ const Physics = {
             // 平洋龍陸地為 -2.0，水面為 -3.0，必須將感測線下放至 -2.5 才能排除陸地上的誤判。
             // 修正：迴龍顧祖格局的割腳水位於 z=30 附近，但感測器範圍僅 z>15 && z<60，且需 y<waterSensorLevel，
             // 但粒子可能因地形或風場未進入該區域，導致 waterDrag 為 0。放寬感測範圍並加入地形判斷。
-            let waterSensorLevel = (state.d === 'pingyang') ? -2.5 : -5.0;
+            // 【修正】水感測器對凶水的偵測靈敏度，使伯努利抽吸效應能如實反映在湧現物理加權上。
+            // 原條件需粒子完全沈入深水且垂直速度極大 (vel.y < -0.3)，導致割腳/反弓等凶水幾乎永遠無法觸發 waterDrag。
+            // 現放寬至接近水面即可，且僅對凶水（含傾瀉與水流過急）啟用，避免誤傷吉水玉帶/九曲。
+            let waterSensorLevel = (state.d === 'pingyang') ? -2.0 : -3.5;
             let isNearWater = (state.w !== 'none' || state.yue);
-            // 【修正】水感測範圍應隨穴位動態移動，否則高山點穴後固定範圍與實際河道錯位
-            let waterSenseZStart = lz - 5;
-            let waterSenseZEnd = lz + 60;
-            if (isNearWater && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && y < waterSensorLevel && vel.y < -0.3) {
+            let riverRefZ = 30;
+            if(['you','jiuqu','bazi'].includes(state.w)) riverRefZ = 70;
+            else if(state.w==='ji'||state.w==='fan') riverRefZ = 55;
+            else if(state.w==='lintou') riverRefZ = 10;
+            if (isNearWater) riverRefZ += (lz - 5.0);
+            let waterSenseZStart = Math.min(lz - 5, riverRefZ - 20);
+            let waterSenseZEnd = Math.max(lz + 40, riverRefZ + 20);
+            const isBadWaterSensor = ['gejiao','fan','bazi','ji','lintou'].includes(state.w) || state.qing || (state.waterVel || 1.0) > 1.8;
+            // 修正：水感測器不應依賴垂直速度，只要粒子位於凶水河道且深度足夠即觸發，確保凶水的伯努利抽吸能被穩定偵測
+            if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5) {
                 waterDragCount++;
-                sumWaterDrag += Math.abs(vel.y);
+                sumWaterDrag += Math.max(0.2, Math.abs(vel.y) * 0.5 + 0.3);
             }
 
             vel.y -= 0.025 * dt;
@@ -3367,11 +3384,11 @@ const Physics = {
                 let tRight = Engine3D.getTerrainY(x + 2, z).nx;
                 let gaussianCurvature = Math.abs(tLeft - tRight);
                 
-                if (gaussianCurvature > 1.2 && z < 0) { // 曲率不連續，發生應力斷裂
+                if (gaussianCurvature > 1.2 && z < 0 && !(inTaijiShield && state.taiji)) { // 曲率不連續，發生應力斷裂（太極暈內免疫，避免完美局誤傷）
                     frameTensorFracture++; // 【探針：張力斷裂漏氣】
                     vel.x += Math.sign(t.nx) * gaussianCurvature * 5.0 * dt; // 氣脈從裂縫噴出側漏
                     vel.y -= 1.5 * dt; // 失去張力支撐，下墜
-                    if (st === 2 && Math.random() < 0.1 * dt) this.pState[i] = 3;
+                    if (st === 2 && !(inTaijiShield && state.taiji) && Math.random() < 0.1 * dt) this.pState[i] = 3;
                 }
 
                 y = t.y + 3.5;
@@ -3395,7 +3412,13 @@ const Physics = {
                 
                 // 【修復核心】：賦予龍脈基本推進力，避免全數卡在後方
                 if (z < 15) {
-                    let pulse = (state.d === 'ji') ? 1.5 : (state.d === 'huan' ? 0.3 : 0.8);
+                    let pulse = (state.d === 'ji') ? 1.5 : (state.d === 'huan' ? 0.3 : (state.d === 'pingyang' ? 2.5 : 0.8));
+                    // 【修正】若粒子已接近太極暈（半徑25），推進力應隨距離縮短而衰減，避免將粒子推出聚氣區
+                    let taijiDistSqPulse = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
+                    if (taijiDistSqPulse < 625) {
+                        let taijiDistPulse = Math.sqrt(taijiDistSqPulse);
+                        pulse *= Math.max(0.05, (taijiDistPulse - 3) / 22); // 越靠近穴心推進力越低
+                    }
                     
                     // 【進化：橈棹枝腳 (Branch Momentum)】利用側邊山脈導流與物理側漏
                     if (state.zhijiao === 'shun' && z < -20) {
@@ -3589,7 +3612,7 @@ const Physics = {
                     // 【進化：康達效應 (Coandă Effect) 與 九星剝換】
                     let isSmoothStar = (state.xing === 'jin' || state.xing === 'tu') && state.bohuan === 'yes';
                     
-                    if (isSmoothStar && y < t.y + 3.0 && z > -50 && z < 10) {
+                    if (isSmoothStar && y < t.y + 6.0 && z > -50 && z < 10) {
                         frameCoanda++; // 【探針：康達附著效應】
                         // 圓潤山體 (金星/土星) 且已剝換脫煞：引發康達效應，流體完美附著曲面，消除亂流
                         vel.y -= 2.5 * dt; // 產生負壓將粒子柔和吸附在地形表面
@@ -3599,7 +3622,8 @@ const Physics = {
 
                     // 【大一統湧現】以「普遍地表亂流」取代硬編碼的破碎煞 (po)。
                     // 任何地表只要過於崎嶇 (地形法線變化極大，如遭受 this.pNoise 破壞的砂手)，就會引發近地亂流，撕裂氣場
-                    if (ruggedness > 7.0 && st !== 1 && Math.random() < ruggedness * 0.01 * dt) {
+                    // 【修正】太極暈內的地形已有人工平整，不因微小 ruggedness 轉紅煞，避免完美局誤判散氣
+                    if (ruggedness > 7.0 && st !== 1 && Math.random() < ruggedness * 0.01 * dt && !(inTaijiShield && state.taiji)) {
                         this.pState[i] = 1; 
                         this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.05;
                         vel.x += (Math.random() - 0.5) * ruggedness * 1.5;
@@ -3793,17 +3817,25 @@ const Physics = {
             }
 
             // 【全局太極吸引場】吉格局粒子在靠近穴場時受到向心力，強化聚氣
-            if (state.taiji && globalMultCache > 0.8) {
-                let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
-                if (attractDistSq < 3600) {
-                    let attractDist = Math.sqrt(attractDistSq);
-                    if (attractDist > 0.1) {
-                        let attractForce = 0.2 * globalMultCache * (1 - attractDist/60);
-                        vel.x += (-dxTaiji/attractDist) * attractForce * dt;
-                        vel.z += (-dzTaiji/attractDist) * attractForce * dt;
+        // 【全局太極吸引場】吉格局粒子在靠近穴場時受到向心力，強化聚氣
+        // 【修正】增強吸引強度（0.2→0.45）並加入近距離速度阻尼，使完美格局的粒子能有效駐留於太極暈內
+        if (state.taiji && globalMultCache > 0.8) {
+            let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
+            if (attractDistSq < 3600) {
+                let attractDist = Math.sqrt(attractDistSq);
+                if (attractDist > 0.1) {
+                    let attractForce = 0.45 * globalMultCache * (1 - attractDist/60);
+                    vel.x += (-dxTaiji/attractDist) * attractForce * dt;
+                    vel.z += (-dzTaiji/attractDist) * attractForce * dt;
+                    // 近距離額外阻尼（半徑 20 內），抵銷粒子慣性，確保粒子被太極暈捕獲
+                    if (attractDistSq < 400) {
+                        let proximityDamping = Math.pow(0.90, dt);
+                        vel.x *= proximityDamping;
+                        vel.z *= proximityDamping;
                     }
                 }
             }
+        }
             vel.clampLength(0, 5);
             x += vel.x*dt; y += vel.y*dt; z += vel.z*dt;
 
@@ -3822,7 +3854,7 @@ const Physics = {
                 Engine3D.hCtx.fillRect(hx - heatSize/2, hz - heatSize/2, heatSize, heatSize);
             }
 
-            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < 320 && y > -8 && y < 15);
+            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < (state.d === 'pingyang' ? 1000 : 320) && y > -8 && y < 15);
             // 【大一統湧現】移除對 lintou (淋頭) 與 qing (傾瀉) 的例外排除。
             // 太極暈的物理容器若存在 (state.taiji)，渦流潛力就存在。
             // 若犯淋頭水或傾瀉，粒子會被水流與重力自然扯出渦流範圍，無需使用腳本強行關閉。
@@ -3859,15 +3891,16 @@ const Physics = {
                 if (distTaiji > 0.1) {
                     radialVel = (dxTaiji*vel.x + dzTaiji*vel.z) / distTaiji;
                 }
-                    let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
-                    let escapeDistThreshold = (mult > 0.8) ? 22.0 : 15.0;
-                    let escapeVelThreshold = (mult > 0.8) ? 10.0 : 7.0;
-                    let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.0);
-                    if (st === 1 || (vel.lengthSq() > escapeVelThreshold*escapeVelThreshold && isEscaping) || mult < 0.3) {
+                let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
+                let taijiRadius = (state.d === 'pingyang') ? Math.sqrt(1000) : Math.sqrt(320);
+                let escapeDistThreshold = taijiRadius * 0.75;
+                let escapeVelThreshold = 2.5;
+                let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.0 && vel.lengthSq() > escapeVelThreshold*escapeVelThreshold);
+                if (st === 1 || isEscaping || mult < 0.45) {
                         frameScatter++;
                     }
 
-                if (mult < 0.45) {
+                    if (mult < 0.45) {
                     let pushX = x === 0 ? (Math.random()-0.5) : x;
                     // 【修復】：將硬編碼的 (z-5) 改為動態太極中心距離 (dzTaiji)，修正爆發方向
                     let pushZ = dzTaiji === 0 ? (Math.random()-0.5) : dzTaiji;
@@ -4130,7 +4163,7 @@ const Physics = {
             // 【修復：無粒子時改用 CFD 網格採樣，避免形煞風場被忽略】
             let xueH_sensor = state.xueHeight || 0;
             let lz_sensor = state.manualXue ? state.xueZ : (5.0 - xueH_sensor * 2.2);
-            let dynTaijiZ_sensor = (state.xue === 'wo') ? lz_sensor : (state.xue === 'ru' ? lz_sensor - 5.0 : lz_sensor);
+            let dynTaijiZ_sensor = lz_sensor;
             let sensX = 0;
             let sensZ = dynTaijiZ_sensor;
             let sGX = Math.max(0, Math.min(63, Math.floor((sensX + 100) / 200 * 64)));
@@ -4289,9 +4322,9 @@ const Physics = {
         }
 
         let globalMult = Rules.getGlobalMultiplier();
-        let weightedCapLimit = Math.min(frameGather / 40, capLimit) * globalMult;
+        let weightedCapLimit = Math.min(capLimit, frameGather / 10 * globalMult);
         AppState.gatherAcc += (weightedCapLimit - AppState.gatherAcc) * 0.05 * dt;
-        AppState.scatterAcc += (frameScatter / 20 - AppState.scatterAcc) * 0.1 * dt;
+        AppState.scatterAcc += (frameScatter / 40 - AppState.scatterAcc) * 0.1 * dt;
 
         // 統整進階物理觀測數據 (轉換為百萬分點或百分比)
         AppState.sensors.coanda = (frameCoanda / this.pCount) * 100;

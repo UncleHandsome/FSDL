@@ -39,9 +39,11 @@ def load_api_key():
     return api_key if api_key else None
 
 def extract_json_from_text(text):
+    if not text or not isinstance(text, str):
+        return None
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     if not text:
         return None
-    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     
     match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', text, re.IGNORECASE)
     if match:
@@ -193,14 +195,19 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 hit_rate = (hit_tokens / total_prompt * 100) if total_prompt > 0 else 0
                 logger.info(f"  ⚡ Token 消耗: 總輸入 {total_prompt} | 快取命中: {hit_tokens} ({hit_rate:.1f}%) | 未命中: {miss_tokens}")
                 
-            raw_response = response.choices[0].message.content
+            raw_response = response.choices[0].message.content or ""
             
             # ================= 增加：印出 AI 原始回覆與除錯日誌 =================
             logger.info(f"💬 [AI 原始回覆內容]:\n{'='*50}\n{raw_response}\n{'='*50}")
             
             extracted_json = extract_json_from_text(raw_response)
             if not extracted_json:
-                logger.warning("⚠️ 警告：無法從 AI 原始回覆中解析出有效的 JSON 結構！")
+                logger.warning(f"⚠️ 警告：無法從 AI 原始回覆中解析出有效的 JSON 結構！(嘗試 {attempt+1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    sleep_time = (2 ** attempt) + random.random()
+                    logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後自動重試 API 請求...")
+                    time.sleep(sleep_time)
+                    continue
             # ====================================================================
 
             return extracted_json, raw_response
@@ -213,6 +220,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 time.sleep(sleep_time)
             else:
                 return None, str(e)
+    return None, ""
 
 # ============================================================
 # 代碼修改套用與回滾 (原子寫入防損毀)
@@ -340,16 +348,12 @@ def rollback_file(html_path, logger):
         logger.warning(f"🔄 已從備份檔 {backup_path} 自動回滾復原 {html_path}")
 
 # ============================================================
-# 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
+# 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
-def run_static_review(target_file, client, model, logger, report_path, max_rounds=50):
-    logger.info("="*60)
-    logger.info(f"🕵️‍♂️ 啟動多輪靜態代碼審查模式 (目標檔案: {target_file} | 模型: {model} | 最大輪數: {max_rounds})")
-    logger.info("="*60)
-
-    static_system_prompt = """你是一個頂尖的 3D 風水模擬器開發者與湧現物理引擎專家。
-請對以下提供的 JavaScript 程式碼進行「靜態代碼審查 (Static Code Review)」。
-尋找潛在的邏輯錯誤、物理引擎計算漏洞、風水規則矛盾，或 JavaScript 語法錯誤。
+UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者與湧現物理引擎專家。
+我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
+1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON，找出物理與評分異常並提供代碼修正。
+2. 【靜態代碼審查】：分析傳入的最新 JS 代碼，找出潛在的邏輯漏洞、風水規則衝突或語法錯誤並提供代碼修正。
 
 【注意事項】
 1. 你的程式碼修改必須是「增量 (Incremental)」的。
@@ -358,25 +362,33 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
 【輸出要求】
 你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字：
 
-如果經過深入審查後，代碼邏輯完美、無安全或邏輯漏洞需要修改，請回傳：
+如果當前測試數據完美，或經過靜態審查代碼邏輯完美無需修改，請回傳：
 {
   "status": "PERFECT",
-  "reason": "經過靜態分析，代碼邏輯完美，無需再做任何修改。"
+  "reason": "經過分析/靜態審查，物理引擎與代碼邏輯運作完美，各項數值與評價皆符合預期，無需修改。"
 }
 
 如果發現問題需要修改代碼，請回傳：
 {
   "status": "MODIFIED",
-  "reason": "詳細說明你發現的問題與修正邏輯...",
+  "reason": "簡述你發現的問題與修正邏輯...",
   "changes": [
     {
-      "search": "原有的程式碼（務必完全複製『最新代碼快照』中的確切字串，請務必包含前後 2-3 行未修改的上下文作為錨點，至少 3-5 行，確保獨一無二）",
+      "search": "原有的程式碼（務必完全複製當時代碼中的確切字串，包含正確縮排，至少 3-5 行，確保獨一無二）",
       "replace": "修正後的新程式碼（請保持與原代碼一致的縮排風格）"
     }
   ]
 }"""
 
-    conversation_history = [{"role": "system", "content": static_system_prompt}]
+# ============================================================
+# 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
+# ============================================================
+def run_static_review(target_file, client, model, logger, report_path, max_rounds=50):
+    logger.info("="*60)
+    logger.info(f"🕵️‍♂️ 啟動多輪靜態代碼審查模式 (目標檔案: {target_file} | 模型: {model} | 最大輪數: {max_rounds})")
+    logger.info("="*60)
+
+    conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
     history_logs = []
     needs_full_snapshot = True
     
@@ -387,7 +399,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
         
         if current_round > 1 and (current_round - 1) % RESET_EVERY_N_ROUNDS == 0:
             logger.info(f"🔄 達到 {RESET_EVERY_N_ROUNDS} 輪，重啟對話快照 (確保 AI 不會失憶)...")
-            conversation_history = [{"role": "system", "content": static_system_prompt}]
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True
 
         if needs_full_snapshot:
@@ -395,7 +407,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             if not current_js:
                 logger.error("❌ 找不到有效的 JavaScript 代碼，靜態審查中止。")
                 return
-            user_msg = f"【第 {current_round} 輪靜態審查請求】\n【當前最新 JS 邏輯代碼快照】:\n```javascript\n{current_js}\n```\n請仔細審查上述代碼，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
+            user_msg = f"```javascript\n{current_js}\n```\n\n【第 {current_round} 輪靜態審查請求】\n請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
             needs_full_snapshot = False
         else:
             user_msg = f"【第 {current_round} 輪靜態審查請求】\n（上一輪的修改已成功套用）。\n請繼續基於最新的代碼狀態，尋找是否還有其他潛在的問題。如果確認代碼已經完美無瑕，請回傳 PERFECT。"
@@ -407,12 +419,14 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
         if not ai_json:
             logger.error("解析 AI 回覆失敗，準備下一輪硬重置。")
             # 智慧硬重置：避免 Append-Only 爆 Context
-            conversation_history = [{"role": "system", "content": static_system_prompt}]
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True
             time.sleep(2)
             continue
             
-        conversation_history.append({"role": "assistant", "content": raw_text})
+        # ⚡ [Cache 優化] 只存入純 JSON 字串，極大幅度精簡多輪上下文 Token 數 (加入 sort_keys=True)
+        clean_assistant_msg = json.dumps(ai_json, ensure_ascii=False, sort_keys=True)
+        conversation_history.append({"role": "assistant", "content": clean_assistant_msg})
         
         status = ai_json.get("status", "UNKNOWN")
         reason = ai_json.get("reason", "無說明")
@@ -443,9 +457,8 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
                 
                 current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
                 retry_prompt = (
+                    f"```javascript\n{current_js}\n```\n\n"
                     "❌ 修改套用失敗！你在上一輪提供的 search 區塊在當前檔案中找不到完全匹配的字串。\n"
-                    "以下是目前檔案【最新的 JS 全貌代碼】：\n"
-                    f"```javascript\n{current_js}\n```\n"
                     "請嚴格基於上述最新代碼，重新提供正確的 search 與 replace JSON。"
                 )
                 conversation_history.append({"role": "user", "content": retry_prompt})
@@ -471,7 +484,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
                 time.sleep(2)
             else:
                 logger.error("🛑 連續 3 次檔案更新失敗，強制進入下一輪硬重置...")
-                conversation_history = [{"role": "system", "content": static_system_prompt}]
+                conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
                 needs_full_snapshot = True
                 time.sleep(2)
 
@@ -552,38 +565,7 @@ def main():
     history_logs = []
     syntax_error_retries = 0
 
-    # ⚡ 採用融合式固定 System Prompt，確保 messages[0] 前綴完全一致，達到極致 Prompt Cache Hit
-    unified_system_prompt = """你是一個頂尖的 3D 風水模擬器開發者與湧現物理引擎專家。
-我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
-1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON，找出物理與評分異常並提供代碼修正。
-2. 【靜態代碼審查】：分析傳入的最新 JS 代碼，找出潛在的邏輯漏洞、風水規則衝突或語法錯誤並提供代碼修正。
-
-【注意事項】
-1. 你的程式碼修改必須是「增量 (Incremental)」的。
-2. 每次擷取 search 區塊時，請注意先前的對話中你已經修改過哪些程式碼，務必以「當前最新」的代碼狀態進行比對與擷取。
-
-【輸出要求】
-你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字：
-
-如果當前測試數據完美，或經過靜態審查代碼邏輯完美無需修改，請回傳：
-{
-  "status": "PERFECT",
-  "reason": "經過分析/靜態審查，物理引擎與代碼邏輯運作完美，各項數值與評價皆符合預期，無需修改。"
-}
-
-如果發現問題需要修改代碼，請回傳：
-{
-  "status": "MODIFIED",
-  "reason": "簡述你發現的問題與修正邏輯...",
-  "changes": [
-    {
-      "search": "原有的程式碼（務必完全複製當時代碼中的確切字串，包含正確縮排，至少 3-5 行，確保獨一無二）",
-      "replace": "修正後的新程式碼（請保持與原代碼一致的縮排風格）"
-    }
-  ]
-}"""
-
-    conversation_history = [{"role": "system", "content": unified_system_prompt}]
+    conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
     needs_full_snapshot = True 
 
     logger.info("="*60)
@@ -601,10 +583,9 @@ def main():
             
             current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
             retry_prompt = (
+                f"```javascript\n{current_js}\n```\n\n"
                 "❌ 修改套用失敗！你在上一輪提供的 search 區塊在當前檔案中找不到完全匹配的字串。\n"
                 "這通常是因為經過前面幾輪的修改後，代碼內容已經改變。\n"
-                "以下是目前檔案【最新的 JS 全貌代碼】：\n"
-                f"```javascript\n{current_js}\n```\n"
                 "請嚴格基於上述最新代碼，重新提供正確的 search 與 replace JSON。"
             )
             
@@ -614,7 +595,9 @@ def main():
             if not retry_json:
                 break
             
-            conversation_history.append({"role": "assistant", "content": retry_raw})
+            # ⚡ [Cache 優化] 只存入壓縮後的純 JSON，避免 AI 冗長廢話膨脹歷史 Token 長度 (加入 sort_keys=True)
+            clean_retry_msg = json.dumps(retry_json, ensure_ascii=False, sort_keys=True)
+            conversation_history.append({"role": "assistant", "content": clean_retry_msg})
             if retry_json.get("status") == "MODIFIED":
                 retry_changes = retry_json.get("changes", [])
                 if retry_changes:
@@ -638,16 +621,16 @@ def main():
         # 🔄 智慧硬重置：到達 10 輪強制清空歷史
         if current_round > 1 and (current_round - 1) % RESET_EVERY_N_ROUNDS == 0:
             logger.info(f"🔄 已達到 {RESET_EVERY_N_ROUNDS} 輪對話上限，正在重啟對話並準備載入最新代碼快照...")
-            conversation_history = [{"role": "system", "content": unified_system_prompt}]
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True 
 
         if is_static:
             if needs_full_snapshot:
                 current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
                 user_msg = (
+                    f"```javascript\n{current_js}\n```\n\n"
                     f"【第 {current_round} 輪 - 靜態審查請求】\n"
-                    f"【當前最新 JS 邏輯代碼快照 (請以此為基準)】:\n```javascript\n{current_js}\n```\n"
-                    "請仔細審查上述代碼，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
+                    "請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
                 )
                 needs_full_snapshot = False
             else:
@@ -673,16 +656,15 @@ def main():
                 logger.warning(f"⚠️ 偵測到 JavaScript 語法崩潰 (嘗試自我修復 {syntax_error_retries}/3)...")
                 rollback_file(target_file, logger) 
                 
-                if len(conversation_history) > 1 and conversation_history[-1]["role"] == "assistant":
-                    conversation_history.pop()
-
+                # 💡 不 pop() 助理訊息，維持 user/assistant 角色規則並讓 AI 參考寫錯的上下文
                 err_user_msg = f"【語法崩潰緊急修復】上一輪套用修改後爆發了以下 JavaScript 語法錯誤：\n```\n{js_err_msg}\n```\n檔案已自動復原至備份檔。請重新檢視並提供不含語法錯誤的修正 JSON。"
                 conversation_history.append({"role": "user", "content": err_user_msg})
 
                 fix_json, raw_text = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
                 
                 if fix_json and fix_json.get("status") == "MODIFIED":
-                    conversation_history.append({"role": "assistant", "content": raw_text})
+                    clean_fix_msg = json.dumps(fix_json, ensure_ascii=False)
+                    conversation_history.append({"role": "assistant", "content": clean_fix_msg})
                     fix_changes = fix_json.get("changes", [])
                     logger.info(f"🩹 AI 重新診斷並提供了 {len(fix_changes)} 處語法修正方案，嘗試重新套用...")
                     success, fix_changes = try_apply_with_retries(target_file, fix_changes, conversation_history, client, args.model, logger)
@@ -708,14 +690,15 @@ def main():
                 time.sleep(2)
                 continue
                 
-            compact_json = json.dumps(run_results, separators=(',', ':'), ensure_ascii=False)
+            # ⚡ [Cache 優化] 加入 sort_keys=True 確保 JSON 結構鍵值順序 100% 決定論
+            compact_json = json.dumps(run_results, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
             
             if needs_full_snapshot:
                 current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
                 prefix = "畢業大考高壓測試" if is_exam else "Dry Run 診斷"
                 user_msg = (
+                    f"```javascript\n{current_js}\n```\n\n"
                     f"【第 {current_round} 輪 - {prefix}請求】\n"
-                    f"【當前最新 JS 邏輯代碼快照 (請以此為基準)】:\n```javascript\n{current_js}\n```\n"
                     f"【測試數據】:\n{compact_json}"
                 )
                 needs_full_snapshot = False
@@ -730,13 +713,15 @@ def main():
         
         if not ai_json:
             logger.error("解析 AI 回覆失敗，準備硬重置對話。")
-            conversation_history = [{"role": "system", "content": unified_system_prompt}]
+            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True
             consecutive_perfects = 0
             time.sleep(3)
             continue
             
-        conversation_history.append({"role": "assistant", "content": raw_text})
+        # ⚡ [Cache 優化] 將助理回覆替換為壓縮純 JSON，顯著降速並減少每輪 Cache Read Token 開銷 (加入 sort_keys=True)
+        clean_assistant_msg = json.dumps(ai_json, ensure_ascii=False, sort_keys=True)
+        conversation_history.append({"role": "assistant", "content": clean_assistant_msg})
 
         status = ai_json.get("status", "UNKNOWN")
         reason = ai_json.get("reason", "無說明")
@@ -772,7 +757,7 @@ def main():
                     time.sleep(2)
                 else:
                     logger.error("🛑 連續 3 次檔案更新失敗，將強制硬重置對話...")
-                    conversation_history = [{"role": "system", "content": unified_system_prompt}]
+                    conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
                     needs_full_snapshot = True 
                     time.sleep(2)
         else:
