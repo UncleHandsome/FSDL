@@ -753,9 +753,9 @@ const Rules = {
         emergenceBonus = Math.max(-50, Math.min(30, emergenceBonus));
 
         // 凶水固定懲罰：風水邏輯上凶水必致分數大損，不能完全依賴湧現物理（尤其在粒子預熱期）
-        const isBadWaterFinal = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+        const isBadWaterFinal = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork'].includes(state.w);
         // 新增：極凶形煞固定懲罰，涵蓋天斬煞、凹風煞、擎拳煞、探頭煞及凶水，避免分數與物理觀測嚴重矛盾
-        const hasFatalShaFinal = isBadWaterFinal || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.ms === 'sunken';
+        const hasFatalShaFinal = isBadWaterFinal || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.ms === 'sunken' || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha'].includes(state.road);
         // 【修正】加入物理凝聚因子：若散氣遠大於聚氣，即使靜態巒頭完美，也應降低最終分數，避免評級與分數矛盾
         let coherenceFactor = 1.0;
         const totalPForCoherence = AppState.gatherAcc + AppState.scatterAcc;
@@ -806,7 +806,7 @@ const Rules = {
         const hasBrokenSands = (state.mn === 'po' || state.ml === 'po' || state.mr === 'po' || state.ms === 'po');
 
         // 新增：極凶形煞偵測，這些煞氣足以直接否定整個格局，即使分數高也必須降為大凶
-        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.ms === 'sunken' || ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.ms === 'sunken' || ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork'].includes(state.w) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha'].includes(state.road);
 
         if(state.d === 'si' || state.d === 'po'){ 
             return { rating:'大凶・來龍枯潰', color:'#a63a2b', text: (state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。') };
@@ -818,7 +818,7 @@ const Rules = {
         const hasMinParticleActivity = (AppState.gatherAcc >= 1.0);
         if(effectiveAvg >= 70 && state.xia && state.mt && hasCompleteSands && !hasBrokenSands && hasMinParticleActivity && dynRatio >= 0.5 && AppState.gatherAcc > AppState.scatterAcc && AppState.sensors.windSpeed < 3.0 && AppState.sensors.turbulence < 5.0){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
-            const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou'].includes(state.w);
+            const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.posui || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
             const isPingyangGoodWater = (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu'));
             // 【修正】放寬物理崩潰門檻：容忍完美格局的輕風與中等亂流，防止誤降級
@@ -860,7 +860,8 @@ const Rules = {
             else{rating='中平・有瑕';color='#3f6b52';tail=(AppState.frames < 120 && AppState.gatherAcc > 0) ? '巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。' : '格局有瑕，聚散互見。';}
         }
         else {
-            if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
+            if(hasFatalSha){rating='大凶・形煞沖射';color='#a63a2b';tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';}
+            else if(AppState.gatherAcc === 0 && AppState.scatterAcc === 0 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
             else if(!state.xia){rating='大凶・無穴可立';color='#a63a2b';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '無穴星融結，煞氣肆橫，不可用。';}
             else if(dynRatio < 0.2 && totalP > 50){rating='大凶・極度吹散';color='#a63a2b';tail='實時動態物理顯示強烈風場/煞氣已完全摧毀穴場氣脈。';}
             else{rating='大凶・不聚';color='#a63a2b';tail='煞氣肆橫，生氣耗散。';}
@@ -873,13 +874,18 @@ const Rules = {
         if(state.ml === 'ya') shaNotes.push('青龍逼壓'); if(state.mr === 'tai') shaNotes.push('白虎抬頭');
         if(state.w === 'gejiao') shaNotes.push('割腳水'); if(state.w === 'lintou') shaNotes.push('淋頭水');
         if(state.w === 'fan') shaNotes.push('反弓水'); if(state.w === 'bazi') shaNotes.push('八字水');
-        if(state.w === 'ji') shaNotes.push('直沖水'); 
+        if(state.w === 'ji') shaNotes.push('直沖水'); if(state.w === 'tfork') shaNotes.push('丁字沖水');
         if(state.qingquan) shaNotes.push('擎拳煞'); if(state.an && state.tantou) shaNotes.push('探頭煞'); 
         
         // 補齊新形煞的 UI 警告
         if(state.sherui) shaNotes.push('射肋煞'); if(state.posui) shaNotes.push('破碎崖');
         if(state.wugong) shaNotes.push('蜈蚣脊'); if(state.bidao) shaNotes.push('刀削壁');
         if(state.ms === 'sunken') shaNotes.push('明堂深坑'); if(state.terrain === 'slope') shaNotes.push('地勢退氣');
+        if(state.bohuan === 'no') shaNotes.push('未剝換'); if(state.zhijiao === 'ni') shaNotes.push('橈棹逆水反');
+        if(state.road === 'zhichong') shaNotes.push('路沖煞(槍煞)');
+        if(state.road === 'sickle') shaNotes.push('鐮刀煞');
+        if(state.road === 'zuocha' || state.road === 'youcha') shaNotes.push(`${state.road === 'zuocha'?'左':'右'}脅擦邊路`);
+        if(state.road === 'jiandao') shaNotes.push('剪刀煞');
         let shaStr = shaNotes.length > 0 ? `⚠️【煞氣現象】：${shaNotes.join('、')}\n` : '';
         
         // 顯示當前理氣羅盤方位，讓 AI 與玩家明白理氣加扣分的依據
@@ -888,7 +894,7 @@ const Rules = {
         if (deg >= 45 && deg < 135) facingName = "朝東 (震宮-照神催官)";
         else if (deg >= 135 && deg < 225) facingName = "朝南 (離宮-正神下水)";
         else if (deg >= 225 && deg < 315) facingName = "朝西 (兌宮-平常)";
-        let compassStr = state.w !== 'none' ? `🧭【理氣立向】：${facingName}\n` : `🧭【理氣立向】：${facingName.split('-')[0]}\n`;
+        let compassStr = state.w !== 'none' ? `🧭【理氣立向】：${facingName}\n` : `🧭【理氣立向】：${facingName.split(' ')[0]}\n`;
 
         let multStr = mult < 1 ? `【總加權 ×${mult.toFixed(2)}】\n` : '';
 
@@ -908,10 +914,7 @@ const Rules = {
         if(state.suilong === 'shuang') advice.push('兩側有界水夾送，龍脈真氣收束不散，屬大吉之象');
         if(state.suilong === 'zuo') advice.push('單側左青龍水，利長男與財運，但需防右側無界水導致氣散');
         if(state.suilong === 'you') advice.push('單側右白虎水，利女眷，然水力不宜過急，防白虎開口傷人');
-        if(state.road === 'zhichong') advice.push('犯路沖槍煞，虛水直刺穴星，極凶，宜建照壁或密植林帶擋煞');
         if(state.road === 'sickle') advice.push('犯鐮刀煞，道路如彎刀割腰，殺傷力極大，宜築牆阻擋');
-        if(state.road === 'jiandao') advice.push('犯剪刀煞，道路交錯如剪刀直插明堂，極易破財招災，宜築泰山石敢當化解');
-        if(state.road === 'zuocha' || state.road === 'youcha') advice.push(`犯${state.road === 'zuocha'?'左':'右'}脅擦邊路，車流抽離真氣，易招小人是非，宜以厚實樹林隔絕`);
         
         // 【生態移植化煞建議】
         if(state.w === 'tfork') advice.push('犯丁字沖水，支流垂直射穴，引發強烈水躍，宜造半月池緩衝');
@@ -920,9 +923,6 @@ const Rules = {
         if(state.ms === 'sunken') advice.push('明堂低陷成深坑，陰氣下沉不聚，宜客土培補填平');
         if(state.terrain === 'slope') advice.push('大環境向前傾斜，水氣直洩不留，宜築重重案山關攔');
 
-        if(state.suilong === 'shuang') advice.push('兩側有界水夾送，龍脈真氣收束不散，屬大吉之象');
-        if(state.suilong === 'zuo') advice.push('單側左青龍水，利長男與財運，但需防右側無界水導致氣散');
-        if(state.suilong === 'you') advice.push('單側右白虎水，利女眷，然水力不宜過急，防白虎開口傷人');
         if(state.qingquan) advice.push('擎拳煞具威脅感，宜柔化砂手坡度或立向避開');
         if(state.qingquan && state.ml === 'none' && state.mr === 'none') advice.push('擎拳煞因缺砂而加劇，宜補齊左右護砂以化解');
         if(Math.abs(state.wind) > 6 && (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0)) advice.push('八風交吹過劇，宜調降風速或加強案山關攔');
@@ -1262,7 +1262,7 @@ const DryRunTool = {
         }
 
         // 提取 4 個關鍵節點高程（不佔 Token 的輕量地形摘要，讓 AI 掌握高低差）
-        const xueY = Engine3D.getTerrainY(st.xueX || 0, st.manualXue ? st.xueZ : (5.0 - (st.xueHeight||0)*2.2)).y;
+        const xueY = Engine3D.getTerrainY(st.xueX || 0, st.manualXue ? st.xueZ : 5.0).y;
 		const zhuY = Engine3D.getTerrainY(0, -60).y;
 		const anY = Engine3D.getTerrainY(0, 75).y;
 		const riverY = Engine3D.getTerrainY(0, 30).y;
@@ -2390,20 +2390,31 @@ const Engine3D = {
                 }
             }
             // 輕量熱力風化 (崩塌平滑化)，消除過度鋸齒，讓陡峭山脈產生滑坡坡度
-            for(let iz = 1; iz < tSeg; iz++) {
-                for(let ix = 1; ix < tSeg; ix++) {
-                    const i = iz * (tSeg+1) + ix;
-                    const h = this.hMap[i];
-                    for(let k = 0; k < 4; k++) {
-                        const j = i + neigh[k];
-                        const diff = h - this.hMap[j];
-                        if(diff > 3.0) { // 坡度過陡發生崩塌
-                            const move = (diff - 3.0) * 0.15;
-                            this.hMap[i] -= move;
-                            this.hMap[j] += move * 0.85;
+            // 【崩塌疊代收斂】以 80 單位作為最大鄰域落差上界，多重疊代將極端懸崖緩衝成連續坡面，杜絕 3D 地形撕裂
+            for(let iter = 0; iter < 4; iter++) {
+                let maxMoveThisIteration = 0;
+                for(let iz = 1; iz < tSeg; iz++) {
+                    for(let ix = 1; ix < tSeg; ix++) {
+                        const i = iz * (tSeg+1) + ix;
+                        const h = this.hMap[i];
+                        for(let k = 0; k < 4; k++) {
+                            const j = i + neigh[k];
+                            const diff = h - this.hMap[j];
+                            if(diff > 80.0) {
+                                const move = (diff - 80.0) * 0.5;
+                                this.hMap[i] -= move;
+                                this.hMap[j] += move * 0.8;
+                                if (move > maxMoveThisIteration) maxMoveThisIteration = move;
+                            } else if(diff < -80.0) {
+                                const move = (-diff - 80.0) * 0.5;
+                                this.hMap[i] += move;
+                                this.hMap[j] -= move * 0.8;
+                                if (move > maxMoveThisIteration) maxMoveThisIteration = move;
+                            }
                         }
                     }
                 }
+                if (maxMoveThisIteration < 0.01) break;
             }
         }
     },
@@ -3179,13 +3190,52 @@ const Engine3D = {
                             if (state.qin && z > 48 + guardOffset && z < 68 + guardOffset && Math.abs(Math.abs(x) - 15) < 10) isProtectedLandmark = true;
                             if ((state.hua || state.shixiang) && z > 65 + guardOffset && z < 85 + guardOffset && Math.abs(Math.abs(x) - 52) < 16) isProtectedLandmark = true;
                         }
-                        if (isProtectedLandmark) continue;
-                        let idx = gz * (tSeg + 1) + gx;
-                        let maxRiverbedY = minRiverDepth + (dR / 25) * 0.6;
-                        if (this.hMap[idx] > maxRiverbedY) this.hMap[idx] = maxRiverbedY;
+                    if (isProtectedLandmark) continue;
+                    let idx = gz * (tSeg + 1) + gx;
+                    let maxRiverbedY = minRiverDepth + (dR / 25) * 0.6;
+                    if (this.hMap[idx] > maxRiverbedY) this.hMap[idx] = maxRiverbedY;
+                }
+            }
+        }
+
+        // 【極端高度箝制】防止地形撕裂 (Z-Fighting)：先限制全域高度在 -45 ~ 130 之間，避免極端斷崖
+        const TERRAIN_MIN_H = -45;
+        const TERRAIN_MAX_H = 130;
+        for (let clampIdx = 0; clampIdx < this.hMap.length; clampIdx++) {
+            if (this.hMap[clampIdx] > TERRAIN_MAX_H) this.hMap[clampIdx] = TERRAIN_MAX_H;
+            else if (this.hMap[clampIdx] < TERRAIN_MIN_H) this.hMap[clampIdx] = TERRAIN_MIN_H;
+        }
+
+        // 【後處理崩塌平滑】削平一切過度陡峭的懸崖落差，杜絕地形撕裂 (Z-Fighting)
+        // 進一步強化：降低門檻至 30、增加迭代至 30，確保極端火山斷層地貌也能收斂成連續坡面
+        const nbSlope = [-1, 1, -(tSeg+1), (tSeg+1)];
+        for (let iter = 0; iter < 30; iter++) {
+            let changed = false;
+            for (let gz = 1; gz < tSeg; gz++) {
+                for (let gx = 1; gx < tSeg; gx++) {
+                    const idx = gz * (tSeg+1) + gx;
+                    const h = this.hMap[idx];
+                    for (let k = 0; k < 4; k++) {
+                        const nIdx = idx + nbSlope[k];
+                        const diff = h - this.hMap[nIdx];
+                        if (diff > 30.0) {
+                            const move = (diff - 30.0) * 0.5;
+                            this.hMap[idx] -= move;
+                            this.hMap[nIdx] += move * 0.8;
+                            changed = true;
+                        } else if (diff < -30.0) {
+                            const move = (-diff - 30.0) * 0.5;
+                            this.hMap[idx] += move;
+                            this.hMap[nIdx] -= move * 0.8;
+                            changed = true;
+                        }
                     }
                 }
             }
+            if (!changed) break;
+        }
+
+        // 階段三：套用侵蝕後的高度，更新網格頂點與計算地貌顏色
         }
 
         // 階段三：套用侵蝕後的高度，更新網格頂點與計算地貌顏色

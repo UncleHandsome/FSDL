@@ -649,7 +649,8 @@ class FengShuiEngine {
       // 【第20輪修正】極低案山（bird<10）視為無效屏障，並統一在單一條件判斷中強制觸發八風吹穴，避免因 coandaDeflection 等其他條件干擾而漏判
       const hasCloseCase = st.front === 'lowcase' && stateManager.heights.bird >= 10 && stateManager.heights.bird >= hMain * 0.33;
       const isLowInvalidCase = st.front === 'lowcase' && stateManager.heights.bird < 10;
-      if (frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && (coandaDeflection <= 10 || isLowInvalidCase)) {
+      // 【第4輪修正】當 front='none'（無明堂）時，不應觸發八風吹穴，因為已屬「明堂已破」狀態，避免與玄武靠失效等抑制訊息重複矛盾。
+      if (st.front !== 'none' && frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && (coandaDeflection <= 10 || isLowInvalidCase)) {
           emptyFrontWind = true;
       }
     }
@@ -1183,7 +1184,8 @@ class FengShuiEngine {
     // 【第 38 輪修正】先定義煞水判斷，再決定化煞水體；當主水勢本身為破壞性煞水時，水法類水體（半月、三叉、禽星）不應視為獨立的化解水體，僅有獨立的化煞水池/噴泉才可化解煞水
     const isShaWaterForFluid = ['bow', 'tfork', 'rush', 'cut', 'lintou', 'bazi'].includes(st.water);
     // 【修正】噴泉（fountain）是催旺水體，不應作為化解煞水的來源；僅化煞水池（pool）與非煞水水法可化解煞水。
-    const hasMitigatingWater = st.cure.includes('pool') || (!isShaWaterForFluid && (st.shuifa.includes('banyue') || st.shuifa.includes('san cha') || st.shuifa.includes('qinxing')));
+    // 【第2輪修正】若根本沒有水（water='none'），即使選了水法也不應視為化解水體，避免無水卻有水法化解之狀態悖論。
+    const hasMitigatingWater = st.water !== 'none' && (st.cure.includes('pool') || (!isShaWaterForFluid && (st.shuifa.includes('banyue') || st.shuifa.includes('san cha') || st.shuifa.includes('qinxing'))));
     let shaWaterMitigation = 0;
     if (isShaWaterForFluid && hasMitigatingWater) {
         // 化煞水池或水法僅能化解煞氣，不能將煞水轉為吉水，故不增加吉氣
@@ -1664,17 +1666,21 @@ class FengShuiEngine {
 
     // 【批次 3 & 5：駐波共振腔 (Q-Factor) 與 量子超流體 (Lennard-Jones)】
     // 【防爆走限制】避免空間極度單一時，熵值趨近 0 導致 Q-Factor 無限大
+    // 【第3輪修正】強制 g/s 非負，避免前面的吉氣扣減造成 Q-Factor 負值之矛盾
+    g = Math.max(0, g);
+    s = Math.max(0, s);
     let qFactor = spatialEntropy > 0.01 ? (g / (s + 1)) * (1.0 / spatialEntropy) * 10.0 : 0;
-    qFactor = Math.min(qFactor, 99.9); // 限制物理量上限
+    qFactor = Math.max(0, Math.min(qFactor, 99.9)); // 限制物理量上下限
     
     if (qFactor > 20 && !fengShuiContextBroken) {
         wuXingText += `量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；`;
     }
     
     // 【進化：WKB 量子穿隧效應 UI 日誌 (Batch 7)】
+    // 【第6輪靜態審查修正】physicsText 宣告在後方，此處改為操作 observerText，避免 TDZ ReferenceError
     if (!fengShuiContextBroken && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
         let barrier = st.special.includes('fengyao') ? '蜂腰' : '束氣';
-        physicsText.push(`量子力學｜WKB 近似穿隧效應：${barrier}極薄勢壘引發機率波躍遷，粒子無視剛體阻礙，直接穿透至太極暈核心！(自然湧現: 過峽脫煞)`);
+        observerText.push(`量子力學｜WKB 近似穿隧效應：${barrier}極薄勢壘引發機率波躍遷，粒子無視剛體阻礙，直接穿透至太極暈核心！(自然湧現: 過峽脫煞)`);
         g += 15; // 躍遷成功額外賦予高能吉氣
     }
 
@@ -2416,7 +2422,9 @@ class CityBuilder {
     if(st.water==='bazi'){this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(-30,0,60),Util.v3(-80,0,130)]),5,0x12283e,0xcc4422,true);this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(30,0,60),Util.v3(80,0,130)]),5,0x12283e,0xcc4422,true);this.group.add(ResourceManager.createLabel('八字分飛','#d34f00',9,0,8,70));}
 
     // ShuiFa
-    if(st.shuifa.includes('san cha')){
+    // 【修正】水口陣法僅在「真水」且非煞水時才能佈置，避免煞水/無水時出現三叉水、羅星等聚氣水法之矛盾
+    const shuiFaActive = st.water !== 'none' && !['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    if(shuiFaActive && st.shuifa.includes('san cha')){
       this.ribbon(Util.curve3([Util.v3(-90,0,120),Util.v3(-30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
       this.ribbon(Util.curve3([Util.v3(0,0,140),Util.v3(0,0,90),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
       this.ribbon(Util.curve3([Util.v3(90,0,120),Util.v3(30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
@@ -2424,14 +2432,14 @@ class CityBuilder {
       node.rotation.x=-Math.PI/2;node.position.set(0,0.12,58);this.group.add(node);
       this.group.add(ResourceManager.createLabel('三叉水・聚水口','#0077ff',9,0,9,58));
     }
-    if(st.shuifa.includes('banyue')){this.poolCrescent(0,52,16,30);this.group.add(ResourceManager.createLabel('半月池','#0077ff',9,0,8,52));}
-    if(st.shuifa.includes('luoxing')){
+    if(shuiFaActive && st.shuifa.includes('banyue')){this.poolCrescent(0,52,16,30);this.group.add(ResourceManager.createLabel('半月池','#0077ff',9,0,8,52));}
+    if(shuiFaActive && st.shuifa.includes('luoxing')){
       this.box(10,18,10,0,112,0x1a3352);
       this.ribbon(Util.curve3([Util.v3(-40,0,60),Util.v3(-30,0,112),Util.v3(-24,0,140)]),4,0x12283e,0x0088cc);
       this.ribbon(Util.curve3([Util.v3(40,0,60),Util.v3(30,0,112),Util.v3(24,0,140)]),4,0x12283e,0x0088cc);
       this.group.add(ResourceManager.createLabel('羅星塞水口','#0077ff',8,0,24,112));
     }
-    if(st.shuifa.includes('huabiao')){
+    if(shuiFaActive && st.shuifa.includes('huabiao')){
       const t1=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2.6,56,12),new THREE.MeshLambertMaterial({color:0xc9a53d}));
       t1.position.set(-34,28,92);this.group.add(t1);
       const t2=t1.clone();t2.position.x=34;this.group.add(t2);
@@ -2440,14 +2448,14 @@ class CityBuilder {
       const top2=top.clone();top2.position.x=34;this.group.add(top2);
       this.group.add(ResourceManager.createLabel('華表','#d39e00',8,-34,64,92));this.group.add(ResourceManager.createLabel('華表','#d39e00',8,34,64,92));
     }
-    if(st.shuifa.includes('shixiang')){
+    if(shuiFaActive && st.shuifa.includes('shixiang')){
       this.box(12,22,12,-42,80);this.box(12,22,12,42,80);
       const h1=new THREE.Mesh(new THREE.SphereGeometry(6,16,10),new THREE.MeshLambertMaterial({color:Util.brighten(0x2a4a72)}));
       h1.position.set(-42,25,80);this.group.add(h1);
       const h2=h1.clone();h2.position.x=42;this.group.add(h2);
       this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,-42,34,80));this.group.add(ResourceManager.createLabel('獅象守口','#b87a00',8,42,34,80));
     }
-    if(st.shuifa.includes('qinxing')){
+    if(shuiFaActive && st.shuifa.includes('qinxing')){
       this.poolCrescent(40,60,13,24);
       this.box(6,10,6,40,60,0x1f4a6c);
       const roof=new THREE.Mesh(new THREE.ConeGeometry(5,5,4),new THREE.MeshLambertMaterial({color:0xc9a53d}));
