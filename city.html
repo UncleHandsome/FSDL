@@ -1491,11 +1491,16 @@ class FengShuiEngine {
         s: Math.round(s),
         c: Math.round(c),
         cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths,
-        // 【新增】將物理場態回傳給 GPU 粒子系統進行視覺化
+        // 【新增高階物理與水文學指標匯出】
+        skyViewFactor: +(skyViewFactor.toFixed(2)),
+        frontOpenness: +(frontOpenness.toFixed(2)),
+        entropyGenRate: Math.round(entropyGenRate),
+        fractalDiff: Math.round(fractalDiff),
+        waterGatherRate: gatherPercent,
+        waterEscapeRate: escapePercent,
         isHelmholtz: (cavityVolume > 0 && extWindSpeed > 3),
         isCoanda: (coandaDeflection > 10 && extWindSpeed >= 5),
         isHydraulicJump: (st.special.includes('shuqi') && (extWindSpeed / Math.sqrt(9.8 * 2.0)) > 1.0),
-        // 【高階場論視覺化標籤】
         isSaddlePoint: (!isShaWater && st.water !== 'none' && ((gatheredDrops - escapedDrops) / 50.0 > 0.3)),
         isStandingWave: (st.special.includes('hulong') && Math.abs(vLeft - vRight) > 10 && Math.abs(vLeft - vRight) < 50)
     };
@@ -3231,27 +3236,28 @@ class UIManager {
         lines.push(Config.TX.left[st.left], Config.TX.right[st.right], Config.TX.front[st.front]);
     }
     
-    // 【終極修正】解決多選形煞時的「一人得道，雞犬升天(全被隱藏)」Bug。
-    // 改為逐一核對每個被選取的形煞，只有「未被物理引擎自然湧現」的形煞，才被允許顯示舊版硬編碼。
     if (!st.sha.includes('none')) {
-        let unhandledSha = [];
-        st.sha.forEach(shaKey => {
-            if (shaKey === 'none' || shaKey === 'manual') return;
-            let hardText = Config.TX.sha[shaKey];
-            // 提取硬編碼文字中的關鍵字，例如 "天斬煞＝兩樓夾縫..." 提取出 "天斬煞"
-            let keyword = hardText.split('｜')[1].split('＝')[0]; 
-            
-            // 檢查物理引擎是否已經用自然語言解釋了這個煞
-            let isExplainedByPhysics = ana.physicsText && ana.physicsText.some(t => t.includes(keyword) || (shaKey === 'sedan' && t.includes('穿心/退氣')));
-            
-            if (!isExplainedByPhysics) {
-                unhandledSha.push(hardText);
-            }
-        });
-        if (unhandledSha.length > 0) {
-            lines.push(unhandledSha.join('；') + ' (舊版硬編碼補足)');
-        }
-    }
+		let unhandledSha = [];
+		st.sha.forEach(shaKey => {
+			if (shaKey === 'none' || shaKey === 'manual') return;
+			let hardText = Config.TX.sha[shaKey];
+			if (!hardText) return; // 【新增防禦】防止未定義 key 造成 split 崩潰
+			
+			// 提取硬編碼文字中的關鍵字，例如 "天斬煞＝兩樓夾縫..." 提取出 "天斬煞"
+			let parts = hardText.split('｜');
+			let keyword = parts[1] ? parts[1].split('＝')[0] : shaKey;
+			
+			// 檢查物理引擎是否已經用自然語言解釋了這個煞
+			let isExplainedByPhysics = ana.physicsText && ana.physicsText.some(t => t.includes(keyword) || (shaKey === 'sedan' && t.includes('穿心/退氣')));
+			
+			if (!isExplainedByPhysics) {
+				unhandledSha.push(hardText);
+			}
+		});
+		if (unhandledSha.length > 0) {
+			lines.push(unhandledSha.join('；') + ' (舊版硬編碼補足)');
+		}
+	}
     
     // 如果物理引擎沒有推導出地形湧現，才顯示預設的特殊佈局
     if (!st.special.includes('none') && !ana.physicsText.some(t => t.includes('傾瀉') || t.includes('藏風聚穴'))) {
@@ -3394,66 +3400,108 @@ class App {
 }
 
 /* ==========================================
-   DryRunTool 模組 (提供 auto_tuner 自動測試與 JSON 導出)
+   DryRunTool 模組 (提供 auto_tuner 自動測試與全功能批次巡檢)
 ========================================== */
 const DryRunTool = {
-  execute(simulateSeconds = 3) {
-    console.log(`[Dry Run] 啟動，背景加速模擬 ${simulateSeconds} 秒...`);
-
-    // 備份時間與暫停狀態
+  // 檢測單一狀態並輸出詳細診斷與異常警告
+  runSingleTest(simulateSeconds = 3) {
     const originalTimeScale = app.state.timeScale;
     const originalPaused = app.state.paused;
     app.state.paused = false;
     app.state.timeScale = 1;
 
-    // 背景快速迭代推演
     const targetFrames = simulateSeconds * 60;
     const dt = 1.0 / 60.0;
     for (let i = 0; i < targetFrames; i++) {
-      app.particles.step(dt, i * dt, app.state, app.builder);
+      const time = i * dt;
+      app.builder.update(time, app.state.analysis);
+      app.particles.step(dt, time, app.state, app.builder);
     }
 
     app.refreshData();
 
-    // 恢復原始狀態
     app.state.timeScale = originalTimeScale;
     app.state.paused = originalPaused;
 
-    // 收集診斷數據
     const ana = app.state.analysis;
     const st = app.state.current;
 
-    const resultData = {
-      config: { 
-        ...st, 
-        heights: { ...app.state.heights }, 
-        wind: app.state.wind, 
-        trafficSpeed: app.state.trafficSpeed 
-      },
-      emergenceMetrics: {
-        gatherAcc: ana.g,
-        scatterAcc: ana.s,
-        capacity: ana.c,
-        yinYangBalance: ana.yyBalance,
-        yinYangText: ana.yyText
-      },
-      scores: {
-        gather: ana.g,
-        scatter: ana.s,
-        capacity: ana.c,
-        netEffective: Math.min(ana.g, ana.c) - ana.s
-      },
-      verdict: {
-        rating: Util.$('verdict')?.textContent || '',
-        text: ana.physicsText ? ana.physicsText.join('\n') : ''
-      }
-    };
+    // 自動異常檢測器 (Anomaly Detector)
+    const anomalies = [];
+    if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) anomalies.push("CRITICAL: 數值出現 NaN 計算錯誤");
+    if (ana.g < 0 || ana.g > 150) anomalies.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
+    if (ana.s < 0 || ana.s > 150) anomalies.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
+    if (ana.c < 20 || ana.c > 150) anomalies.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
+    if (Math.abs(ana.yyBalance) > 10) anomalies.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
+    if (app.builder.blds.length > 32) anomalies.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
 
-    const aiPrompt = `請幫我分析以下 3D 城市風水模擬器的 Dry Run 測試結果（模擬時長：${simulateSeconds}秒）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(resultData, null, 2)}\n\`\`\``;
+    const realG = Math.min(ana.g, ana.c);
+	const heavyShaList = ['bow','sickle','tianzhan','rush','pierce','walledge'];
+	const hasHeavySha = heavyShaList.some(x => st.sha.includes(x) || st.water === x);
+
+	return {
+	  meta: {
+		engineVersion: "v7 專業大師擴充版",
+		timestamp: new Date().toISOString(),
+		total3DBuildingsCount: app.builder.blds.length
+	  },
+	  config: { 
+		...st, 
+		heights: { ...app.state.heights }, 
+		wind: app.state.wind, 
+		trafficSpeed: app.state.trafficSpeed,
+		sandboxBldsCount: app.state.sandboxBlds.length,
+		markersCount: app.state.markers.length
+	  },
+	  spatialAndFluidPhysics: {
+		skyViewFactor: ana.skyViewFactor,          // 天空可視率 (0=包夾壓迫, 1=開闊)
+		frontOpenness: ana.frontOpenness,          // 明堂前向視野開闊度
+		entropyGenRate: ana.entropyGenRate,        // 熱力學熵增率 (混亂度)
+		fractalDiff: ana.fractalDiff,              // 跨尺度分形幾何落差
+		waterGatherRate: `${ana.waterGatherRate}%`,// 重力地氣水滴匯聚率
+		waterEscapeRate: `${ana.waterEscapeRate}%`,// 重力地氣水滴外洩率
+		quantumEmergence: {
+		  isHelmholtz: ana.isHelmholtz,            // 赫姆霍茲低頻共振
+		  isCoanda: ana.isCoanda,                  // 康達效應暗拱
+		  isHydraulicJump: ana.isHydraulicJump,    // 超臨界流氣躍
+		  isSaddlePoint: ana.isSaddlePoint,        // 3D 速度鞍點
+		  isStandingWave: ana.isStandingWave       // 龍虎相消干涉駐波
+		}
+	  },
+	  elementalDynamics: {
+		yinYangBalance: ana.yyBalance,
+		yinYangText: ana.yyText,
+		wuXingAnalysisText: ana.wuXingText || "五行平和",
+		cureArrayText: ana.cureText || "無特別陣法"
+	  },
+	  scoringAndVerdict: {
+		gatherRaw: ana.g,
+		scatterRaw: ana.s,
+		capacityLimit: ana.c,
+		realEffectiveGather: realG,
+		netEffective: realG - ana.s,
+		hallSaturationRate: `${Math.round((realG / ana.c) * 100)}%`,
+		hasHeavySha: hasHeavySha,
+		verdictRating: Util.$('verdict')?.textContent || '',
+		physicsText: ana.physicsText || []
+	  },
+	  healthAndAnomalies: {
+		healthStatus: anomalies.length === 0 ? "PASS" : "WARNING",
+		anomalies
+	  }
+	};
+  },
+
+  // 執行單次模式（目前畫面的 Dry Run）
+  execute(simulateSeconds = 3) {
+    console.log(`[Dry Run] 啟動單次模式，背景加速模擬 ${simulateSeconds} 秒...`);
+    const report = this.runSingleTest(simulateSeconds);
+
+    const aiPrompt = `請幫我分析以下 3D 城市風水模擬器的 Dry Run 測試結果（單一場景測試）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\``;
 
     console.clear();
     console.log(aiPrompt);
-    alert(`Dry Run 完成！模擬了 ${simulateSeconds} 秒。\n請按 F12 打開 Console，將輸出的 JSON 結果複製貼給 AI 進行分析。`);
+    alert(`Dry Run 完成！健康狀態：${report.healthStatus}。\n請按 F12 打開 Console 複製 JSON 貼給 AI 進行分析。`);
   }
 };
 

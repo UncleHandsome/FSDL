@@ -954,19 +954,21 @@ const Rules = {
 };
 
 /* ==========================================
-   新增：DRY RUN TOOL (AI 測試與除錯引擎)
+   新增：DRY RUN TOOL (AI 測試與除錯引擎) - 大一統增強版
    ========================================== */
 const DryRunTool = {
-    execute(simulateSeconds = 3) {
-        console.log(`[Dry Run] 啟動，背景加速模擬 ${simulateSeconds} 秒...`);
+    // 單一格局 Dry Run 模擬
+    executeSingle(simulateSeconds = 4, silent = false) {
+        // 【地形與規則強制同步】：確保模擬前 3D 地形與地貌網格 (hMap) 為最新狀態
+        UI.update(true);
 
         // 【數據隔離】：每次啟動時強制歸零物理場與感測器，確保測試數據 100% 純淨
         Physics.resetParticles();
-        // 重置 CFD 風場網格，避免前次格局的風場殘留污染新測試
         Physics.windGridX.fill(0);
         Physics.windGridZ.fill(0);
         Physics.windGridX_next.fill(0);
         Physics.windGridZ_next.fill(0);
+        Physics.qiGrid.fill(0);
         AppState.gatherAcc = 0;
         AppState.scatterAcc = 0;
         AppState.smoothedScores = null;
@@ -987,59 +989,187 @@ const DryRunTool = {
         // 恢復時間狀態
         AppState.current.time = originalTimeScale;
 
-        // 4. 收集結果數據
+        // 收集結果數據
         const rawScore = Rules.computeScores();
         const mult = Rules.getGlobalMultiplier();
         const effScore = rawScore.map(s => Math.min(100, Math.max(0, Math.round(s * mult))));
         const verdict = Rules.getVerdictText(rawScore);
 
-        const resultData = {
-            config: { ...AppState.current },
-            lairInfo: {
-                xueHeight: AppState.current.xueHeight || 0,
-                manualXue: !!AppState.current.manualXue,
-                xueX: AppState.current.xueX || 0,
-                xueZ: AppState.current.xueZ || 5
-            },
-            emergenceMetrics: {
-                gatherAcc: Math.round(AppState.gatherAcc),
-                scatterAcc: Math.round(AppState.scatterAcc),
-                qiDensity: Number(((AppState.sensors.qiDensity || 0) * 100).toFixed(2)) + "%",
-                windSpeed: Number((AppState.sensors.windSpeed || 0).toFixed(2)),
-                turbulence: Number((AppState.sensors.turbulence || 0).toFixed(2)),
-                waterDrag: Number((AppState.sensors.waterDrag || 0).toFixed(2)),
-                sunlight: Number(((AppState.sensors.sunlight || 1.0) * 100).toFixed(1)) + "%",
-                advancedPhysics: {
-                    phreatic: Number((AppState.sensors.phreatic || 0).toFixed(1)) + "%",
-                    helicity: Number((AppState.sensors.helicity || 0).toFixed(1)) + "%",
-                    coanda: Number((AppState.sensors.coanda || 0).toFixed(1)) + "%",
-                    venturi: Number((AppState.sensors.venturi || 0).toFixed(1)) + "%",
-                    tensorFrac: Number((AppState.sensors.tensorFrac || 0).toFixed(1)) + "%",
-                    thermalShear: Number((AppState.sensors.thermalShear || 0).toFixed(1)) + "%",
-                    downdraft: Number((AppState.sensors.downdraft || 0).toFixed(1)) + "%",
-                    waveletSpike: Number((AppState.sensors.waveletSpike || 0).toFixed(1)) + "%",
-                    coriolisCrash: Number((AppState.sensors.coriolisCrash || 0).toFixed(1)) + "%",
-                    darcyDrag: Number((AppState.sensors.darcyDrag || 0).toFixed(1)) + "%",
-                    boundarySep: Number((AppState.sensors.boundarySep || 0).toFixed(1)) + "%"
-                }
-            },
-            scores: {
-                raw: rawScore.map(s => Math.round(s)),
-                effective: effScore,
-                globalMultiplier: Number(mult.toFixed(2))
-            },
-            verdict: {
-                rating: verdict.rating,
-                text: verdict.text
-            }
+        const st = AppState.current;
+        const isMtReal = st.xia && st.xue !== 'none';
+
+        // 動態檢測實體微地形狀態 (精準識別而非靜態寫死)
+        const microTopo = {
+            hasBackPillow: isMtReal && st.mn === 'you',                     // 頂枕 / 球檐（後靠垂頭）
+            hasVelvetLip: isMtReal && (st.xue === 'ru' || st.xue === 'wo' || st.xue === 'tu'), // 氈唇 / 吐唇（結穴台）
+            hasCicadaWings: isMtReal && st.ml !== 'none' && st.mr !== 'none', // 蟬翼砂（左右貼身護衛）
+            hasCrabEyes: isMtReal && st.shu                                  // 蟹眼水（束氣分水溝）
         };
 
-        // 5. 輸出給 AI 的 Prompt
-        const aiPrompt = `請幫我分析以下 3D 風水模擬器的 Dry Run 測試結果（模擬時長：${simulateSeconds}秒）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(resultData, null, 2)}\n\`\`\``;
-        
-        console.clear(); // 清空控制台保持乾淨
-        console.log(aiPrompt);
-        alert(`Dry Run 完成！模擬了 ${simulateSeconds} 秒。\n請按 F12 打開 Console，將輸出的 JSON 結果複製貼給 AI 進行分析。`);
+        // 自動邏輯自我校驗 (Health Checks)
+        const sanityWarnings = [];
+        if (st.d === 'si' || st.d === 'po') {
+            if (!verdict.rating.includes('大凶')) sanityWarnings.push('【邏輯異常】死/破龍未判定為大凶評級');
+        }
+        if (['fan', 'gejiao', 'lintou', 'ji'].includes(st.w)) {
+            if (effScore[3] > 60) sanityWarnings.push('【邏輯異常】凶水格局水法有效分數過高');
+        }
+        if (rawScore.some(s => isNaN(s) || !isFinite(s))) {
+            sanityWarnings.push('【數值爆破】計算分數包含 NaN 或 Infinity 異常值');
+        }
+
+        // 提取 4 個關鍵節點高程（不佔 Token 的輕量地形摘要，讓 AI 掌握高低差）
+		const xueY = Engine3D.getTerrainY(st.xueX || 0, st.manualXue ? st.xueZ : (5.0 - (st.xueHeight||0)*2.2)).y;
+		const zhuY = Engine3D.getTerrainY(0, -60).y;
+		const anY = Engine3D.getTerrainY(0, 75).y;
+		const riverY = Engine3D.getTerrainY(0, 30).y;
+
+		// 1. 生成生效形煞結構化清單 (activeShaList)
+		const activeShaList = [];
+		if (st.tianzhan) activeShaList.push('天斬煞');
+		if (st.ao) activeShaList.push('凹風煞');
+		if (st.qingquan) activeShaList.push('擎拳煞');
+		if (st.tantou) activeShaList.push('探頭煞');
+		if (st.sherui) activeShaList.push('射肋煞');
+		if (st.posui) activeShaList.push('破碎崖');
+		if (st.fenzhi) activeShaList.push('枝龍分流');
+		if (st.ml === 'ya') activeShaList.push('青龍逼壓');
+		if (st.mr === 'tai') activeShaList.push('白虎抬頭');
+		if (['gejiao', 'lintou', 'fan', 'bazi', 'ji'].includes(st.w)) activeShaList.push(`凶水(${st.w})`);
+		if (st.bohuan === 'no') activeShaList.push('未剝換');
+		if (st.zhijiao === 'ni') activeShaList.push('橈棹逆水反');
+		if (AppState.obstacles.length > 0) activeShaList.push(`手動置煞(${AppState.obstacles.length}處)`);
+
+		// 2. 計算朝向與九運理氣方位名稱 (compassOrientation)
+		const deg = st.degree !== undefined ? st.degree : 0;
+		let facingName = "朝北 (坎宮)";
+		if (deg >= 45 && deg < 135) facingName = "朝東 (震宮)";
+		else if (deg >= 135 && deg < 225) facingName = "朝南 (離宮)";
+		else if (deg >= 225 && deg < 315) facingName = "朝西 (兌宮)";
+
+		let zeroGodStatus = "無見水";
+		if (st.w !== 'none') {
+			if (st.face === '1' && (deg <= 45 || deg >= 315)) zeroGodStatus = "九運坎宮見水 (零神催財大吉)";
+			else if (st.face === '1' && (deg >= 75 && deg <= 105)) zeroGodStatus = "九運震宮見水 (照神催官吉)";
+			else if (st.face === '1' && (deg >= 135 && deg <= 225)) zeroGodStatus = "九運離宮見水 (正神下水大凶)";
+			else zeroGodStatus = "一般水法方位";
+		}
+
+		// 3. 計算容量利用率與物理收斂指標 (physicsStability)
+		const capLimit = Rules.getCapacityLimit();
+		const totalP = AppState.gatherAcc + AppState.scatterAcc;
+		const physicsStability = {
+			capacityLimit: Math.round(capLimit),
+			capacityUtilization: capLimit > 0 ? Number((AppState.gatherAcc / capLimit * 100).toFixed(1)) + "%" : "0%",
+			gatherRatio: totalP > 0 ? Number((AppState.gatherAcc / totalP * 100).toFixed(1)) + "%" : "0%",
+			particleCount: Physics.pCount
+		};
+
+		const resultData = {
+			presetName: st.presetName || 'current',
+			activeShaList: activeShaList, // 新增：形煞清單
+			compassOrientation: {         // 新增：理氣方位
+				degree: deg,
+				facingName: facingName,
+				zeroGodStatus: zeroGodStatus
+			},
+			config: { ...st },
+			lairInfo: {
+				xueHeight: st.xueHeight || 0,
+				manualXue: !!st.manualXue,
+				xueX: st.xueX || 0,
+				xueZ: st.xueZ || 5,
+				terrainSummary: {
+					xueElevation: Number(xueY.toFixed(1)),
+					mainMountainElevation: Number(zhuY.toFixed(1)),
+					frontAnElevation: Number(anY.toFixed(1)),
+					riverBedElevation: Number(riverY.toFixed(1))
+				},
+				microTopography: microTopo
+			},
+			emergenceMetrics: {
+				gatherAcc: Math.round(AppState.gatherAcc),
+				scatterAcc: Math.round(AppState.scatterAcc),
+				qiDensity: Number(((AppState.sensors.qiDensity || 0) * 100).toFixed(2)) + "%",
+				windSpeed: Number((AppState.sensors.windSpeed || 0).toFixed(2)),
+				turbulence: Number((AppState.sensors.turbulence || 0).toFixed(2)),
+				waterDrag: Number((AppState.sensors.waterDrag || 0).toFixed(2)),
+				sunlight: Number(((AppState.sensors.sunlight || 1.0) * 100).toFixed(1)) + "%",
+				advancedPhysics: {
+					phreatic: Number((AppState.sensors.phreatic || 0).toFixed(1)) + "%",
+					helicity: Number((AppState.sensors.helicity || 0).toFixed(1)) + "%",
+					coanda: Number((AppState.sensors.coanda || 0).toFixed(1)) + "%",
+					venturi: Number((AppState.sensors.venturi || 0).toFixed(1)) + "%",
+					tensorFrac: Number((AppState.sensors.tensorFrac || 0).toFixed(1)) + "%",
+					thermalShear: Number((AppState.sensors.thermalShear || 0).toFixed(1)) + "%",
+					downdraft: Number((AppState.sensors.downdraft || 0).toFixed(1)) + "%",
+					waveletSpike: Number((AppState.sensors.waveletSpike || 0).toFixed(1)) + "%",
+					coriolisCrash: Number((AppState.sensors.coriolisCrash || 0).toFixed(1)) + "%",
+					darcyDrag: Number((AppState.sensors.darcyDrag || 0).toFixed(1)) + "%",
+					boundarySep: Number((AppState.sensors.boundarySep || 0).toFixed(1)) + "%"
+				}
+			},
+			physicsStability: physicsStability, // 新增：物理收斂度
+			scores: {
+				globalMultiplier: Number(mult.toFixed(2)),
+				scoreBreakdown: {               // 新增：五訣結構化分數
+					dragon: { raw: Math.round(rawScore[0]), effective: effScore[0] },
+					lair:   { raw: Math.round(rawScore[1]), effective: effScore[1] },
+					sand:   { raw: Math.round(rawScore[2]), effective: effScore[2] },
+					water:  { raw: Math.round(rawScore[3]), effective: effScore[3] },
+					facing: { raw: Math.round(rawScore[4]), effective: effScore[4] }
+				}
+			},
+			verdict: {
+				rating: verdict.rating,
+				text: verdict.text
+			},
+			sanityWarnings: sanityWarnings
+		};
+
+        if (!silent) {
+            const aiPrompt = `請幫我分析以下 3D 風水模擬器的 Dry Run 測試結果（模擬時長：${simulateSeconds}秒）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(resultData, null, 2)}\n\`\`\``;
+            console.clear();
+            console.log(aiPrompt);
+            alert(`Dry Run 完成！已進行 ${simulateSeconds} 秒加速物理演練。\n按 F12 打開 Console 即可複製完整 JSON 給 AI 分析。`);
+        }
+
+        return resultData;
+    },
+
+    // 【新增】：全預設與多格局全套覆蓋測試 (Full Suite Dry Run)
+    executeSuite(simulateSecondsPerPreset = 3) {
+        console.log("[Dry Run Full Suite] 啟動全格局覆蓋率測試...");
+        const suiteResults = [];
+        const presetsToTest = ['perfect', 'gejiao', 'huilong', 'tianzhan'];
+
+        // 1. 測試所有固定預設
+        presetsToTest.forEach(pName => {
+            AppState.resetTo(pName);
+            AppState.current.presetName = pName;
+            const report = this.executeSingle(simulateSecondsPerPreset, true);
+            suiteResults.push(report);
+        });
+
+        // 2. 測試 3 組隨機生成格局（測試隨機邊界條件）
+        for (let i = 1; i <= 3; i++) {
+            AppState.resetTo('random');
+            AppState.current.presetName = `random_${i}`;
+            const report = this.executeSingle(simulateSecondsPerPreset, true);
+            suiteResults.push(report);
+        }
+
+        const totalWarnings = suiteResults.reduce((acc, r) => acc + r.sanityWarnings.length, 0);
+        const suitePrompt = `請幫我分析以下【全格局 Dry Run 全套覆蓋測試報告】（包含 perfect, gejiao, huilong, tianzhan 與 3 組隨機格局）。共發現 ${totalWarnings} 項警示：\n\n\`\`\`json\n${JSON.stringify(suiteResults, null, 2)}\n\`\`\``;
+
+        console.clear();
+        console.log(suitePrompt);
+        alert(`全套 Dry Run 測試完成！共測試 7 種不同格局組合。\n請按 F12 打開 Console，複製 JSON 報告貼給 AI 分析！`);
+    },
+
+    execute(simulateSeconds = 4) {
+        // 預設執行單格局測試
+        return this.executeSingle(simulateSeconds, false);
     }
 };
 
@@ -1083,14 +1213,25 @@ const UI = {
                 AppState.current[b.dataset.k] = !AppState.current[b.dataset.k];
                 b.classList.toggle('on', AppState.current[b.dataset.k]);
 
-                // 【新增：取消手動點穴時，自動歸位 X 軸】
-                if (b.dataset.k === 'manualXue' && !AppState.current.manualXue) {
+                // 【終極 UX 互斥優化】開啟手動點穴時，自動關閉手動置煞
+                if (b.dataset.k === 'manualXue' && AppState.current.manualXue) {
+                    AppState.current.shaMode = false;
+                    let shaBtn = document.getElementById('btn-shaMode');
+                    if (shaBtn) shaBtn.classList.remove('on');
+                } else if (b.dataset.k === 'manualXue' && !AppState.current.manualXue) {
                     AppState.current.xueX = 0;
                     AppState.current.xueZ = 5;
                 }
 
+                // 開啟手動置煞時，自動關閉手動點穴
+                if (b.dataset.k === 'shaMode' && AppState.current.shaMode) {
+                    AppState.current.manualXue = false;
+                    let xueBtn = document.getElementById('btn-manualXue');
+                    if (xueBtn) xueBtn.classList.remove('on');
+                }
+
                 if(b.dataset.k === 'vHeat' && !AppState.current.vHeat) Engine3D.clearHeatmap();
-                if(b.dataset.k === 'shaMode') document.body.style.cursor = AppState.current.shaMode ? 'crosshair' : 'default';
+                document.body.style.cursor = (AppState.current.shaMode || AppState.current.manualXue) ? 'crosshair' : 'default';
 
                 // 清除濾波快取，並在暫停時強制推動 1 幀極小時間來更新 UI 文字與雷達圖
                 AppState.smoothedScores = null;
@@ -1155,16 +1296,16 @@ const UI = {
             });
         });
 
-        // 新增 Dry Run 按鈕綁定
+        // 新增 Dry Run 按鈕綁定 (支援 Shift+點擊 觸發全格局全套覆蓋測試)
         const btnDryRun = document.getElementById('btn-dry-run');
         if (btnDryRun) {
-            btnDryRun.addEventListener('click', () => {
-                // 重置粒子狀態確保每次測試起跑點一致
-                Physics.resetParticles();
-                AppState.gatherAcc = 0; AppState.scatterAcc = 0;
-                AppState.smoothedScores = null;
-                // 執行 6 秒的 Dry Run 使粒子充分流動與數值收斂穩定
-                DryRunTool.execute(3);
+            btnDryRun.title = "點擊：測試當前格局 | Shift+點擊：執行全格局(Full Suite)全套覆蓋測試";
+            btnDryRun.addEventListener('click', (e) => {
+                if (e.shiftKey) {
+                    DryRunTool.executeSuite(3);
+                } else {
+                    DryRunTool.executeSingle(4);
+                }
             });
         }
 
