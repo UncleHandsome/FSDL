@@ -367,6 +367,21 @@ class ResourceManager {
 class FengShuiEngine {
   static analyze(stateManager, builder) {
     const st = stateManager.current;
+
+    // 【第20輪修正】狀態消毒：防止外部注入或舊存檔出現「煞水/無水卻帶水法」、「非案山明堂卻帶探頭煞」等狀態悖論
+    const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
+    if (st.water === 'none' || shaWaterSet.includes(st.water)) {
+        st.shuifa = ['none'];
+    }
+    // 【第47輪修正】明堂破敗時（none/sunken/rubble），水口陣法無法作用，強制清除，避免「明堂已破卻有三叉水/羅星」之狀態悖論
+    if (['none', 'sunken', 'rubble'].includes(st.front)) {
+        st.shuifa = ['none'];
+    }
+    if (st.front !== 'lowcase' && Array.isArray(st.sha) && st.sha.includes('tantou')) {
+        st.sha = st.sha.filter(v => v !== 'tantou');
+        if (st.sha.length === 0) st.sha = ['none'];
+    }
+
     let g = 0, s = 0, c = 40;
 
     // ==========================================
@@ -401,7 +416,7 @@ class FengShuiEngine {
     // 2. 空間與幾何場域計算 (從 3D 物件湧現天空可視率 SVF 與壓迫感)
     // ==========================================
     let vLeft = 0, vRight = 0, vBack = 0, vFront = 0;
-    let maxHFront = 0, hMain = stateManager.heights.main;
+    let maxHFront = 0, hMain = Math.max(1, stateManager.heights.main);
     let sunBlocked = false;
     
     // 物理觀測變數：交由程式自行發現形狀，而非讀取硬編碼
@@ -409,6 +424,7 @@ class FengShuiEngine {
     let emptyFrontWind = false;       // 明堂空曠且風大 (對應八風吹穴)
     let frontObstacles = 0;
     let leftBuildings = [], rightBuildings = [];
+    let physicalCaseExists = false;   // 【第 10 輪修正】實際幾何中是否存在夠高的案山建物
     let centerBlocker = false;        // ★ 搬移至此提早宣告於迴圈外
 	let peekSha = false;
     let hasBackSupport = false;       // 【第21輪修正】紀錄後方是否有足夠高度的實體屏障
@@ -503,6 +519,8 @@ class FengShuiEngine {
           vFront += effVol;
           if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
           if (b.h > maxHFront) maxHFront = b.h;
+          // 【第 10 輪修正】偵測實體案山：需位於明堂正前方且高度足以擋風
+          if (st.front === 'lowcase' && b.z > 40 && b.z < 70 && b.h >= 10 && b.h >= hMain * 0.33 && Math.abs(b.x) < 25) physicalCaseExists = true;
           // 修正：限縮明堂核心地帶(z:20~50)，避免誤將後方探頭煞認作擎拳
           if (b.z > 20 && b.z < 50 && Math.abs(b.x) < 8 && b.h > 10) centerBlocker = true;
           // 新增：偵測案山後方是否有探頭建築 (z > 55)
@@ -607,7 +625,7 @@ class FengShuiEngine {
       let closedRays = 0;
       spatialEntropy = 0;
       for (let i = 0; i < 72; i++) {
-          if (maxBlockage[i] > 0.6) closedRays++;
+          if (maxBlockage[i] > 0.45) closedRays++;
           if (maxBlockage[i] > 0 && svfTotal > 0) {
               let p = maxBlockage[i] / svfTotal;
               spatialEntropy -= p * Math.log2(p); // 耗散結構負熵系統
@@ -638,7 +656,7 @@ class FengShuiEngine {
           if (narrowGapDetected) break;
       }
     const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
-    const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && extWindSpeed >= 12 && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
+    const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 12 && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     waterBroken = waterBrokenByWind; // 提前設定水局破裂狀態，避免地形水聚訊息與流體破水訊息矛盾
     if (isShaWaterForBarrier) waterBroken = false; // 【第22輪修正】煞水本身不具聚氣介質，強制排除水破標記，避免與「煞水未成水局」矛盾
@@ -648,9 +666,9 @@ class FengShuiEngine {
       // 【第18輪修正】強化低矮案山的判定：直接檢查 bird 高度是否同時 ≥10 且 ≥主樓1/3，避免因 Math.min 邏輯在邊界值時產生模糊而誤擋八風吹穴
       // 【第20輪修正】極低案山（bird<10）視為無效屏障，並統一在單一條件判斷中強制觸發八風吹穴，避免因 coandaDeflection 等其他條件干擾而漏判
       const hasCloseCase = st.front === 'lowcase' && stateManager.heights.bird >= 10 && stateManager.heights.bird >= hMain * 0.33;
-      const isLowInvalidCase = st.front === 'lowcase' && stateManager.heights.bird < 10;
+      const isLowInvalidCase = st.front === 'lowcase' && (stateManager.heights.bird < 10 || stateManager.heights.bird < hMain * 0.33);
       // 【第4輪修正】當 front='none'（無明堂）時，不應觸發八風吹穴，因為已屬「明堂已破」狀態，避免與玄武靠失效等抑制訊息重複矛盾。
-      if (st.front !== 'none' && frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && (coandaDeflection <= 10 || isLowInvalidCase)) {
+      if (st.front !== 'none' && frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && !physicalCaseExists && (coandaDeflection <= 10 || isLowInvalidCase)) {
           emptyFrontWind = true;
       }
     }
@@ -661,7 +679,10 @@ class FengShuiEngine {
     let observerText = [];
     
     // 【修正】明堂破敗情境：當前有明顯重煞、明堂低陷/空無/破碎、或水勢為煞水時，即使後方有屏障，玄武靠/鬼曜撐背等吉氣也無法發揮
-    const fengShuiContextBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble' || isShaWater || ['tianzhan','rush','bow','sickle','pierce','sedan','walledge','qingquan','windshaft','glass','pylon'].some(x => st.sha.includes(x) || st.water === x) || (st.sha.includes('tantou') && peekSha);
+    // 【第27輪修正】區分「明堂實體破敗」與「整體煞氣壓迫」，避免 front=plaza 卻出現「明堂已破」之狀態悖論
+    const mingTangBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble';
+    const fengShuiContextBroken = mingTangBroken || isShaWater || ['tianzhan','rush','bow','sickle','pierce','sedan','walledge','qingquan','windshaft','glass','pylon'].some(x => st.sha.includes(x) || st.water === x) || (st.sha.includes('tantou') && peekSha);
+    const brokenContextDesc = mingTangBroken ? '明堂已破' : (isShaWater ? '主水為煞水' : '重煞壓迫');
     
     // 1. 空間壓迫與巒頭湧現
     // 【修正】若左側無建築（left='none'）或左側為逼壓/破碎，不應湧現青龍有情
@@ -708,7 +729,8 @@ class FengShuiEngine {
     }
 
     // 【第21輪修正】物理湧現：即使右砂為白虎，若實際幾何高度/體積過度碾壓左側與主樓，仍應湧現「白虎抬頭」煞氣
-    if (!fengShuiContextBroken && st.right !== 'raise' && vRight > vLeft * 1.5 && vRight > 30) {
+    // 【第48輪修正】若右砂為破碎（broken），其殘骸體積不應視為實體壓迫，避免「破碎殘缺」與「白虎抬頭」狀態矛盾
+    if (!fengShuiContextBroken && st.right !== 'raise' && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) {
         s += 35; g = Math.max(0, g - 10); c = Math.max(20, c - 5);
         observerText.push("空間｜右側實體過於高大逼壓主樓，白虎雖選但物理上已成抬頭之勢 (湧現: 白虎抬頭)");
         wuXingText += "｜白虎逼壓；";
@@ -717,7 +739,7 @@ class FengShuiEngine {
     if (st.dragon !== 'none' && backBuildingCount > 0 && vBack > (vLeft+vRight)*0.5 && vBack > 0 && hasBackSupport && backImpedance > 2.0) {
         // 【修正】明堂破敗時，玄武靠的吉氣無法凝聚，改為湧現抑制描述，避免吉訊與大凶評價矛盾
         if (fengShuiContextBroken) {
-            observerText.push("空間｜後方固有屏障，但明堂已破，玄武靠之吉氣無法凝聚 (湧現抑制: 玄武有靠失效)");
+            observerText.push(`空間｜後方固有屏障，但${brokenContextDesc}，玄武靠之吉氣無法凝聚 (湧現抑制: 玄武有靠失效)`);
         } else {
             g += 15; xuanwuOk = true;
             observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)");
@@ -759,7 +781,7 @@ class FengShuiEngine {
         } else if (spatialLowFreq > spatialHighFreq * 2 && spatialLowFreq > 10) {
             // 【修正】明堂破敗時，龍脈剝換吉訊不應湧現，避免與大凶評價矛盾
             if (fengShuiContextBroken) {
-                observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何濾除，但明堂已破，吉氣無法凝聚 (湧現抑制: 剝換完成失效)`);
+                observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何濾除，但${brokenContextDesc}，吉氣無法凝聚 (湧現抑制: 剝換完成失效)`);
             } else {
                 g += 20;
                 observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波 (自然湧現: 剝換完成/真龍結穴)`);
@@ -801,7 +823,8 @@ class FengShuiEngine {
         kineticSha += (25 + extWindSpeed * 3) * windMitigation;
         g = Math.max(0, g - 25);
         c = Math.max(20, c - 25);
-        observerText.push(`流體｜前方毫無案山遮蔽且風大，強風直擊穴場，但化煞陣法部分抵銷風壓 (自然湧現: 八風吹穴)`);
+        const windBlockText = windCureCount > 0 ? `，但化煞陣法部分抵銷風壓` : `，且毫無化煞抵銷`;
+        observerText.push(`流體｜前方毫無案山遮蔽且風大，強風直擊穴場${windBlockText} (自然湧現: 八風吹穴)`);
     }
     
     // 新增：擎拳煞/穿心煞物理湧現
@@ -960,7 +983,9 @@ class FengShuiEngine {
     
     // 【終極修正】若無水或煞水，水法攔截不應觸發，避免無中生有
     // 【新增】若無水、煞水或水局已破，水法攔截不應觸發，避免無中生有
-    if (st.water === 'none' || isShaWater || waterBroken) {
+    // 【終極修正】若無水、煞水或水局已破，水法攔截不應觸發，避免無中生有
+    // 【第21輪修正】若明堂破敗導致虛水測試未執行（waterTestRan=false），水法攔截亦應為0，避免輸出矛盾攔截文字
+    if (st.water === 'none' || isShaWater || waterBroken || !waterTestRan) {
         waterLock = 0;
     } else if (st.shuifa.includes('luoxing') || st.shuifa.includes('shixiang') || st.shuifa.includes('huabiao') || st.shuifa.includes('qinxing')) {
         waterLock = 15; // 實體障礙物的攔截率
@@ -981,7 +1006,7 @@ class FengShuiEngine {
         waterLock = 0;
     }
 
-    if (!isShaWater && st.water !== 'none' && !waterBroken && escapedDrops > 0 && waterLock > 0) {
+    if (!isShaWater && waterTestRan && st.water !== 'none' && !waterBroken && escapedDrops > 0 && waterLock > 0) {
         let saved = Math.min(escapedDrops, waterLock);
         escapedDrops -= saved;
         gatheredDrops += saved;
@@ -1031,7 +1056,7 @@ class FengShuiEngine {
         if (st.waterDir === 'shuai') bonus = Math.round(bonus * 0.5); // 衰水減半
         // 【修正】明堂破敗時，即使有水聚也不應湧現吉訊，改為中性描述
         if (fengShuiContextBroken) {
-            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚於明堂底層，但明堂已破，聚水不成吉格 (湧現抑制: 水聚明堂失效)`);
+            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚於明堂底層，但${brokenContextDesc}，聚水不成吉格 (湧現抑制: 水聚明堂失效)`);
         } else {
             g += bonus;
             let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
@@ -1099,11 +1124,11 @@ class FengShuiEngine {
             // 【第43輪修正】明堂破敗時，理氣水向吉凶皆不應實質生效，改為中性描述，避免與「明堂已破」矛盾
             if (fengShuiContextBroken) {
                 if (st.waterDir === 'reverse' && !waterEscaped) {
-                    observerText.push(`理氣｜逆水朝迎，但明堂已破，朝迎之勢無法凝聚 (湧現抑制: 理氣失效)`);
+                    observerText.push(`理氣｜逆水朝迎，但${brokenContextDesc}，朝迎之勢無法凝聚 (湧現抑制: 理氣失效)`);
                 } else if (st.waterDir === 'wang') {
-                    observerText.push(`理氣｜旺水迎朝，但明堂已破，旺氣難收 (湧現抑制: 理氣失效)`);
+                    observerText.push(`理氣｜旺水迎朝，但${brokenContextDesc}，旺氣難收 (湧現抑制: 理氣失效)`);
                 } else if (st.waterDir === 'shuai') {
-                    observerText.push(`理氣｜衰水之向，加上明堂已破，衰氣更難制化 (湧現抑制: 理氣失效)`);
+                    observerText.push(`理氣｜衰水之向，加上${brokenContextDesc}，衰氣更難制化 (湧現抑制: 理氣失效)`);
                 }
             } else if (st.waterDir === 'shuai') {
                 s += 20; g -= 15; c = Math.max(20, c - 20);
@@ -1129,7 +1154,8 @@ class FengShuiEngine {
 
     // 【新增】若同時存在抬轎煞與水聚明堂，應相互抵消部分效果，反映物理衝突
     // 【修正】若無水或煞水，即使有化煞水池也不應觸發水聚衝突，避免『無水』狀態下出現矛盾文本
-    if (st.sha.includes('sedan') && st.water !== 'none' && !isShaWater && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
+    // 【第 26 輪修正】加入 vortexQi > 0 之最終防呆，徹底阻絕煞水/無水情境下誤觸發『水聚明堂』衝突描述
+    if (st.sha.includes('sedan') && st.water !== 'none' && !isShaWater && vortexQi > 0 && (st.water === 'jade' || st.water === 'nine' || st.cure.includes('pool') || st.shuifa.includes('banyue'))) {
         let conflict = Math.min(kineticSha, vortexQi);
         kineticSha -= conflict * 0.5;
         vortexQi -= conflict * 0.5;
@@ -1183,14 +1209,15 @@ class FengShuiEngine {
 
     // 【第 38 輪修正】先定義煞水判斷，再決定化煞水體；當主水勢本身為破壞性煞水時，水法類水體（半月、三叉、禽星）不應視為獨立的化解水體，僅有獨立的化煞水池/噴泉才可化解煞水
     const isShaWaterForFluid = ['bow', 'tfork', 'rush', 'cut', 'lintou', 'bazi'].includes(st.water);
-    // 【修正】噴泉（fountain）是催旺水體，不應作為化解煞水的來源；僅化煞水池（pool）與非煞水水法可化解煞水。
-    // 【第2輪修正】若根本沒有水（water='none'），即使選了水法也不應視為化解水體，避免無水卻有水法化解之狀態悖論。
-    const hasMitigatingWater = st.water !== 'none' && (st.cure.includes('pool') || (!isShaWaterForFluid && (st.shuifa.includes('banyue') || st.shuifa.includes('san cha') || st.shuifa.includes('qinxing'))));
+    const hasMitigatingPool = st.water !== 'none' && st.cure.includes('pool');
+    const hasMitigatingShuifa = st.water !== 'none' && !isShaWaterForFluid && (st.shuifa.includes('banyue') || st.shuifa.includes('san cha') || st.shuifa.includes('qinxing'));
+    const hasMitigatingWater = hasMitigatingPool || hasMitigatingShuifa;
     let shaWaterMitigation = 0;
     if (isShaWaterForFluid && hasMitigatingWater) {
         // 化煞水池或水法僅能化解煞氣，不能將煞水轉為吉水，故不增加吉氣
         shaWaterMitigation = 8;
-        observerText.push(`制化｜化煞水池/水法啟動，有效化解煞水，煞氣-${shaWaterMitigation}`);
+        const mitigationSource = hasMitigatingPool && hasMitigatingShuifa ? '化煞水池與水法' : (hasMitigatingPool ? '化煞水池' : '水法');
+        observerText.push(`制化｜${mitigationSource}啟動，有效化解煞水，煞氣-${shaWaterMitigation}`);
     }
     if (st.water === 'none' || (isShaWaterForFluid && !hasMitigatingWater)) {
         // 無水，或煞水且無其他水體時，不應湧現任何水聚或水煞現象
@@ -1199,8 +1226,9 @@ class FengShuiEngine {
         } else {
             observerText.push(`流體｜此水勢為煞水，氣流被切割或反弓，無法聚氣 (自然湧現: 水煞)`);
         }
-    } else if (extWindSpeed >= 12 && !isShaWaterForFluid && (st.water === 'jade' || st.water === 'nine')) {
+    } else if (extWindSpeed >= 12 && !isShaWaterForFluid && (st.water === 'jade' || st.water === 'nine') && !['none', 'sunken', 'rubble'].includes(st.front)) {
         // 【第 4 輪診斷修正】降低水破風煞的基礎破壞力，並讓水池/噴泉等水體陣法直接減免剪力。
+        // 【第47輪修正】明堂已破時，虛水測試未執行、水聚未成，不應觸發水破風煞，避免「無水可破」悖論
         let tearForce = (extWindSpeed - 10) * 8;
         if (st.cure.includes('pool') || st.cure.includes('fountain')) tearForce *= 0.5;
         kineticSha += tearForce;
@@ -1211,17 +1239,18 @@ class FengShuiEngine {
         // 【修正】必須依賴虛水測試結果，避免與水文學矛盾
         if (waterTestRan && gatherPercent >= 50) {
             if (fengShuiContextBroken) {
-                observerText.push(`流體｜界水則止，但明堂已破，無法形成吉格 (湧現抑制: 水聚明堂失效)`);
+                observerText.push(`流體｜界水則止，但${brokenContextDesc}，無法形成吉格 (湧現抑制: 水聚明堂失效)`);
             } else {
                 observerText.push(`流體｜界水則止，真氣遇水盤旋不散 (自然湧現: 水聚明堂)`);
             }
         } else if (waterTestRan && gatherPercent < 50) {
             observerText.push(`流體｜界水存在，但虛水匯聚率僅 ${gatherPercent}%，真氣難以凝聚 (自然湧現: 界水無聚)`);
         } else {
-            observerText.push(`流體｜界水狀態異常，無法判斷聚氣`);
+            observerText.push(`流體｜明堂破敗或地形特殊，虛水測試未執行，無法判斷界水聚氣 (湧現抑制: 界水未測)`);
         }
     } else if (isShaWaterForFluid && hasMitigatingWater) {
-        observerText.push(`流體｜主水為煞水，但化煞水池/水法提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
+        const mitigationSource = hasMitigatingPool && hasMitigatingShuifa ? '化煞水池與水法' : (hasMitigatingPool ? '化煞水池' : '水法');
+        observerText.push(`流體｜主水為煞水，但${mitigationSource}提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
     } else if (st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
         // 【修正】依實際虛水匯聚率區分描述，避免與高滯留率（如水法攔截後 54%）矛盾
         if (gatherPercent <= 25) {
@@ -1347,7 +1376,7 @@ class FengShuiEngine {
         } else if (st.terrain === 'slope' || st.special.includes('qingxie')) {
             observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：地勢傾斜，凹陷結構無法駐留氣流，吉氣散失 (湧現抑制: 傾斜失效)`);
         } else if (fengShuiContextBroken) {
-            observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：明堂已破，微氣候駐留無法凝聚 (湧現抑制: 穴形失效)`);
+            observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：${brokenContextDesc}，微氣候駐留無法凝聚 (湧現抑制: 穴形失效)`);
         } else {
             observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：水局已破，微氣候駐留失效`);
         }
@@ -1358,7 +1387,7 @@ class FengShuiEngine {
         } else if (st.terrain === 'slope' || st.special.includes('qingxie')) {
             observerText.push(`空間｜穴形(${st.hole === 'ru' ? '乳' : '突'})：地勢傾斜，突起地形雖承陽但地氣無法駐留 (湧現抑制: 傾斜失效)`);
         } else if (fengShuiContextBroken) {
-            observerText.push(`空間｜穴形(${st.hole === 'ru' ? '乳' : '突'})：明堂已破，突起地形無法聚氣 (湧現抑制: 穴形失效)`);
+            observerText.push(`空間｜穴形(${st.hole === 'ru' ? '乳' : '突'})：${brokenContextDesc}，突起地形無法聚氣 (湧現抑制: 穴形失效)`);
         } else {
             observerText.push(`空間｜穴形(${st.hole === 'ru' ? '乳' : '突'})：水局已破，突起地形無法聚氣`);
         }
@@ -1385,12 +1414,12 @@ class FengShuiEngine {
             observerText.push(`空間｜護龍佈局但左右砂皆非有情，未成形`);
         }
     } else if (st.special.includes('hulong')) {
-        observerText.push(`空間｜護龍夾送佈局雖設，但明堂已破，護佑失效 (湧現抑制: 護龍失效)`);
+        observerText.push(`空間｜護龍夾送佈局雖設，但${brokenContextDesc}，護佑失效 (湧現抑制: 護龍失效)`);
     }
     if (!fengShuiContextBroken && !st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'))) {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
     } else if (st.special.includes('chaoshan') || st.special.includes('guanxing')) {
-        observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但明堂已破，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
+        observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但${brokenContextDesc}，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
     }
     if (st.special.includes('shuqi')) {
         // 氣躍/水躍現象 (Hydraulic Jump)
@@ -1398,7 +1427,7 @@ class FengShuiEngine {
         // 【修正】明堂破敗時，束氣結穴吉訊不應湧現，避免與大凶評價矛盾
         if (fengShuiContextBroken) {
             vortexQi += 0;
-            observerText.push(`流體力學｜束氣峽仍在，但明堂已破，無法將吉氣駐留於堂 (湧現抑制: 束氣結穴失效)`);
+            observerText.push(`流體力學｜束氣峽仍在，但${brokenContextDesc}，無法將吉氣駐留於堂 (湧現抑制: 束氣結穴失效)`);
         } else {
             // 【第13輪修正】確保束氣峽至少提供基礎吉氣，避免 vortexQi 初始為 0 時完全沒有效果
             vortexQi += 15;
@@ -1418,7 +1447,7 @@ class FengShuiEngine {
         observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}：主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散`);
     } else if (st.special.includes('fengyao') || st.special.includes('guiyao')) {
         if (fengShuiContextBroken) {
-            observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但明堂已破，吉氣無法凝聚`);
+            observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但${brokenContextDesc}，吉氣無法凝聚`);
         } else if (st.dragon === 'none') {
             observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但無龍脈可依，未能成形`);
         } else {
@@ -1431,7 +1460,7 @@ class FengShuiEngine {
         if (yang > yin) yin = yang; else yang = yin;
         // 【第43輪修正】明堂破敗時，太極陣法仍可調和陰陽，但無法累積吉氣，避免與大凶評價矛盾
         if (fengShuiContextBroken) {
-            observerText.push(`陣法｜太極環島：陰陽雖已調和，但明堂已破，吉氣無法凝聚 (湧現抑制: 太極失效)`);
+            observerText.push(`陣法｜太極環島：陰陽雖已調和，但${brokenContextDesc}，吉氣無法凝聚 (湧現抑制: 太極失效)`);
         } else {
             g += 15;
             observerText.push(`陣法｜太極環島：引導氣流進行完美的陰陽回旋，強制調和磁場`);
@@ -1509,7 +1538,7 @@ class FengShuiEngine {
         if (divergence > 0.3) {
             // 【修正】明堂破敗時，界水即止吉訊不應湧現
             if (fengShuiContextBroken) {
-                observerText.push(`拓撲學｜向量場奇點存在，但明堂已破，界水即止無法形成吉格 (湧現抑制: 界水即止失效)`);
+                observerText.push(`拓撲學｜向量場奇點存在，但${brokenContextDesc}，界水即止無法形成吉格 (湧現抑制: 界水即止失效)`);
             } else {
                 saddlePointTriggered = true;
                 g += 20; c += 20;
@@ -1534,7 +1563,13 @@ class FengShuiEngine {
     // 從環境特徵與陣法讀取物理參數
     if(!st.cure.includes('none') && st.cure.length > 0) {
       if (st.cure.includes('trees')) { windDrag += 40; envHumidity += 10; cureText += "制化｜植栽陣法啟動 (提供高風阻+濕度調節)；"; }
-      if (st.cure.includes('pool') || st.cure.includes('fountain')) { envHumidity += 30; envTemp -= 5; cureText += "制化｜水體陣法啟動 (提供降溫增濕+低摩擦介質)；"; }
+      if (st.cure.includes('pool') || st.cure.includes('fountain')) {
+          if (st.water !== 'none') {
+              envHumidity += 30; envTemp -= 5; cureText += "制化｜水體陣法啟動 (提供降溫增濕+低摩擦介質)；";
+          } else {
+              cureText += "制化｜水體陣法佈置，但現場無水，效果受限；";
+          }
+      }
       if (st.cure.includes('stone') || st.cure.includes('mirror')) { rigidReflection += 30; thermalMass += 20; cureText += "制化｜剛體陣法啟動 (提供高反彈力+高質量壁壘)；"; }
       if (st.cure.includes('gourd')) cureText += "制化｜化煞葫蘆 (吸收局部亂流)；";
     }
@@ -1653,7 +1688,7 @@ class FengShuiEngine {
     let fractalDiff = Math.abs(D_macro - D_meso) + Math.abs(D_meso - D_micro);
     
     if (fengShuiContextBroken) {
-        wuXingText += `幾何學｜跨尺度幾何維度雖具連續性，但明堂已破，分形能量無法凝聚 (湧現抑制: 龍穴相配失效)；`;
+        wuXingText += `幾何學｜跨尺度幾何維度雖具連續性，但${brokenContextDesc}，分形能量無法凝聚 (湧現抑制: 龍穴相配失效)；`;
     } else if (fractalDiff < 15 && !waterBroken) {
         g += 15; c += 15;
         wuXingText += `幾何學｜跨尺度分形自相似：區域、街廓至主樓的幾何維度保持極高連續性，大環境能量無縫級聯貫穿穴場 (自然湧現: 龍穴相配/太祖至胎息)；`;
@@ -1669,7 +1704,13 @@ class FengShuiEngine {
     // 【第3輪修正】強制 g/s 非負，避免前面的吉氣扣減造成 Q-Factor 負值之矛盾
     g = Math.max(0, g);
     s = Math.max(0, s);
-    let qFactor = spatialEntropy > 0.01 ? (g / (s + 1)) * (1.0 / spatialEntropy) * 10.0 : 0;
+    // 【第 2 輪診斷修正】Q-Factor 應與香農熵呈負相關：熵越高代表空間越混亂，共振品質越低。
+    // 舊公式 (1/熵) 在熵值波動時產生極端且與輸出熵值矛盾的結果。
+    let qFactor = 0;
+    if (g > 0) {
+        const entropyFactor = Math.max(0.0, 1.0 - spatialEntropy / 6.5);
+        qFactor = (g / (s + 1)) * entropyFactor * 10.0;
+    }
     qFactor = Math.max(0, Math.min(qFactor, 99.9)); // 限制物理量上下限
     
     if (qFactor > 20 && !fengShuiContextBroken) {
@@ -1715,12 +1756,13 @@ class FengShuiEngine {
     // 【第 2 輪診斷修正】將「青龍逼壓/白虎抬頭」也納入化煞減免範圍，並降低侵蝕比例，避免有化煞時吉氣被過度抹除。
     const hasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','pylon','glass','qingquan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 80);
     const hasMitigatingCure = st.cure.some(c => ['trees','pool','stone','mirror','gourd'].includes(c));
-    const heavyShaForErosion = (hasHardSha && !hasMitigatingCure) || (st.sha.includes('tantou') && peekSha && s >= 80) || waterBroken || (st.left === 'oppress' && !hasMitigatingCure) || ((st.right === 'raise' && vRight > vLeft * 1.2 && vRight > 20) && !hasMitigatingCure) || ((st.right !== 'raise' && vRight > vLeft * 1.5 && vRight > 30) && !hasMitigatingCure) || (!hasMitigatingCure && s >= 95);
+    // 【第48輪修正】右側破碎（broken）殘骸不得視為實體壓迫來源，避免與「白虎無力」狀態矛盾
+    const heavyShaForErosion = (hasHardSha && !hasMitigatingCure) || (st.sha.includes('tantou') && peekSha && s >= 80) || waterBroken || (st.left === 'oppress' && !hasMitigatingCure) || ((st.right === 'raise' && vRight > vLeft * 1.2 && vRight > 20) && !hasMitigatingCure) || ((st.right !== 'raise' && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) && !hasMitigatingCure) || (!hasMitigatingCure && s >= 95);
     const erosionRatio = heavyShaForErosion ? 0.5 : 0.35;
     const capacityErosionRatio = heavyShaForErosion ? 0.45 : 0.3;
     // 【第22輪修正】侵蝕量改由 return 前以最終 s 計算，防止早期 s 值與最終不一致
     // 僅在此記錄推播
-    if (heavyShaForErosion) physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
+    if (heavyShaForErosion || (hasHardSha && s >= 80)) physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
     // 【終極修正】若無水或煞水，容量不應低於40，避免明堂收氣能力過低
     if (st.water === 'none' || isShaWater) {
         c = Math.max(c, 40);
@@ -1780,6 +1822,22 @@ class FengShuiEngine {
     // 【第 27 輪修正】去除五行分析文字前導的連接符，避免 UI 開頭出現「｜」的格式異常
     wuXingText = wuXingText.replace(/^｜/, '');
 
+    // 【第 7 輪診斷修正】高熵與低拓撲閉合度代表氣場混亂、漏風，不得與高吉分共存；並區分觸發來源以便文字準確
+    const entropyPenalty = spatialEntropy > 5.0 ? Math.round((spatialEntropy - 5.0) * 12) : 0;
+    const closurePenalty = betti1Closure < 0.5 ? Math.round((0.5 - betti1Closure) * 40) : 0;
+    if (entropyPenalty > 0 || closurePenalty > 0) {
+        const thermoPenalty = entropyPenalty + closurePenalty;
+        s += thermoPenalty;
+        g = Math.max(0, g - thermoPenalty);
+        if (entropyPenalty > 0 && closurePenalty > 0) {
+            physicsText.push(`熱力學與拓撲｜空間資訊熵(${spatialEntropy.toFixed(2)} Bits)過高且閉合度(${(betti1Closure*100).toFixed(0)}%)不足，氣場渙散，吉氣減損 ${thermoPenalty} 點`);
+        } else if (entropyPenalty > 0) {
+            physicsText.push(`熱力學｜空間資訊熵(${spatialEntropy.toFixed(2)} Bits)過高，氣場混亂，吉氣減損 ${thermoPenalty} 點`);
+        } else {
+            physicsText.push(`拓撲學｜空間閉合度(${(betti1Closure*100).toFixed(0)}%)不足，明堂漏風，吉氣減損 ${thermoPenalty} 點`);
+        }
+    }
+
     // 【第22輪修正】輸出前強制套用煞氣侵蝕：以最終 s 重新計算，確保容量與吉氣被正確削減
     const finalShaErosion = Math.round(s * erosionRatio);
     const finalCapErosion = Math.round(s * capacityErosionRatio);
@@ -1805,6 +1863,24 @@ class FengShuiEngine {
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
+    // 【第11輪修正】Q-Factor 必須以最終收斂值計算，避免早期吉氣尚未被侵蝕時出現虛高共振
+    if (g > 0) {
+        const finalEntropyFactor = Math.max(0.0, 1.0 - spatialEntropy / 6.5);
+        qFactor = (g / (s + 1)) * finalEntropyFactor * 10.0;
+    } else {
+        qFactor = 0;
+    }
+    qFactor = Math.max(0, Math.min(qFactor, 99.9));
+    // 【第15輪靜態審查】若最終 Q-Factor 已下降，應移除先前基於早期數值加入的「量子流體」描述，避免指標矛盾
+    if (qFactor <= 20) {
+        const quantumPhrase = '量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；';
+        wuXingText = wuXingText.split(quantumPhrase).join('');
+    }
+    // 【第49輪修正】最終重煞標記與推播同步：若最終判定為重煞，但尚未輸出「重煞壓制」文字，則補上，避免 isHeavySha=true 卻無對應物理描述的矛盾
+    const finalHeavySha = heavyShaForErosion || (hasHardSha && s >= 80);
+    if (finalHeavySha && !physicsText.some(t => t.includes("重煞壓制"))) {
+        physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
+    }
     return {
         g: Math.round(g),
         s: Math.round(s),
@@ -1822,7 +1898,7 @@ class FengShuiEngine {
         isHydraulicJump: hydraulicJumpTriggered,
         isSaddlePoint: !fengShuiContextBroken && (saddlePointTriggered || (!waterBroken && !isShaWater && st.water !== 'none' && st.waterDir !== 'shuai' && ((gatheredDrops - escapedDrops) / 50.0 > 0.3))),
         isStandingWave: standingWaveTriggered,
-        isHeavySha: heavyShaForErosion,
+        isHeavySha: finalHeavySha,
         // 【高維物理變數匯出】
         betti1Closure: +(betti1Closure.toFixed(2)),
         shannonEntropy: +(spatialEntropy.toFixed(3)),
@@ -1837,7 +1913,7 @@ class FengShuiEngine {
     if(st.sha.includes('tianzhan'))A.push({x:0,z:58,dx:0,dz:-1,w:26,pw:8,len:52});
     if(st.sha.includes('rush'))A.push({x:0,z:60,dx:0,dz:-1,w:24,pw:8,len:50});
     if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:14,len:40});
-    if(st.sha.includes('sickle'))A.push({x:48,z:34,dx:-0.5,dz:-0.85,w:18,pw:9,len:46});
+    if(st.sha.includes('sickle'))A.push({x:48,z:34,dx:-0.5,dz:-0.85,w:12,pw:15,len:46});
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:34,dx:0,dz:-1,w:16,pw:8,len:28});
@@ -2029,7 +2105,7 @@ class CityBuilder {
           const oldGeo = this.ghostMesh.geometry;
           if (tool === 'wood') { this.ghostMesh.geometry = new THREE.BoxGeometry(12, 60, 12); this.ghostMesh.material.color.setHex(0x2a6b3c); }
           else if (tool === 'earth') { this.ghostMesh.geometry = new THREE.BoxGeometry(24, 25, 24); this.ghostMesh.material.color.setHex(0x7c6a4a); }
-          else if (tool === 'water') { this.ghostMesh.geometry = new THREE.CylinderGeometry(5, 5, 2, 32); this.ghostMesh.material.color.setHex(0x4fa6ff); }
+          else if (tool === 'water') { this.ghostMesh.geometry = new THREE.CylinderGeometry(12, 12, 2, 32); this.ghostMesh.material.color.setHex(0x4fa6ff); }
           if (oldGeo) oldGeo.dispose();
           this.ghostType = tool;
       }
@@ -2038,8 +2114,14 @@ class CityBuilder {
       let h = this.ghostMesh.geometry.parameters.height || 2;
       this.ghostMesh.position.set(x, ty + h/2, z);
       
-      // 若為中心不可建區域，顯示紅色警示
-      if (Math.abs(x) < 15 && Math.abs(z) < 15) this.ghostMesh.material.color.setHex(0xff0000);
+      // 若為中心不可建區域，顯示紅色警示，否則恢復為工具對應的顏色
+      if (Math.abs(x) < 15 && Math.abs(z) < 15) {
+          this.ghostMesh.material.color.setHex(0xff0000);
+      } else {
+          if (tool === 'wood') this.ghostMesh.material.color.setHex(0x2a6b3c);
+          else if (tool === 'earth') this.ghostMesh.material.color.setHex(0x7c6a4a);
+          else if (tool === 'water') this.ghostMesh.material.color.setHex(0x4fa6ff);
+      }
   }
   
   clear() {
@@ -3197,6 +3279,8 @@ class ParticleSystem {
     }
     this.uniforms.u_bldCount.value = bCount;
     
+    this.uniforms.u_dragonAvenue.value = st.dragon === 'avenue';
+    this.uniforms.u_isWoQian.value = (st.hole === 'wo' || st.hole === 'qian');
     this.uniforms.u_waterJade.value = st.water === 'jade';
     this.uniforms.u_shuifaBanyue.value = st.shuifa.includes('banyue');
     this.uniforms.u_curePool.value = st.cure.includes('pool');
@@ -3369,8 +3453,8 @@ class World3D {
                     return;
                 }
                 // 【第 14 輪靜態審查】放置前檢查是否與現有實體建築重疊，避免穿模
-                const toolW = st.tool === 'earth' ? 24 : 12;
-                const toolD = st.tool === 'earth' ? 24 : 12;
+                const toolW = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
+                const toolD = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
                 const overlap = this.app.builder.blds.some(b => {
                     if (b.isWater || b.h < 5) return false;
                     return Math.abs(snapX - b.x) < (toolW + b.w) / 2 - 0.5 && 
@@ -3381,8 +3465,8 @@ class World3D {
                     return;
                 }
                 const overlapSandbox = st.sandboxBlds.some(sb => {
-                    const w = sb.type === 'earth' ? 24 : 12;
-                    const d = sb.type === 'earth' ? 24 : 12;
+                    const w = (sb.type === 'earth' || sb.type === 'water') ? 24 : 12;
+                    const d = (sb.type === 'earth' || sb.type === 'water') ? 24 : 12;
                     return Math.abs(snapX - sb.x) < (toolW + w) / 2 - 0.5 && 
                            Math.abs(snapZ - sb.z) < (toolD + d) / 2 - 0.5;
                 });
@@ -3557,6 +3641,28 @@ class UIManager {
       if (el.tagName === 'SELECT' && !el.multiple) {
         el.addEventListener('change', e => {
           this.app.state.current[Config.UI_MAP[id]] = e.target.value;
+          
+          // 【防呆】主水勢改為無水或煞水時，強制清空無效水口陣法 (三叉/半月/羅星等聚氣水法不得與煞水/無水並存)
+          if (id === 'sWater') {
+            const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
+            if (e.target.value === 'none' || shaWaterSet.includes(e.target.value)) {
+              this.app.state.current.shuifa = ['none'];
+              const sfBoxes = Util.$('sShuiFa').querySelectorAll('input');
+              sfBoxes.forEach(cb => cb.checked = (cb.value === 'none'));
+            }
+          }
+          
+          // 【防呆】探頭煞必須依附案山（front=lowcase），若明堂類型改變則移除探頭煞
+          if (id === 'sFront' && e.target.value !== 'lowcase') {
+            const shaArr = this.app.state.current.sha || [];
+            if (shaArr.includes('tantou')) {
+              const newSha = shaArr.filter(v => v !== 'tantou');
+              this.app.state.current.sha = newSha.length ? newSha : ['none'];
+              const shaBoxes = Util.$('sSha').querySelectorAll('input');
+              shaBoxes.forEach(cb => cb.checked = this.app.state.current.sha.includes(cb.value));
+            }
+          }
+          
           this.app.rebuild();
         });
       } else if (el.dataset.multi) {
@@ -3579,6 +3685,28 @@ class UIManager {
               vals = vals.filter(v => v !== 'none');
               el.querySelector('input[value="none"]').checked = false;
             }
+            
+            // 【防呆】煞水/無水時不允許勾選任何水口陣法，避免出現「三叉水法掛在丁字沖煞水」的狀態悖論
+            if (id === 'sShuiFa') {
+              const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
+              if (this.app.state.current.water === 'none' || shaWaterSet.includes(this.app.state.current.water)) {
+                vals = ['none'];
+                Array.from(el.querySelectorAll('input')).forEach(cb => cb.checked = (cb.value === 'none'));
+              }
+            }
+            
+            // 【防呆】探頭煞需要有案山（lowcase）才能成立；若無案山則強制移除該選項
+            if (id === 'sSha' && vals.includes('tantou') && this.app.state.current.front !== 'lowcase') {
+              vals = vals.filter(v => v !== 'tantou');
+              const tantouBox = el.querySelector('input[value="tantou"]');
+              if (tantouBox) tantouBox.checked = false;
+              if (vals.length === 0) {
+                vals = ['none'];
+                const noneBox = el.querySelector('input[value="none"]');
+                if (noneBox) noneBox.checked = true;
+              }
+            }
+            
             this.app.state.current[Config.UI_MAP[id]] = vals;
             this.app.rebuild();
           }
@@ -3671,8 +3799,9 @@ class UIManager {
       st.current.right = pick(['baihu','raise','broken','none']);
       st.current.front = pick(['plaza','lowcase','sunken','rubble','none']);
       
-      // 邏輯改進1：如果無水，則不可能有水口陣法
-      st.current.shuifa = (st.current.water === 'none') ? ['none'] : pickMulti(['none','san cha','banyue','luoxing','huabiao','shixiang','qinxing']);
+      // 邏輯改進1：如果無水或主水為煞水，則不可能有水口陣法（三叉/半月/羅星等聚氣水法）
+      const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
+      st.current.shuifa = (st.current.water === 'none' || shaWaterSet.includes(st.current.water)) ? ['none'] : pickMulti(['none','san cha','banyue','luoxing','huabiao','shixiang','qinxing']);
       
       st.current.star = pick(['metal','wood','water','fire','earth']);
       st.current.hole = pick(['none','wo','qian','ru','tu']);

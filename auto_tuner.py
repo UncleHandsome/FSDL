@@ -180,7 +180,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 "model": model,
                 "messages": conversation_history,
                 "temperature": 0.1,
-                "max_tokens": 65536
+                "max_tokens": 16384
             }
             
             # ⚡ [修復空回覆 Bug] 移除 API 層級的強制 JSON 模式 (response_format)
@@ -216,7 +216,8 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
             # ⚡ [省錢優化] 拔除冗長的 <think> 思考過程，不塞入歷史紀錄，避免 Context 爆炸與無謂 Input 計費
             history_text = re.sub(r'<think>.*?</think>', '', raw_response, flags=re.DOTALL).strip()
 
-            return extracted_json, history_text
+            prompt_tokens = usage.prompt_tokens if usage else 0
+            return extracted_json, history_text, prompt_tokens
             
         except Exception as e:
             error_msg = str(e).lower()
@@ -225,15 +226,15 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
             # ⚡ [防閃退保護] 若觸發 Context Token 上限，強制回傳特殊狀態，讓主循環執行硬重置清空記憶
             if "context_length_exceeded" in error_msg or "context length" in error_msg or "too large" in error_msg:
                 logger.error("🚨 偵測到 Token 歷史爆量！準備緊急觸發硬重置...")
-                return {"status": "CONTEXT_LIMIT", "reason": "歷史 Token 爆量，觸發緊急重置"}, error_msg
+                return {"status": "CONTEXT_LIMIT", "reason": "歷史 Token 爆量，觸發緊急重置"}, error_msg, 0
 
             if attempt < max_retries - 1:
                 sleep_time = (2 ** attempt) + random.random()
                 logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後重試...")
                 time.sleep(sleep_time)
             else:
-                return None, str(e)
-    return None, ""
+                return None, str(e), 0
+    return None, "", 0
 
 # ============================================================
 # 代碼修改套用與回滾 (原子寫入防損毀)
@@ -444,15 +445,18 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
     history_logs = []
     needs_full_snapshot = True
     
-    RESET_EVERY_N_ROUNDS = 50 if "pro" in model.lower() else 25
+    is_pro = "pro" in model.lower()
+    MAX_TOKEN_THRESHOLD = 96000 if is_pro else 48000  # pro 門檻放寬,flash 較早重置
+    should_reset_next = False
 
     for current_round in range(1, max_rounds + 1):
         logger.info(f"\n【 靜態審查 - 第 {current_round}/{max_rounds} 輪 】")
         
-        if current_round > 1 and (current_round - 1) % RESET_EVERY_N_ROUNDS == 0:
-            logger.info(f"🔄 達到 {RESET_EVERY_N_ROUNDS} 輪，重啟對話快照 (確保 AI 不會失憶)...")
+        if should_reset_next:
+            logger.info(f"🔄 偵測到 Token 使用量接近臨界值，自動重啟對話快照...")
             conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True
+            should_reset_next = False
 
         if needs_full_snapshot:
             current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
@@ -466,7 +470,11 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             
         conversation_history.append({"role": "user", "content": user_msg})
         
-        ai_json, raw_text = get_ai_correction_multiturn(client, model, conversation_history, logger)
+        # 共通的 AI 請求與套用邏輯
+        ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+        if prompt_tokens > MAX_TOKEN_THRESHOLD:
+            logger.warning(f"⚠️ 當前 Prompt Token ({prompt_tokens}) 已超過閾值 ({MAX_TOKEN_THRESHOLD})，下一輪將自動重置歷史。")
+            should_reset_next = True
         
         if not ai_json:
             logger.error("解析 AI 回覆失敗，準備下一輪硬重置。")
@@ -584,7 +592,7 @@ def main():
     parser = argparse.ArgumentParser(description="3D 模擬器多輪對話自動 Dry Run 與 AI 修正工具")
     parser.add_argument("--file", type=str, default="3D.html", help="HTML 檔案路徑")
     parser.add_argument("--rounds", type=int, default=125, help="最高執行幾輪修正循環")
-    parser.add_argument("--runs-per-round", type=int, default=15, help="每一輪執行幾次 Dry Run 取樣")
+    parser.add_argument("--runs-per-round", type=int, default=10, help="每一輪執行幾次 Dry Run 取樣")
     parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
     args = parser.parse_args()
@@ -616,11 +624,11 @@ def main():
     # ==========================
     is_pro = "pro" in args.model.lower()
     MAX_ROUNDS = args.rounds
-    # 若為 pro 模型且未手動指定 runs-per-round，預設提高至 30 次
-    RUNS_PER_ROUND = (30 if args.runs_per_round == 15 else args.runs_per_round) if is_pro else args.runs_per_round
+    RUNS_PER_ROUND = args.runs_per_round
     EXAM_RUNS = 50 if is_pro else 25
     SUCCESS_TARGET = 6
-    RESET_EVERY_N_ROUNDS = 50 if is_pro else 25
+    MAX_TOKEN_THRESHOLD = 96000 if is_pro else 48000  # pro 門檻放寬,flash 較早重置
+    should_reset_next = False
     
     consecutive_perfects = 0
     history_logs = []
@@ -651,7 +659,7 @@ def main():
             )
             
             conversation_history.append({"role": "user", "content": retry_prompt})
-            retry_json, retry_raw = get_ai_correction_multiturn(client, model, conversation_history, logger)
+            retry_json, retry_raw, _ = get_ai_correction_multiturn(client, model, conversation_history, logger)
             
             if not retry_json:
                 break
@@ -678,11 +686,12 @@ def main():
         
         # ⚡ 保持 messages[0] 完全不變，維持 Prompt Cache 命中率！
 
-        # 🔄 智慧硬重置：到達 10 輪強制清空歷史
-        if current_round > 1 and (current_round - 1) % RESET_EVERY_N_ROUNDS == 0:
-            logger.info(f"🔄 已達到 {RESET_EVERY_N_ROUNDS} 輪對話上限，正在重啟對話並準備載入最新代碼快照...")
+        # 🔄 Token 自動重置機制
+        if should_reset_next:
+            logger.info(f"🔄 偵測到 Token 使用量接近臨界值，自動重啟對話快照...")
             conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True 
+            should_reset_next = False 
 
         if is_static:
             if needs_full_snapshot:
