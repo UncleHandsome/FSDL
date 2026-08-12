@@ -127,9 +127,9 @@ def run_browser_simulations(html_path, num_runs, logger):
                     page.reload()
                     page.wait_for_timeout(1000)
 
-                # ⚡ [最大化覆蓋率] 改為每次 Dry Run 都點擊隨機生成，確保收集到 15 種完全不同的獨立格局
+                # ⚡ [最大化覆蓋率] 改為每次 Dry Run 都點擊隨機生成，確保收集到完全不同的獨立格局
                 page.click(".preset-btn[data-p='random']")
-                page.wait_for_timeout(800)
+                page.wait_for_timeout(1500) # 延長等待時間，確保 3D 地形、DOM 與變數徹底重建，防止舊數據殘留
                 
                 if page_errors:
                     logger.error(f"❌ 模擬過程發現 JavaScript 執行階段錯誤:\n   {page_errors[0]}")
@@ -415,10 +415,10 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 1. 絕對禁止在 `replace` 中使用 `// ... (省略)` 或 `// 原有代碼保持不變`！你提供的 `replace` 必須是完整且可直接運行的真實代碼，否則系統會崩潰。
 2. `search` 區塊至少需要 5~10 行，必須包含「完整的上下文」，絕不能只有單行代碼（否則會導致多處匹配衝突而失敗）！
 
-如果當前測試數據完美，或經過靜態審查代碼邏輯完美無需修改，請回傳：
+如果當前測試數據「完全沒有任何 WARNING/CRITICAL 異常」，且分數邏輯與風水學理「100% 吻合」，且靜態審查「找不到任何邊界漏洞」，才能回傳 PERFECT（只要你有一絲疑慮、或是看到數據中有任何 anomalies，都必須回傳 MODIFIED 繼續修正）：
 {
   "status": "PERFECT",
-  "reason": "經過分析/靜態審查，物理引擎與代碼邏輯運作完美，各項數值與評價皆符合預期，無需修改。"
+  "reason": "經過極度嚴格分析，物理引擎與代碼邏輯運作完美，無任何拓撲/穿模/數值異常，無需修改。"
 }
 
 如果發現問題需要修改代碼，請回傳：
@@ -620,13 +620,13 @@ def main():
         return
 
     # ==========================
-    # 以下為動靜交替實測循環模式 (3次動態 + 3次靜態)
+    # 以下為動靜交替實測循環模式 (4次動態 + 4次靜態)
     # ==========================
     is_pro = "pro" in args.model.lower()
     MAX_ROUNDS = args.rounds
-    RUNS_PER_ROUND = args.runs_per_round
-    EXAM_RUNS = 50 if is_pro else 25
-    SUCCESS_TARGET = 6
+    RUNS_PER_ROUND = max(args.runs_per_round, 20) # 提高平時取樣基數，加快暴露出問題
+    EXAM_RUNS = 100 if is_pro else 60             # 大幅提升大考壓測量，確保抓出 1% 低機率的 Bug
+    SUCCESS_TARGET = 8                            # 延長考驗階段至 8 關，杜絕幸運過關
     MAX_TOKEN_THRESHOLD = 900000  # 統一拉高門檻以最大化利用 Prompt Cache 省錢
     should_reset_next = False
     

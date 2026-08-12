@@ -3528,7 +3528,7 @@ class World3D {
           this.fpv.pos.x += (Math.sin(this.fpv.yaw) * -dy - Math.cos(this.fpv.yaw) * -dx) * pan;
           this.fpv.pos.z += (Math.cos(this.fpv.yaw) * -dy + Math.sin(this.fpv.yaw) * -dx) * pan;
         } else {
-          this.fpv.yaw-=dx*0.0042; this.fpv.pitch=Util.clamp(this.fpv.pitch-dy*0.0042, -1.4, 1.4); // 擴大上下俯仰至 ±80°
+          this.fpv.yaw-=dx*0.0042; this.fpv.pitch=Util.clamp(this.fpv.pitch-dy*0.0042, -1.55, 1.55); // 放寬上下俯仰角度至近乎垂直 (±88°)
         }
       }
     });
@@ -3603,7 +3603,7 @@ class World3D {
     this.camMode = mode;
     if(mode === 'fs') {
       this.fpv.yaw = this.app.state.current.liqi==='back' ? Math.PI : 0;
-      this.camera.fov = 100; // 人眼雙眼自然視野 (100° 廣角)，擴大左右視野範圍
+      this.camera.fov = 115; // 擴大廣角至 115°，顯著增加上下左右可見視野
     } else {
       this.camera.fov = 55;  // 預設視角恢復原本的 FOV
     }
@@ -3660,7 +3660,7 @@ class World3D {
         this.view.phi = Util.clamp(this.view.phi - rotY * rotSpeed, 0.12, 1.52);
       } else {
         this.fpv.yaw -= rotX * rotSpeed;
-        this.fpv.pitch = Util.clamp(this.fpv.pitch - rotY * rotSpeed, -1.4, 1.4); // 擴大上下俯仰至 ±80°
+        this.fpv.pitch = Util.clamp(this.fpv.pitch - rotY * rotSpeed, -1.55, 1.55); // 放寬上下俯仰角度至近乎垂直 (±88°)
       }
     }
     
