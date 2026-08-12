@@ -828,7 +828,11 @@ const Rules = {
         // 【修正】加入粒子活動門檻：若模擬時間已超過 10 幀（即非初始預熱期），
         // 必須有實際粒子聚氣（gatherAcc > 0）才能判定上吉，否則即使全零感測也可能為假性高分。
         const hasMinParticleActivity = (AppState.gatherAcc >= 1.0);
-        if(effectiveAvg >= 70 && state.xia && state.xue !== 'none' && state.mt && hasCompleteSands && !hasBrokenSands && hasMinParticleActivity && dynRatio >= 0.5 && AppState.gatherAcc > AppState.scatterAcc && AppState.sensors.windSpeed < 3.0 && AppState.sensors.turbulence < 5.0){ 
+        // 【修正】平洋龍得水為上，風勢可容許更高（水界氣則氣不散），避免完美平洋龍因風速略高被誤降級
+        const isPingyangWindExempt = (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu' || state.yue));
+        const windSpeedLimitForLair = isPingyangWindExempt ? 5.0 : 3.0;
+        const windTurbLimitForLair = isPingyangWindExempt ? 6.0 : 5.0;
+        if(effectiveAvg >= 70 && state.xia && state.xue !== 'none' && state.mt && hasCompleteSands && !hasBrokenSands && hasMinParticleActivity && dynRatio >= 0.5 && AppState.gatherAcc > AppState.scatterAcc && AppState.sensors.windSpeed < windSpeedLimitForLair && AppState.sensors.turbulence < windTurbLimitForLair){ 
             // 修正：即使分數高，若存在凶水、嚴重形煞或物理感測器顯示異常（如風速極大但聚氣率低），不應給予上吉評價，改為中平。
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork'].includes(state.w);
             const hasSevereSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.qing || state.posui || state.fenzhi || state.ml === 'ya' || state.mr === 'tai';
@@ -870,7 +874,8 @@ const Rules = {
             else if(!hasSideSands){rating='中平・缺砂受風';color='#3f6b52';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '左右無護砂關攔，兩邊受風，生氣難聚。';}
             else if(dynRatio < 0.4 && totalP > 50){rating='中平・氣場散失';color='#3f6b52';tail='靜態巒頭尚可，但實時風場或形煞導致粒子聚氣率低下。';}
             // 修正：高聚氣但風勢/亂流稍超標時，應明確指出『風勢偏急』，避免誤導為聚散互見
-            else if(AppState.sensors.windSpeed >= 3.0 || AppState.sensors.turbulence >= 5.0){rating='中平・風勢偏急';color='#3f6b52';tail='巒頭氣聚，惟風勢偏急，藏風不足，稍欠完美。';}
+            // 平洋龍得水為上，水界氣則風不散，風速/亂流容忍度應放寬，避免高分平洋龍被誤判
+            else if(AppState.sensors.windSpeed >= (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu' || state.yue) ? 5.0 : 3.0) || AppState.sensors.turbulence >= (state.d === 'pingyang' && (state.w === 'you' || state.w === 'jiuqu' || state.yue) ? 6.0 : 5.0)){rating='中平・風勢偏急';color='#3f6b52';tail='巒頭氣聚，惟風勢偏急，藏風不足，稍欠完美。';}
             else{rating='中平・有瑕';color='#3f6b52';tail=(AppState.frames < 120 && AppState.gatherAcc > 0) ? '巒頭雖美，但風場或粒子尚未凝聚，氣場不穩，需稍待片刻。' : '格局有瑕，聚散互見。';}
         }
         else {
@@ -885,6 +890,10 @@ const Rules = {
         if(AppState.obstacles.length > 0) shaNotes.push(`手動煞氣(${AppState.obstacles.length}處)`);
         if(state.mt && state.qing) shaNotes.push('明堂傾瀉'); if(state.tianzhan) shaNotes.push('天斬煞');
         if(state.ao) shaNotes.push('凹風煞'); if(state.fenzhi) shaNotes.push('枝龍分流');
+        if(state.ml === 'po') shaNotes.push('青龍破碎');
+        if(state.mr === 'po') shaNotes.push('白虎破碎');
+        if(state.ms === 'po') shaNotes.push('朱雀破碎');
+        if(state.mn === 'po') shaNotes.push('玄武破碎');
         if(state.ml === 'ya') shaNotes.push('青龍逼壓'); if(state.mr === 'tai') shaNotes.push('白虎抬頭');
         if(state.w === 'gejiao') shaNotes.push('割腳水'); if(state.w === 'lintou') shaNotes.push('淋頭水');
         if(state.w === 'fan') shaNotes.push('反弓水'); if(state.w === 'bazi') shaNotes.push('八字水');
@@ -3119,11 +3128,6 @@ const Engine3D = {
                         tY -= sinkDepth;
                     }
                 } else if (dzLair >= 37 * state.mtScale && dzLair < scaledMtRadius) {
-                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 10) / 8.0));
-                    smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
-                    let midHallDrop = (3.5 + Math.sin((dzLair - 10) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale * smoothStart;
-                    tY -= midHallDrop;
-                } else if (dzLair >= 37 * state.mtScale && dzLair < scaledMtRadius) {
                     let smoothStart = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / 8.0));
                     smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
                     let progress = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / Math.max(1, scaledMtRadius - 37 * state.mtScale)));
@@ -3540,11 +3544,11 @@ const Engine3D = {
                 if (dRColor < 22.0) isActualRiverChannel = true;
             }
 
-            if (isActualRiverChannel && y < -10.0) {
-                // 真正的河床過渡：僅在河道溝槽內部著色深沉青墨色
-                let depth = Math.max(0, Math.min(1.0, (-10.0 - y) / 15.0));
-                c.setRGB(0.05 + depth * 0.05, 0.20 - depth * 0.1, 0.25 - depth * 0.1); 
-            } else {
+                if (isActualRiverChannel && y < -10.0) {
+                    // 真正的河床過渡：僅在河道溝槽內部著色深沉青墨色
+                    let depth = Math.max(0, Math.min(1.0, (-10.0 - y) / 15.0));
+                    c.setRGB(0.05 + depth * 0.05, 0.20 - depth * 0.1, 0.25 - depth * 0.1);
+                } else {
                 // 陸地山坡與谷底：依海拔與坡度渲染自然植被（綠色/褐色/岩石），徹底解決海洋視覺 BUG
                 if (nH < 0.28) {
                     let t = nH / 0.28;
@@ -4353,7 +4357,7 @@ const Physics = {
                 }
             }
 
-            let isInCaveZone = (z > -30 && z < 25 && Math.abs(x) < 35); 
+            let isInCaveZone = (dzTaiji > -30 && dzTaiji < 25 && Math.abs(dxTaiji) < 35); 
             // 修正：死龍/破龍為絕地，不得有穴星聚氣機制，即使存在 xia 與穴形，也禁止任何吉氣轉化
             if (state.xia && state.d !== 'si' && state.d !== 'po' && isInCaveZone && y < t.y + 25) {
                 // 修正 3：高山突穴忘了檢查「是否缺砂」。補上條件，僅在無青龍白虎護衛時才引爆粒子 (高山孤突煞)。
@@ -4426,15 +4430,15 @@ const Physics = {
                         let woSync = (state.xing === 'jin' || state.xing === 'shui') ? 1.8 : 1.0;
                         vel.x += t.nx * 1.2 * woSync * dt;
                         vel.z += t.nz * 1.2 * woSync * dt;
-                        vel.x += (0 - x) * 0.08 * (woSync - 1.0) * dt;
-                        vel.z += (-5 - z) * 0.08 * (woSync - 1.0) * dt;
+                        vel.x += (-dxTaiji) * 0.08 * (woSync - 1.0) * dt;
+                        vel.z += (-dzTaiji) * 0.08 * (woSync - 1.0) * dt;
                         vel.multiplyScalar(Math.pow(0.85, dt)); 
                         if (woSync > 1.0 && st === 0 && Math.random() < 0.15 * dt) {
                             this.pState[i] = 2; 
                             this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.95; this.pCol[i*3+2] = 0.6;
                         }
                     } else if ((state.xue === 'tu' || state.xue === 'ru') && state.d === 'pingyang') {
-                        if (z > -20 && z < 20 && Math.abs(x) < 25) {
+                        if (dzTaiji > -20 && dzTaiji < 20 && Math.abs(dxTaiji) < 25) {
                             vel.multiplyScalar(Math.pow(0.15, dt)); 
                             vel.y -= 0.3 * dt; 
                             if (st === 0 || st === 3) {
@@ -4445,8 +4449,8 @@ const Physics = {
                         }
                     } else if (state.xue === 'ru') {
                         let ruSync = (state.xing === 'mu' || state.xing === 'tu') ? 1.5 : 1.0;
-                        vel.x += (0 - x) * 0.02 * ruSync * dt; 
-                        vel.z += (10 - z) * 0.02 * ruSync * dt;
+                        vel.x += (-dxTaiji) * 0.02 * ruSync * dt; 
+                        vel.z += (5 - dzTaiji) * 0.02 * ruSync * dt;
                         vel.multiplyScalar(Math.pow(0.95 - (ruSync - 1.0) * 0.05, dt)); 
                         
                         if (ruSync > 1.0 && st === 0 && Math.random() < 0.12 * dt) {
@@ -4465,7 +4469,7 @@ const Physics = {
                         }
                     } else if (state.xue === 'ya') {
                         // 崖穴：氣流急促，撞擊背後峭壁後形成強烈逆流旋渦駐留
-                        vel.x += (0 - x) * 0.05 * dt;
+                        vel.x += (-dxTaiji) * 0.05 * dt;
                         vel.z -= 5.0 * dt; // 貼壁逆流
                         vel.multiplyScalar(Math.pow(0.75, dt));
                         if (st === 0 && Math.random() < 0.2 * dt) {
@@ -4474,7 +4478,7 @@ const Physics = {
                         }
                     }
 
-                    if (state.xia && state.xue !== 'none' && z >= -8 && z <= 12 && Math.abs(x) <= 12) {
+                    if (state.xia && state.xue !== 'none' && dzTaiji >= -8 && dzTaiji <= 12 && Math.abs(dxTaiji) <= 12) {
                         vel.multiplyScalar(Math.pow(0.40, dt)); 
                         vel.y -= 0.2 * dt; 
                         if (st === 0) {
@@ -4488,7 +4492,7 @@ const Physics = {
                         vel.x += Math.sin(z * 0.1 + AppState.frames * 0.08) * 1.2 * dt;
                         vel.multiplyScalar(Math.pow(0.82, dt));
                     } else if (state.xing === 'jin') {
-                        vel.x += (0 - x) * 0.08 * dt;
+                        vel.x += (-dxTaiji) * 0.08 * dt;
                         vel.multiplyScalar(Math.pow(0.78, dt));
                         vel.y -= 0.15 * dt;
                     } else if (state.xing === 'tu') {
