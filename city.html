@@ -1080,13 +1080,14 @@ class FengShuiEngine {
     // 水聚增加容量，水散減少容量，但限制在合理範圍
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
     c = Math.round(capacityBase + capacityAdjust);
-    // 【修正】僅有實際明堂時，前方完全空曠才補償容量；無明堂（front=none）時收氣能力應顯著降低
-    if (vFront < 1 && st.front !== 'none') c = Math.max(c, 120);
+    // 【第52輪修正】僅有實際可聚氣的明堂（plaza 或 lowcase）才給予空曠補償；低陷/破碎/空無皆屬明堂已破，不應因前方無高樓而拉高容量，避免「明堂已破卻有高容量」之狀態悖論
+    const validMingtang = st.front === 'plaza' || st.front === 'lowcase';
+    if (vFront < 1 && validMingtang) c = Math.max(c, 120);
     // 確保容量不低於20，不高於150，但若明堂極度開闊且水聚，可允許較高容量
     c = Math.max(20, Math.min(150, c));
     // 修正：若明堂開闊且無明顯煞氣，容量不應過低，避免吉氣被不合理壓制
-    if (vFront < 50 && s < 30 && st.front !== 'none') c = Math.max(c, 60);
-    if (vFront < 50 && st.front !== 'none') g += 15; // 僅有明堂時，開闊才有加分
+    if (vFront < 50 && s < 30 && validMingtang) c = Math.max(c, 60);
+    if (vFront < 50 && validMingtang) g += 15; // 僅有實際明堂時，開闊才有加分
     // 【修正】若無水且無特殊聚氣佈局，容量不應過低，避免吉氣被不合理壓制
     if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing')) {
         c = Math.max(c, 40);
@@ -1103,8 +1104,8 @@ class FengShuiEngine {
     if (st.water === 'none' || isShaWater) {
         c = Math.max(c, 40);
     }
-    // 【新增】若明堂開闊且無煞氣，容量不應過低，避免吉氣被不合理壓制（無明堂時不適用）
-    if (vFront < 50 && s < 30 && st.front !== 'none') {
+    // 【第52輪修正】僅有實際明堂才補償容量，明堂已破時不應因開闊而拉高容量
+    if (vFront < 50 && s < 30 && validMingtang) {
         c = Math.max(c, 60);
     }
     // 【新增】若地形為平坦且水勢為煞水，容量應降低，反映氣散，但僅在有水時
@@ -1124,8 +1125,8 @@ class FengShuiEngine {
         if (!waterBroken && st.water !== 'none' && !isShaWaterForLiqi) {
             // 【第10輪修正】若虛水大量外洩，理氣成效應打折，避免與「傾瀉散氣」矛盾
             const waterEscaped = waterTestRan && escapedDrops > 25;
-            // 【第43輪修正】明堂破敗時，理氣水向吉凶皆不應實質生效，改為中性描述，避免與「明堂已破」矛盾
-            if (fengShuiContextBroken) {
+            // 【第53輪修正】區分「實體明堂破敗」與「重煞壓迫」：實體破敗時理氣完全失效；重煞壓迫時仍保留部分水向吉凶影響，避免重煞抹除所有地理術數
+            if (mingTangBroken) {
                 if (st.waterDir === 'reverse' && !waterEscaped) {
                     observerText.push(`理氣｜逆水朝迎，但${brokenContextDesc}，朝迎之勢無法凝聚 (湧現抑制: 理氣失效)`);
                 } else if (st.waterDir === 'wang') {
@@ -1133,6 +1134,15 @@ class FengShuiEngine {
                 } else if (st.waterDir === 'shuai') {
                     observerText.push(`理氣｜衰水之向，加上${brokenContextDesc}，衰氣更難制化 (湧現抑制: 理氣失效)`);
                 }
+            } else if (fengShuiContextBroken && st.waterDir === 'shuai') {
+                s += 12; c = Math.max(20, c - 10);
+                observerText.push(`理氣｜衰水之向，且受重煞壓迫，衰氣更難制化，煞氣加重`);
+            } else if (fengShuiContextBroken && st.waterDir === 'wang') {
+                g += 5; c += 8;
+                observerText.push(`理氣｜旺水迎朝，雖受重煞壓迫，仍部分收納旺氣`);
+            } else if (fengShuiContextBroken && st.waterDir === 'reverse' && !waterEscaped) {
+                g += 10; c += 6;
+                observerText.push(`理氣｜逆水朝迎，雖受重煞壓迫，朝迎之勢仍勉強凝聚`);
             } else if (st.waterDir === 'shuai') {
                 s += 20; g -= 15; c = Math.max(20, c - 20);
                 observerText.push(`理氣｜衰來旺去：收衰氣而洩旺氣，主退財敗運`);
@@ -1140,14 +1150,15 @@ class FengShuiEngine {
                 if (waterEscaped) {
                     observerText.push(`理氣｜逆水朝迎：但地勢傾斜水氣外洩，朝迎之勢渙散，反成虛水`);
                 } else {
-                    g += 20; c += 15;
-                    observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`);
+                    if (fengShuiContextBroken) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：強勢收納來水，但受重煞壓迫，吉氣折半`); }
+                    else { g += 20; c += 15; observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`); }
                 }
             } else if (st.waterDir === 'wang') {
                 if (waterEscaped) {
                     observerText.push(`理氣｜旺水迎朝：但水氣外洩，旺氣難收`);
                 } else {
-                    g += 10;
+                    if (fengShuiContextBroken) { g += 5; c += 8; observerText.push(`理氣｜旺水迎朝：雖受重煞壓迫，仍部分收納旺氣`); }
+                    else g += 10;
                 }
             }
         } else {
@@ -1886,8 +1897,9 @@ class FengShuiEngine {
         const quantumPhrase = '量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；';
         wuXingText = wuXingText.split(quantumPhrase).join('');
     }
-    // 【第49輪修正】最終重煞標記與推播同步：若最終判定為重煞，但尚未輸出「重煞壓制」文字，則補上，避免 isHeavySha=true 卻無對應物理描述的矛盾
-    const finalHeavySha = heavyShaForErosion || (hasHardSha && s >= 80);
+    // 【第54輪修正】最終重煞標記需以最終 s 重新判定，避免熵/閉合度懲罰將 s 推過 80 時仍未被標記，導致 isHeavySha 與最終數值矛盾
+    const finalHasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','pylon','glass','qingquan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 80);
+    const finalHeavySha = heavyShaForErosion || (finalHasHardSha && s >= 80);
     if (finalHeavySha && !physicsText.some(t => t.includes("重煞壓制"))) {
         physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
     }
@@ -1927,7 +1939,7 @@ class FengShuiEngine {
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:34,dx:0,dz:-1,w:16,pw:8,len:28});
-    if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft'))A.push({x:13,z:84,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
+    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:95,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
     // 現代煞氣源
     if(st.sha.includes('glass'))A.push({x:0,z:100,dx:0,dz:-1,w:18,pw:14,len:100});
     if(st.sha.includes('walledge'))A.push({x:-15,z:60,dx:0,dz:-1,w:28,pw:10,len:60});
@@ -2162,6 +2174,12 @@ class CityBuilder {
     this.blds.length = 0;
     this.curves.length = 0;
     this.fountainBeam = null;
+    // 【第7輪靜態審查】清除動態引用，避免訪問已 dispose 的材質/幾何造成錯誤
+    this.mainCore = null;
+    this.beacon = null;
+    this.luopanMesh = null;
+    this.shieldMesh = null;
+    this.taijiGroup = null;
   }
   drawWaterTopology(paths) {
       this.dropsGroup.traverse(c => {
@@ -2366,8 +2384,10 @@ class CityBuilder {
       this.decoBox(w, h, d, x, z, colors[Math.floor(rnd() * colors.length)]);
     }
   }
-  ribbon(c, w, mat, edge, bad) {
+  ribbon(c, w, mat, edge, bad, isWater = false) {
     const N=160, pts=c.getPoints(N), left=[], right=[];
+    // 【第9輪靜態審查】自動將水色材質(0x12283e)標記為水景，避免車輛在水上行駛
+    const waterTrail = isWater || (mat === 0x12283e);
     for(let i=0;i<=N;i++){
       const p=pts[i], q=pts[Math.min(i+1,N)], o=pts[Math.max(i-1,0)];
       let tx=q.x-o.x, tz=q.z-o.z; const L=Math.hypot(tx,tz)||1; tx/=L; tz/=L;
@@ -2387,15 +2407,16 @@ class CityBuilder {
     const mk=a=>{const gg=new THREE.BufferGeometry().setFromPoints(a.map(p=>Util.v3(p.x,p.y+0.12,p.z)));
       this.group.add(new THREE.Line(gg,new THREE.LineBasicMaterial({color:edge||0x6688aa,transparent:true,opacity:.85})));};
     mk(left); mk(right);
-    this.curves.push({pts:c.getPoints(240),len:c.getLength(),bad:!!bad});
+    this.curves.push({pts:c.getPoints(240),len:c.getLength(),bad:!!bad,type:waterTrail?'water':'road'});
   }
   elevated(arr, bad) {
     const c=Util.curve3(arr); this.ribbon(c,6,0x182a44,0x3377bb,bad);
     const n=Math.floor(c.getLength()/22);
     for(let i=1;i<n;i++){
       const p=c.getPointAt(i/n);
+      const ty=Util.terrainY(p.x, p.z, this.currentTerrain || 'flat');
       const pm=new THREE.Mesh(new THREE.BoxGeometry(1.6,p.y,1.6),new THREE.MeshLambertMaterial({color:Util.brighten(0x22364f)}));
-      pm.position.set(p.x,p.y/2,p.z); this.group.add(pm);
+      pm.position.set(p.x, ty + p.y/2, p.z); this.group.add(pm);
     }
   }
   poolCrescent(x,z,rIn,rOut) {
@@ -2634,9 +2655,9 @@ class CityBuilder {
       fist.position.set(0,17,34);this.group.add(fist);
       this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,26,34));
     }
-    if(st.sha.includes('tantou') && st.front === 'lowcase' && !st.sha.includes('windshaft')){
-      this.box(14,28,10,13,84);
-      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,84));
+    if(st.sha.includes('tantou') && st.front === 'lowcase'){
+      this.box(14,28,10,13,95);
+      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,95));
     }
     // 現代擴充煞氣
     if(st.sha.includes('glass')){
@@ -3226,6 +3247,8 @@ class ParticleSystem {
     const pos=new Float32Array(this.TMAX*3), col=new Float32Array(this.TMAX*3);
     let n=0;
     for(const c of curves){
+      // 【第9輪靜態審查】跳過水景曲線，避免車流在水面上行駛
+      if (c.type === 'water') continue;
       const k=Util.clamp(Math.round(c.len/5),8,160);
       const cr=c.bad?0.9:0.1, cg=c.bad?0.1:0.5, cb=c.bad?0.1:0.8;
       for(let i=0;i<k && n<this.TMAX; i++,n++){
@@ -3829,6 +3852,12 @@ class UIManager {
       validSha.unshift('none'); // 放回 none 讓 pickMulti 處理機率
       st.current.sha = pickMulti(validSha, 2); // 形煞最多抽2個避免過度混亂
 
+      // 【第6輪防呆】探頭煞必須依附案山，隨機生成若無案山則強制移除
+      if (st.current.front !== 'lowcase' && st.current.sha.includes('tantou')) {
+          st.current.sha = st.current.sha.filter(v => v !== 'tantou');
+          if (st.current.sha.length === 0) st.current.sha = ['none'];
+      }
+
       // 邏輯改進3：如果無龍脈，則不可能有依附龍脈的特殊地形 (束氣峽、蜂腰、護龍、鬼曜)
       let spChoices = ['taiji','qingxie','guanxing','chaoshan','shuqi','fengyao','hulong','guiyao'];
       if (st.current.dragon === 'none') {
@@ -4157,9 +4186,9 @@ const DryRunTool = {
     const getGlobalY = (x, z) => {
         let y = getGeoZ(x, z);
         for(let b of app.builder.blds) {
-            if(!b.isWater && Math.abs(x - b.x) < b.w/2 && Math.abs(z - b.z) < b.d/2) {
-                // 修正：使用 getGeoZ 統一天際線計算，納入傾瀉/低陷特殊地形，避免建築頂部被低估
-                y = Math.max(y, (b.y || 0) + b.h + getGeoZ(b.x, b.z)); 
+            if(!b.isWater && Math.abs(x - b.x) <= b.w/2 && Math.abs(z - b.z) <= b.d/2) {
+                // 【第5輪修正】建築物實際放置於 Util.terrainY 高程，而非 getGeoZ（後者額外含傾瀉/低陷特殊地形），修正案山與龍虎在斜坡/傾瀉被低估之問題
+                y = Math.max(y, (b.y || 0) + b.h + Util.terrainY(b.x, b.z, st.terrain)); 
             }
         }
         return y;
@@ -4179,7 +4208,8 @@ const DryRunTool = {
     const skyline = { N:-99, NE:-99, E:-99, SE:-99, S:-99, SW:-99, W:-99, NW:-99 };
     const dirs = { N:[0,-1], NE:[0.7,-0.7], E:[1,0], SE:[0.7,0.7], S:[0,1], SW:[-0.7,0.7], W:[-1,0], NW:[-0.7,-0.7] };
     for (let d in dirs) {
-        for (let dist = 10; dist <= 80; dist += 10) {
+        // 【第4輪修正】掃描起點自 25 單位起，避開主樓半徑，避免八方雷達被自身建築遮蔽
+        for (let dist = 25; dist <= 80; dist += 2) {
             let sy = getGlobalY(dirs[d][0] * dist, dirs[d][1] * dist);
             if (sy > skyline[d]) skyline[d] = Math.round(sy);
         }
@@ -4196,8 +4226,10 @@ const DryRunTool = {
             // AABB 碰撞偵測 (Axis-Aligned Bounding Box)
             if (Math.abs(b1.x - b2.x) < (b1.w + b2.w)/2 - 0.5 && Math.abs(b1.z - b2.z) < (b1.d + b2.d)/2 - 0.5) {
                 // 如果 Y 軸也有重疊才算真穿模
-                let b1Base = b1.y || 0; let b2Base = b2.y || 0;
-                if (b1Base < b2Base + b2.h && b1Base + b1.h > b2Base) {
+            // 如果 Y 軸也有重疊才算真穿模 (修正：加入地形高度，避免斜坡/盆地被誤判)
+            let b1Base = (b1.y || 0) + Util.terrainY(b1.x, b1.z, st.terrain);
+            let b2Base = (b2.y || 0) + Util.terrainY(b2.x, b2.z, st.terrain);
+            if (b1Base < b2Base + b2.h && b1Base + b1.h > b2Base) {
                     intersectingBlds++;
                 }
             }
