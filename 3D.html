@@ -339,6 +339,12 @@ const Rules = {
         if(state.ms === 'sunken') m *= 0.6; // 明堂深坑，氣場下沉完全漏失
         // 主客失衡 (逼壓欺主)：主山太高而明堂太小，氣場狂躁
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) m *= 0.65;
+
+        // 【修正：砂手破碎全域懲罰】青龍白虎朱雀玄武四獸皆破則八風直灌，絕不可用。
+        // 未加入此懲罰前，全破碎砂手仍可能因龍穴水向高分而獲得中平評價，與風水常理矛盾。
+        const brokenSandCount = (state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0);
+        if (brokenSandCount >= 2) m *= 0.4;
+        else if (brokenSandCount === 1) m *= 0.7;
 		
         // 置煞空間權重計算：距離穴心 (0, 0, 5) 越近，煞氣威力呈指數級上升
         if(AppState.obstacles.length > 0) {
@@ -1307,7 +1313,13 @@ const DryRunTool = {
 		const riverY = Engine3D.getTerrainY(0, 30).y;
 
 		// 1. 生成生效形煞結構化清單 (activeShaList)
+        // 1. 生成生效形煞結構化清單 (activeShaList)
         const activeShaList = [];
+        // 【修正：補齊四獸破碎形煞】破碎砂手是極嚴重之砂煞，應列入形煞清單供 AI 診斷，避免被忽略。
+        if (st.ml === 'po') activeShaList.push('青龍破碎');
+        if (st.mr === 'po') activeShaList.push('白虎破碎');
+        if (st.ms === 'po') activeShaList.push('朱雀破碎');
+        if (st.mn === 'po') activeShaList.push('玄武破碎');
         if (st.tianzhan) activeShaList.push('天斬煞');
         if (st.ao) activeShaList.push('凹風煞');
         if (st.qingquan) activeShaList.push('擎拳煞');
@@ -1345,14 +1357,17 @@ const DryRunTool = {
         }
 
 		// 3. 計算容量利用率與物理收斂指標 (physicsStability)
-		const capLimit = Rules.getCapacityLimit();
-		const totalP = AppState.gatherAcc + AppState.scatterAcc;
-		const physicsStability = {
-			capacityLimit: Math.round(capLimit),
-			capacityUtilization: capLimit > 0 ? Number((AppState.gatherAcc / capLimit * 100).toFixed(1)) + "%" : "0%",
-			gatherRatio: totalP > 0 ? Number((AppState.gatherAcc / totalP * 100).toFixed(1)) + "%" : "0%",
-			particleCount: Physics.pCount
-		};
+        const capLimit = Rules.getCapacityLimit();
+        // 【修正】使用整數化的聚散統計值，避免極小浮點殘值導致 gatherRatio 出現「幽靈 100%」的誤導數據
+        const intGather = Math.round(AppState.gatherAcc);
+        const intScatter = Math.round(AppState.scatterAcc);
+        const totalP = intGather + intScatter;
+        const physicsStability = {
+            capacityLimit: Math.round(capLimit),
+            capacityUtilization: capLimit > 0 ? Number((intGather / capLimit * 100).toFixed(1)) + "%" : "0%",
+            gatherRatio: totalP > 0 ? Number((intGather / totalP * 100).toFixed(1)) + "%" : "0%",
+            particleCount: Physics.pCount
+        };
 
 		const resultData = {
 			presetName: st.presetName || 'current',
@@ -1608,7 +1623,7 @@ const UI = {
                     const val = parseInt(e.target.value) / 10.0;
                     if(id === 'zhu') AppState.current.zhuScale = val;
                     if(id === 'mt') AppState.current.mtScale = val;
-                    if(id === 'wvel') AppState.current.waterVel = (parseInt(e.target.value) === 5 ? 1.0 : val * 2.0); // 1.0為基準，最高5倍流速
+                    if(id === 'wvel') AppState.current.waterVel = Math.max(1.0, parseInt(e.target.value) * 0.2); // 修正：滑桿值5→1.0、10→2.0、20→4.0，並確保最小為1.0
                     
                     document.getElementById(`${id}-val`).innerText = (id === 'wvel') ? `x${AppState.current.waterVel.toFixed(1)}` : val.toFixed(1);
                     this.update(true); // 觸發地形與物理重繪
@@ -1765,6 +1780,8 @@ const UI = {
         // 【修正：無水格局不可有隨龍水】隨龍水是真實界水，若無水則不得存在，避免地形挖出乾溝卻無水體的矛盾
         if (s.w === 'none' && s.suilong !== 'none') { s.suilong = 'none'; autoChanged = true; }
         if (!s.an && (s.ms === 'bijia' || s.ms === 'you')) { s.ms = 'none'; autoChanged = true; } // 無案山則無法成形
+        // 【修正：無明堂不可能有「明堂深坑」】明堂深坑必須依賴明堂實體存在，否則即為狀態悖論，應強制清除。
+        if (!s.mt && s.ms === 'sunken') { s.ms = 'none'; autoChanged = true; }
         
         // 【修正：平洋龍穴形防呆】平洋龍為平原，不可能有懸崖峭壁的崖穴，強制改為突穴或無穴
         if (s.d === 'pingyang' && s.xue === 'ya') {
@@ -2656,8 +2673,8 @@ const Engine3D = {
                 let lz_ping = state.manualXue ? (state.xueZ || 5.0) : 5.0; // 平洋 xueHeight 恆為 0
                 if (Math.abs(x - lx_ping) < 25 && Math.abs(z - lz_ping) < 25) {
                     // 修正：平洋龍穴形微地形應符合風水形狀——「突穴/乳穴」為平洋一突勝千峰（隆起），
-                    // 而「窩穴/鉗穴」應呈現微凹或平坦，不應再生成不合理的突丘。
-                    let knollBoost = (state.xue === 'tu' || state.xue === 'ru') ? 12.0 : (state.xue === 'wo' || state.xue === 'qian' ? -0.8 : 1.0);
+                    // 但高度應適中（約 5 單位），避免過度突出導致地形與「平洋」語義矛盾。
+                    let knollBoost = (state.xue === 'tu' || state.xue === 'ru') ? 5.0 : (state.xue === 'wo' || state.xue === 'qian' ? -0.8 : 1.0);
                     microTopo += knollBoost * Math.exp(-(Math.pow(x - lx_ping, 2) + Math.pow(z - lz_ping, 2))/250); 
                 }
 
@@ -4058,6 +4075,13 @@ const Physics = {
                     sumVelX += vel.x; sumVelY += vel.y; sumVelZ += vel.z; // 納入 Y 軸
                     sumSpeedSq += vel.lengthSq();
                 }
+                // 【修正：聚氣計數不應被太極暈開關鎖死】只要吉氣粒子位於穴場感測範圍，即應計為聚氣，
+                // 否則當 taiji=false 時，qiDensity 極高但 gatherAcc 永遠為 0，造成感測器與評分系統矛盾。
+                // 同時避免與太極暈區塊重複計數：僅在 taiji=false 時由感測器計數，taiji=true 時由太極暈邏輯計數。
+                if (!state.taiji) {
+                    if (st === 2) frameGather++;
+                    else if (st === 1 || st === 3) frameScatter++;
+                }
             }
             // 修正 4：水力感測器應依據格局地形給予動態深水閥值。
             // 平洋龍陸地為 -2.0，水面為 -3.0，必須將感測線下放至 -2.5 才能排除陸地上的誤判。
@@ -5080,8 +5104,11 @@ const Physics = {
                             this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.65; this.pCol[i*3+2]=0.9;
                         }
                     } else {
-                        frameGather++;
-                        if (st === 2) frameGather += 2; // 只有安穩留在陸地上的吉氣，才給予聚氣加分
+                        // 修正：僅有吉氣 (st=2) 或普通氣 (st=0) 才計入聚氣，避免煞氣/散氣被同時重複計入聚散統計
+                        if (st === 0 || st === 2) {
+                            frameGather++;
+                            if (st === 2) frameGather += 2; // 只有安穩留在陸地上的吉氣，才給予聚氣加分
+                        }
                     }
                     
                     let isYang = (i % 2 === 0);
@@ -5407,7 +5434,11 @@ const Physics = {
             if (this.qiGrid[j] > maxQi) { maxQi = this.qiGrid[j]; }
             totalQi += this.qiGrid[j];
         }
-        if (totalQi > 0.0001) {
+        // 統計有效門檻：若吉氣累積量過低（例如僅單一粒子在單一格點短暫駐留），
+        // 熵計算會因樣本不足而產生假性完美凝聚（熵=0），與 gatherAcc=0 的評分矛盾。
+        // 因此必須設定最小統計量，低於此值一律視為氣場渙散（熵=12）。
+        const MIN_QI_FOR_ENTROPY = 1.0;
+        if (totalQi > MIN_QI_FOR_ENTROPY) {
             for (let j = 0; j < 4096; j++) {
                 if (this.qiGrid[j] > 0) {
                     let prob = this.qiGrid[j] / totalQi;
@@ -5415,9 +5446,7 @@ const Physics = {
                 }
             }
         } else {
-            // 【修復邏輯悖論】若完全沒有吉氣凝聚，空間熵應為最大值 12（等同於隨機均勻分布），
-            // 而不是維持 0。因為 0 代表「完美凝聚」，會與 gatherAcc=0 的評分產生嚴重矛盾。
-            // 這樣大凶格局的熵值將正確反映氣場渙散，避免 AI 診斷被假性完美的熵值誤導。
+            // 若吉氣累積量低於統計門檻，代表實際上無有效氣場凝聚，熵值設為最大值 12。
             spatialEntropy = 12.0;
         }
         AppState.sensors.shannonEntropy = spatialEntropy;
