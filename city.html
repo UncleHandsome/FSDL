@@ -385,6 +385,32 @@ class FengShuiEngine {
         st.sha = st.sha.filter(v => v !== 'tantou');
         if (st.sha.length === 0) st.sha = ['none'];
     }
+    // 【第14輪靜態審查】防止「無」與「有」同時存在於多選陣列，造成 UI 與物理計算矛盾
+    if (Array.isArray(st.sha) && st.sha.includes('none') && st.sha.some(v => v !== 'none')) {
+        st.sha = st.sha.filter(v => v !== 'none');
+        if (st.sha.length === 0) st.sha = ['none'];
+    }
+    if (Array.isArray(st.special) && st.special.includes('none') && st.special.some(v => v !== 'none')) {
+        st.special = st.special.filter(v => v !== 'none');
+        if (st.special.length === 0) st.special = ['none'];
+    }
+    if (Array.isArray(st.cure) && st.cure.includes('none') && st.cure.some(v => v !== 'none')) {
+        st.cure = st.cure.filter(v => v !== 'none');
+        if (st.cure.length === 0) st.cure = ['none'];
+    }
+    // 【第15輪靜態審查】水法陣列同樣防止「無」與「有」共存，避免物理與 UI 不一致
+    if (Array.isArray(st.shuifa) && st.shuifa.includes('none') && st.shuifa.some(v => v !== 'none')) {
+        st.shuifa = st.shuifa.filter(v => v !== 'none');
+        if (st.shuifa.length === 0) st.shuifa = ['none'];
+    }
+    // 【第15輪靜態審查】無龍脈時，自動移除依賴龍脈的特殊佈局（束氣、蜂腰、護龍、鬼曜），確保狀態乾淨
+    if (st.dragon === 'none' && Array.isArray(st.special)) {
+        const dependentSpecial = ['shuqi','fengyao','hulong','guiyao'];
+        const filteredSpecial = st.special.filter(v => !dependentSpecial.includes(v));
+        if (filteredSpecial.length !== st.special.length) {
+            st.special = filteredSpecial.length ? filteredSpecial : ['none'];
+        }
+    }
 
     let g = 0, s = 0, c = 40;
 
@@ -1426,7 +1452,7 @@ class FengShuiEngine {
     }
 
     // 【修正】補回特殊佈局 (Special Layouts) 的空間補償效應
-    if (!fengShuiContextBroken && !waterBroken && st.special.includes('hulong')) {
+    if (!fengShuiContextBroken && !waterBroken && st.dragon !== 'none' && st.special.includes('hulong')) {
       const leftGood = st.left === 'qinglong';
       const rightGood = st.right === 'baihu';
       if (leftGood && rightGood) {
@@ -1446,8 +1472,12 @@ class FengShuiEngine {
             observerText.push(`空間｜護龍佈局但左右砂皆非有情，未成形`);
         }
     } else if (st.special.includes('hulong')) {
-        const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
-        observerText.push(`空間｜護龍夾送佈局雖設，但${suppressDesc}，護佑失效 (湧現抑制: 護龍失效)`);
+        if (st.dragon === 'none') {
+            observerText.push(`空間｜護龍夾送佈局雖設，但無龍脈可依，未能成形`);
+        } else {
+            const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
+            observerText.push(`空間｜護龍夾送佈局雖設，但${suppressDesc}，護佑失效 (湧現抑制: 護龍失效)`);
+        }
     }
     const hasChaoshanGuanxing = !st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'));
     if (!fengShuiContextBroken && !waterBroken && hasChaoshanGuanxing) {
@@ -1456,7 +1486,7 @@ class FengShuiEngine {
         const suppressDesc = waterBroken ? '水局已破' : (fengShuiContextBroken ? brokenContextDesc : '環境動能過強');
         observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但${suppressDesc}，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
     }
-    if (st.special.includes('shuqi')) {
+    if (st.special.includes('shuqi') && st.dragon !== 'none') {
         // 氣躍/水躍現象 (Hydraulic Jump)
         let froudeNumber = extWindSpeed / Math.sqrt(9.8 * 2.0); // 簡化弗勞德數
         // 【修正】明堂破敗或水局已破時，束氣結穴吉訊不應湧現，避免與水破風煞等大凶矛盾
@@ -1476,6 +1506,8 @@ class FengShuiEngine {
                 observerText.push(`動力學｜束氣峽：地形壓縮管槽效應，使明堂內的吉氣爆發倍增`);
             }
         }
+    } else if (st.special.includes('shuqi')) {
+        observerText.push(`流體力學｜束氣峽佈局雖設，但無龍脈可依，未能成形`);
     }
     // 【第 23.2 輪修正】補上文字推播，並以實體後方建築數量與阻抗閾值嚴格把關，避免小型裝飾誤觸發
     if (!fengShuiContextBroken && !waterBroken && (st.special.includes('fengyao') || st.special.includes('guiyao')) && st.dragon !== 'none' && backBuildingCount > 0 && hasBackSupport && backImpedance > 2.0) {
@@ -1757,7 +1789,8 @@ class FengShuiEngine {
     
     // 【進化：WKB 量子穿隧效應 UI 日誌 (Batch 7)】
     // 【第6輪靜態審查修正】physicsText 宣告在後方，此處改為操作 observerText，避免 TDZ ReferenceError
-    if (!fengShuiContextBroken && !waterBroken && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
+    // 【第10輪靜態審查修正】束氣/蜂腰皆需龍脈存在，無龍脈時不得觸發穿隧吉氣
+    if (!fengShuiContextBroken && !waterBroken && st.dragon !== 'none' && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
         let barrier = st.special.includes('fengyao') ? '蜂腰' : '束氣';
         observerText.push(`量子力學｜WKB 近似穿隧效應：${barrier}極薄勢壘引發機率波躍遷，粒子無視剛體阻礙，直接穿透至太極暈核心！(自然湧現: 過峽脫煞)`);
         g += 15; // 躍遷成功額外賦予高能吉氣
@@ -1861,9 +1894,10 @@ class FengShuiEngine {
     // 【第 27 輪修正】去除五行分析文字前導的連接符，避免 UI 開頭出現「｜」的格式異常
     wuXingText = wuXingText.replace(/^｜/, '');
 
-    // 【第 7 輪診斷修正】高熵與低拓撲閉合度代表氣場混亂、漏風，不得與高吉分共存；並區分觸發來源以便文字準確
-    const entropyPenalty = spatialEntropy > 6.2 ? Math.round((spatialEntropy - 6.2) * 12) : 0;
-    const closurePenalty = betti1Closure < 0.15 ? Math.round((0.15 - betti1Closure) * 20) : 0;
+    // 【第 2 輪 Dry Run 修正】高熵與低拓撲閉合度代表氣場混亂、漏風，不得與高吉分共存；並區分觸發來源以便文字準確
+    // 香農熵 >5.0 視為混亂，Betti-1 閉合度 <50% 視為漏風，進一步提高懲罰權重，避免低閉合度仍出現中吉以上評級
+    const entropyPenalty = spatialEntropy > 5.0 ? Math.round((spatialEntropy - 5.0) * 30) : 0;
+    const closurePenalty = betti1Closure < 0.5 ? Math.round((0.5 - betti1Closure) * 100) : 0;
     if (entropyPenalty > 0 || closurePenalty > 0) {
         const thermoPenalty = entropyPenalty + closurePenalty;
         s += thermoPenalty;
@@ -2203,6 +2237,7 @@ class CityBuilder {
     this.beacon = null;
     this.luopanMesh = null;
     this.shieldMesh = null;
+    this.taijiGroup = null;
     this.taijiGroup = null;
   }
   drawWaterTopology(paths) {
@@ -2654,17 +2689,18 @@ class CityBuilder {
       top.position.set(0,69,150);top.rotation.y=Math.PI/4;this.group.add(top);
       this.group.add(ResourceManager.createLabel('朝樓遠迎','#0077ff',8,0,76,150));
     }
-    if(st.special.includes('shuqi')){this.box(10,30,10,-14,-24,0x16283f);this.box(10,30,10,14,-24,0x16283f);this.group.add(ResourceManager.createLabel('束氣峽','#8844cc',7,0,36,-24));}
-    if(st.special.includes('fengyao')){
+    // 【第12輪靜態審查】束氣/蜂腰/護龍/鬼曜皆需龍脈存在，無龍脈時不生成對應3D物件，避免視覺與引擎邏輯矛盾
+    if(st.dragon !== 'none' && st.special.includes('shuqi')){this.box(10,30,10,-14,-24,0x16283f);this.box(10,30,10,14,-24,0x16283f);this.group.add(ResourceManager.createLabel('束氣峽','#8844cc',7,0,36,-24));}
+    if(st.dragon !== 'none' && st.special.includes('fengyao')){
       const bridge=new THREE.Mesh(new THREE.BoxGeometry(4,4,30),new THREE.MeshLambertMaterial({color:Util.brighten(0x1c3a5f)}));
       bridge.position.set(0,16,-21);this.group.add(bridge);
       this.group.add(ResourceManager.createLabel('蜂腰過脈','#8844cc',7,0,22,-21));
     }
-    if(st.special.includes('hulong')){
+    if(st.dragon !== 'none' && st.special.includes('hulong')){
       this.box(8,24,8,-14,-52,0x16283f);this.box(8,24,8,14,-52,0x16283f);
       this.group.add(ResourceManager.createLabel('護龍','#0d8a43',7,-14,30,-52));this.group.add(ResourceManager.createLabel('護龍','#0d8a43',7,14,30,-52));
     }
-    if(st.special.includes('guiyao')){this.box(8,10,6,0,-14,0x14263c);this.group.add(ResourceManager.createLabel('鬼曜撐背','#8844cc',7,0,15,-14));}
+    if(st.dragon !== 'none' && st.special.includes('guiyao')){this.box(8,10,6,0,-14,0x14263c);this.group.add(ResourceManager.createLabel('鬼曜撐背','#8844cc',7,0,15,-14));}
 
     // Sha (形煞)
     if(st.sha.includes('tianzhan')){this.box(15,88,15,-11,68,0x1b2440);this.box(15,88,15,11,68,0x1b2440);this.group.add(ResourceManager.createLabel('天斬煞','#d31515',9,0,96,68));}
@@ -2754,7 +2790,8 @@ class CityBuilder {
     }
 
     // Target (主星體五行與抬轎煞)
-    const H = h.main;
+    // 【第10輪靜態審查修正】避免主樓高度過低導致部分星體幾何（水形、土形）產生負尺寸
+    const H = Math.max(20, h.main);
     const t=ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(3,8);
     
     // ★ 色彩與材質五行 ★
@@ -3718,6 +3755,16 @@ class UIManager {
               const shaBoxes = Util.$('sSha').querySelectorAll('input');
               shaBoxes.forEach(cb => cb.checked = this.app.state.current.sha.includes(cb.value));
             }
+          }
+          
+          // 【防呆】無龍脈時，清除依賴龍脈的特殊佈局（束氣、蜂腰、護龍、鬼曜）
+          if (id === 'sDragon' && e.target.value === 'none') {
+            const dependentSpecial = ['shuqi','fengyao','hulong','guiyao'];
+            const spArr = this.app.state.current.special || [];
+            const newSp = spArr.filter(v => !dependentSpecial.includes(v));
+            this.app.state.current.special = newSp.length ? newSp : ['none'];
+            const spBoxes = Util.$('sSpecial').querySelectorAll('input');
+            spBoxes.forEach(cb => cb.checked = this.app.state.current.special.includes(cb.value));
           }
           
           this.app.rebuild();

@@ -934,9 +934,11 @@ const Rules = {
         if(state.road === 'zhichong') advice.push('犯路沖槍煞，虛水直刺穴星，極凶，宜建照壁或密植林帶擋煞');
         if(state.road === 'jiandao') advice.push('犯剪刀煞，道路交錯如剪刀直插明堂，極易破財招災，宜築泰山石敢當化解');
         if(state.road === 'zuocha' || state.road === 'youcha') advice.push(`犯${state.road === 'zuocha'?'左':'右'}脅擦邊路，車流抽離真氣，易招小人是非，宜以厚實樹林隔絕`);
-        if(state.suilong === 'shuang') advice.push('兩側有界水夾送，龍脈真氣收束不散，屬大吉之象');
-        if(state.suilong === 'zuo') advice.push('單側左青龍水，利長男與財運，但需防右側無界水導致氣散');
-        if(state.suilong === 'you') advice.push('單側右白虎水，利女眷，然水力不宜過急，防白虎開口傷人');
+        if(!hasFatalSha) {
+            if(state.suilong === 'shuang') advice.push('兩側有界水夾送，龍脈真氣收束不散，屬大吉之象');
+            if(state.suilong === 'zuo') advice.push('單側左青龍水，利長男與財運，但需防右側無界水導致氣散');
+            if(state.suilong === 'you') advice.push('單側右白虎水，利女眷，然水力不宜過急，防白虎開口傷人');
+        }
         if(state.road === 'sickle') advice.push('犯鐮刀煞，道路如彎刀割腰，殺傷力極大，宜築牆阻擋');
         
         // 【生態移植化煞建議】
@@ -959,6 +961,13 @@ const Rules = {
         if(state.zhijiao === 'ni') advice.push('龍脈橈棹逆水反生，氣脈倒退散失，難以結穴');
         if(state.w !== 'none' && (state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) advice.push('主山過高而明堂狹小，犯「逼壓欺主」，氣場狂躁不聚');
+
+        // 【凶局隱藏吉象建議】若已有致命形煞，不再輸出「大吉」等正面建議，避免與大凶評級矛盾
+        if(!hasFatalSha) {
+            if(state.suilong === 'shuang') advice.push('兩側有界水夾送，龍脈真氣收束不散，屬大吉之象');
+            if(state.suilong === 'zuo') advice.push('單側左青龍水，利長男與財運，但需防右側無界水導致氣散');
+            if(state.suilong === 'you') advice.push('單側右白虎水，利女眷，然水力不宜過急，防白虎開口傷人');
+        }
 
         // 將顯示上限從 2 提升至 4，讓複合煞氣時能顯示更完善的化解對策
         let adviceStr = advice.length > 0 ? `\n\n💡【趨吉避凶建議】：\n• ${advice.slice(0, 4).join('\n• ')}` : '';
@@ -1082,8 +1091,16 @@ const Rules = {
         };
 
         // 強化隨機邏輯防呆，確保隨機生成的參數組合在風水物理上是合理的
+        // 死/破龍為絕地，不得結穴星，強制移除穴星、穴形、太極暈與穴高
+        if (p.d === 'si' || p.d === 'po') {
+            p.xia = false;
+            p.xue = 'none';
+            p.taiji = false;
+            p.xueHeight = 0;
+            p.tianzhan = false;
+        }
         if (!p.xia) { p.xue = 'none'; p.taiji = false; p.tianzhan = false; p.xueHeight = 0; }
-        if (p.xue === 'none') { p.taiji = false; }
+        if (p.xue === 'none') { p.taiji = false; p.xueHeight = 0; }
         if (!p.an) { p.tantou = false; p.guan = false; }
         if (!p.mt) { p.qing = false; }
         if (!p.zhu) { p.tianchi = false; } // 天池必須要有主山
@@ -1427,7 +1444,7 @@ const DryRunTool = {
                     fractalDimension_D: Number((2.0 + Math.min(0.99, AppState.sensors.turbulence * 0.05 + (st.bohuan === 'no' ? 0.3 : 0.0))).toFixed(3)),
                     betti1Closure_Topological: Number(((AppState.sensors.betti1Closure || 0) * 100).toFixed(1)) + "%",
                     reynoldsNumber_CFD: Math.round((AppState.sensors.windSpeed || 0) * 1500 + (AppState.sensors.turbulence || 0) * 800),
-                    froudeNumber_CFD: Number((Math.max(0, (AppState.sensors.waterDrag || 0) / 5.0 + ((st.waterVel || 1.0) - 1.0) * 0.4)).toFixed(3))
+                    froudeNumber_CFD: (st.w && st.w !== 'none') ? Number((Math.max(0, (AppState.sensors.waterDrag || 0) / 5.0 + ((st.waterVel || 1.0) - 1.0) * 0.4)).toFixed(3)) : 0
                 },
 				advancedPhysics: {
 					phreatic: Number((AppState.sensors.phreatic || 0).toFixed(1)) + "%",
@@ -1751,6 +1768,10 @@ const UI = {
             fengyao: s.d === 'pingyang', hulong: s.d === 'pingyang', 
             guiyao: (!s.zhu && !s.xu) || (s.d === 'pingyang'),
             zutai: s.d === 'pingyang',
+            // 修正：死/破龍為絕地，不得結穴星，必須禁用穴星與太極暈
+            xia: isBadDragon,
+            // 修正：無穴星、無穴形或死/破龍時，手動點穴無意義，必須禁用
+            manualXue: !s.xia || s.xue === 'none' || isBadDragon,
             // 修正：無穴星、無穴形或死/破龍時，太極暈不可能存在，必須禁用
             taiji: !s.xia || s.xue === 'none' || isBadDragon,
             // 修正 5：玄武即為後山之靠，若後山為「無」，則玄武必然無法成立
@@ -1773,10 +1794,10 @@ const UI = {
             }
         }
 
-        // 【新增：穴高滑桿動態防呆】平洋龍或無穴星時，強制停用穴高滑桿
+        // 【新增：穴高滑桿動態防呆】平洋龍、無穴星或無穴形時，強制停用穴高滑桿
         const xuehSlider = document.getElementById('xueh-slider');
         if (xuehSlider) {
-            const disableXueH = (s.d === 'pingyang' || !s.xia);
+            const disableXueH = (s.d === 'pingyang' || !s.xia || s.xue === 'none');
             xuehSlider.disabled = disableXueH;
             if (disableXueH && s.xueHeight !== 0) {
                 s.xueHeight = 0;
@@ -5631,7 +5652,7 @@ const Physics = {
         // 【流體力學無因次量 (Dimensionless Quantities)】
         // 雷諾數 (Re) > 4000 為湍流(煞)，< 2000 為層流(吉)；弗勞德數 (Fr) > 1.0 為超臨界急流(散財)
         let reynoldsNum = Math.round(AppState.sensors.windSpeed * 1500 + AppState.sensors.turbulence * 800);
-        let froudeNum = Math.max(0, AppState.sensors.waterDrag / 5.0 + ((state.waterVel || 1.0) - 1.0) * 0.4);
+        let froudeNum = (state.w !== 'none') ? Math.max(0, AppState.sensors.waterDrag / 5.0 + ((state.waterVel || 1.0) - 1.0) * 0.4) : 0;
 
         let sensorHtml = `
             <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心湧現觀測儀]</div>
