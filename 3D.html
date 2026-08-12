@@ -1085,6 +1085,11 @@ const Rules = {
             // 平洋無高山砂手，青龍逼壓／白虎抬頭不存在，強制改為無砂
             if (p.ml === 'ya') p.ml = 'none';
             if (p.mr === 'tai') p.mr = 'none';
+            // 【修正：補齊平洋龍高山特徵防呆】平原不可能有擎拳煞、探頭煞、太祖山與明堂傾瀉
+            p.qingquan = false;
+            p.tantou = false;
+            p.zutai = false;
+            p.qing = false;
             
             // 平洋無水則完全空亡，提高平洋局出現水法的機率
             if (p.w === 'none' || p.w === 'lintou') p.w = ['you', 'jiuqu', 'bazi', 'gejiao'][Math.floor(Math.random()*4)];
@@ -1754,10 +1759,14 @@ const UI = {
             if (shouldDisable) btn.classList.remove('on');
         });
 
-        // 【修正：平洋龍行度防呆】平洋龍無山地剝換與橈棹行度，「未剝換(no)」與「橈棹逆水反(ni)」不存在。
+        // 【終極修正：平洋龍強制清除所有山龍專屬特徵】平原不可能有擎拳煞、探頭煞、太祖山、明堂傾瀉、未剝換、橈棹逆水反
         if (s.d === 'pingyang') {
             if (s.bohuan === 'no') { s.bohuan = 'yes'; autoChanged = true; }
             if (s.zhijiao === 'ni') { s.zhijiao = 'none'; autoChanged = true; }
+            if (s.qingquan) { s.qingquan = false; autoChanged = true; }
+            if (s.tantou) { s.tantou = false; autoChanged = true; }
+            if (s.zutai) { s.zutai = false; autoChanged = true; }
+            if (s.qing) { s.qing = false; autoChanged = true; }
         }
         // 同步禁用平洋龍不適用的行度選項（未剝換／橈棹逆水反）
         document.querySelectorAll('.seg[data-k="bohuan"] button, .seg[data-k="zhijiao"] button').forEach(btn => {
@@ -1776,6 +1785,19 @@ const UI = {
         document.querySelectorAll('.seg[data-k="terrain"] button').forEach(btn => {
             const v = btn.dataset.v;
             const shouldDisable = s.d === 'pingyang' && v !== 'flat';
+            btn.disabled = shouldDisable;
+            if (shouldDisable) btn.classList.remove('on');
+        });
+
+        // 【修正：平洋龍水法防呆】平洋龍為平原，無高山崖壁，不可能有「淋頭水」由穴後傾瀉而下
+        if (s.d === 'pingyang' && s.w === 'lintou') {
+            s.w = 'you';
+            autoChanged = true;
+        }
+        // 同步禁用平洋龍不適用的水法選項（淋頭水）
+        document.querySelectorAll('.seg[data-k="w"] button').forEach(btn => {
+            const v = btn.dataset.v;
+            const shouldDisable = s.d === 'pingyang' && v === 'lintou';
             btn.disabled = shouldDisable;
             if (shouldDisable) btn.classList.remove('on');
         });
@@ -2090,15 +2112,15 @@ const Engine3D = {
                 // 【優化：水體光學升級 (Shoreline Foam & Volumetric Depth)】
                 // 修正：計算 Z 軸與 X 軸至河道中心線的真實距離，防止水面渲染溢出全圖形成海洋
                 float rz = vWorldXZ.y;
-                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3) ? 70.0 : ((riverType == 2) ? 55.0 : ((riverType == 5) ? -10.0 : 30.0));
+                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6) ? 70.0 : ((riverType == 2) ? 55.0 : ((riverType == 5) ? -10.0 : 30.0));
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
                 // 修正：淋頭水只能出現在穴後 (z<-3)，前側明堂若被水覆蓋即為錯誤的「水淹墳」幾何
                 if (riverType == 5 && rz > -3.0) distToShore = 999.0;
-                if (riverType == 3) { // 丁字沖水 (T-Fork)：加入垂直衝射支流距離
-                    float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
-                    distToShore = min(distToShore, branchDist);
-                }
+                    if (riverType == 6) { // 丁字沖水 (T-Fork)：加入垂直衝射支流距離
+                        float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
+                        distToShore = min(distToShore, branchDist);
+                    }
                 float depthFactor = clamp(1.0 - (distToShore / 25.0), 0.0, 1.0); // 0=河岸外透明, 1=河心深潭
                 
                 // Fresnel 視角反射效應 (讓遠處的水面更像鏡子)
@@ -3837,6 +3859,7 @@ const Physics = {
         else if(state.w === 'jiuqu') rType = 1;
         else if(state.w === 'fan') rType = 2;
         else if(state.w === 'bazi') rType = 3;
+        else if(state.w === 'tfork') rType = 6;
         else if(state.w === 'lintou') rType = 5; // 修復：補上淋頭水對應的著色器編號 5，啟動瀑布傾瀉特效
 
         if (Engine3D.waterMesh.material.userData.shader) {
@@ -4223,7 +4246,7 @@ const Physics = {
             }
 
             let isInCaveZone = (z > -30 && z < 25 && Math.abs(x) < 35); 
-            if (state.xia && isInCaveZone && y < 25) {
+            if (state.xia && isInCaveZone && y < t.y + 25) {
                 // 修正 3：高山突穴忘了檢查「是否缺砂」。補上條件，僅在無青龍白虎護衛時才引爆粒子 (高山孤突煞)。
                 let isHighMountainTu = (state.xue === 'tu' && state.d !== 'pingyang' && (state.ml === 'none' || state.mr === 'none'));
                 let isWoodNoRu = (state.xing === 'mu' && state.xue !== 'ru' && state.xue !== 'qian'); 
@@ -5087,7 +5110,7 @@ const Physics = {
                     vel.set((Math.random()-0.5)*0.5, 0, 2.5); // 補足初速度
                 } else {
                     // 【進化：能量層級與繼承】出界回收的粒子，依據是否有太祖山，賦予不同的初始勢能與高度
-                    z = (state.zutai ? -150 : -130) - Math.random()*20;
+                    z = (state.zutai ? -150 : -130) - Math.random()*15;
                     let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
                     let dragonCurveX = 0;
                     if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;

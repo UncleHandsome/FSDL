@@ -679,7 +679,7 @@ def main():
 
     for current_round in range(1, MAX_ROUNDS + 1):
         is_static = (consecutive_perfects % 2 == 1)
-        is_exam = (consecutive_perfects == 4)
+        is_exam = (not is_static) and (consecutive_perfects == 4)
         
         mode_name = "靜態審查" if is_static else ("動態大考" if is_exam else "動態實測")
         logger.info(f"\n【 第 {current_round}/{MAX_ROUNDS} 輪測試 - {mode_name} 】連續完美次數: {consecutive_perfects}/{SUCCESS_TARGET}")
@@ -847,8 +847,9 @@ def main():
                 history_logs.append({"round": current_round, "status": "PERFECT", "reason": "通過 6 階段最終大考", "changes": []})
                 break
             else:
-                next_mode = "靜態審查" if (consecutive_perfects % 2 == 1) else ("動態大考" if consecutive_perfects == 4 else "動態實測")
-                logger.info(f"✅ 本輪判定通過 ({consecutive_perfects}/{SUCCESS_TARGET})，準備進入下一階段: 【{next_mode}】...")
+                next_is_static = (consecutive_perfects % 2 == 1)
+                next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects == 4 else "動態實測")
+                logger.info(f"✅ 本輪判定通過 (已連續成功 {consecutive_perfects}/{SUCCESS_TARGET} 次)，準備進入第 {consecutive_perfects + 1} 階段: 【{next_mode}】...")
                 time.sleep(1)
                 
         elif status == "MODIFIED":

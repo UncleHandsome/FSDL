@@ -779,9 +779,11 @@ class FengShuiEngine {
             s += 20;
             observerText.push(`頻域｜龍脈能量濾波：高頻幾何雜訊(尖角/陡降)過高，動能未完成低頻諧波轉換 (自然湧現: 老龍未剝換/帶煞直撞)`);
         } else if (spatialLowFreq > spatialHighFreq * 2 && spatialLowFreq > 10) {
-            // 【修正】明堂破敗時，龍脈剝換吉訊不應湧現，避免與大凶評價矛盾
+            // 【修正】明堂破敗或水局已破時，龍脈剝換吉訊不應湧現，避免與水破風煞等大凶矛盾
             if (fengShuiContextBroken) {
                 observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何濾除，但${brokenContextDesc}，吉氣無法凝聚 (湧現抑制: 剝換完成失效)`);
+            } else if (waterBroken) {
+                observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何濾除，但水局已破，強風破壞氣場載體，吉氣無法凝聚 (湧現抑制: 剝換完成失效)`);
             } else {
                 g += 20;
                 observerText.push(`頻域｜龍脈能量濾波：高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波 (自然湧現: 剝換完成/真龍結穴)`);
@@ -1396,7 +1398,7 @@ class FengShuiEngine {
     }
 
     // 【修正】補回特殊佈局 (Special Layouts) 的空間補償效應
-    if (!fengShuiContextBroken && st.special.includes('hulong')) {
+    if (!fengShuiContextBroken && !waterBroken && st.special.includes('hulong')) {
       const leftGood = st.left === 'qinglong';
       const rightGood = st.right === 'baihu';
       if (leftGood && rightGood) {
@@ -1416,20 +1418,24 @@ class FengShuiEngine {
             observerText.push(`空間｜護龍佈局但左右砂皆非有情，未成形`);
         }
     } else if (st.special.includes('hulong')) {
-        observerText.push(`空間｜護龍夾送佈局雖設，但${brokenContextDesc}，護佑失效 (湧現抑制: 護龍失效)`);
+        const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
+        observerText.push(`空間｜護龍夾送佈局雖設，但${suppressDesc}，護佑失效 (湧現抑制: 護龍失效)`);
     }
-    if (!fengShuiContextBroken && !st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'))) {
+    const hasChaoshanGuanxing = !st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'));
+    if (!fengShuiContextBroken && !waterBroken && hasChaoshanGuanxing) {
         c += 20; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面，擴充明堂極限容量`);
-    } else if (st.special.includes('chaoshan') || st.special.includes('guanxing')) {
-        observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但${brokenContextDesc}，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
+    } else if (hasChaoshanGuanxing) {
+        const suppressDesc = waterBroken ? '水局已破' : (fengShuiContextBroken ? brokenContextDesc : '環境動能過強');
+        observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但${suppressDesc}，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
     }
     if (st.special.includes('shuqi')) {
         // 氣躍/水躍現象 (Hydraulic Jump)
         let froudeNumber = extWindSpeed / Math.sqrt(9.8 * 2.0); // 簡化弗勞德數
-        // 【修正】明堂破敗時，束氣結穴吉訊不應湧現，避免與大凶評價矛盾
-        if (fengShuiContextBroken) {
+        // 【修正】明堂破敗或水局已破時，束氣結穴吉訊不應湧現，避免與水破風煞等大凶矛盾
+        if (fengShuiContextBroken || waterBroken) {
             vortexQi += 0;
-            observerText.push(`流體力學｜束氣峽仍在，但${brokenContextDesc}，無法將吉氣駐留於堂 (湧現抑制: 束氣結穴失效)`);
+            const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
+            observerText.push(`流體力學｜束氣峽仍在，但${suppressDesc}，無法將吉氣駐留於堂 (湧現抑制: 束氣結穴失效)`);
         } else {
             // 【第13輪修正】確保束氣峽至少提供基礎吉氣，避免 vortexQi 初始為 0 時完全沒有效果
             vortexQi += 15;
@@ -1444,12 +1450,13 @@ class FengShuiEngine {
         }
     }
     // 【第 23.2 輪修正】補上文字推播，並以實體後方建築數量與阻抗閾值嚴格把關，避免小型裝飾誤觸發
-    if (!fengShuiContextBroken && (st.special.includes('fengyao') || st.special.includes('guiyao')) && st.dragon !== 'none' && backBuildingCount > 0 && hasBackSupport && backImpedance > 2.0) {
+    if (!fengShuiContextBroken && !waterBroken && (st.special.includes('fengyao') || st.special.includes('guiyao')) && st.dragon !== 'none' && backBuildingCount > 0 && hasBackSupport && backImpedance > 2.0) {
         g += 10;
         observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}：主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散`);
     } else if (st.special.includes('fengyao') || st.special.includes('guiyao')) {
-        if (fengShuiContextBroken) {
-            observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但${brokenContextDesc}，吉氣無法凝聚`);
+        if (fengShuiContextBroken || waterBroken) {
+            const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
+            observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但${suppressDesc}，吉氣無法凝聚`);
         } else if (st.dragon === 'none') {
             observerText.push(`空間｜${st.special.includes('fengyao') ? '蜂腰過脈' : '鬼曜撐背'}佈局雖設，但無龍脈可依，未能成形`);
         } else {
@@ -1460,9 +1467,10 @@ class FengShuiEngine {
     // 太極陣法強制調和陰陽
     if (st.special.includes('taiji')) {
         if (yang > yin) yin = yang; else yang = yin;
-        // 【第43輪修正】明堂破敗時，太極陣法仍可調和陰陽，但無法累積吉氣，避免與大凶評價矛盾
-        if (fengShuiContextBroken) {
-            observerText.push(`陣法｜太極環島：陰陽雖已調和，但${brokenContextDesc}，吉氣無法凝聚 (湧現抑制: 太極失效)`);
+        // 【第43輪修正】明堂破敗或水局已破時，太極陣法仍可調和陰陽，但無法累積吉氣，避免與大凶評價矛盾
+        if (fengShuiContextBroken || waterBroken) {
+            const suppressDesc = waterBroken && !fengShuiContextBroken ? '水局已破' : brokenContextDesc;
+            observerText.push(`陣法｜太極環島：陰陽雖已調和，但${suppressDesc}，吉氣無法凝聚 (湧現抑制: 太極失效)`);
         } else {
             g += 15;
             observerText.push(`陣法｜太極環島：引導氣流進行完美的陰陽回旋，強制調和磁場`);
@@ -1721,7 +1729,7 @@ class FengShuiEngine {
     
     // 【進化：WKB 量子穿隧效應 UI 日誌 (Batch 7)】
     // 【第6輪靜態審查修正】physicsText 宣告在後方，此處改為操作 observerText，避免 TDZ ReferenceError
-    if (!fengShuiContextBroken && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
+    if (!fengShuiContextBroken && !waterBroken && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
         let barrier = st.special.includes('fengyao') ? '蜂腰' : '束氣';
         observerText.push(`量子力學｜WKB 近似穿隧效應：${barrier}極薄勢壘引發機率波躍遷，粒子無視剛體阻礙，直接穿透至太極暈核心！(自然湧現: 過峽脫煞)`);
         g += 15; // 躍遷成功額外賦予高能吉氣
@@ -2206,7 +2214,7 @@ class CityBuilder {
     if(this.luopanMesh){
         // 【進化：地磁異常與 3D 羅盤微擾 (Magnetic Anomaly & Perturbation) (Batch 2)】
         let sVal = (ana && ana.s) ? ana.s : 0;
-        let entropy = (ana && ana.shannonEntropy) ? ana.shannonEntropy : 5.0;
+        let entropy = (ana && typeof ana.shannonEntropy === 'number') ? ana.shannonEntropy : 5.0;
         let qFact = (ana && ana.qFactor) ? ana.qFactor : 0;
         
         // 真正的負熵鎖定：當空間資訊熵極低、或共振 Q 值極高時，天地磁場完美共軛，羅盤絕對鎖死
