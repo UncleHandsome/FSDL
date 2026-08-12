@@ -1081,6 +1081,10 @@ const Rules = {
             p.zhuScale = 1.0; // 平洋無高山，強制主山比例正常
             p.bendi = false; p.tianchi = false; p.wugong = false; p.bidao = false; // 新增平洋防呆
             p.suilong = 'none'; // 平洋無隨龍峽谷水
+            p.terrain = 'flat'; // 平洋龍地形必須平坦，避免地勢傾斜造成氣場退散
+            // 平洋無高山砂手，青龍逼壓／白虎抬頭不存在，強制改為無砂
+            if (p.ml === 'ya') p.ml = 'none';
+            if (p.mr === 'tai') p.mr = 'none';
             
             // 平洋無水則完全空亡，提高平洋局出現水法的機率
             if (p.w === 'none' || p.w === 'lintou') p.w = ['you', 'jiuqu', 'bazi', 'gejiao'][Math.floor(Math.random()*4)];
@@ -1220,6 +1224,8 @@ const DryRunTool = {
                 if (st.w === 'you') rS += (1.0 - Math.pow(wx / 90.0, 2)) * 28.0;
                 if (st.w === 'fan') rS -= Math.cos(wx * 0.05) * 15;
                 if (st.w === 'bazi') rS += Math.abs(wx) * 0.5;
+                // 修正：淋頭水僅在穴後 (z<-3) 有作用，前側不應進行 Z-Fighting 掃描
+                if (st.w === 'lintou' && wz > -3.0) continue;
                 let dR = Math.abs(wz - rS);
                 if (dR < 24 && Math.abs(h - waterLevel) < 0.02) zFightingCount++;
             }
@@ -1659,7 +1665,8 @@ const UI = {
         const noSands = (s.ml === 'none' && s.mr === 'none');
         // 修正：空間悖論！青龍逼壓(ya)與白虎抬頭(tai)是山體向內過度龐大擠壓，防風極度嚴密，絕對不可能產生「缺口漏風」的凹風煞。
         // 修正 2：缺少案山(!s.an)只是明堂開闊，並非側/後方防護破洞，不應構成導致冷風灌穴的「凹風煞」。
-        const hasGap = (s.ml==='po'||s.ml==='none'||s.mr==='po'||s.mr==='none');
+        // 修正 3：青龍逼壓(ya)或白虎抬頭(tai)代表該側砂體極度厚實無缺口，亦不構成凹風缺口。
+        const hasGap = (s.ml==='po'||s.ml==='none'||s.mr==='po'||s.mr==='none') && s.ml !== 'ya' && s.mr !== 'tai';
         const isBadDragon = (s.d === 'si' || s.d === 'po');
 
         const rules = {
@@ -1676,7 +1683,7 @@ const UI = {
             // 修正 2：朱雀低陷或破碎，氣機全漏，絕不可能生出餘氣「官星」
             guan: !s.an || s.ms === 'di' || s.ms === 'po' || s.ms === 'sunken', 
             // 修正 3：平洋為平原，無高山峽谷，自然不可能產生漏斗狀的「凹風煞」及高山形煞
-            tianzhan: !s.xia || s.d === 'pingyang', qingquan: noSands || s.d === 'pingyang', ao: !hasGap || s.d === 'pingyang', qing: !s.mt || s.d === 'pingyang', 
+            tianzhan: !s.xia || s.d === 'pingyang', qingquan: noSands || s.ml === 'po' || s.mr === 'po' || s.d === 'pingyang', ao: (!hasGap || s.d === 'pingyang' || s.ml === 'ya' || s.mr === 'tai'), qing: !s.mt || s.d === 'pingyang', 
             
             // 【新增：新形煞防呆】
             sherui: s.d === 'pingyang', 
@@ -1732,6 +1739,45 @@ const UI = {
             const isDisabled = s.d === 'pingyang' && v === 'ya';
             btn.disabled = isDisabled;
             if (isDisabled) btn.classList.remove('on');
+        });
+
+        // 【修正：平洋龍砂手狀態防呆】平洋為平原，無高山砂手，「青龍逼壓(ya)」與「白虎抬頭(tai)」不可能存在。
+        if (s.d === 'pingyang') {
+            if (s.ml === 'ya') { s.ml = 'none'; autoChanged = true; }
+            if (s.mr === 'tai') { s.mr = 'none'; autoChanged = true; }
+        }
+        // 同步禁用平洋龍不適用的砂手選項（青龍逼壓／白虎抬頭）
+        document.querySelectorAll('.seg[data-k="ml"] button, .seg[data-k="mr"] button').forEach(btn => {
+            const v = btn.dataset.v;
+            const shouldDisable = s.d === 'pingyang' && (v === 'ya' || v === 'tai');
+            btn.disabled = shouldDisable;
+            if (shouldDisable) btn.classList.remove('on');
+        });
+
+        // 【修正：平洋龍行度防呆】平洋龍無山地剝換與橈棹行度，「未剝換(no)」與「橈棹逆水反(ni)」不存在。
+        if (s.d === 'pingyang') {
+            if (s.bohuan === 'no') { s.bohuan = 'yes'; autoChanged = true; }
+            if (s.zhijiao === 'ni') { s.zhijiao = 'none'; autoChanged = true; }
+        }
+        // 同步禁用平洋龍不適用的行度選項（未剝換／橈棹逆水反）
+        document.querySelectorAll('.seg[data-k="bohuan"] button, .seg[data-k="zhijiao"] button').forEach(btn => {
+            const v = btn.dataset.v;
+            const segKey = btn.closest('.seg')?.dataset.k;
+            const shouldDisable = s.d === 'pingyang' && ((segKey === 'bohuan' && v === 'no') || (segKey === 'zhijiao' && v === 'ni'));
+            btn.disabled = shouldDisable;
+            if (shouldDisable) btn.classList.remove('on');
+        });
+
+        // 【修正：平洋龍地形防呆】平洋龍為平原，地形必須平坦，禁止地勢前傾或後高
+        if (s.d === 'pingyang') {
+            if (s.terrain !== 'flat') { s.terrain = 'flat'; autoChanged = true; }
+        }
+        // 同步禁用平洋龍不適用的地形選項（非平坦）
+        document.querySelectorAll('.seg[data-k="terrain"] button').forEach(btn => {
+            const v = btn.dataset.v;
+            const shouldDisable = s.d === 'pingyang' && v !== 'flat';
+            btn.disabled = shouldDisable;
+            if (shouldDisable) btn.classList.remove('on');
         });
 
         if (autoChanged) {
@@ -2047,6 +2093,8 @@ const Engine3D = {
                 float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3) ? 70.0 : ((riverType == 2) ? 55.0 : ((riverType == 5) ? -10.0 : 30.0));
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
+                // 修正：淋頭水只能出現在穴後 (z<-3)，前側明堂若被水覆蓋即為錯誤的「水淹墳」幾何
+                if (riverType == 5 && rz > -3.0) distToShore = 999.0;
                 if (riverType == 3) { // 丁字沖水 (T-Fork)：加入垂直衝射支流距離
                     float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
                     distToShore = min(distToShore, branchDist);
@@ -3047,6 +3095,8 @@ const Engine3D = {
                 if(state.w==='lintou' && Math.abs(x)<12 && z > -30 && z < -3) y = Math.min(y, -12);
 
                 let rS = wZ;
+                // 修正：淋頭水僅允許存在於穴後，穴前區域不得被河道混合挖深
+                if(state.w === 'lintou' && z > -3.0) rS = 999;
                 if (state.d === 'pingyang' && state.w !== 'none') {
                     // 平洋鴨頸水：形成細長曲折如鴨頸的環抱灣流
                     rS += Math.sin(x * 0.08) * 20.0 + Math.cos(x * 0.18) * 8.0;
@@ -3268,6 +3318,8 @@ const Engine3D = {
                     if (state.w === 'you') rS += (1.0 - Math.pow(x / 90.0, 2)) * 28.0;
                     if (state.w === 'fan') rS -= Math.cos(x * 0.05) * 15;
                     if (state.w === 'bazi') rS += Math.abs(x) * 0.5;
+                    // 修正：淋頭水僅允許存在於穴後 (z<-3)，不得影響穴場前方的明堂與氈唇
+                    if (state.w === 'lintou' && z > -3.0) continue;
                     let dR = Math.abs(z - rS);
                     if (dR < 25) {
                         // 保護關鍵巒頭：案山、朝山、水口神獸等水上構造不得被河道深度保護削平
@@ -3376,6 +3428,8 @@ const Engine3D = {
 
                 let dRColor = Math.abs(z - rSColor);
                 if (state.w === 'tfork' && Math.abs(x) < 12 && z > 20 && z < 75) dRColor = 0; // 丁字沖垂直支流
+                // 修正：淋頭水僅影響穴後 (z<-3)，穴前不得被誤判為河道水域
+                if (state.w === 'lintou' && z > -3.0) dRColor = 999;
                 if (dRColor < 22.0) isActualRiverChannel = true;
             }
 
@@ -3892,7 +3946,8 @@ const Physics = {
             let distToSensorSq = dxSensor*dxSensor + dzSensor*dzSensor;
             // 平洋龍地勢平坦，氣場範圍較廣，感測半徑從 20 擴大至 30，讓粒子更容易被捕獲
             let sensorRadiusSq = (state.d === 'pingyang') ? 900 : 400;
-            if (distToSensorSq < sensorRadiusSq && y > -8 && y < 20) {
+            let sensorGroundY = Engine3D.getTerrainY(x, z).y;
+            if (distToSensorSq < sensorRadiusSq && y > sensorGroundY - 5 && y < sensorGroundY + 15) {
                 sensorCount++;
                 if (st !== 2) { // 修復 1：排除已完美結成太極暈的吉氣 (st===2)，只計算環境游離風煞，避免太極旋渦被誤判為亂流
                     envParticleCount++;
@@ -3919,7 +3974,9 @@ const Physics = {
             const isBadWaterSensor = ['gejiao','fan','bazi','ji','lintou','tfork'].includes(state.w) || state.qing || (state.waterVel || 1.0) > 1.8;
             // 修正：水感測器不應依賴垂直速度，只要粒子位於凶水河道且深度足夠即觸發，確保凶水的伯努利抽吸能被穩定偵測
             // 【修復空間 BUG】：補上對粒子本身高度 (y) 的空間攔截，避免飛越高空的氣場被錯誤判定為落水
-            if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
+            // 【新增：淋頭水區域限制】淋頭水僅在穴後 (z<-3) 有作用，穴前不得觸發水力抽吸
+            const isLintouFront = (state.w === 'lintou' && z > -3.0);
+            if (!isLintouFront && isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50 && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 waterDragCount++;
                 sumWaterDrag += Math.max(0.2, Math.abs(vel.y) * 0.5 + 0.3);
             }
@@ -4107,7 +4164,8 @@ const Physics = {
             let speedSq = localWindX*localWindX + localWindZ*localWindZ;
             // 【太極暈防護罩】穴心周圍為藏風聚氣之地，風場與亂流不得干擾凝聚中的吉氣。
             let distToTaijiShieldSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
-            let inTaijiShield = (distToTaijiShieldSq < 320 && y > -8 && y < 15);
+            let taijiShieldRadiusSq = (state.d === 'pingyang') ? 1000 : 320;
+            let inTaijiShield = (distToTaijiShieldSq < taijiShieldRadiusSq && y > t.y - 5 && y < t.y + 15);
             if (speedSq > 0.02 && st === 0 && !(inTaijiShield && state.taiji) && Math.random() < speedSq * 2.5 * dt) {
                 this.pState[i] = 3; 
                 this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
@@ -4834,7 +4892,7 @@ const Physics = {
                 Engine3D.hCtx.fillRect(hx - heatSize/2, hz - heatSize/2, heatSize, heatSize);
             }
 
-            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < (state.d === 'pingyang' ? 1000 : 320) && y > -8 && y < 15);
+            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < (state.d === 'pingyang' ? 1000 : 320) && y > t.y - 5 && y < t.y + 15);
             // 【大一統湧現】移除對 lintou (淋頭) 與 qing (傾瀉) 的例外排除。
             // 太極暈的物理容器若存在 (state.taiji)，渦流潛力就存在。
             // 若犯淋頭水或傾瀉，粒子會被水流與重力自然扯出渦流範圍，無需使用腳本強行關閉。
@@ -5029,7 +5087,7 @@ const Physics = {
                     vel.set((Math.random()-0.5)*0.5, 0, 2.5); // 補足初速度
                 } else {
                     // 【進化：能量層級與繼承】出界回收的粒子，依據是否有太祖山，賦予不同的初始勢能與高度
-                    z = (state.zutai ? -160 : -140) - Math.random()*20;
+                    z = (state.zutai ? -150 : -130) - Math.random()*20;
                     let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
                     let dragonCurveX = 0;
                     if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;

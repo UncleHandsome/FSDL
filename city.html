@@ -657,7 +657,7 @@ class FengShuiEngine {
       }
     const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
     const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 12 && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
-    const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
+    const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     waterBroken = waterBrokenByWind; // 提前設定水局破裂狀態，避免地形水聚訊息與流體破水訊息矛盾
     if (isShaWaterForBarrier) waterBroken = false; // 【第22輪修正】煞水本身不具聚氣介質，強制排除水破標記，避免與「煞水未成水局」矛盾
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
@@ -1073,7 +1073,8 @@ class FengShuiEngine {
 
     // 將水文學的結果回饋給明堂極限容量
     // 修正：容量應基於明堂開闊度與水聚程度，但需避免過度極端，並確保與物理空間一致
-    let capacityBase = (st.front === 'none' ? 50 : 120) - vFront * 0.2;
+    // 【第 50 輪修正】明堂破敗的三種類型（空無/低陷/破碎）都應降低基礎容量，避免「明堂已破卻仍有高容量」的狀態悖論
+    let capacityBase = (st.front === 'none' ? 50 : (st.front === 'sunken' || st.front === 'rubble') ? 70 : 120) - vFront * 0.2;
     // 水聚增加容量，水散減少容量，但限制在合理範圍
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
     c = Math.round(capacityBase + capacityAdjust);
@@ -1251,8 +1252,9 @@ class FengShuiEngine {
     } else if (isShaWaterForFluid && hasMitigatingWater) {
         const mitigationSource = hasMitigatingPool && hasMitigatingShuifa ? '化煞水池與水法' : (hasMitigatingPool ? '化煞水池' : '水法');
         observerText.push(`流體｜主水為煞水，但${mitigationSource}提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
-    } else if (st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
+    } else if (waterTestRan && st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
         // 【修正】依實際虛水匯聚率區分描述，避免與高滯留率（如水法攔截後 54%）矛盾
+        // 【第 50 輪修正】僅在虛水測試確實執行時才允許輸出「傾瀉散氣」描述，避免明堂已破/無水時與「虛水未測」矛盾
         if (gatherPercent <= 25) {
             observerText.push(`流體｜地勢傾斜，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
         } else {

@@ -446,7 +446,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
     needs_full_snapshot = True
     
     is_pro = "pro" in model.lower()
-    MAX_TOKEN_THRESHOLD = 96000 if is_pro else 48000  # pro 門檻放寬,flash 較早重置
+    MAX_TOKEN_THRESHOLD = 900000  # 統一拉高門檻以最大化利用 Prompt Cache 省錢
     should_reset_next = False
 
     for current_round in range(1, max_rounds + 1):
@@ -529,7 +529,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
                 )
                 conversation_history.append({"role": "user", "content": retry_prompt})
                 
-                retry_json, retry_raw = get_ai_correction_multiturn(client, model, conversation_history, logger)
+                retry_json, retry_raw, _ = get_ai_correction_multiturn(client, model, conversation_history, logger)
                 if not retry_json:
                     break
                     
@@ -627,7 +627,7 @@ def main():
     RUNS_PER_ROUND = args.runs_per_round
     EXAM_RUNS = 50 if is_pro else 25
     SUCCESS_TARGET = 6
-    MAX_TOKEN_THRESHOLD = 96000 if is_pro else 48000  # pro 門檻放寬,flash 較早重置
+    MAX_TOKEN_THRESHOLD = 900000  # 統一拉高門檻以最大化利用 Prompt Cache 省錢
     should_reset_next = False
     
     consecutive_perfects = 0
@@ -729,7 +729,7 @@ def main():
                 err_user_msg = f"【語法崩潰緊急修復】上一輪套用修改後爆發了以下 JavaScript 語法錯誤：\n```\n{js_err_msg}\n```\n檔案已自動復原至備份檔。請重新檢視並提供不含語法錯誤的修正 JSON。"
                 conversation_history.append({"role": "user", "content": err_user_msg})
 
-                fix_json, raw_text = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+                fix_json, raw_text, _ = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
                 
                 if fix_json and fix_json.get("status") == "MODIFIED":
                     conversation_history.append({"role": "assistant", "content": raw_text})
@@ -806,7 +806,10 @@ def main():
             conversation_history.append({"role": "user", "content": user_msg})
 
         # 共通的 AI 請求與套用邏輯
-        ai_json, raw_text = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+        ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+        if prompt_tokens > MAX_TOKEN_THRESHOLD:
+            logger.warning(f"⚠️ 當前 Prompt Token ({prompt_tokens}) 已超過閾值 ({MAX_TOKEN_THRESHOLD})，下一輪將自動重置歷史。")
+            should_reset_next = True
         
         if not ai_json:
             logger.error("解析 AI 回覆失敗，準備硬重置對話。")
