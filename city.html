@@ -702,6 +702,9 @@ class FengShuiEngine {
           emptyFrontWind = true;
       }
     }
+    
+    // 【第8輪 Dry Run 診斷修正】環境混亂旗標：高熵/低閉合度/湍流/超臨界流時，吉氣佈局應帶有抑制描述，避免「自然湧現吉訊」與最終 0 吉分矛盾
+    const environmentDisordered = spatialEntropy > 5.0 || betti1Closure < 0.5 || reynoldsNum > 4000 || froudeNum > 1.0;
 
     // ==========================================
     // 觀測者詮釋層：將幾何與流體物理轉換為風水術語
@@ -710,8 +713,9 @@ class FengShuiEngine {
     
     // 【修正】明堂破敗情境：當前有明顯重煞、明堂低陷/空無/破碎、或水勢為煞水時，即使後方有屏障，玄武靠/鬼曜撐背等吉氣也無法發揮
     // 【第27輪修正】區分「明堂實體破敗」與「整體煞氣壓迫」，避免 front=plaza 卻出現「明堂已破」之狀態悖論
+    // 【第4輪 Dry Run 診斷修正】將煞水(isShaWater)納入形煞壓迫，確保煞水破壞氣場時，所有依賴明堂完整性的吉氣佈局(玄武靠/朝山/太極等)同步失效，避免矛盾
     const mingTangBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble';
-    const fengShuiContextBroken = mingTangBroken || ['tianzhan','pierce','sedan','windshaft','sickle'].some(x => st.sha.includes(x)) || (st.sha.includes('tantou') && peekSha);
+    const fengShuiContextBroken = mingTangBroken || isShaWater || ['tianzhan','pierce','sedan','windshaft','sickle'].some(x => st.sha.includes(x)) || (st.sha.includes('tantou') && peekSha);
     // 【第22輪修正】將「重煞」改為「形煞」，避免與最終 hasHeavySha 判定（需未化煞且煞氣≥60）矛盾；形煞壓迫表示特定硬傷煞氣存在，但不代表必然達重煞侵蝕門檻。
     const brokenContextDesc = mingTangBroken ? '明堂已破' : '形煞壓迫';
     
@@ -1094,6 +1098,9 @@ class FengShuiEngine {
         // 【修正】明堂破敗時，即使有水聚也不應湧現吉訊，改為中性描述
         if (fengShuiContextBroken) {
             observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚於明堂底層，但${brokenContextDesc}，聚水不成吉格 (湧現抑制: 水聚明堂失效)`);
+        } else if (environmentDisordered) {
+            g += Math.round(bonus * 0.4);
+            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層，但環境熵/湍流過高，聚氣效果大打折扣 (自然湧現: 水聚明堂受環境干擾)`);
         } else {
             g += bonus;
             let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
@@ -1186,6 +1193,7 @@ class FengShuiEngine {
                     observerText.push(`理氣｜逆水朝迎：但地勢傾斜水氣外洩，朝迎之勢渙散，反成虛水`);
                 } else {
                     if (fengShuiContextBroken) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：強勢收納來水，但受${brokenContextDesc}，吉氣折半`); }
+                    else if (environmentDisordered) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：收納來水，但環境熵/湍流過高，吉氣無法凝聚 (湧現抑制: 理氣受環境壓制)`); }
                     else { g += 20; c += 15; observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`); }
                 }
             } else if (st.waterDir === 'wang') {
@@ -1297,6 +1305,8 @@ class FengShuiEngine {
         if (waterTestRan && gatherPercent >= 50) {
             if (fengShuiContextBroken) {
                 observerText.push(`流體｜界水則止，但${brokenContextDesc}，無法形成吉格 (湧現抑制: 水聚明堂失效)`);
+            } else if (environmentDisordered) {
+                observerText.push(`流體｜界水則止，但環境熵/湍流過高，真氣難以盤旋凝聚 (湧現抑制: 水聚明堂受環境干擾)`);
             } else {
                 observerText.push(`流體｜界水則止，真氣遇水盤旋不散 (自然湧現: 水聚明堂)`);
             }
@@ -1609,6 +1619,8 @@ class FengShuiEngine {
             // 【修正】明堂破敗時，界水即止吉訊不應湧現
             if (fengShuiContextBroken) {
                 observerText.push(`拓撲學｜向量場奇點存在，但${brokenContextDesc}，界水即止無法形成吉格 (湧現抑制: 界水即止失效)`);
+            } else if (environmentDisordered) {
+                observerText.push(`拓撲學｜向量場奇點存在，但環境熵/湍流過高，水界無法形成穩定駐波 (湧現抑制: 界水即止受環境干擾)`);
             } else {
                 saddlePointTriggered = true;
                 g += 20; c += 20;
@@ -1802,6 +1814,44 @@ class FengShuiEngine {
 
     let physicsText = observerText; // 承接觀測者結果
 
+    // 【第9輪 Dry Run 診斷修正】環境混亂時，將殘留的強烈吉訊改為湧現抑制描述，避免與最終低吉分數矛盾
+    // 【第12輪靜態審查修正】擴充抑制清單，納入特殊佈局（玄武靠、鬼曜撐背、蜂腰過脈、束氣結穴、太極環島）與量子穿隧等吉訊，防止高熵/湍流環境下吉訊與分數矛盾
+    if (environmentDisordered) {
+        const strongQiPhrases = ["強勢收納來水，水聚天心，主速發暴富", "真氣遇水盤旋不散", "界水即止", "藏風聚穴", "水聚明堂", "玄武有靠", "鬼曜撐背", "蜂腰過脈", "束氣結穴", "剝換完成", "龍穴相配", "過峽脫煞", "氣聚有情", "完美的陰陽回旋", "強制調和磁場", "穿隧效應", "擴充明堂極限容量", "承接陽氣", "增強地氣生機"];
+        // 【第14輪靜態審查修正】吉訊形容詞中性化，避免同一句出現「完美吉訊 + 湧現抑制」的語意矛盾
+        // 【第17輪診斷修正】將替換目標改為「存在但受環境紊流干擾」，避免輸出「頻域｜...：存在」等語意破碎文字
+        const qiAdjectiveReplacements = [
+            ['完美阻擋冷風', '存在但受環境紊流干擾'],
+            ['引導氣流進行完美的陰陽回旋，強制調和磁場', '存在但受環境紊流干擾'],
+            ['主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散', '存在但受環境紊流干擾'],
+            ['高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波', '存在但受環境紊流干擾'],
+            ['地形壓縮管槽效應，使明堂內的吉氣爆發倍增', '存在但受環境紊流干擾'],
+            ['強勢收納來水，水聚天心，主速發暴富', '存在但受環境紊流干擾'],
+            ['真氣遇水盤旋不散', '存在但受環境紊流干擾'],
+            ['完美靜力平衡點', '存在但受環境紊流干擾']
+        ];
+        for (let i = 0; i < physicsText.length; i++) {
+            // 先將所有吉訊形容詞中性化，再移除殘留的「湧現:」括號，確保後續抑制判斷正確
+            for (const [from, to] of qiAdjectiveReplacements) {
+                if (physicsText[i].includes(from)) {
+                    physicsText[i] = physicsText[i].replace(from, to);
+                    break;
+                }
+            }
+            // 只移除「(湧現: ...)」與「(自然湧現: ...)」，不會誤刪「(湧現抑制: ...)」
+            physicsText[i] = physicsText[i].replace(/\((?:自然湧現|湧現):[^)]*\)/g, '');
+            physicsText[i] = physicsText[i].replace(/\s{2,}/g, ' ').trim();
+            
+            // 若仍帶有強烈吉訊關鍵字且未被任何抑制分支標記，才追加環境熵抑制說明
+            for (const phrase of strongQiPhrases) {
+                if (physicsText[i].includes(phrase) && !physicsText[i].includes('失效') && !physicsText[i].includes('無法凝聚') && !physicsText[i].includes('無法形成') && !physicsText[i].includes('抑制') && !physicsText[i].includes('受環境干擾') && !physicsText[i].includes('環境熵/湍流過高')) {
+                    physicsText[i] += ` (湧現抑制: 環境熵/湍流過高，吉氣無法凝聚)`;
+                    break;
+                }
+            }
+        }
+    }
+
     // 【第46輪修正】沙盒五行場結算：將玩家安放的木/土/水等實體轉化為風水影響
     const sbBalance = (sandboxField.wood - sandboxField.fire) * 0.15 + (sandboxField.water - sandboxField.metal) * 0.1 + sandboxField.earth * 0.1;
     if (sbBalance > 0) {
@@ -1911,6 +1961,25 @@ class FengShuiEngine {
         }
     }
 
+    // 【第7輪 Dry Run 診斷修正】高雷諾數/高弗勞德數應直接侵蝕吉氣，避免「極端湍流卻高吉分」的狀態矛盾
+    let fluidTurbulencePenalty = 0;
+    if (reynoldsNum > 4000) {
+        fluidTurbulencePenalty += Math.round((reynoldsNum - 4000) / 1000 * 1.0);
+    }
+    if (froudeNum > 1.0) {
+        fluidTurbulencePenalty += Math.round((froudeNum - 1.0) * 15);
+    }
+    if (fluidTurbulencePenalty > 0 && g > 0) {
+        g = Math.max(0, g - fluidTurbulencePenalty);
+        if (reynoldsNum > 4000 && froudeNum > 1.0) {
+            physicsText.push(`流體力學｜雷諾數(${reynoldsNum})與弗勞德數(${froudeNum.toFixed(2)})過高，湍流與超臨界流破壞氣場凝聚，吉氣減損 ${fluidTurbulencePenalty} 點`);
+        } else if (reynoldsNum > 4000) {
+            physicsText.push(`流體力學｜雷諾數(${reynoldsNum})過高，極端湍流破壞氣場凝聚，吉氣減損 ${fluidTurbulencePenalty} 點`);
+        } else {
+            physicsText.push(`流體力學｜弗勞德數(${froudeNum.toFixed(2)})過高，超臨界流難以聚氣，吉氣減損 ${fluidTurbulencePenalty} 點`);
+        }
+    }
+
     // 【第22輪修正】輸出前強制套用煞氣侵蝕：以最終 s 重新計算，確保容量與吉氣被正確削減
     const finalShaErosion = Math.round(s * erosionRatio);
     const finalCapErosion = Math.round(s * capacityErosionRatio);
@@ -1950,10 +2019,14 @@ class FengShuiEngine {
         wuXingText = wuXingText.split(quantumPhrase).join('');
     }
     // 【第54輪修正】最終重煞標記需以最終 s 重新判定，避免熵/閉合度懲罰將 s 推過 80 時仍未被標記，導致 isHeavySha 與最終數值矛盾
+    // 【第15輪 Dry Run 診斷修正】改用「先移除再推入」的方式，確保 hasHeavySha 與 physicsText 永遠同步，避免 some() 掃描失效導致重煞文字漏失
     const finalHasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 60);
     const finalHeavySha = heavyShaForErosion || (finalHasHardSha && !hasMitigatingCure && s >= 60);
-    if (finalHeavySha && !physicsText.some(t => t.includes("重煞壓制"))) {
+    if (finalHeavySha) {
+        physicsText = physicsText.filter(t => !t.includes("重煞壓制"));
         physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
+    } else {
+        physicsText = physicsText.filter(t => !t.includes("重煞壓制"));
     }
     // 【第28輪防呆】若最終判定非重煞，強制清除任何殘留的『重煞壓制』文字，確保 hasHeavySha 與 physicsText 完全同步
     if (!finalHeavySha) {
@@ -1976,7 +2049,7 @@ class FengShuiEngine {
         isHelmholtz: helmholtzTriggered,
         isCoanda: coandaTriggered,
         isHydraulicJump: hydraulicJumpTriggered,
-        isSaddlePoint: !fengShuiContextBroken && (saddlePointTriggered || (!waterBroken && !isShaWater && st.water !== 'none' && st.waterDir !== 'shuai' && ((gatheredDrops - escapedDrops) / 50.0 > 0.3))),
+        isSaddlePoint: saddlePointTriggered,
         isStandingWave: standingWaveTriggered,
         isHeavySha: finalHeavySha,
         // 【高維物理變數匯出】
@@ -4102,7 +4175,9 @@ class UIManager {
       vt = '上吉・吉氣充盈，明堂飽和，氣勢旺盛'; vc = 'good';
     }
     
-    const haloBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble';
+    // 【第5輪 Dry Run 診斷修正】明堂破敗應包含煞水（反弓、路沖、割腳等），因煞水同樣破壞氣場，若此時仍顯示吉評級，強制降為平局
+    const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    const haloBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble' || isShaWater;
     if (haloBroken && (vt.includes('吉') || vt.includes('旺'))) {
       vt = '平局・明堂已破，吉氣難發'; vc = 'mid';
     }
@@ -4253,6 +4328,33 @@ const DryRunTool = {
     if (ana.c < 20 || ana.c > 150) anomalies.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
     if (Math.abs(ana.yyBalance) > 10) anomalies.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
     if (app.builder.blds.length > 32) anomalies.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
+
+    // ==========================================
+    // 【第 6 輪 Dry Run 診斷修正】高維物理指標異常檢測：僅在「高階指標顯示大凶但分數顯示吉象」的矛盾時才回報 CRITICAL，避免對合理大凶格局重複誤報
+    // ==========================================
+    const scoreSuggestGood = typeof ana.g === 'number' && ana.g > 60 && typeof ana.s === 'number' && ana.s < 40;
+    if (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0 && scoreSuggestGood) {
+        anomalies.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>5.0）但分數顯示吉象，氣場混亂與吉分矛盾`);
+    }
+    if (typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.5 && scoreSuggestGood) {
+        anomalies.push(`CRITICAL: 拓撲閉合度僅 ${(ana.betti1Closure*100).toFixed(1)}%（<50%）但分數顯示吉象，明堂漏風與吉分矛盾`);
+    }
+    if (typeof ana.reynoldsNum === 'number' && ana.reynoldsNum > 4000 && scoreSuggestGood) {
+        anomalies.push(`CRITICAL: 雷諾數 ${ana.reynoldsNum} 高於 4000（極端湍流）但分數顯示吉象，湍流風煞與吉分矛盾`);
+    }
+    if (typeof ana.froudeNum === 'number' && ana.froudeNum > 1.0 && scoreSuggestGood) {
+        anomalies.push(`CRITICAL: 弗勞德數 ${ana.froudeNum.toFixed(2)} 高於 1.0（超臨界流）但分數顯示吉象，急流煞氣與吉分矛盾`);
+    }
+    if (typeof ana.qFactor === 'number' && ana.qFactor < 1.0 && ana.g >= 60 && ana.s < 30) {
+        anomalies.push(`WARNING: 吉氣偏高但駐波共振 Q 值過低 (${ana.qFactor.toFixed(2)})，吉氣缺乏凝聚載體，分數可能矛盾`);
+    }
+    // 【第5輪 Dry Run 診斷修正】重煞與評級矛盾偵測：若引擎標記重煞但最終評級為上吉/中吉，代表計分邏輯錯誤
+    if (typeof ana.isHeavySha === 'boolean' && ana.isHeavySha) {
+        const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
+        if (verdictText.includes('上吉') || verdictText.includes('中吉')) {
+            anomalies.push(`CRITICAL: 重煞標記為 true 但評級為「${verdictText}」，狀態矛盾`);
+        }
+    }
 
     // ==========================================
     // 【新增】：城市建築拓撲與穿模掃描器 (City Geometry & Clipping Scanner)

@@ -799,6 +799,15 @@ const Rules = {
             }
         }
 
+        // 【高維拓撲一致性修正】香農熵過高代表氣場渙散，拓撲閉合度過低代表盆地漏風/缺砂。
+        // 若物理觀測顯示此兩種異常，即使靜態分數尚可也必須施加湧現懲罰，避免評語與數據矛盾。
+        if (AppState.sensors.shannonEntropy > 7.5) {
+            emergenceBonus -= Math.min(10, (AppState.sensors.shannonEntropy - 7.5) * 1.2);
+        }
+        if (state.d !== 'pingyang' && AppState.sensors.betti1Closure < 0.5) {
+            emergenceBonus -= Math.min(12, (0.5 - AppState.sensors.betti1Closure) * 20);
+        }
+
         // 限制湧現物理加權的極端值，防止單一異常感測器導致所有分數歸零
         emergenceBonus = Math.max(-50, Math.min(30, emergenceBonus));
 
@@ -1100,7 +1109,7 @@ const Rules = {
         if(state.d === 'si' || state.d === 'po' || state.d === 'gufeng') cap = Math.min(cap, 10);
         if(state.tasha || state.mr === 'kaikou' || state.yangwa) cap -= 25; // 高塔煞/白虎開口/仰瓦漏氣
         // 【新增：致命形煞容量上限】無論基礎容量多高，只要存在足以否定格局的致命形煞，容量一律壓低至30，避免 UI 與評級嚴重矛盾
-        const hasFatalShaForCap = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei'].includes(state.w) || state.tianzhan || state.sherui || state.posui || state.ms === 'sunken' || state.terrain === 'slope' || state.terrain === 'fanpo' || state.tasha || state.mr === 'kaikou' || ['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road);
+        const hasFatalShaForCap = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei'].includes(state.w) || state.tianzhan || state.sherui || state.posui || state.ms === 'sunken' || state.terrain === 'slope' || state.terrain === 'fanpo' || state.tasha || state.mr === 'kaikou' || ['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road) || state.ao || state.qing || state.tantou || state.ml === 'po' || state.mr === 'po' || state.ms === 'po' || state.mn === 'po' || state.wugong || state.bidao || state.yangwa;
         if (hasFatalShaForCap) cap = Math.min(cap, 30);
         return Math.max(0, Math.min(100, cap));
     },
@@ -3418,6 +3427,8 @@ const Engine3D = {
             }
 
             if(state.w !== 'none') {
+                // 【修復】先宣告 dR，避免 TDZ（暫時性死區）導致 jushui/jiaojian/hulu 水局在初始化前賦值拋出 ReferenceError
+                let dR = 0;
                 // 修正：淋頭水應位於穴後 (z<5)，避免河道覆蓋穴場並造成深坑
                 if(state.w==='lintou' && Math.abs(x)<12 && z > -30 && z < -3) y = Math.min(y, -12);
                 
@@ -3498,7 +3509,7 @@ const Engine3D = {
                 }
 
                 // 【水文水力學雕塑】：彎道凸岸（環抱側）堆積沙洲金城吐唇，凹岸（反弓側）深切成割腳崖深潭
-                let dR = Math.abs(z - rS);
+                dR = Math.abs(z - rS);
                 if (state.w === 'hulu' || state.w === 'sishui' || state.w === 'fuliu') dR = 999; // 略過一般河床混合
                 
                 if (state.w === 'tfork') {
@@ -4269,6 +4280,7 @@ const Physics = {
         this.pGeom.attributes.color.needsUpdate = true;
     },
 	update(dt) {
+        Engine3D.shockwavesThisFrame = 0;
         if(dt === 0) return;
         AppState.frames++;
         let state = AppState.current;
