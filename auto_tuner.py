@@ -97,7 +97,16 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
     logger.info(f"🌐 啟動無頭瀏覽器，準備執行 Dry Run {mode_text}...")
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True) 
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--enable-webgl",
+                "--ignore-gpu-blocklist",
+                "--use-gl=angle",
+                "--use-angle=swiftshader-webgl"  # 確保無頭模式下 WebGL / Three.js 100% 正常運作
+            ]
+        ) 
         page = browser.new_page()
         
         # 屏蔽 alert 彈窗，避免阻塞 Chrome 事件循環
@@ -181,7 +190,14 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                     page.wait_for_timeout(1500)
                     if page_errors: return ("JS_ERROR", page_errors[0])
 
-                    res = page.evaluate(dry_run_script)
+                    try:
+                        # 設定 8 秒超時保護，防止 AI 寫出死迴圈凍結主程序
+                        res = page.evaluate(
+                            f"Promise.race([({dry_run_script})(), new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 8000))])"
+                        )
+                    except Exception as eval_err:
+                        logger.error(f"  ❌ 執行 Dry Run 評估失敗或超時: {eval_err}")
+                        res = None
                     if not res: continue
 
                     has_warnings = len(res.get("sanityWarnings", [])) > 0
@@ -637,6 +653,22 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 }
 """
 
+# ============================================================
+# 每輪尾部強制重申的終極十全緊箍咒 (封死所有物理作弊、除零崩潰與變數未定義)
+# ============================================================
+CORE_RULES_REMINDER = """
+⚡⚡⚡【全域物理湧現與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
+1. 【空間座標與網格定址】全域尺度 CONFIG.tSize 為 350（-175~+175）；網格定址必為 `idx = ngz * 64 + ngx`（嚴禁把 X 軸寫成 Z 軸）；穴位周邊判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
+2. 【禁止偽物理與人工推力】嚴禁依格局名稱字串給予推進/吸力 (`state.d === '...'`)；嚴禁外掛磁吸力或人工黑洞；局部風煞向量必須乘上環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓），嚴禁寫死常數向量！
+3. 【三維空間自由度】地面約束必須為單向托舉 (`y = Math.max(y, t.y + 0.8)`)，嚴禁將地面 15 米內粒子強制拍扁在 3.5 米薄片上！
+4. 【單向數據流與感測器】流程為 3D地形/CFD -> 粒子動力學 -> Sensors -> Rules；Rules 嚴禁調用或否定感測器；感測器讀數與扣分必須單調正相關，禁止逆向倒扣；禁止使用水域名稱字串黑名單造假 waterDrag。
+5. 【唯一狀態機收斂與結穴】力場只提供加速度；粒子狀態 (`pState`) 100% 只能由全域風速/亂流/層流閾值判定，嚴禁在局部 if 分支隨機改寫；太極暈陸地且層流沉降為唯一合法生氣結穴點 (`pState = 2`)，水底/過峽/案山坡面嚴禁結穴，嚴禁在穴場入口設立方框強制蓋章。
+6. 【禁止竄改初速與壽命】出生初速統一為穩態 3.5，嚴禁依土壤/龍勢手動修改 `pLife` 壽命與超額初速。
+7. 【除以零防禦與平滑過渡】任何涉及向量/距離相除必加防禦分母 (`Math.max(0.001, dist)`)，防止 NaN 污染粒子陣列；地形與力場衰減禁止階梯式硬切斷，一律使用高斯或線性平滑過渡。
+8. 【變數作用域防呆】替換代碼中引用的所有變數（如 `tz`, `lz`, `xueZOffset` 等）必須確保在當前函式/區塊作用域內已正確宣告，嚴禁跨作用域引用未定義變數！
+9. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、註解、Hex 顏色碼），必須提供 5~10 行上下文，嚴禁在 search 或 replace 中使用 `// ... (省略)` 偷懶！
+10. 【嚴格輸出規範】只准輸出合法的 JSON 格式，絕對不要在 JSON 外附帶任何 Markdown 說明文字。
+"""
 
 # ============================================================
 # 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
@@ -668,10 +700,20 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             if not current_js:
                 logger.error("❌ 找不到有效的 JavaScript 代碼，靜態審查中止。")
                 return
-            user_msg = f"```javascript\n{current_js}\n```\n\n【第 {current_round} 輪靜態審查請求】\n請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
+            user_msg = (
+                f"```javascript\n{current_js}\n```\n\n"
+                f"【第 {current_round} 輪靜態審查請求】\n"
+                f"請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。\n"
+                f"{CORE_RULES_REMINDER}"
+            )
             needs_full_snapshot = False
         else:
-            user_msg = f"【第 {current_round} 輪靜態審查請求】\n（上一輪的修改已成功套用）。\n請繼續基於最新的代碼狀態，尋找是否還有其他潛在的問題。如果確認代碼已經完美無瑕，請回傳 PERFECT。"
+            user_msg = (
+                f"【第 {current_round} 輪靜態審查請求】\n"
+                f"（上一輪的修改已成功套用）。\n"
+                f"請繼續基於最新的代碼狀態，尋找是否還有其他潛在的問題。如果確認代碼已經完美無瑕，請回傳 PERFECT。\n"
+                f"{CORE_RULES_REMINDER}"
+            )
             
         conversation_history.append({"role": "user", "content": user_msg})
         
@@ -906,11 +948,16 @@ def main():
                 user_msg = (
                     f"```javascript\n{current_js}\n```\n\n"
                     f"【第 {current_round} 輪 - 靜態審查請求】\n"
-                    "請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。"
+                    f"請仔細審查上述 JS 邏輯代碼快照，找出潛在的邏輯漏洞、風水規則衝突或 JavaScript 語法錯誤。\n"
+                    f"{CORE_RULES_REMINDER}"
                 )
                 needs_full_snapshot = False
             else:
-                user_msg = f"【第 {current_round} 輪 - 靜態審查請求】\n（上一輪修改已生效）。請繼續基於最新的代碼狀態，尋找是否還有其他潛在的問題。如果確認代碼已經完美無瑕，請回傳 PERFECT。"
+                user_msg = (
+                    f"【第 {current_round} 輪 - 靜態審查請求】\n"
+                    f"（上一輪修改已生效）。請繼續基於最新的代碼狀態，尋找是否還有其他潛在的問題。如果確認代碼已經完美無瑕，請回傳 PERFECT。\n"
+                    f"{CORE_RULES_REMINDER}"
+                )
                 
             conversation_history.append({"role": "user", "content": user_msg})
         else:
@@ -932,7 +979,11 @@ def main():
                 logger.warning(f"⚠️ 偵測到 JavaScript 語法崩潰 (嘗試自我修復 {syntax_error_retries}/3)...")
                 rollback_file(target_file, logger) 
                 
-                err_user_msg = f"【語法崩潰緊急修復】上一輪套用修改後爆發了以下 JavaScript 語法錯誤：\n```\n{js_err_msg}\n```\n檔案已自動復原至備份檔。請重新檢視並提供不含語法錯誤的修正 JSON。"
+                err_user_msg = (
+                    f"【語法崩潰緊急修復】上一輪套用修改後爆發了以下 JavaScript 語法錯誤：\n```\n{js_err_msg}\n```\n"
+                    f"檔案已自動復原至備份檔。請重新檢視並提供不含語法錯誤的修正 JSON。\n"
+                    f"{CORE_RULES_REMINDER}"
+                )
                 conversation_history.append({"role": "user", "content": err_user_msg})
 
                 fix_json, raw_text, _ = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
@@ -985,6 +1036,16 @@ def main():
                         logger.warning(f"⛰️ 空間與物理掃描: {anomaly}")
             # ================================================================
 
+            # ⚡ [防迴歸機制] 檢查是否有原本應為完美的經典格局在本次修改後出現異常
+            regression_warnings = []
+            for res in unique_results:
+                preset = res.get("presetName", "")
+                warnings = res.get("sanityWarnings", [])
+                if preset and not preset.startswith("random") and len(warnings) > 0:
+                    regression_warnings.append(f"  - 🚨【防迴歸嚴重警告】：經典預設格局 [{preset}] 出現異常警告：{warnings}")
+            
+            regression_text = ("⚠️⚠️⚠️【偵測到代碼修改引發功能倒退 (Regression)】：\n" + "\n".join(regression_warnings) + "\n\n") if regression_warnings else ""
+
             # ⚡ [Cache 優化] 加入 sort_keys=True 確保 JSON 結構鍵值順序 100% 決定論
             compact_json = json.dumps(unique_results, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
             
@@ -996,12 +1057,20 @@ def main():
                 user_msg = (
                     f"```javascript\n{current_js}\n```\n\n"
                     f"【第 {current_round} 輪 - {prefix}請求】\n"
-                    f"{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}"
+                    f"{regression_text}"
+                    f"{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}\n"
+                    f"{CORE_RULES_REMINDER}"
                 )
                 needs_full_snapshot = False
             else:
                 prefix = "畢業大考高壓測試" if is_exam else "Dry Run 診斷"
-                user_msg = f"【第 {current_round} 輪 - {prefix}請求】\n（上一輪修改已生效）。\n{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}"
+                user_msg = (
+                    f"【第 {current_round} 輪 - {prefix}請求】\n"
+                    f"（上一輪修改已生效）。\n"
+                    f"{regression_text}"
+                    f"{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}\n"
+                    f"{CORE_RULES_REMINDER}"
+                )
             
             conversation_history.append({"role": "user", "content": user_msg})
 

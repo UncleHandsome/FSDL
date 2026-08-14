@@ -314,6 +314,8 @@ class StateManager {
     this.tool = null;      // 【新增】目前選中的建造工具
     this.sources = [];
     this.analysis = { g:0, s:0, c:40, cureText:'', wuXingText:'', yyBalance:0, yyText:'' };
+    this.taijiX = 0; // 【第24輪】穴心絕對座標基準，供所有相對座標判定使用
+    this.taijiZ = 0;
   }
 }
 
@@ -440,7 +442,24 @@ class FengShuiEngine {
     // ==========================================
     // 1. 全域變數提前宣告 (解決變數提早使用的當機問題)
     // ==========================================
-    const extWindSpeed = stateManager.trafficSpeed + stateManager.wind; // 【修正】最優先宣告環境風速，避免 TDZ 錯誤
+    const extWindSpeed = stateManager.wind; // 【修正】環境風速僅由風速滑桿決定，車流不應產生風煞
+    // 【修正】建立與 CityBuilder.terrainYCorrected 一致的統一地形高程補償，避免 analyze 與場景建築高度不一致
+    const terrainYCorrected = (px, pz) => {
+        let y = Util.terrainY(px, pz, st.terrain);
+        if (st.special.includes('qingxie') && pz > 20) y -= (pz - 20) * 0.15;
+        if (st.front === 'sunken') {
+            // 【修正】明堂低陷平滑過渡，避免硬切斷造成地形法線斷裂
+            let nx = Math.abs(px) / 25.0;
+            let nz = Math.abs(pz - 34) / 20.0;
+            let nd = Math.max(nx, nz);
+            if (nd < 1.0) {
+                let t = 1.0 - nd;
+                t = t * t * (3.0 - 2.0 * t);
+                y -= 1.5 * t;
+            }
+        }
+        return y;
+    };
 
     let kineticSha = 0; // 動能煞氣
     let vortexQi = 0;   // 渦流吉氣
@@ -457,7 +476,7 @@ class FengShuiEngine {
     let frontOpenness = 1.0; // 【修正】提前宣告明堂開闊度，預設全開闊 1.0
 let spatialEntropy = 0;  // 【修正】提前宣告資訊熵變數，避免塊級作用域引發 ReferenceError
 let betti1Closure = 0;   // 【修正】提前宣告拓撲閉合度變數
-let reynoldsNum = Math.round(extWindSpeed * 250); // 【修正】降低雷諾數倍率，避免正常風速被誤判為極端湍流
+let reynoldsNum = Math.round(extWindSpeed * 500); // 【修正】提高雷諾數倍率使高風速(>=8)能觸發湍流煞，避免死代碼
 let froudeNum = extWindSpeed / Math.sqrt(9.8 * 10.0); // 【修正】以較深明堂水深(10)計算弗勞德數，避免正常氣流被誤判為超臨界流
 const elMap = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土', east:'wood', south:'fire', west:'metal', north:'water', center:'earth' };
 const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
@@ -510,20 +529,22 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
     if (builder && builder.blds) {
       for (const b of builder.blds) {
-        if (b.x === 0 && b.z === 0) continue; // 跳過主樓
+        if (b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)) continue; // 跳過主樓（穴心）
         
-        const dist = Math.hypot(b.x, b.z); // 計算距離
+        // 【第14輪修正】穴位相對座標統一在迴圈頂部宣告，確保所有後續判定皆以穴心為基準，避免穴位移動時絕對座標錯位
+        const dxTaiji = b.x - (stateManager.taijiX || 0), dzTaiji = b.z - (stateManager.taijiZ || 0);
+        const dist = Math.hypot(dxTaiji, dzTaiji); // 計算距離
         // 遮擋權重：距離越遠，幾何與視覺的影響越小
         const weight = 100 / (dist * dist + 100);
 
         // 處理沙盒物理力場 (距離衰減)
         if (b.isWater || b.wx) {
             const intensity = Math.max(0, 1 - (dist / 150));
-            if (b.isWater) {
-                localField.water += 15 * intensity;
-                sandboxField.water += 15 * intensity; // 【第46輪】同步記錄沙盒水
-                vortexQi += 8 * intensity;
-            } else if (b.wx) {
+        if (b.isWater) {
+            localField.water += 15 * intensity;
+            if (b.isSandbox) sandboxField.water += 15 * intensity; // 【第46輪】僅同步記錄沙盒水
+            vortexQi += 8 * intensity;
+        } else if (b.wx) {
                 localField[b.wx] += 20 * intensity;
                 sandboxField[b.wx] += 20 * intensity; // 【第46輪】同步記錄沙盒五行
             }
@@ -533,65 +554,66 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         const mass = b.w * b.h * b.d; // 建築質量
         const volume = mass * weight;
 
-        // 1. 平洋龍的城市質量拓撲場 (Scalar Potential Field)
-        const distSq = b.x * b.x + b.z * b.z + 1;
+        // 1. 平洋龍的城市質量拓撲場 (Scalar Potential Field) - 全部使用穴心相對座標
+        const distSq = dxTaiji * dxTaiji + dzTaiji * dzTaiji + 1;
         scalarPotential += mass / distSq;
-        gradX += -2 * mass * b.x / (distSq * distSq);
-        gradZ += -2 * mass * b.z / (distSq * distSq);
+        gradX += -2 * mass * dxTaiji / (distSq * distSq);
+        gradZ += -2 * mass * dzTaiji / (distSq * distSq);
         
         // 2. 頻域剝換 (Spectral Cascade)：計算幾何高頻變異
         // 【第14輪修正】加入中軸限制 |x|<15，避免左右砂(青龍白虎)的尖高建築干擾龍脈自身的頻域判別
-        if (b.z < 0 && Math.abs(b.x) < 15) {
+        if (dzTaiji < 0 && Math.abs(dxTaiji) < 15) {
             let sharpness = b.h / (b.w + b.d); // 尖銳度 (高頻特徵)
             if (sharpness > 1.5) spatialHighFreq += mass * sharpness / distSq;
             else spatialLowFreq += mass / distSq;
         }
         
         // 4. 動態阻抗匹配 (鬼曜撐背)
-        if (b.z < 0 && b.z > -60 && Math.abs(b.x) < 15) {
+        if (dzTaiji < 0 && dzTaiji > -60 && Math.abs(dxTaiji) < 15) {
             backImpedance += mass * (b.h / hMain) / distSq; // 後方結構的力學阻抗
         }
         
         // 3. 康達效應 (Coanda Effect) - 偵測暗拱與隱砂
-        if (b.z > 5 && b.z < 30 && Math.abs(b.x) < 20 && b.h <= 5) {
+        if (dzTaiji > 5 && dzTaiji < 30 && Math.abs(dxTaiji) < 20 && b.h <= 5) {
             let curvature = b.w / (b.h * b.h); // 簡化流體貼壁曲率
-            if (curvature > 2.0) coandaDeflection += curvature * (30 - b.z);
+            if (curvature > 2.0) coandaDeflection += curvature * (30 - dzTaiji);
         }
 
         // 幾何空間劃分與高度壓迫感 (SDF 雛形)
         // 【第7輪修正】低矮地形特徵 (如突/鉗等 h<5) 不應被視為高層建築阻擋明堂，避免容量被不當壓低
         const effVol = b.h >= 5 ? volume : 0;
-        if (b.x < -5) { vLeft += effVol * (b.h / hMain); leftBuildings.push(b); }
-        if (b.x > 5)  { vRight += effVol * (b.h / hMain); rightBuildings.push(b); }
-        if (b.z < -15) {
+        if (dxTaiji < -5) { vLeft += effVol * (b.h / hMain); leftBuildings.push(b); }
+        if (dxTaiji > 5)  { vRight += effVol * (b.h / hMain); rightBuildings.push(b); }
+        if (dzTaiji < -15) {
             vBack += effVol * (b.h / hMain);
             if (b.h >= hMain * 0.7) { hasBackSupport = true; backHighBuildingCount++; }
             backBuildingCount++;
         }
-        if (b.z > 5 && Math.abs(b.x) < 30) {
-          // 案山判定純粹由 3D 實體建築在明堂前方的相對位置 (z: 30~80) 與高度比例 (0.2~0.6 hMain) 客觀識別，完全相容沙盒自建建築，移除字串綁定
-          const isCaseBuilding = (b.z > 30 && b.z < 80 && b.h >= 8 && b.h <= hMain * 0.75 && Math.abs(b.x) < 25);
+        // 【第13輪修正】明堂前方判定一律使用穴心相對座標 (dzTaiji, dxTaiji)，確保穴位可移動時邏輯不偏移（天條#1）
+        if (dzTaiji > 5 && Math.abs(dxTaiji) < 30) {
+          // 案山判定純粹由 3D 實體建築在明堂前方的相對位置 (dzTaiji: 30~80) 與高度比例 (0.2~0.6 hMain) 客觀識別
+          const isCaseBuilding = (dzTaiji > 30 && dzTaiji < 80 && b.h >= 8 && b.h <= hMain * 0.75 && Math.abs(dxTaiji) < 25);
           if (!isCaseBuilding) {
             vFront += effVol;
-            if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
+            if (Math.abs(dxTaiji) < 20 && b.h > 10) frontObstacles++;
             if (b.h > maxHFront) maxHFront = b.h;
           }
           // 【第 10 輪修正】偵測實體案山：需位於明堂正前方且高度足以擋風
           if (isCaseBuilding) physicalCaseExists = true;
-          // 擎拳與探頭煞偵測嚴格依穴心相對座標 (dzTaiji, dxTaiji) 與實體案山相對高度進行幾何識別，移除字串綁定與寫死絕對座標
-          let dxTaiji = b.x - 0, dzTaiji = b.z - 0;
+          // 擎拳與探頭煞偵測嚴格依穴心相對座標 (dzTaiji, dxTaiji) 與實體案山相對高度進行幾何識別
           if (dzTaiji > 15 && dzTaiji < 45 && Math.abs(dxTaiji) < 8 && b.h > 10) centerBlocker = true;
           if (physicalCaseExists && dzTaiji > 55 && dzTaiji < 110 && (Math.abs(dxTaiji) > 5 && Math.abs(dxTaiji) < 22) && b.h > maxHFront * 1.2) peekSha = true;
         }
 
         // 1. 光線追蹤：檢查正午陽光是否被遮蔽 (納入真實地基高程 bBase 與頂部 bTop)
+        // 【第17輪修正】使用穴心相對座標，避免穴位移動時光線判定錯位
         let noonSun = sunAngles[1];
-        let t = (b.z - 0) / noonSun.z;
+        let t = dzTaiji / noonSun.z;
         if (t > 0 && t < 200) {
             let hitX = t * noonSun.x;
             let hitY = (hMain/2) + t * noonSun.y;
-            let bBase = (b.y || 0) + Util.terrainY(b.x, b.z, st.terrain);
-            if (hitY >= bBase && hitY <= bBase + b.h && Math.abs(hitX - b.x) < b.w/2) {
+            let bBase = (b.y || 0) + terrainYCorrected(b.x, b.z);
+            if (hitY >= bBase && hitY <= bBase + b.h && Math.abs(hitX - dxTaiji) < b.w/2) {
                 directSunlight = false; 
             }
         }
@@ -613,10 +635,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
                         let rx = ray.x - 2 * dot * face.n.x;
                         let rz = ray.z - 2 * dot * face.n.z;
                         
-                        // 檢查反射光線是否直射原點(主樓) - 嚴格進行無因次垂直距離歸一化
-                        let toOriginDot = -face.c.x * rx + -face.c.z * rz;
+                        // 【第92輪修正】反射光線以實際穴位 (taijiX, taijiZ) 為基準，確保穴位可移動時仍正確偵測反光煞
+                        const tx = stateManager.taijiX || 0, tz = stateManager.taijiZ || 0;
+                        let toOriginDot = (tx - face.c.x) * rx + (tz - face.c.z) * rz;
                         let rLen2D = Math.hypot(rx, rz);
-                        let perpDist = rLen2D > 0.001 ? Math.abs(face.c.x * rz - face.c.z * rx) / rLen2D : 999;
+                        let perpDist = rLen2D > 0.001 ? Math.abs((face.c.x - tx) * rz - (face.c.z - tz) * rx) / rLen2D : 999;
                         
                         // 僅當反射光朝向穴心且真實垂直距離小於主樓寬度半徑 (12m) 時才計為命中
                         if (toOriginDot > 0 && perpDist < 12.0) {
@@ -641,11 +664,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // ==========================================
       let maxBlockage = new Array(72).fill(0);
       // 觀測中心以主樓穴心 (0, 0) 為基準計算相對明堂核心位置 (dzTaiji = 15)
-      let taijiX = 0, taijiZ = 0;
+      const taijiX = stateManager.taijiX || 0, taijiZ = stateManager.taijiZ || 0;
       let obsX = taijiX, obsZ = taijiZ + 15;
       if (builder && builder.blds) {
           for (const b of builder.blds) {
-              if ((b.x === taijiX && b.z === taijiZ) || b.isWater || b.y > 5) continue;
+              if ((b.x === taijiX && b.z === taijiZ) || b.isWater) continue;
               let dx = b.x - obsX, dz = b.z - obsZ;
               let dist = Math.hypot(dx, dz);
               if (dist < 1) continue;
@@ -654,8 +677,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
               let effectiveRadius = Math.hypot(b.w, b.d) * 0.5;
               let angWidth = Math.asin(Math.min(0.99, effectiveRadius / Math.max(effectiveRadius + 0.1, dist)));
               // 仰角嚴格依 3D 建築頂部相對於明堂地表觀測點之真實高度差 (effH) 計算，移除人工削去 5 米
-              let obsY = Util.terrainY(0, obsZ, st.terrain) + 1.6; // 人眼觀測高程 1.6m
-              let bTop = (b.y || 0) + Util.terrainY(b.x, b.z, st.terrain) + b.h;
+              let obsY = terrainYCorrected(obsX, obsZ) + 1.6; // 人眼觀測高程 1.6m
+              let bTop = (b.y || 0) + terrainYCorrected(b.x, b.z) + b.h;
               let elevAngle = Math.max(0, Math.atan2(bTop - obsY, dist));
               let blockage = Math.min(1.0, elevAngle / (Math.PI / 2.0)); 
               
@@ -686,28 +709,31 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // 統一使用中立基準：閉合度 50%、熵 5.0 Bits（代表混沌未分）。
       let closedRays = 0;
       spatialEntropy = 0;
-      const hasAnyBlocker = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
-      if (hasAnyBlocker) {
+      const hasAnyBlocker = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)));
+      // 【第52輪修正】若存在建築但皆未遮擋射線(svfTotal=0)時，應視為空曠，避免閉合度0與熵0誤判
+      if (hasAnyBlocker && svfTotal > 0) {
           for (let i = 0; i < 72; i++) {
               if (maxBlockage[i] > 0.45) closedRays++;
               if (maxBlockage[i] > 0 && svfTotal > 0) {
                   let p = maxBlockage[i] / svfTotal;
-                  spatialEntropy -= p * Math.log2(p); // 耗散結構負熵系統
+                  spatialEntropy -= p * Math.log2(p);
               }
           }
           betti1Closure = closedRays / 72;
       } else {
           betti1Closure = 0.5;      // 空曠：半開放半閉合，不偏不倚
           spatialEntropy = 5.0;     // 空曠：中度混亂，不自動等於 0
-      } 
+      }
       
       // 【批次 6：流體力學無因次量 (Reynolds & Froude Numbers)】
-      reynoldsNum = Math.round(extWindSpeed * 250 + spatialHighFreq * 10);
-      froudeNum = extWindSpeed / Math.sqrt(9.8 * 10.0); // 簡化弗勞德數
+      // 【修正】空氣雷諾數與弗勞德數必須純由環境風速 (stateManager.wind) 計算，嚴禁混入車流/水流滑桿值
+      reynoldsNum = Math.round(stateManager.wind * 500);
+      froudeNum = stateManager.wind / Math.sqrt(9.8 * 10.0); // 簡化弗勞德數
       
       // 物理現象探測：文丘里效應 (天斬) 與 氣散效應
-      let leftWalls = leftBuildings.filter(b => b.z > 10 && b.z < 80 && b.x > -20 && b.h > hMain);
-      let rightWalls = rightBuildings.filter(b => b.z > 10 && b.z < 80 && b.x < 20 && b.h > hMain);
+      // 【第17輪修正】龍虎壁偵測改用穴心相對座標，確保穴位移動時邏輯不偏移
+      let leftWalls = leftBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) > -20 && b.h > hMain);
+      let rightWalls = rightBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) < 20 && b.h > hMain);
       for (let lw of leftWalls) {
           for (let rw of rightWalls) {
               const gap = Math.abs(lw.x - rw.x) - (lw.w + rw.w) * 0.5; // 實際縫隙寬度
@@ -722,7 +748,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
           if (narrowGapDetected) break;
       }
     const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
-    const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 20 && !st.cure.includes('pool') && !st.cure.includes('fountain') && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
+    // 【修正】將水破風煞門檻調整至與系統最大風速（10）匹配，使極端強風（>=8）能真實扯破吉水
+    const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 8 && !st.cure.includes('pool') && !st.cure.includes('fountain') && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     waterBroken = waterBrokenByWind; // 提前設定水局破裂狀態，避免地形水聚訊息與流體破水訊息矛盾
     if (isShaWaterForBarrier) waterBroken = false; // 【第22輪修正】煞水本身不具聚氣介質，強制排除水破標記，避免與「煞水未成水局」矛盾
     const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && !waterBroken && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
@@ -734,20 +761,21 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       const hasCloseCase = st.front === 'lowcase' && stateManager.heights.bird >= 10 && stateManager.heights.bird >= hMain * 0.33;
       const isLowInvalidCase = st.front === 'lowcase' && (stateManager.heights.bird < 10 || stateManager.heights.bird < hMain * 0.33);
       // 【第4輪修正】當 front='none'（無明堂）時，不應觸發八風吹穴，因為已屬「明堂已破」狀態，避免與玄武靠失效等抑制訊息重複矛盾。
-      if (st.front !== 'none' && frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && !physicalCaseExists && (coandaDeflection <= 10 || isLowInvalidCase)) {
+      if (st.front !== 'none' && frontOpenness > 0.85 && extWindSpeed >= 8 && !hasWaterBarrier && !hasCloseCase && (!physicalCaseExists || isLowInvalidCase) && (coandaDeflection <= 10 || isLowInvalidCase)) {
           emptyFrontWind = true;
       }
     }
     
     // 【第8輪 Dry Run 診斷修正】環境混亂旗標：高熵/低閉合度/湍流/超臨界流時，吉氣佈局應帶有抑制描述，避免「自然湧現吉訊」與最終 0 吉分矛盾
     // 僅在存在除主樓以外的實體遮擋建築（非水體）時才進行閉合度/熵懲罰，避免主樓被誤判為遮擋物導致誤懲罰
-    const hasBuildingsForAnalysis = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    const hasBuildingsForAnalysis = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)));
     // 【修正】避免吉局因前方開闊導致閉合度略低而被誤判為環境混亂：
     // 當後方有靠且左右護衛齊全時，僅在熵極高(>6.5)、閉合度極低(<0.3)、雷諾數>4000或弗勞德數>1.0時才視為disordered。
     // 否則護衛不齊時，維持原閾值。
-    const hasGoodSupport = hasBackSupport || (st.left === 'qinglong' && st.right === 'baihu');
+    // 【第57輪修正】hasGoodSupport 改由實際物理量決定，避免字串配置直接影響熵懲罰
+    const hasGoodSupport = hasBackSupport || (vLeft > 8 && vRight > 8);
     const environmentDisordered = hasBuildingsForAnalysis && (
-        spatialEntropy > 6.5 || 
+        spatialEntropy > (hasGoodSupport ? 5.8 : 5.0) || 
         betti1Closure < 0.3 || 
         reynoldsNum > 4000 || 
         froudeNum > 1.0 ||
@@ -770,7 +798,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     
     // 1. 空間壓迫與巒頭湧現
     // 【修正】若左側無建築（left='none'）或左側為逼壓/破碎，不應湧現青龍有情
-    if (!fengShuiContextBroken && st.left === 'qinglong' && vLeft > vRight * 1.2 && st.left !== 'none') {
+    // 【第48輪修正】側翼體積過大造成逼壓時，不應再判定為有情，避免『青龍有情』與『青龍逼壓』同時湧現之矛盾
+    if (!fengShuiContextBroken && st.left === 'qinglong' && vLeft > vRight * 1.2 && st.left !== 'none' && !(vLeft > 20 && vLeft > vRight * 1.5) && !(vRight > 20 && vRight > vLeft * 1.5)) {
         if (st.right === 'baihu') {
             g += 15; observerText.push("空間｜左青龍右白虎俱有情，左右護衛均衡 (湧現: 四象俱全)");
         } else if (st.right === 'none') {
@@ -785,7 +814,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     }
     else {
         // 【第47輪修正】明堂破敗時，仍應湧現龍虎單邊缺失的護衛失衡煞氣，避免缺陷被物理引擎忽略
-        if ((st.left === 'qinglong' && st.right === 'none') || (st.left === 'none' && st.right === 'baihu')) {
+        // 【第70輪修正】若單邊側翼體積過大造成逼壓，應優先描述逼壓而非「獨存」，避免語意矛盾
+        if ((st.left === 'qinglong' && st.right === 'none' && !(vLeft > 20 && vLeft > vRight * 1.5)) || 
+            (st.left === 'none' && st.right === 'baihu' && !(vRight > 20 && vRight > vLeft * 1.5))) {
             s += 25; g = Math.max(0, g - 5); c = Math.max(20, c - 5);
             observerText.push(st.left === 'qinglong' ? "空間｜青龍獨存，白虎虛空，氣場失衡 (湧現: 青龍無虎/左強右弱)" : "空間｜白虎獨存，青龍虛空，氣場失衡 (湧現: 白虎無青龍/右強左弱)");
         }
@@ -794,18 +825,16 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
             observerText.push("空間｜左右側翼空虛，氣場無護 (四象空虛)");
         }
         // 側翼壓迫與破碎之扣分完全由 vLeft、vRight 體積積分與主樓高度比 (b.h / hMain) 連續計算，移除字串直接硬加 35 分與硬扣吉氣
-        if (vLeft > 20 && vLeft > vRight * 1.5) {
+        if (vLeft > 20 && vLeft > vRight * 1.5 && st.left !== 'broken') {
             observerText.push("空間｜左側實體高大逼壓主樓 (青龍逼壓)"); wuXingText += "｜青龍逼壓；";
         }
-        if (vRight > 20 && vRight > vLeft * 1.5) {
-            observerText.push("空間｜右側實體高大逼壓主樓 (白虎抬頭)"); wuXingText += "｜白虎逼壓；";
-        }
-        else if (st.right === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push("空間｜右側破碎殘缺，白虎無力"); }
+        if (st.right === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push("空間｜右側破碎殘缺，白虎無力"); }
+        if (st.left === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push("空間｜左側破碎殘缺，青龍無力"); }
     }
 
     // 【第21輪修正】物理湧現：即使右砂為白虎，若實際幾何高度/體積過度碾壓左側與主樓，仍應湧現「白虎抬頭」煞氣
     // 【第48輪修正】若右砂為破碎（broken），其殘骸體積不應視為實體壓迫，避免「破碎殘缺」與「白虎抬頭」狀態矛盾
-    if (!fengShuiContextBroken && st.right !== 'raise' && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) {
+    if (!fengShuiContextBroken && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) {
         s += 35; g = Math.max(0, g - 10); c = Math.max(20, c - 5);
         observerText.push("空間｜右側實體過於高大逼壓主樓，白虎雖選但物理上已成抬頭之勢 (湧現: 白虎抬頭)");
         wuXingText += "｜白虎逼壓；";
@@ -901,8 +930,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     }
     
     // 新增：擎拳煞/穿心煞物理湧現
+    // 【修正】此為空間壓迫形煞，與風速無關，應加入形煞總分而非動能煞氣，避免無風時產生風煞矛盾
     if (centerBlocker) {
-        kineticSha += 20;
+        s += 20;
         observerText.push(`空間｜正前方明堂核心遭實體建築突刺，阻礙氣流並產生逆流煞氣 (自然湧現: 擎拳/穿心煞)`);
     }
     // 【新增】探頭煞獨立湧現
@@ -933,7 +963,16 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         let y = Util.terrainY(px, pz, st.terrain);
         // 修正：將傾斜起點提前至明堂中心(pz>20)，讓重力探測水滴能真實滑落
         if (st.special.includes('qingxie') && pz > 20) y -= (pz - 20) * 0.15; 
-        if (st.front === 'sunken' && Math.abs(px) < 25 && Math.abs(pz - 34) < 20) y -= 1.5; 
+        if (st.front === 'sunken') {
+            let nx = Math.abs(px) / 25.0;
+            let nz = Math.abs(pz - 34) / 20.0;
+            let nd = Math.max(nx, nz);
+            if (nd < 1.0) {
+                let t = 1.0 - nd;
+                t = t * t * (3.0 - 2.0 * t);
+                y -= 1.5 * t;
+            }
+        } 
         return y;
     };
     
@@ -1033,8 +1072,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         waterLock = 0;
         if (builder && builder.blds) {
             for (let b of builder.blds) {
-                if (b.z > 50 && b.h > 5) {
-                    let hits = dropPaths.filter(path => path.some(pt => Math.abs(pt.x - b.x) < b.w && Math.abs(pt.z - b.z) < b.d)).length;
+                // 【第26輪修正】水口攔截偵測改用穴心相對座標，避免穴位移動時產生錯位
+                if ((b.z - (stateManager.taijiZ || 0)) > 50 && b.h > 5) {
+                    let hits = dropPaths.filter(path => path.some(pt => Math.abs(pt.x - b.x) < b.w * 0.5 && Math.abs(pt.z - b.z) < b.d * 0.5)).length;
                     waterLock += hits;
                 }
             }
@@ -1152,9 +1192,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // 【新增】若無水或煞水，容量不應受水聚影響，且不應過低
     if (st.water === 'none' || isShaWater) {
         c = Math.max(c, 40);
-        // 【第1輪 Dry Run 修正】無水或煞水時容量上限過高，限制為80，避免無水格局容量異常
-        // 【本輪靜態審查修正】煞水（割腳、反弓、直沖等）屬凶水，明堂容量應受限，避免煞水格局容量異常偏高
-        if (st.water === 'none' || isShaWater) c = Math.min(c, 80);
+        // 【修正】僅煞水（割腳、反弓、直沖等）屬凶水，容量應受限；無水但有良好明堂時容量不應被過度壓縮（天條：吉局明堂應 >100）
+        if (isShaWater) c = Math.min(c, 80);
     }
     // 【新增】確保容量不超過150，並維持獨立性
     c = Math.min(150, c);
@@ -1212,20 +1251,21 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // ==========================================
     // 3. 流體動能與感測器捕捉 (沖煞、聚氣)
     // ==========================================
-    const sensorFrontZ = 20;
+    const sensorFrontZ = (stateManager.taijiZ || 0) + 20;
     // extWindSpeed 已提早至上方宣告
 
     for (const src of stateManager.sources) {
       if (src.isTantou && !peekSha) continue; // 【第7輪修正】物理未偵測到探頭煞時，跳過煞源，避免無中生有
-      const dx = 0 - src.x;
+      const dx = (stateManager.taijiX || 0) - src.x;
       const dz = sensorFrontZ - src.z;
       const dist = Math.hypot(dx, dz);
       
       if (src.len === 0) {
         // 修正：針對點源靜態形煞（如淋頭壓頂、探頭煞、蜈蚣煞等無長度者）
         // 因為缺乏風向向量，改以距離衰減直接計算靜態空間壓迫煞氣
+        // 此煞氣為幾何壓迫，與風速無關，直接加入形煞總分 s，避免無風時被誤判為風煞
         if (dist < 40) {
-          kineticSha += (40 - dist) * src.pw * 0.15;
+          s += (40 - dist) * src.pw * 0.15;
         }
       } else if (dist < src.len + 30) {
         const safeDist = Math.max(0.001, dist);
@@ -1264,14 +1304,13 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         } else {
             observerText.push(`流體｜此水勢為煞水，氣流被切割或反弓，無法聚氣 (自然湧現: 水煞)`);
         }
-    } else if (extWindSpeed >= 20 && !isShaWaterForFluid && (st.water === 'jade' || st.water === 'nine') && !['none', 'sunken', 'rubble'].includes(st.front)) {
-        // 【第 11 輪修正】水破風煞門檻提高至極端強風(>=20)，避免一般強風將吉水誤判為煞水
-        let tearForce = (extWindSpeed - 16) * 6;
+    } else if (waterBroken && !isShaWaterForFluid && (st.water === 'jade' || st.water === 'nine') && !['none', 'sunken', 'rubble'].includes(st.front)) {
+        // 【修正】水破風煞改由 waterBroken 觸發，與 waterBrokenByWind 門檻（>=8）一致，並調整 tearForce 公式使風速 8~10 產生合理煞氣
+        let tearForce = (extWindSpeed - 6) * 6;
         if (st.cure.includes('pool') || st.cure.includes('fountain')) tearForce *= 0.5;
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
-        // 【修正】waterBroken 已在前面根據 waterBrokenByWind 設定，此處不應重設，以免有化煞時 waterBroken 被誤設為 false 導致邏輯矛盾
-        observerText.push(`流體｜極端強風(強度${extWindSpeed})產生強烈氣穴與剪力，${st.cure.includes('pool') || st.cure.includes('fountain') ? '但水體陣法部分緩解了破壞' : '嚴重破壞了明堂的水局介質'}，聚氣之水大幅削弱！`);
+        observerText.push(`流體｜強風(強度${extWindSpeed})產生強烈氣穴與剪力，${st.cure.includes('pool') || st.cure.includes('fountain') ? '但水體陣法部分緩解了破壞' : '嚴重破壞了明堂的水局介質'}，聚氣之水大幅削弱！`);
     } else if ((st.water === 'jade' || st.water === 'nine') && !st.special.includes('qingxie') && st.terrain !== 'slope') {
         // 【修正】必須依賴虛水測試結果，避免與水文學矛盾
         if (waterTestRan && gatherPercent >= 50) {
@@ -1307,7 +1346,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     if (builder && builder.blds && builder.blds.some(b => b.x === 0 && b.z === 0 && b.y > 5)) {
         let hollowSha = extWindSpeed * 3.5;
         kineticSha += hollowSha;
-        observerText.push(`流體｜主樓底部騰空形成穿堂風，地氣隨底部氣流加速流失 (抬轎懸空)`);
+        if (hollowSha > 0) {
+            observerText.push(`流體｜主樓底部騰空形成穿堂風，地氣隨底部氣流加速流失 (抬轎懸空)`);
+        }
     }
 
     // 【新增】記錄未經化煞削減前的基礎煞氣，作為化煞削減的最低保護線，防止形煞被完全抹除
@@ -1366,8 +1407,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     
     if (frontOpenness > 0.85) {
         yang += 2; 
-        // 【第 24 輪修正】避免「曠野氣散」與「玄武靠/龍虎護衛」矛盾：只有當後方無屏障且左右無護衛時才視為曠野
-        const hasGoodSpatialSupport = hasBackSupport || (st.left !== 'none' && st.right !== 'none');
+        // 【第 24 輪修正】避免「曠野氣散」與「玄武靠/龍虎護衛」矛盾：只有當後方無屏障且左右無物理護衛體積時才視為曠野
+        const hasGoodSpatialSupport = hasBackSupport || (vLeft > 8 && vRight > 8);
         if (skyViewFactor > 0.75 && !hasGoodSpatialSupport) observerText.push(`空間｜SVF 射線探測：明堂開闊度達 ${Math.round(frontOpenness*100)}%，毫無遮攔 (自然湧現: 曠野氣散)`);
     } else if (frontOpenness > 0.6) {
         yang += 1;
@@ -1390,12 +1431,10 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // 穴形之凹窩與突台已作為實體高程雕刻於 3D 場景中，其微氣候聚氣完全由重力差分梯度 (gradX, gradZ) 與空間開闊度自然結算，移除直接硬編碼加分
     if (st.hole === 'wo' || st.hole === 'qian') {
         if (!waterBroken && !fengShuiContextBroken && st.terrain !== 'slope' && !st.special.includes('qingxie')) {
-            yin += 1;
             observerText.push(`空間｜穴形(${st.hole === 'wo' ? '窩' : '鉗'})：實體凹陷結構產生微氣候駐留，吉氣迴風返氣`);
         }
     } else if (st.hole === 'ru' || st.hole === 'tu') {
         if (!waterBroken && !fengShuiContextBroken && st.terrain !== 'slope' && !st.special.includes('qingxie')) {
-            yang += 1;
             observerText.push(`空間｜穴形(${st.hole === 'ru' ? '乳' : '突'})：突起地形承接陽氣，增強地氣生機`);
         }
     }
@@ -1436,8 +1475,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     if (st.special.includes('shuqi') && st.dragon !== 'none' && !fengShuiContextBroken && !waterBroken) {
         hydraulicJumpTriggered = true;
         observerText.push(`流體力學｜狹管收束效應：氣流通過狹管後於開闊明堂減速擴散，動能轉化為沉降位能`);
-    } else if (st.special.includes('shuqi')) {
+    } else if (st.special.includes('shuqi') && st.dragon === 'none') {
         observerText.push(`流體力學｜束氣峽佈局雖設，但無龍脈可依，未能成形`);
+    } else if (st.special.includes('shuqi')) {
+        const suppressDesc = waterBroken ? '水局已破' : brokenContextDesc;
+        observerText.push(`流體力學｜束氣峽佈局雖設，但${suppressDesc}，未能成形`);
     }
     // 【第 23.2 輪修正】補上文字推播，並以實體後方建築數量與阻抗閾值嚴格把關，避免小型裝飾誤觸發
     if (!fengShuiContextBroken && !waterBroken && (st.special.includes('fengyao') || st.special.includes('guiyao')) && st.dragon !== 'none' && backBuildingCount > 0 && hasBackSupport && backImpedance > 2.0) {
@@ -1678,8 +1720,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         observerText.push(`空間力學｜能量收束效應：${barrier}收縮通道引導氣流低湍流平順過峽 (過峽脫煞)`);
     }
 
-    if (reynoldsNum > 15000) {
-        wuXingText += `空氣動力學｜雷諾數(Re)高達 ${reynoldsNum}，進入極度湍流狀態，氣場混亂 (自然湧現: 風煞)；`;
+    if (reynoldsNum > 4000) {
+        wuXingText += `空氣動力學｜雷諾數(Re)高達 ${reynoldsNum}，進入極度湍流狀態，氣場混亂 (自然湧現: 風煞)`;
     }
 
     let physicsText = observerText; // 承接觀測者結果
@@ -1875,7 +1917,7 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // 【第 2 輪 Dry Run 修正】高熵與低拓撲閉合度代表氣場混亂、漏風，不得與高吉分共存；並區分觸發來源以便文字準確
     // 香農熵 >5.0 視為混亂，Betti-1 閉合度 <50% 視為漏風，進一步提高懲罰權重，避免低閉合度仍出現中吉以上評級
     // 僅在存在實體建築時才計算這些懲罰，避免無建築時 betti1Closure 初始 0 導致誤懲罰
-    const entropyPenalty = (hasBuildingsForAnalysis && spatialEntropy > (hasGoodSupport ? 6.5 : 5.0)) ? Math.round((spatialEntropy - (hasGoodSupport ? 6.5 : 5.0)) * 30) : 0;
+    const entropyPenalty = (hasBuildingsForAnalysis && spatialEntropy > (hasGoodSupport ? 5.8 : 5.0)) ? Math.round((spatialEntropy - (hasGoodSupport ? 5.8 : 5.0)) * 30) : 0;
     const closurePenalty = (hasBuildingsForAnalysis && betti1Closure < (hasGoodSupport ? 0.3 : 0.5)) ? Math.round(((hasGoodSupport ? 0.3 : 0.5) - betti1Closure) * 100) : 0;
     if (entropyPenalty > 0 || closurePenalty > 0) {
         const thermoPenalty = entropyPenalty + closurePenalty;
@@ -1917,6 +1959,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     const finalHeavyShaForErosion = heavyShaForErosion || (finalHasHardShaForErosion && !hasMitigatingCure && s >= 60) || (s >= 95);
     const finalErosionRatio = finalHeavyShaForErosion ? 0.35 : 0.2;
     const finalCapacityErosionRatio = finalHeavyShaForErosion ? 0.25 : 0.15;
+    // 【修正】實際應用重煞侵蝕，僅在確實有煞氣時才侵蝕，避免無煞時誤扣吉氣
+    if (s > 0) {
+        g = Math.max(0, g - Math.round(g * finalErosionRatio));
+        c = Math.max(20, c - Math.round(c * finalCapacityErosionRatio));
+    }
     // 吉氣與煞氣維持客觀獨立物理累加，煞氣損耗由最終淨收益 (netEff = realG - realS) 單一入口結算，移除前置重複倒扣
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
@@ -1925,8 +1972,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // 【第32輪修正】無水或煞水時，容量下限保護為40，避免侵蝕將容量壓至物理極限以下
     if (st.water === 'none' || isShaWater) {
         c = Math.max(40, c);
-        // 【第2輪 Dry Run 修正】無水或煞水時容量上限不得超過80，避免煞水格局容量異常飆高
-        if (st.water === 'none' || isShaWater) {
+        // 【修正】僅煞水時容量上限不得超過80；無水時不設上限，避免錯殺有明堂的吉局
+        if (isShaWater) {
             c = Math.min(c, 80);
         }
     }
@@ -1934,8 +1981,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
-    // 【第22輪靜態審查修正】最終容量限制：無水或煞水容量不得超過80，避免凶水格局容量異常偏高
-    if (st.water === 'none' || isShaWater) {
+    // 【修正】最終容量限制：僅煞水容量不得超過80；無水但有良好明堂時容量可超過80（天條：吉局明堂應 >100）
+    if (isShaWater) {
         c = Math.min(c, 80);
     }
     // 【第79輪靜態審查修正】明堂破敗時容量必須嚴格受限，確保不超過40
@@ -2060,6 +2107,7 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
 
     // 2. 外部干擾源 (風切、路沖等煞氣源頭射線)
     for (const sc of stateManager.sources) {
+      if (sc.isTantou) continue; // 【第94輪修正】探頭煞若未物理成型，不應在熱力圖顯示煞氣
       if (sc.len > 0) {
         const rx = x - sc.x, rz = z - sc.z, t = rx * sc.dx + rz * sc.dz;
         if (t > -4 && t < sc.len) { 
@@ -2088,7 +2136,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         const insideZ = dz < b.d / 2;
         
         if (insideX && insideZ) {
-			if (b.y > 5) isInsideBuilding = false; // 抬轎懸空，氣流穿堂
+			// 【修正】b.y 已統一為離地間隙，直接判斷
+			const clearance = b.y || 0;
+			if (clearance > 5) isInsideBuilding = false; // 抬轎懸空，氣流穿堂
 			else { isInsideBuilding = true; break; }
 		}
         
@@ -2116,6 +2166,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         }
       }
 
+      // 【修正】熱力圖風壓效應必須隨環境風速縮放，無風時不應顯示非物理風壓/尾流/邊界層（天條：無風則無壓）
+      const windScale = Math.max(0, stateManager.wind) / 5.0;
       if (isInsideBuilding) {
           return -25; // 實體建築內部，深藍色真空無氣狀態
       } 
@@ -2123,11 +2175,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // 綜合 SDF 與 空氣動力學效應
       if (minEdgeDist < 8) {
           // 邊界層 (Boundary Layer) 黏滯效應：氣流貼牆減速，產生微弱聚氣
-          v += 12 * Math.exp(-(minEdgeDist * minEdgeDist) / 12);
+          v += 12 * Math.exp(-(minEdgeDist * minEdgeDist) / 12) * windScale;
       }
       
-      v -= ramPressure; // 迎風面高壓 -> 偏向紅色煞氣
-      v += wakeEffect;  // 尾流區低壓 -> 偏向黃綠色吉氣(藏風)
+      v -= ramPressure * windScale; // 迎風面高壓 -> 偏向紅色煞氣
+      v += wakeEffect * windScale;  // 尾流區低壓 -> 偏向黃綠色吉氣(藏風)
     }
 
     // 明堂聚氣完全由建築包夾之低壓尾流區 (wakeEffect) 與邊界層減速 (Boundary Layer) 自然形成，移除字串直接疊加之人工假引力中心
@@ -2189,7 +2241,17 @@ class CityBuilder {
       let y = Util.terrainY(x, z, this.currentTerrain || 'flat');
       const st = this.currentState || {};
       if (st.special && st.special.includes('qingxie') && z > 20) y -= (z - 20) * 0.15;
-      if (st.front === 'sunken' && Math.abs(x) < 25 && Math.abs(z - 34) < 20) y -= 1.5;
+      if (st.front === 'sunken') {
+          // 【修正】明堂低陷使用平滑過渡（smoothstep），避免邊緣產生 90 度垂直斷崖與 Z-Fighting
+          let nx = Math.abs(x) / 25.0;
+          let nz = Math.abs(z - 34) / 20.0;
+          let nd = Math.max(nx, nz);
+          if (nd < 1.0) {
+              let t = 1.0 - nd;
+              t = t * t * (3.0 - 2.0 * t); // smoothstep
+              y -= 1.5 * t;
+          }
+      }
       return y;
   }
 
@@ -2419,8 +2481,8 @@ class CityBuilder {
     m.position.set(x, ty + h/2, z); this.group.add(m);
     const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x99aacc,transparent:true,opacity:.6}));
     e.position.copy(m.position); this.group.add(e);
-    // 完整封裝建築 3D 基底高程 y: ty，確保 GPU 與感測器獲取真實空間 AABB 邊界
-    this.blds.push({x,z,w,d,h,y:ty}); return m;
+    // 【修正】b.y 統一表示底部離地間隙，地形高度由 GPU/感測器另行計算，避免重複疊加
+    this.blds.push({x,z,w,d,h,y:0}); return m;
   }
 
   // 【新增】遠景專用建築生成器 (不推入 this.blds，徹底避開物理引擎計算)
@@ -2502,13 +2564,16 @@ class CityBuilder {
       pm.position.set(p.x, ty + p.y/2, p.z); this.group.add(pm);
     }
   }
-  poolCrescent(x,z,rIn,rOut) {
+  poolCrescent(x,z,rIn,rOut, isSandbox = false) {
     const ty = this.terrainYCorrected(x, z);
     const g=new THREE.RingGeometry(rIn,rOut,48,1,Math.PI,Math.PI);
     const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x4fa6ff,transparent:true,opacity:.8,side:THREE.DoubleSide}));
     m.rotation.x=-Math.PI/2; m.position.set(x,ty+0.1,z); this.group.add(m);
     const glow=new THREE.Mesh(new THREE.RingGeometry(rOut,rOut+1,48,1,Math.PI,Math.PI),new THREE.MeshBasicMaterial({color:0x8fd3ff,transparent:true,opacity:.7,side:THREE.DoubleSide}));
     glow.rotation.x=-Math.PI/2; glow.position.set(x,ty+0.12,z); this.group.add(glow);
+    // 【第62輪修正】將月牙水池同步寫入 blds，讓物理引擎與五行分析能感知水體
+    // 【第64輪修正】增加 isSandbox 標記，區分場景水體與沙盒水體，避免沙盒五行場被污染
+    this.blds.push({x, z, w:rOut*2, d:rOut*2, h:0, isWater:true, wx:'water', isSandbox: isSandbox});
   }
   brokenBld(x,z,w,h) {
     const ty = this.terrainYCorrected(x, z);
@@ -2619,7 +2684,7 @@ class CityBuilder {
         const ty = this.terrainYCorrected(x, z);
         const m=new THREE.Mesh(new THREE.BoxGeometry(s,h,s),new THREE.MeshLambertMaterial({color:Util.brighten(0x233043)}));
         m.position.set(x,ty+h/2,z); m.rotation.y=Util.R(0,3); this.group.add(m);
-        this.blds.push({x, z, w:s, d:s, h, y:ty});
+        this.blds.push({x, z, w:s, d:s, h, y:0});
       }
     }
 
@@ -2707,9 +2772,13 @@ class CityBuilder {
     // Special
     if(st.special.includes('taiji')){
       this.taijiGroup = new THREE.Group();
-      // 太極環島精準貼合 3D 地形起伏高程，移除寫死平坦高程
-      const taijiY = this.terrainYCorrected(0, 40);
-      this.taijiGroup.position.set(0, taijiY + 0.07, 40);
+      // 【第91輪修正】太極環島以穴位 (taijiX, taijiZ) 為基準，確保與物理阻尼中心一致
+      const tX = stateManager.taijiX || 0;
+      const tZ = stateManager.taijiZ || 0;
+      const taijiCenterX = tX;
+      const taijiCenterZ = tZ + 40;
+      const taijiY = this.terrainYCorrected(taijiCenterX, taijiCenterZ);
+      this.taijiGroup.position.set(taijiCenterX, taijiY + 0.07, taijiCenterZ);
       const r=new THREE.Mesh(new THREE.RingGeometry(16,22,48),new THREE.MeshLambertMaterial({color:Util.brighten(0x13293f),side:THREE.DoubleSide,emissive:0xffffff,emissiveIntensity:0}));
       r.rotation.x=-Math.PI/2; this.taijiGroup.add(r);
       const y1=new THREE.Mesh(new THREE.CircleGeometry(3,20),new THREE.MeshBasicMaterial({color:0xd39e00}));
@@ -2720,12 +2789,12 @@ class CityBuilder {
       const c = []; 
       for(let i=0;i<=120;i++){
         const t=i/120*Math.PI*2; 
-        const cx = 19*Math.cos(t), cz = 40+19*Math.sin(t);
+        const cx = taijiCenterX + 19*Math.cos(t), cz = taijiCenterZ + 19*Math.sin(t);
         const cy = this.terrainYCorrected(cx, cz);
         c.push(Util.v3(cx,cy,cz));
       }
       this.curves.push({pts:c, len:2*Math.PI*19, bad:false, type:'road'});
-      this.group.add(ResourceManager.createLabel('太極環島','#8844cc',8,0,taijiY+9,40));
+      this.group.add(ResourceManager.createLabel('太極環島','#8844cc',8,taijiCenterX,taijiY+9,taijiCenterZ));
     }
     if(st.special.includes('qingxie')){
       const tySlope = this.terrainYCorrected(0, 95);
@@ -2739,14 +2808,7 @@ class CityBuilder {
       }
       this.group.add(ResourceManager.createLabel('傾瀉・洩氣','#cc4f14',8,0,tySlope+6,100));
     }
-    if(st.sha.includes('windshaft')){this.box(13,64,13,-22,82);this.box(13,64,13,22,82);this.box(11,50,11,-40,100);this.box(11,50,11,40,100);this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,72,100));}
-    if(st.special.includes('chaoshan')){
-      const ty = this.terrainYCorrected(0, 150);
-      this.box(14,64,14,0,150,0x16283f);
-      const top=new THREE.Mesh(new THREE.ConeGeometry(5,10,4),new THREE.MeshLambertMaterial({color:0xc9a53d}));
-      top.position.set(0,ty+69,150);top.rotation.y=Math.PI/4;this.group.add(top);
-      this.group.add(ResourceManager.createLabel('朝樓遠迎','#0077ff',8,0,ty+76,150));
-    }
+    // 【修正】移除重複的 windshaft 與 chaoshan 生成，避免建築重疊穿模（已在對應區塊生成）
     // 【第12輪靜態審查】束氣/蜂腰/護龍/鬼曜皆需龍脈存在，無龍脈時不生成對應3D物件，避免視覺與引擎邏輯矛盾
     if(st.dragon !== 'none' && st.special.includes('shuqi')){this.box(10,30,10,-14,-24,0x16283f);this.box(10,30,10,14,-24,0x16283f);this.group.add(ResourceManager.createLabel('束氣峽','#8844cc',7,0,36,-24));}
     if(st.dragon !== 'none' && st.special.includes('fengyao')){
@@ -2960,8 +3022,7 @@ class CityBuilder {
            this.blds[this.blds.length - 1].wx = 'earth'; // 標記為土
        }
        if (sb.type === 'water') {
-           this.poolCrescent(sb.x, sb.z, 5, 12);
-           this.blds.push({ x: sb.x, z: sb.z, w: 24, d: 24, h: 0, isWater: true });
+           this.poolCrescent(sb.x, sb.z, 5, 12, true);
        }
     }
   }
@@ -2974,7 +3035,8 @@ const goodVert = `
 uniform vec4 u_blds[32]; 
 uniform vec2 u_bldsH[32]; // 【新增】傳遞建築的底部高度與頂部高度
 uniform int u_bldCount;
-uniform float u_simTime; uniform float u_hz; uniform float u_tSpeed;
+uniform float u_simTime; uniform float u_tx; uniform float u_hz; uniform float u_tSpeed;
+uniform float u_envWind; // 【修正】真實環境風壓 = wind + trafficSpeed，供局部風煞客觀縮放
 uniform bool u_waterJade; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
 uniform bool u_dragonAvenue; uniform bool u_cureFountain; uniform bool u_isWoQian; uniform bool u_specialShuqi;
 uniform bool u_shaTianzhan; uniform int u_terrainType;
@@ -3018,8 +3080,17 @@ float getTerrainY(float x, float z) {
     else if(u_terrainType == 3) y = max(0.0, (x*x + z*z)/1500.0 - 1.0);
     // 【第55輪】加入 qingxie 傾瀉地形修正（與 CPU getGeoZ 一致）
     if (u_qingxie && z > 20.0) y -= (z - 20.0) * 0.15;
-    // 【第55輪】加入明堂低陷(sunken)地形修正
-    if (u_sunkenFront && abs(x) < 25.0 && abs(z - 34.0) < 20.0) y -= 1.5;
+    // 【修正】明堂低陷使用平滑過渡，避免硬切斷造成粒子穿模或浮空
+    if (u_sunkenFront) {
+        float nx = abs(x) / 25.0;
+        float nz = abs(z - 34.0) / 20.0;
+        float nd = max(nx, nz);
+        if (nd < 1.0) {
+            float t = 1.0 - nd;
+            t = t * t * (3.0 - 2.0 * t);
+            y -= 1.5 * t;
+        }
+    }
     return y;
 }
 
@@ -3033,30 +3104,40 @@ void main() {
     for(int i=0; i<64; i++) { if(i < u_spawnCount && i == sIdx) { p = u_spawns[i]; break; } }
     if(u_spawnCount == 0) p = vec3((rand(vec2(a_id, cycle))-0.5)*120.0, 1.0, (rand(vec2(cycle, a_id))-0.5)*120.0);
     
-    vec3 v = vec3(0.0); float dt = 0.05; int steps = int(age / dt);
+    // 【第97輪修正】初始速度統一設為穩態 3.5（朝南），符合天條第6條
+    vec3 v = vec3(0.0, 0.0, 3.5); float dt = 0.05; int steps = int(age / dt);
     bool isWater = false; bool isWind = false; float isTunneling = 0.0;
+    bool hasWind = u_envWind > 0.1; // 【修正】有風才標記風煞，避免無風但粒子顯示紅色
     
     for(int i=0; i<150; i++) {
         if(i >= steps) break;
-        float dx = -p.x; float dz = u_hz - p.z; float d = length(vec2(dx, dz)) + 0.001;
+        float dx = u_tx - p.x; float dz = u_hz - p.z; float d = length(vec2(dx, dz)) + 0.001;
         float ty = getTerrainY(p.x, p.z);
         vec2 grad = vec2(getTerrainY(p.x+1.0, p.z) - getTerrainY(p.x-1.0, p.z), getTerrainY(p.x, p.z+1.0) - getTerrainY(p.x, p.z-1.0)) * 0.5;
         // 粒子軌跡完全由地形坡度重力梯度 (-grad)、環境風場旋度 (curlNoise) 與實體建築碰撞自然驅動，移除全域人工向心引力黑洞
         v.x -= grad.x * 25.0 * dt; v.z -= grad.y * 25.0 * dt;
         
         isWater = false; isWind = false;
-        if(u_waterJade && abs(p.z-70.0)<15.0 && abs(p.x)<80.0) { if(u_tSpeed > 1.4) isWind = true; else isWater = true; }
+        // 【修正】玉帶水為水體，不應由車流速度 u_tSpeed 驅動成風煞
+        if(u_waterJade && abs(p.z-70.0)<15.0 && abs(p.x)<80.0) { isWater = true; }
         if(u_shuifaBanyue && abs(p.z-52.0)<15.0 && abs(p.x)<20.0) isWater = true;
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) isWater = true;
-        if(u_isRushWind && abs(p.x)<20.0 && p.z>25.0) isWind = true;
-        if(u_dragonAvenue && abs(p.z+70.0)<15.0) isWind = true;
+        if(hasWind && u_isRushWind && abs(p.x)<20.0 && p.z>25.0) isWind = true;
+        // 【修正】道路風切僅在龍脈大道存在時由車流速度客觀驅動，避免無道路格局誤觸發
+        if(hasWind && u_dragonAvenue && u_tSpeed > 1.4 && abs(p.z+70.0)<15.0) isWind = true;
         
-        // 風切加速動態乘以環境風速倍率 u_tSpeed，確保無風時不產生非物理常數風
-        if(u_shaTianzhan && abs(p.x) < 4.0 && p.z > 30.0 && p.z < 80.0) {
-            v.z -= 45.0 * max(0.1, u_tSpeed) * dt; v.x *= max(0.0, 1.0 - 5.0 * dt); isWind = true;
+        // 風切加速動態乘以真實環境風壓 u_envWind，確保無風時不產生非物理常數風
+        if(hasWind && u_shaTianzhan && abs(p.x) < 4.0 && p.z > 30.0 && p.z < 80.0) {
+            v.z -= 45.0 * u_envWind * dt; v.x *= max(0.0, 1.0 - 5.0 * dt); isWind = true;
         }
 
-        if(u_cureFountain && abs(p.z-18.0)<15.0 && abs(p.x)<15.0) { v.x += (-dz * 2.5 + dx) * dt; v.z += (dx * 2.5 + dz) * dt; }
+        if(u_cureFountain && abs(p.z-18.0)<15.0 && abs(p.x)<15.0) {
+            // 【修正】噴泉渦流以噴泉中心為焦點，並歸一化方向向量，避免距離越大力量越大的非物理爆炸
+            float fx = p.x; float fz = p.z - 18.0;
+            float fl = length(vec2(fx, fz)) + 0.001;
+            v.x += (-fz * 2.5 / fl) * dt;
+            v.z += (fx * 2.5 / fl) * dt;
+        }
         
         if(isWater) { 
             float cx = p.x; float cz = p.z;
@@ -3069,13 +3150,14 @@ void main() {
             v.z = mix(v.z, (tz / tLen) * 4.5, 3.0 * dt);
             p.y += (ty + 0.4 - p.y) * 4.0 * dt;
         } else if(isWind) { 
-            v.z -= 15.0 * dt; 
+            // 【修正】風切加速度必須乘以真實環境風壓 u_envWind，無風時不產生非物理常數風
+            v.z -= 15.0 * max(0.0, u_envWind) * dt; 
             // 新增：風氣帶有和緩的旋度擾動，呈現自然風流
             v += curlNoise(p * 0.08 + u_simTime * 0.5) * 8.0 * dt;
         } else { 
             v *= max(0.0, 1.0 - 0.6*dt); 
-            // 新增：滯留吉氣產生微觀的太極渦旋盤旋感
-            v += curlNoise(p * 0.15) * 3.0 * dt; 
+            // 新增：滯留吉氣產生微觀的太極渦旋盤旋感（強度隨環境風壓縮放，無風時僅保留極微弱擴散）
+            v += curlNoise(p * 0.15) * (0.2 + u_envWind) * 3.0 * dt; 
             
         }
 
@@ -3096,8 +3178,9 @@ void main() {
             if (bdx < hw && bdz < hd && inY) {
                 // 依真實物理：穿過峽谷時沿著側壁邊界層滑動穿流，禁止非物理瞬間傳送
                 if (u_specialShuqi) {
-                    v.x += sign(p.x - b.x) * 4.0 * dt;
-                    v.z -= 6.0 * dt;
+                    // 【第74輪修正】移除人工向前推力，改由剛體側向滑動自然引導粒子沿峽谷穿流，避免字串驅動的非物理加速
+                    v.x += sign(p.x - b.x) * (hw - bdx) * 3.0 * dt;
+                    v.z += sign(p.z - b.y) * (hd - bdz) * 3.0 * dt;
                     isTunneling = 1.0;
                 } else {
                     hitObstacle = true; break;
@@ -3110,7 +3193,8 @@ void main() {
         if (hitObstacle) { p.y = -999.0; break; }
 
         p += v * dt; 
-        if(d < 3.0 && !isWater) { p.y = -999.0; break; }
+        // 【修正】太極暈中心為聚氣之處，不應刪除粒子；但強烈阻尼僅在微風環境下生效，避免形成無敵護盾，強風時粒子仍如實被吹散
+        if(d < 3.0 && !isWater && u_envWind < 1.5) { v *= 0.1; }
     }
     
     vLife = 1.0 - (age / a_life);
@@ -3135,8 +3219,29 @@ uniform vec4 u_blds[32];
 uniform vec2 u_bldsH[32]; // 【新增】
 uniform int u_bldCount;
 uniform float u_simTime; uniform float u_tSpeed;
+uniform float u_envWind; // 【修正】真實環境風壓，供煞氣粒子與天斬風刀客觀縮放
 uniform bool u_cureTrees; uniform bool u_cureMirror; uniform bool u_curePool; uniform bool u_cureStone; uniform bool u_cureGourd;
 uniform bool u_shaTianzhan;
+uniform int u_terrainType; uniform bool u_qingxie; uniform bool u_sunkenFront; // 【修正】煞氣粒子也需要地形資訊，避免穿入山坡
+
+float getTerrainY(float x, float z) {
+    float y = 0.0;
+    if(u_terrainType == 1) y = max(0.0, -z * 0.15);
+    else if(u_terrainType == 2) y = -z * 0.1;
+    else if(u_terrainType == 3) y = max(0.0, (x*x + z*z)/1500.0 - 1.0);
+    if (u_qingxie && z > 20.0) y -= (z - 20.0) * 0.15;
+    if (u_sunkenFront) {
+        float nx = abs(x) / 25.0;
+        float nz = abs(z - 34.0) / 20.0;
+        float nd = max(nx, nz);
+        if (nd < 1.0) {
+            float t = 1.0 - nd;
+            t = t * t * (3.0 - 2.0 * t);
+            y -= 1.5 * t;
+        }
+    }
+    return y;
+}
 // 【GPU 接收高階物理場】
 uniform bool u_helmholtz;
 uniform vec3 u_spawns[64]; uniform vec3 u_spawnDirs[64]; uniform int u_spawnCount;
@@ -3175,15 +3280,17 @@ void main() {
     float rIdx = rand(vec2(a_id, cycle));
     int sIdx = int(rIdx * float(u_spawnCount));
     
-    vec3 p = vec3(0.0, 1.0, 20.0);
-    vec3 startVel = vec3((rand(vec2(cycle, a_id))-0.5)*12.0, 1.0, (rand(vec2(a_id, cycle*2.0))-0.5)*12.0);
+    vec3 p = (u_spawnCount == 0) ? vec3((rand(vec2(a_id, cycle))-0.5)*120.0, 1.0, (rand(vec2(cycle, a_id))-0.5)*120.0) : vec3(0.0, 1.0, 20.0);
+    // 【第54輪修正】無煞氣源時，fallback 初速必須乘上環境風壓，避免無風時粒子以 12 m/s 非物理亂飛
+    vec3 startVel = (u_spawnCount == 0) ? vec3((rand(vec2(cycle, a_id))-0.5)*12.0, 1.0, (rand(vec2(a_id, cycle*2.0))-0.5)*12.0) * max(0.0, u_envWind) : vec3((rand(vec2(cycle, a_id))-0.5)*12.0, 1.0, (rand(vec2(a_id, cycle*2.0))-0.5)*12.0);
     // 煞氣粒子初速度嚴格受環境風速與車速縮放 (u_tSpeed)，無風無動能時維持自然飄散
     for(int i=0; i<64; i++) {
         if(i == sIdx && i < u_spawnCount) { 
             p = u_spawns[i] + vec3(rand(vec2(a_id, cycle))-0.5, rand(vec2(cycle, a_id))*2.5, rand(vec2(cycle*2.0, a_id))-0.5) * 8.0;
             vec3 dir = u_spawnDirs[i];
-            float speedScale = max(0.05, u_tSpeed);
-            startVel = vec3(dir.x * (4.0 + rand(vec2(a_id, cycle))*6.0) * speedScale, 1.0 + rand(vec2(cycle, a_id))*1.5, dir.z * (4.0 + rand(vec2(a_id*2.0, cycle))*6.0) * speedScale);
+            float speedScale = max(0.0, u_envWind);
+            // 【修正】煞氣初始速度完全由環境風速縮放，無風時不得產生非物理上升飄散（天條：無風則無壓）
+            startVel = vec3(dir.x * (4.0 + rand(vec2(a_id, cycle))*6.0) * speedScale, (1.0 + rand(vec2(cycle, a_id))*1.5) * speedScale, dir.z * (4.0 + rand(vec2(a_id*2.0, cycle))*6.0) * speedScale);
             break; 
         }
     }
@@ -3193,29 +3300,31 @@ void main() {
         
         // 風切加速動態乘以環境風速倍率，赫姆霍茲共振亦受風速能量調製
         if(u_shaTianzhan && abs(p.x) < 4.0 && p.z > 30.0 && p.z < 80.0) {
-            float windFactor = max(0.1, u_simTime > 0.0 ? 1.0 : 0.0);
-            v.z -= 60.0 * dt; v.x *= max(0.0, 1.0 - 5.0 * dt);
+            float windFactor = max(0.0, u_envWind);
+            v.z -= 60.0 * windFactor * dt; v.x *= max(0.0, 1.0 - 5.0 * dt);
             
             // 3. 赫姆霍茲共振 (Helmholtz Cavity Resonance)：狹縫引發強烈低頻橫向脈衝震盪
             if (u_helmholtz) {
+                // 【修正】赫姆霍茲共振強度必須隨環境風壓縮放，無風時不產生震盪
                 float resonance = sin(u_simTime * 12.0 + p.z * 0.8) * 60.0;
-                v.x += resonance * dt;
+                v.x += resonance * windFactor * dt;
             }
         }
 
         if(u_cureTrees && abs(p.z-22.0)<8.0 && abs(p.x)<30.0) { v *= max(0.0, 1.0 - 2.0*dt); }
-        if(u_cureMirror && abs(p.z-20.0)<5.0 && abs(p.x)<12.0) { v.z = abs(v.z) + 10.0; v.y += 5.0 * dt; }
+        if(u_cureMirror && abs(p.z-20.0)<5.0 && abs(p.x)<12.0) { v.z += (abs(v.z) + max(0.0, u_envWind) * 10.0) * dt; v.y += max(0.0, u_envWind) * 5.0 * dt; }
         // 水體提供黏滯阻尼衰減煞氣動能，自然沉降，嚴禁直接瞬間抹殺
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) { v *= max(0.0, 1.0 - 4.0 * dt); }
-        if(u_cureStone && p.z<22.0 && p.z>10.0 && abs(p.x)<15.0) { v.z = abs(v.z) * 1.5 + 5.0; v.y += 4.0 * dt; }
+        if(u_cureStone && p.z<22.0 && p.z>10.0 && abs(p.x)<15.0) { v.z += (abs(v.z) * (1.0 + max(0.0, u_envWind) * 0.5) + max(0.0, u_envWind) * 5.0) * dt; v.y += max(0.0, u_envWind) * 4.0 * dt; }
         // 葫蘆作為實體小結構提供局部表面摩擦阻尼，嚴禁設立人工引力黑洞與粒子抹殺
         if(u_cureGourd && p.z<15.0 && abs(p.x - 8.0)<12.0) {
             v *= max(0.0, 1.0 - 1.5 * dt);
         }
-        // 煞氣粒子垂直運動純由真實旋度紊流 (curlNoise) 驅動，並實施單向地面托舉約束，移除無物理依據之恆定向上浮力
-        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (10.0 + length(v) * 0.4);
+        // 煞氣粒子垂直運動純由真實旋度紊流 (curlNoise) 驅動，強度隨環境風壓縮放，並加入極小自然擴散防止無風時凍結（符合無風則無壓，但保留微觀布朗運動）
+        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (max(0.0, u_envWind) * 10.0 + length(v) * 0.4 + 0.5);
         v += turbulence * dt;
-        p.y = max(p.y, 0.8);
+        // 【修正】煞氣粒子同樣遵守單向托舉，貼合地形避免穿入山坡
+        p.y = max(p.y, getTerrainY(p.x, p.z) + 0.8);
         
         // --- GPU 流體力學碰撞 ---
         bool hitObstacle = false;
@@ -3321,6 +3430,8 @@ class ParticleSystem {
     
     this.uniforms = {
         u_simTime: { value: 0 }, u_hz: { value: 32 }, u_tSpeed: { value: 1.0 },
+        u_tx: { value: 0 }, // 【第25輪】穴心 X 座標，供太極暈阻尼使用
+        u_envWind: { value: 1.0 }, // 【修正】環境風壓 uniform
         u_waterJade: { value: false }, u_shuifaBanyue: { value: false }, u_curePool: { value: false }, u_isRushWind: { value: false },
         u_dragonAvenue: { value: false }, u_cureFountain: { value: false }, u_isWoQian: { value: false }, u_specialShuqi: { value: false },
         u_shaTianzhan: { value: false },
@@ -3378,8 +3489,9 @@ class ParticleSystem {
           if(curves.length && i%2===0) {
               const c = curves[Math.random()*curves.length|0], q = c.pts[Math.random()*c.pts.length|0];
               spawns.push(Util.v3(q.x, 1, q.z)); dirs.push(Util.v3(0,0,0));
-          } else if(sources.length) {
-              const s0 = sources[Math.random()*sources.length|0];
+          } else if(sources.some(s => !s.isTantou)) {
+              const validSources = sources.filter(s => !s.isTantou);
+              const s0 = validSources[Math.random()*validSources.length|0];
               spawns.push(Util.v3(s0.x+Util.R(-4,4), Util.R(0.5,3), s0.z+Util.R(-4,4)));
               let dx=s0.dx,dz=s0.dz;
               if(!dx&&!dz){const L=Math.hypot(s0.x,s0.z);if(L>2){dx=s0.x/L;dz=s0.z/L;}else{dx=Util.R(-1,1);dz=Util.R(-1,1);}}
@@ -3401,14 +3513,18 @@ class ParticleSystem {
     for(let i=0; i<this.trafParts.length; i++){
       const p = this.trafParts[i]; p.t += (p.sp * dt * s * tSpeed) / p.c.len; if(p.t>=1) p.t-=1;
       const q = p.c.pts[p.t*(p.c.pts.length-1)|0];
-      const ty = (p.c.type === 'road') ? Util.terrainY(q.x, q.z, stateManager.current.terrain) : 0;
+      // 【修正】使用 CityBuilder 的地形補償函式，確保與道路 ribbon 高度一致
+      const ty = (p.c.type === 'road') ? builder.terrainYCorrected(q.x, q.z) : 0;
       arr[i*3]=q.x; arr[i*3+1]=q.y+ty+0.8; arr[i*3+2]=q.z;
     }
     this.trafGeo.attributes.position.needsUpdate = true;
 
     this.uniforms.u_simTime.value += dt * s;
-    this.uniforms.u_hz.value = st.front==='plaza' ? 32 : 22;
+    this.uniforms.u_tx.value = stateManager.taijiX || 0;
+    // 【第58輪修正】太極暈阻尼僅在太極暈佈局存在時作用，並以實際中心 (taijiZ + 40) 為準
+    this.uniforms.u_hz.value = st.special.includes('taiji') ? ((stateManager.taijiZ || 0) + 40) : -999;
     this.uniforms.u_tSpeed.value = tSpeed;
+    this.uniforms.u_envWind.value = stateManager.wind; // 【修正】環境風壓僅由風速滑桿決定，車流不應產生風煞
 	// 將實際的建築幾何體轉換給 GPU Shader 做碰撞
     const vec4Arr = this.uniforms.u_blds.value;
     const vec2Arr = this.uniforms.u_bldsH.value; // 【新增】
@@ -3420,19 +3536,28 @@ class ParticleSystem {
         // 【修正】將地形高度納入建築底部計算，並加入傾瀉(qingxie)與明堂低陷(sunken)修正，確保與 CPU getGeoZ 一致
         let baseY = Util.terrainY(b.x, b.z, stateManager.current.terrain);
         if (stateManager.current.special.includes('qingxie') && b.z > 20) baseY -= (b.z - 20) * 0.15;
-        if (stateManager.current.front === 'sunken' && Math.abs(b.x) < 25 && Math.abs(b.z - 34) < 20) baseY -= 1.5;
+        if (stateManager.current.front === 'sunken') {
+            let nx = Math.abs(b.x) / 25.0;
+            let nz = Math.abs(b.z - 34) / 20.0;
+            let nd = Math.max(nx, nz);
+            if (nd < 1.0) {
+                let t = 1.0 - nd;
+                t = t * t * (3.0 - 2.0 * t);
+                baseY -= 1.5 * t;
+            }
+        }
         let elev = (b.y || 0) + baseY;
         vec2Arr[bCount].set(elev, elev + b.h); // 將 [底部高度, 頂部高度] 傳給 GPU
         bCount++;
     }
     this.uniforms.u_bldCount.value = bCount;
     
-    this.uniforms.u_dragonAvenue.value = st.dragon === 'avenue';
+    this.uniforms.u_dragonAvenue.value = (st.dragon === 'avenue' || st.dragon === 'branch' || st.dragon === 'elevated');
     this.uniforms.u_isWoQian.value = (st.hole === 'wo' || st.hole === 'qian');
     this.uniforms.u_waterJade.value = st.water === 'jade';
     this.uniforms.u_shuifaBanyue.value = st.shuifa.includes('banyue');
     this.uniforms.u_curePool.value = st.cure.includes('pool');
-    this.uniforms.u_isRushWind.value = (st.sha.includes('rush') || st.sha.includes('tianzhan') || st.water==='rush' || st.sha.includes('walledge'));
+    this.uniforms.u_isRushWind.value = (st.sha.includes('rush') || st.sha.includes('tianzhan') || st.water==='rush');
     this.uniforms.u_cureFountain.value = st.cure.includes('fountain');
     this.uniforms.u_specialShuqi.value = st.special.includes('shuqi');
     this.uniforms.u_qingxie.value = st.special.includes('qingxie');
@@ -3469,7 +3594,7 @@ class ParticleSystem {
           if(Math.abs(dx)<b.w/2 && Math.abs(dz)<b.d/2){blocked=true;break;}
         }
         if(blocked){w.a.visible=false;continue;} w.a.visible=true;
-        const ty = Util.terrainY(w.x, w.z, stateManager.current.terrain);
+        const ty = builder.terrainYCorrected(w.x, w.z);
         w.a.position.y = ty + 2.2;
         const sp=Math.hypot(vx,vz); const tmp=Util.v3(vx,0,vz).normalize();
         w.a.setDirection(tmp); w.a.setLength(Util.clamp(sp*2.2,2,16),2.2,1.3);
@@ -3677,7 +3802,17 @@ class World3D {
     const applyCorrections = (x, z) => {
       let y = Util.terrainY(x, z, type);
       if (st.special.includes('qingxie') && z > 20) y -= (z - 20) * 0.15;
-      if (st.front === 'sunken' && Math.abs(x) < 25 && Math.abs(z - 34) < 20) y -= 1.5;
+      if (st.front === 'sunken') {
+        // 【修正】平滑過渡，避免地面網格在明堂邊緣產生硬切斷 Z-Fighting
+        let nx = Math.abs(x) / 25.0;
+        let nz = Math.abs(z - 34) / 20.0;
+        let nd = Math.max(nx, nz);
+        if (nd < 1.0) {
+          let t = 1.0 - nd;
+          t = t * t * (3.0 - 2.0 * t);
+          y -= 1.5 * t;
+        }
+      }
       return y;
     };
     // 更新主地面地形
@@ -3738,7 +3873,8 @@ class World3D {
     }
     
     if(this.camMode === 'fs') {
-        const ty = Util.terrainY(this.fpv.pos.x, this.fpv.pos.z, this.app.state.current.terrain || 'flat');
+        // 【修正】第一人稱模式使用含 qingxie/sunken 修正的地形高度，避免相機陷入傾瀉或低陷地形
+        const ty = this.app.builder.terrainYCorrected(this.fpv.pos.x, this.fpv.pos.z);
         if (this.fpv.pos.y < ty + 2) this.fpv.pos.y = ty + 2;
     }
 
@@ -4229,7 +4365,7 @@ class UIManager {
     }
      
     // 【第27輪診斷修正】高熵/低閉合度/湍流超標時，即使分數偏向吉，也不得顯示吉評，避免 DryRun 回報 CRITICAL 矛盾
-    const hasValidBldsForVerdict = this.app && this.app.builder && this.app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    const hasValidBldsForVerdict = this.app && this.app.builder && this.app.builder.blds.some(b => !b.isWater && !(b.x === (this.app.state.taijiX || 0) && b.z === (this.app.state.taijiZ || 0)));
     // 【修正】優先使用 analyze 統一的環境混亂標記，避免兩處門檻不一致導致誤降級
     const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean') ? ana.isEnvironmentDisordered : (hasValidBldsForVerdict && (
         (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0) ||
@@ -4531,7 +4667,7 @@ window.DryRunTool = {
     // ==========================================
     // 【第 6 輪 Dry Run 診斷修正】高維物理指標異常檢測：僅在「高階指標顯示大凶但分數顯示吉象」的矛盾時才回報 CRITICAL，避免對合理大凶格局重複誤報
     // ==========================================
-    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === (app.state.taijiX || 0) && b.z === (app.state.taijiZ || 0)));
     const realEffectiveGather = Math.min(ana.g, ana.c);
     const scoreSuggestGood = typeof realEffectiveGather === 'number' && realEffectiveGather > 60 && typeof ana.s === 'number' && ana.s < 40;
     if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.5 && scoreSuggestGood) {
@@ -4562,7 +4698,17 @@ window.DryRunTool = {
     const getGeoZ = (px, pz) => {
         let y = Util.terrainY(px, pz, st.terrain);
         if (st.special.includes('qingxie') && pz > 20) y -= (pz - 20) * 0.15; 
-        if (st.front === 'sunken' && Math.abs(px) < 25 && Math.abs(pz - 34) < 20) y -= 1.5; 
+        if (st.front === 'sunken') {
+            // 【第21輪修正】平滑過渡，避免拓樸掃描與實際地形不一致
+            let nx = Math.abs(px) / 25.0;
+            let nz = Math.abs(pz - 34) / 20.0;
+            let nd = Math.max(nx, nz);
+            if (nd < 1.0) {
+                let t = 1.0 - nd;
+                t = t * t * (3.0 - 2.0 * t);
+                y -= 1.5 * t;
+            }
+        }
         return y;
     };
     const getGlobalY = (x, z) => {
@@ -4573,7 +4719,7 @@ window.DryRunTool = {
             if(Math.abs(dx) <= b.w/2 && Math.abs(dz) <= b.d/2) {
                 // b.y 為相對於地表的懸空離地間隙 (clearance)，加上真實地表高程與建築高度，避免地面高程重複翻倍
                 let bGround = getGeoZ(b.x, b.z);
-                let bClearance = (b.y && b.y > bGround) ? (b.y - bGround) : (b.y || 0);
+                let bClearance = b.y || 0;
                 y = Math.max(y, bGround + bClearance + b.h);
             }
         }
@@ -4584,7 +4730,7 @@ window.DryRunTool = {
     // 【第4輪靜態審查修正】改以穴心相對座標 (dxTaiji, dzTaiji) 為中心取樣，
     // 確保穴位移動時拓撲矩陣不會因絕對座標鎖死在舊中心而錯位。
     const topoMatrix = [];
-    const taijiCX = 0, taijiCZ = 0; // 穴心基準點（若日後支援手動點穴，改為讀取 stateManager.taijiX/Z）
+    const taijiCX = app.state.taijiX || 0, taijiCZ = app.state.taijiZ || 0; // 穴心基準點（讀取 stateManager 動態穴心）
     for (let dz = -5; dz <= 5; dz++) {
         let row = [];
         for (let dx = -5; dx <= 5; dx++) {
@@ -4599,7 +4745,7 @@ window.DryRunTool = {
     // 此處以主樓位置 (0,0) 為穴心基準，若未來穴心可移動，應改為 stateManager.taijiX/taijiZ。
     const skyline = { N:0, NE:0, E:0, SE:0, S:0, SW:0, W:0, NW:0 };
     const dirs = { N:[0,-1], NE:[0.7,-0.7], E:[1,0], SE:[0.7,0.7], S:[0,1], SW:[-0.7,0.7], W:[-1,0], NW:[-0.7,-0.7] };
-    const taijiX = 0, taijiZ = 0;
+    const taijiX = app.state.taijiX || 0, taijiZ = app.state.taijiZ || 0;
     for (let d in dirs) {
         // 掃描起點緊貼主樓外邊界 (dist = 10)，精準採樣近身護衛建築與遠山天際線
         for (let dist = 10; dist <= 90; dist += 2) {
@@ -4620,9 +4766,9 @@ window.DryRunTool = {
             if (b2.isWater || b2.isGlass || b2.h < 5) continue;
             // AABB 碰撞偵測 (Axis-Aligned Bounding Box)
             if (Math.abs(b1.x - b2.x) < (b1.w + b2.w)/2 - 0.5 && Math.abs(b1.z - b2.z) < (b1.d + b2.d)/2 - 0.5) {
-                // 如果 Y 軸也有重疊才算真穿模 (修正：加入地形高度，避免斜坡/盆地被誤判)
-            let b1Base = (b1.y || 0) + Util.terrainY(b1.x, b1.z, st.terrain);
-            let b2Base = (b2.y || 0) + Util.terrainY(b2.x, b2.z, st.terrain);
+                // 如果 Y 軸也有重疊才算真穿模 (修正：加入地形高度與 qingxie/sunken 補償，避免斜坡/盆地被誤判)
+            let b1Base = (b1.y || 0) + getGeoZ(b1.x, b1.z);
+            let b2Base = (b2.y || 0) + getGeoZ(b2.x, b2.z);
             if (b1Base < b2Base + b2.h && b1Base + b1.h > b2Base) {
                     intersectingBlds++;
                 }
@@ -4671,7 +4817,7 @@ window.DryRunTool = {
             reynoldsNumber_CFD: ana.reynoldsNum,
             froudeNumber_CFD: ana.froudeNum,
             resonantQFactor: ana.qFactor,
-            fractalDimension_D: ana.fractalDiff
+            fractalDiff: ana.fractalDiff // 【修正】此為跨尺度差異指標，非嚴格分形維度，避免誤導
         },
 		entropyGenRate: ana.entropyGenRate,        // 熱力學熵增率 (混亂度)
 		waterGatherRate: `${ana.waterGatherRate}%`,// 重力地氣水滴匯聚率
