@@ -182,6 +182,8 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
                 <button class="preset-btn" data-p="bendi">盆地聚財</button>
                 <button class="preset-btn" data-p="henglong">橫龍鬼曜</button>
                 <button class="preset-btn" data-p="random">隨機生成</button>
+                <button id="btn-prev-preset" style="background:#5a8a69; color:#fff; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;" title="上一筆設定 (PageUp)">◀</button>
+                <button id="btn-next-preset" style="background:#5a8a69; color:#fff; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;" title="下一筆設定 (PageDown)">▶</button>
             </div>
         </div>
         <!-- 新增 Dry Run 與複製 Prompt 區塊 -->
@@ -285,6 +287,8 @@ const CONFIG = {
 
 const AppState = {
     current: { ...CONFIG.baseState },
+    history: [],       // 儲存隨機設定/預設格局的歷史紀錄
+    historyIndex: -1,  // 當前瀏覽的歷史索引
     obstacles: [],
     shockwaves: [],
     gatherAcc: 0,
@@ -299,10 +303,25 @@ const AppState = {
         waterDrag: 0       // 明堂前方水力牽引 (伯努利抽吸效應)
     },
 
-    resetTo(presetName) {
-        let p = presetName === 'random' ? Rules.generateRandomPreset() : CONFIG.presets[presetName];
+    resetTo(presetName, isHistoryLoad = false) {
+        let p;
+        let actualName = presetName;
+        
+        if (isHistoryLoad) {
+            p = this.history[this.historyIndex].data;
+            actualName = this.history[this.historyIndex].name;
+        } else {
+            p = presetName === 'random' ? Rules.generateRandomPreset() : CONFIG.presets[presetName];
+            // 存入歷史紀錄 (若不在最新進度，截斷後續歷史)
+            if (this.historyIndex < this.history.length - 1) {
+                this.history = this.history.slice(0, this.historyIndex + 1);
+            }
+            this.history.push({ name: presetName, data: JSON.parse(JSON.stringify(p)) });
+            this.historyIndex = this.history.length - 1;
+        }
+
         Object.assign(this.current, CONFIG.baseState);
-        this.current.presetName = presetName; // 👈 新增：紀錄當前預設名稱，讓 JSON 能印出來
+        this.current.presetName = actualName; // 👈 新增：紀錄當前預設名稱，讓 JSON 能印出來
         Object.keys(p).forEach(k => this.current[k] = p[k]);
         // 【新增：死破龍強制防呆】死龍或破龍為絕地，不得有穴星、穴形、太極暈與穴高
         if (this.current.d === 'si' || this.current.d === 'po') {
@@ -357,6 +376,23 @@ const AppState = {
         UI.update(true);
         Physics.resetParticles();
         Engine3D.clearHeatmap();
+    },
+
+    prevHistory() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            this.resetTo(null, true);
+        }
+    },
+
+    nextHistory() {
+        if (this.historyIndex < this.history.length - 1) {
+            this.historyIndex++;
+            this.resetTo(null, true);
+        } else {
+            // 到底沒有就生新的
+            this.resetTo('random');
+        }
     }
 };
 
@@ -1962,6 +1998,14 @@ const UI = {
             });
         });
 
+        // 新增：歷史紀錄上下瀏覽綁定
+        document.getElementById('btn-prev-preset')?.addEventListener('click', () => {
+            AppState.prevHistory();
+        });
+        document.getElementById('btn-next-preset')?.addEventListener('click', () => {
+            AppState.nextHistory();
+        });
+
         // 新增 Dry Run 按鈕綁定 (支援 Shift+點擊 觸發全格局全套覆蓋測試)
         const btnDryRun = document.getElementById('btn-dry-run');
         if (btnDryRun) {
@@ -2934,6 +2978,10 @@ const Engine3D = {
                 document.getElementById('fold-right-btn')?.click();
             } else if (k === 'g') {  // 【修復：移除空白鍵綁定，防止誤觸重置整個格局】
                 AppState.resetTo('random');
+            } else if (k === 'pageup') { // 新增：PageUp 載入上一筆隨機/預設設定
+                AppState.prevHistory();
+            } else if (k === 'pagedown') { // 新增：PageDown 載入下一筆隨機/預設設定
+                AppState.nextHistory();
             }
         });
         this.buildTerrain();
