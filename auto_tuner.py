@@ -460,12 +460,12 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
    - 【除錯】：若異常飆高，代表 `Physics.update` 誤將「粒子自主前進的流速」算成了風煞！請改用 CFD 網格風速 (`windGridX`/`windGridZ`) 作為感測來源。
 
 2. **waterDrag (水力抽吸/伯努利負壓)**：
-   - 【期望】：僅在凶水（割腳、反弓、直沖等）且靠近水邊時才應有顯著數值 (> 0.5)。玉帶水/九曲水應極低。
-   - 【除錯】：若吉局出現高水力抽吸，通常是感測器的「距離判定」或「相對座標 (`dzTaiji`)」寫錯，導致明堂被誤判為深水區。
+   - 【期望】：僅在水流湍急或河道深切時才有顯著數值 (> 0.5)。平靜水體應極低。
+   - 【除錯】：感測器必須「客觀測量粒子在水域中的動態合成速度與垂直下切拉力」，絕對禁止使用水域名稱字串黑名單（如 `isBadWaterSensor`）硬編碼造假數據！
 
 3. **gatherRatio / scatterAcc (聚氣/散氣率)**：
    - 【期望】：吉局運作 3 秒後，聚氣率應 ≥ 60%，且 `scatterAcc` 極低。大凶局（天斬、地絕）則相反。
-   - 【除錯】：若吉局散氣爆量，代表 `isEscaping` 誤判，或是太極暈/明堂的引力場 (`attractForce`) 計算失效，請檢查 `Physics.update` 中的邊界與阻尼邏輯。
+   - 【除錯】：若吉局散氣爆量，代表太極暈/明堂的引力場或阻尼計算失效，請檢查 `Physics.update` 中的邊界與阻尼邏輯。
 
 4. **Capacity / capLimit (明堂極限容量 c)**：
    - 【期望】：吉局（有廣場/明堂）應 > 100；凶局或明堂破敗（如 sunken, none）應嚴格受限 (< 40 或 < 60)。
@@ -492,42 +492,81 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
    - 💡 常見原因：誤用絕對座標 (`z` 而非 `dzLair`) 導致穴星位移時破圖；或是邊界鉗制寫反 (`Math.min` 誤用為 `Math.max`) 導致山脈被強行向內擠壓。
 
 2. **城市建築穿模與重疊 (City Blds Overlap)**：
-   - 若異常陣列中出現【建築穿模警告】，代表 `app.builder.blds` 中生成的方塊幾何 (x, z, w, d) 發生了不合理的重疊（例如青龍和白虎擠在一起）。請調整生成坐標或寬度。
+   - 若異常陣列中出現【建築穿模警告】，代表 `app.builder.blds` 中生成的方塊幾何 (x, z, w, d) 發生了不合理的重疊。請調整生成坐標或寬度。
 
 3. **系統熵值、高維物理與流體 (Thermodynamics & CFD)**：
-   - 【山林版 (3D.html)】：若出現【動能暴走】或【碰撞衰減(穿模)】，代表 `Physics.update` 中的引力或法線推力發生除以零。請增加阻尼 (`velocity.multiplyScalar`)。
-   - 【城市版 (city.html)】：若 `entropyGenRate` 異常飆高或 SVF (`skyViewFactor`) 不合理，代表 `FengShuiEngine.analyze` 出現無效邊界，導致熱力學失控。
-   - ⚡【全新高維指標】：請嚴格關注 JSON 中 `thermodynamicsAndTopology` 節點。
-     * **Shannon Entropy (香農熵)**：若熵值過高 (通常 >5.0 代表混亂)，代表氣場未聚。
-     * **Betti-1 Closure (拓撲閉合度)**：若閉合度過低 (<50%)，代表盆地漏風或缺砂。
-     * **Resonant Q-Factor (駐波共振)**：觀察是否有效發揮太極暈聚氣。
-     * **Reynolds & Froude (流體力學)**：判斷是否產生超臨界流煞氣 (Fr > 1.0) 或極端湍流 (Re > 4000)。
-     * **Fractal Dimension (分形維度)**：觀察大環境能量級聯是否連續。
-     請將這些數據的異常納入修正判斷，若發現矛盾（如：評分給予完美，但香農熵極高或閉合度極低），請務必修改程式碼以修復計算邏輯。
+   - ⚡【高維指標合規性】：
+     * **Shannon Entropy (香農熵)**：若熵值過高 (>5.0)，代表氣場渙散未聚。
+     * **Betti-1 Closure (拓撲閉合度 $\beta_1$)**：必須 100% 由 16 方向射線掃描地貌計算，嚴禁在平洋龍中使用字串三元運算子硬編碼偽造 `0.85/0.2`！
+     * **Fractal Dimension (分形維度 $D$)**：純由 CFD 亂流能譜客觀計算，嚴禁使用 `+ (bohuan === 'no' ? 0.3 : 0.0)` 字串直接灌水！
+     * **Reynolds & Froude (無因次量)**：空氣雷諾數 ($Re$) 純由風速與亂流決定，嚴禁將水流速滑桿 (`waterVel`) 混入空氣雷諾數公式中！
 
 4. **防呆狀態悖論 (State Desync)**：
    - 若出現不可能的組合 (如平洋龍 + 高山懸崖，或城市無水卻有三叉水)，請檢查 `UI` 層的 `rules` 或相關防呆判斷是否遺漏。
 
-【注意事項】
-1. 你的程式碼修改必須是「增量 (Incremental)」的。
-2. 每次擷取 search 區塊時，請務必以「當前最新」的代碼狀態進行比對與擷取。
+🔥🔥🔥 【湧現物理防作弊十全天條 (ABSOLUTE EMERGENCE & COORDINATE LAWS)】 🔥🔥🔥
+你必須嚴格遵守以下物理與空間幾何原則。若你的修改違反任何一條，將被視為「無效代碼」並遭到退回！
 
-【輸出要求】
-你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字。
+1. **空間座標尺度與二維網格定址鐵律 (Spatial Scale & 2D Grid Index Invariance)**：
+   - 全局地圖尺度 `CONFIG.tSize` 為 350（實體坐標範圍為 `-175 ~ +175`）。
+   - ❌ 致命幾何錯位：CFD 網格求解或感測器採樣時寫死 `(gx / 64) * 200 - 100` 或 `(sensX + 100) / 200 * 64`（導致粒子在右側採樣到左側風向）！
+   - ❌ 致命網格索引筆誤：在 2D 轉 1D 網格採樣時把 X 軸寫成 Z 軸（例如 `windGridZ[ngz * 64 + ngz]`，導致採樣到地圖對角線風速！）。
+   - ✅ 正確寫法：
+     * 空間座標：`worldX = (gx / 64) * CONFIG.tSize - CONFIG.tSize / 2;`
+     * 網格定址：`let idx = ngz * 64 + ngx;`（Z 軸乘以寬度加上 X 軸，嚴禁把 X 軸寫成 Z 軸！）。
 
-🔥🔥🔥 【風水引擎數學與座標系鐵律 (Engine Math & Coordinate Laws)】 🔥🔥🔥
-1. **相對座標 vs 絕對座標**：
-   - 穴位是可以被玩家「手動點穴」或「高山點穴」移動的！
-   - ❌ 錯誤寫法：`if (z > 20 && z < 50)` (這會導致穴位移動後，物理判定區留在原地，引發狀態矛盾)。
-   - ✅ 正確寫法：使用 `dzTaiji` (Z軸距穴心距離) 或 `dxTaiji`，例如 `if (dzTaiji > 15 && dzTaiji < 45)`。
+2. **三維垂直空間自由度與單向地面約束 (3D Vertical Freedom & Unilateral Ground Support)**：
+   - ❌ 致命 3D 壓扁 Bug：`if (y <= t.y + 15.0) y = t.y + 3.5;`（嚴禁將地面 15 米內的所有粒子強制拍扁在 3.5 米薄片上，這會徹底摧毀垂直熱浮力、上升氣流與山頂越嶺流！）。
+   - ✅ 正確做法：地面約束必須為**單向托舉**：`y = Math.max(y, t.y + 0.8);`（僅在粒子沉入地底時托起，允許粒子在 0.8 米至高空自由產生三維立體渦旋與升降）。
 
-2. **禁止作弊 (No Hardcoding Scores)**：
-   - ❌ 錯誤寫法：`if (st.presetName === 'perfect') g = 100;` 
-   - ✅ 系統要的是「自然湧現」。如果你發現 perfect 局分數太低，你必須去查「是哪個地形公式擋住了氣流」、「是哪個形煞被誤判」，然後去修復那個 **物理公式**，絕不允許直接竄改最終分數！
+3. **理氣度數圓周跨零度連續性 (Compass Degree & Circular Continuity)**：
+   - 羅盤度數 $0^\circ \sim 360^\circ$ 具備圓周連續性，正北坎宮跨越 $0^\circ$ 兩側（$315^\circ \sim 360^\circ$ 與 $0^\circ \sim 45^\circ$）。
+   - ❌ 致命度數斷裂：在評分中寫死 `if (deg < 45)`，導致 $315^\circ \sim 360^\circ$ 時評語判大吉但評分沒加分！
+   - ✅ 正確寫法：評分與判詞必須 100% 統一使用跨零度判斷：`if (deg < 45 || deg >= 315)`。
 
-3. **防退化原則 (Regression Prevention)**：
-   - 當你要修復某個特定煞氣（如天斬煞）的 Bug 時，請將修改限縮在 `if (state.sha.includes('tianzhan'))` 區塊內。
-   - ⚠️ 絕對不要隨意更改全域的阻尼係數 `Math.pow(0.98, dt)` 或全域重力，那會導致原本正常的其他 14 個格局瞬間崩潰！
+4. **禁止人工引力黑洞、魔法推力與非受控常數狂風 (No Fake Physics / Unscaled Wind Injections)**：
+   - ❌ 致命作弊與 Bug：
+     * 迴龍顧祖人工黑洞：`if (state.d === 'huilong') suction = 1500.0 / rSq;`
+     * 龍脈推進字串三元運算子：`let pulse = (state.d === 'ji') ? 3.0 : (state.d === 'pingyang' ? 5.0 : 2.8);`（嚴禁依龍勢名稱給予不同推進推力！）
+     * 橫龍山背人工磁吸力：`if (state.d === 'heng') vel.x += Math.sign(-x) * 2.5;`
+     * 龍吐珠/拜台/草蛇/橈棹/蛾眉砂外掛推力：`vel.x += (pearlDx/pearlR) * 2.5;` 或 `pulse += 1.5;` 或 `vel.z += 2.0;`
+     * 大帳/羅城/飛蛾/天馬人工消風消亂流：`if (state.feie) localWindX *= 0.15; localTurbulence *= 0.25;`
+     * 逼壓/抬頭/破碎崖寫死常數狂風：`localWindX += 3.5;`（導致無風設定下依然無中生有颳狂風！）
+     * 天井煞非物理正弦波抽搐：`vel.y += Math.sin(AppState.frames * 0.15) * 8.0;`
+   - ✅ 正確做法：所有山體幾何**早已雕刻於 3D 地形高度圖**中！全域龍脈引導推力必須為**統一常數（`2.5`）**，速度差異完全由地表重力下滑分量（$-t.nz$）自然產生；所有局部風煞**必須乘以環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓）**，嚴禁寫死未受縮放的常數向量！
+
+5. **單向資料流與禁止評分引擎否定感測器 (Unidirectional Data Flow & No Sensor Overriding)**：
+   - 資料流向為唯一單向：【3D地形/CFD網格】 $\rightarrow$ 【粒子流體動力學】 $\rightarrow$ 【物理感測器採樣 (Sensors)】 $\rightarrow$ 【五訣評分引擎 (Rules)】。
+   - ❌ 絕對禁止逆向耦合：`Physics.update` 與感測器內部**絕對不准出現**任何對 `Rules.*`、`mult`、`globalMultCache`、`score` 的調用！
+   - ❌ 絕對禁止評分引擎「否定感測器 / 人工假補償」：
+     * 致命錯誤：`if (state.ao && AppState.sensors.windSpeed < 0.3) emergenceBonus -= 10;`（當物理感測器測得平靜無風時，評分引擎嚴禁用字串比對強行人工多扣 10 分！）。
+     * ✅ 正確原則：評分引擎純粹作為「客觀觀測者」，必須 100% 信任感測器回報的實測物理量，實測無風則風煞懲罰自然為零，實測有風則扣分。
+
+6. **全域狀態機唯一收斂鐵律 (Single State-Machine Convergence Law)**：
+   - ❌ 致命作弊：在仰瓦煞、科氏力白虎撞擊、二次流剪切、斷崖抽吸、後靠空虛、水底河床、案山撞擊坡面等局部 `if` 分支中私自寫 `this.pState[i] = 1/2/3;`！
+   - ❌ 嚴禁在任何局部地形或煞氣條件下隨機竄改粒子狀態機！
+   - ❌ 嚴禁感測器透過水域名稱黑名單（`isBadWaterSensor`）偽造水力抽吸數據！`waterDrag` 必須客觀測量水域真實合成速度 $\sqrt{v_x^2+v_z^2} + (-v_y)$。
+   - ✅ 正確做法：力場與地形**只負責提供物理加速度（$\vec{a} = \vec{F}/m$）與速度拖拽**。整份代碼中粒子的狀態轉化，**100% 只能收斂由全域主循環的風速閾值（`speedSq > 0.35` 散氣）、亂流閾值（`localTurbulence > 5.5` 紅煞）以及穴場層流條件（`isCalmFlow` 吉氣）統一判定！**
+
+7. **絕對移除布林無敵護盾 (Zero Invincible Shields)**：
+   - ❌ 致命作弊：`!(inTaijiShield && state.taiji && !hasDynamicFatalSha)`
+   - ❌ 嚴禁設立任何讓粒子對「風速、亂流、高斯曲率斷裂、地表粗糙度」完全免疫的人工保護罩！
+   - ✅ 正確做法：藏風聚氣的防風能力必須由周圍山體在 CFD 網格中自然把風速擋下；若風速真的很大，粒子就必須如實被吹散。
+
+8. **全系統唯一合法結穴點與禁止先行方框蓋章 (Single Legitimate Qi Convergence Point & No Pre-Entry Box)**：
+   - ❌ 致命作弊：
+     * 水底（`t.y < deepWater`）、案山撞擊坡面（`z > 20 && t.nz < -0.1`）、過峽深谷（`z < -15`）**絕對不准生成吉氣 (`pState = 2`)**（水底結穴嚴重違背「界水則止」）。
+     * **嚴禁設立穴場入口先行強制蓋章方框**：`if (dzTaiji >= -8 && dzTaiji <= 12 && ...) this.pState[i] = 2;`（此寫法會架空客觀物理沉降檢測，讓狂風中的粒子一碰方框邊界就瞬間變吉氣！）。
+   - ✅ 正確做法：全系統**唯一**允許將生氣沉降轉化為吉氣（`pState = 2`）的地方：粒子位於太極暈陸地範圍內，且粒子處於客觀層流沉降狀態（`isCalmFlow: vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y > t.y`）。
+
+9. **禁止人工修改粒子壽命與初速 (No Lifetime & Thrust Tampering)**：
+   - ❌ 致命作弊：`this.pLife[i] += 1.5 * dt;`（五色土延壽）或 `let initialThrust = state.zutai ? 6.5 : 3.0;` 或平洋出生賦予 `10.0/8.0` 超速！
+   - ✅ 正確做法：粒子出生與回收時統一賦予自然的穩態初速 `3.5`，土壤與高山的影響必須體現在「摩擦阻尼」、「剛體彈力」或「高山重力勢能自然加速」上，不准手動竄改粒子的 `pLife` 與初速。
+
+10. **相對座標 vs 絕對座標 (Relative vs Absolute Coordinates)**：
+    - 穴位是可以被玩家「手動點穴」或「高山點穴」移動的！
+    - ❌ 錯誤寫法：`if (z > 20 && z < 50)` (這會導致穴位移動後，物理判定區留在原地，引發狀態矛盾)。
+    - ✅ 正確寫法：使用 `dzTaiji` (Z軸距穴心距離) 或 `dxTaiji`，例如 `if (dzTaiji > 15 && dzTaiji < 45)`。
 
 🔥🔥🔥 【圖學與數值穩定性鐵律 (Graphics & Numerical Stability)】 🔥🔥🔥
 1. **光學過曝與通用色彩異常 (Optical & Color Anomalies)**：
@@ -541,22 +580,28 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 2. **平滑過渡 (Smooth Falloff) 絕對優先**：
    - 在修改地形 `y` 高度或流體速度 `vel` 時，絕對禁止使用「硬切斷 (Hard Cutoff)」。硬切斷會導致 3D 網格法線斷裂與嚴重的 Z-Fighting 破圖。
    - ❌ 致命錯誤：`if (dist < 15) { y -= 10; }` (邊緣會產生 90 度垂直斷崖)。
-   - ✅ 正確做法：使用高斯衰減 (Gaussian Falloff) 或線性插值。例如 `y -= 10 * Math.exp(-(dist*dist)/50);`，讓地形與力場平滑過渡。。
+   - ✅ 正確做法：使用高斯衰減 (Gaussian Falloff) 或線性插值。例如 `y -= 10 * Math.exp(-(dist*dist)/50);`，讓地形與力場平滑過渡。
 
-2. **除以零防禦 (Zero-Division & NaN Prevention)**：
-   - 任何涉及距離 `dist`、長度 `length`、或向量相除的公式，分母絕對不可為 0。當你在 JSON 看到 `CRITICAL: 數值出現 NaN`，99% 是因為除以零！
-   - ❌ 致命錯誤：`let force = 10 / dist;` 或 `let dirX = dx / dist;` (當粒子恰好在中心點時，dist 為 0 導致 NaN 爆炸)。
-   - ✅ 正確做法：`let force = 10 / Math.max(0.001, dist);` 永遠為分母加上最小安全閾值 (Epsilon)。
+3. **除以零防禦與 NaN 防禦 (Zero-Division & Variable Scope Safeguard)**：
+   - 任何涉及距離 `dist`、長度 `length`、或向量相除的公式，分母絕對不可為 0（使用 `Math.max(0.001, dist)`）。
+   - 在粒子重生或邊界回收時，務必確保所引用的變數（如 `z`、`lz`、`xueZOffset`）在當前函式作用域內已宣告，嚴禁跨函式引用未定義變數（如 `tz`）導致 `NaN` 座標爆炸！
 
-3. **向量歸一化防暴走 (Vector Normalization)**：
-   - 在賦予粒子速度 (`vel.x += ...`) 時，如果牽涉到方向，務必確保方向向量已被歸一化 (Normalized)，否則距離越遠的地方，引力/斥力會無限放大導致「動能暴走」。
-   - ❌ 致命錯誤：`vel.x += dx * speed * dt;` (dx 可能高達 100，導致速度瞬間破表)。
-   - ✅ 正確做法：`vel.x += (dx / Math.max(0.001, dist)) * speed * dt;`。
+4. **向量與空間網格能量梯度歸一化 (Vector & Grid Gradient Normalization)**：
+   - 任何涉及方向引力、排斥力，或讀取空間離散網格（如 `qiGrid`）的能量梯度時，**必須進行無因次歸一化**！
+   - ❌ 致命數值爆炸：`let qiGradX = qiRight - qiLeft; vel.x += qiGradX * 1.5 * dt;`（當網格能量累積至 100+ 時，未歸一化的差值會產生 135 級別的超音速震盪暴走！）。
+   - ✅ 正確做法：
+     * 空間向量：`vel.x += (dx / Math.max(0.001, dist)) * speed * dt;`
+     * 網格梯度：`let qiGradX = (qiRight - qiLeft) / Math.max(1.0, maxQi); vel.x += qiGradX * 0.35 * dt;`
 
-4. **乘數懲罰的疊加防呆 (Multiplier Stacking Prevention)**：
-   - 扣分或懲罰時，盡量使用 `Math.max()` 設置下限，避免多個形煞同時存在時，連乘導致分數變負數或趨近於無限小。
-   - ❌ 錯誤寫法：`g -= 50;` (可能導致 g 變成負數，引發後續計算崩潰)。
-   - ✅ 正確寫法：`g = Math.max(0, g - 50);` 永遠保護物理指標的安全底線。
+5. **單調物理加權與單一入口扣分 (Monotonic Sensor Mapping & Single Penalty Entry)**：
+   - 評分懲罰必須與感測器讀數**單調正相關（讀數越大、扣分越重）**，絕對禁止逆向倒扣悖論！
+   - ❌ 致命逆向邏輯：`if (waterDrag > 0.5) dragPenalty += 20; else dragPenalty += 35;`（導致平靜水流反而被重罰 35 分！）。
+   - ❌ 致命雙重扣分：在預熱期既於 `windPenalty` 扣分，又在 `emergenceBonus` 扣分。
+   - ✅ 正確做法：水力懲罰純粹由感測器讀數線性驅動（`if (waterDrag > 0.3) dragPenalty += (waterDrag - 0.3) * 6.0;`）；形煞懲罰維持單一入口，避免多處重複疊加扣分。
+
+6. **禁止理論容量反向截斷物理累加器 (No Cap Clamping)**：
+   - ❌ 致命死鎖：`AppState.gatherAcc += (Math.min(capLimit, frameGather) - AppState.gatherAcc) * 0.05 * dt;`
+   - ✅ 正確做法：物理感測器測到多少粒子就是多少（`AppState.gatherAcc += (frameGather - AppState.gatherAcc) * 0.05 * dt;`）。容量是否超載應由 UI/評分層拿 `gatherAcc / capLimit` 來比對。
 
 🔥🔥🔥【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】🔥🔥🔥
 你必須「嚴格」輸出以下格式的 JSON，絕對不要在 JSON 外輸出任何 markdown 說明文字。
@@ -591,6 +636,7 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
   ]
 }
 """
+
 
 # ============================================================
 # 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
