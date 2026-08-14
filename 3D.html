@@ -875,8 +875,8 @@ const Rules = {
         // 【容量滿載豁免】明堂已滿載時，多餘粒子自然溢散，不應再降低綜合分數
         if (!isCapacityFullSc && totalPForCoherence > 20 && AppState.scatterAcc > AppState.gatherAcc) {
             const scatterDiffForCoherence = AppState.scatterAcc - AppState.gatherAcc;
-            // 修復：放寬散射差距懲罰，避免吉格局粒子流動時誤降分數；最低下限提升至 0.75
-            coherenceFactor = Math.max(0.75, 1.0 - (scatterDiffForCoherence - 10) * 0.01);
+            // 修復：放寬散射差距懲罰，避免吉格局粒子流動時誤降分數；但必須限制上限為 1.0，防止差距小於 10 時反而加分
+            coherenceFactor = Math.min(1.0, Math.max(0.75, 1.0 - (scatterDiffForCoherence - 10) * 0.01));
         }
         // 【修復：穴分回歸穴場本身品質，xiangBonus 僅作用於向首理氣分數 finalXg】
         let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2)) * coherenceFactor;
@@ -1514,10 +1514,11 @@ window.DryRunTool = {
         let waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
         // 重算河道中心線（與 buildTerrain 同步），僅對河道內部做 Z-Fighting 判定，避免將正常的岸線過渡誤判為閃爍
         let riverRefZ = 999;
-        if (st.w === 'you' || st.w === 'jiuqu' || st.w === 'bazi' || st.w === 'tfork') riverRefZ = 70;
+        if (st.w === 'you' || st.w === 'jiuqu' || st.w === 'bazi' || st.w === 'tfork' || st.w === 'hulu' || st.w === 'jiaojian') riverRefZ = 70;
         else if (st.w === 'gejiao') riverRefZ = 30;
         else if (st.w === 'ji' || st.w === 'fan') riverRefZ = 55;
         else if (st.w === 'lintou') riverRefZ = -10;
+        else if (['hejin','sishui','jushui'].includes(st.w)) riverRefZ = 35;
         if (st.w !== 'none') riverRefZ += ((st.manualXue ? (st.xueZ || 0) : 5.0) - 5.0);
         for (let idx = 0; idx < Engine3D.hMap.length - (CONFIG.tSeg + 1) - 1; idx++) {
             let h = Engine3D.hMap[idx];
@@ -2400,15 +2401,6 @@ const UI = {
     },
 
     refreshScores(dt) {
-        // 【天條合規】Physics.update 專注物理模擬，評分與 UI 更新交由主循環負責
-    }
-};
-    refreshScores(dt) {
-        // 【天條合規】Physics.update 不得直接調用 Rules.*；五訣評分更新委派至 UI.refreshScores(dt)
-        UI.refreshScores(dt);
-    }
-};
-    refreshScores(dt) {
         let rawScore = Rules.computeScores();
         if (!AppState.smoothedScores) AppState.smoothedScores = [...rawScore];
 
@@ -2948,16 +2940,18 @@ const Engine3D = {
             const intersects = this.raycaster.intersectObject(this.terrainMesh);
             if (intersects.length > 0) {
                 const p = intersects[0].point;
-                // 在滑鼠點擊處製造強大的真氣爆發
+                // 在滑鼠點擊處釋放高亮真氣（遵守天條：不強制結穴、不竄改壽命）
                 for (let i = 0; i < 400; i++) {
                     let idx = Math.floor(Math.random() * Physics.pCount);
                     Physics.pPos[idx*3] = p.x + (Math.random()-0.5)*5;
                     Physics.pPos[idx*3+1] = p.y + 2 + Math.random()*5;
                     Physics.pPos[idx*3+2] = p.z + (Math.random()-0.5)*5;
-                    Physics.pVel[idx].set((Math.random()-0.5)*12, Math.random()*15, (Math.random()-0.5)*12);
-                    Physics.pState[idx] = 2; // 強制設為吉氣
+                    // 統一使用自然穩態初速，讓粒子完全受物理場驅動
+                    let smokeAngle = Math.random() * Math.PI * 2;
+                    Physics.pVel[idx].set(Math.cos(smokeAngle)*3.5, Math.random()*1.5, Math.sin(smokeAngle)*3.5);
+                    Physics.pState[idx] = 0; // 僅標記為普通生氣，後續由物理自然沉降或散逸
                     Physics.pCol[idx*3] = 0.2; Physics.pCol[idx*3+1] = 1.0; Physics.pCol[idx*3+2] = 0.5; // 高亮螢光綠
-                    Physics.pLife[idx] = 300;
+                    Physics.pLife[idx] = 100 + Math.random() * 500;
                 }
                 this.createShockwave(p.x, p.y, p.z, 0x22ff44);
             }
@@ -3105,9 +3099,10 @@ const Engine3D = {
         const pos = this.terrainGeo.attributes.position.array;
         const cols = [];
                 let wZ = 30;
-                if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei'].includes(state.w)) wZ = 70;
-                if(state.w==='ji'||state.w==='fan') wZ = 55;
-                if(state.w==='lintou') wZ = -10;
+                if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) wZ = 70;
+                else if(state.w==='ji'||state.w==='fan') wZ = 55;
+                else if(state.w==='lintou') wZ = -10;
+                else if(['hejin','sishui','jushui'].includes(state.w)) wZ = 35;
                 // 【修正】高山點穴/手動點穴導致穴位水平位移 (lz 偏移) 時，河道位置必須連動，
                 // 否則原本在穴前的玉帶水可能跑到穴後，或淋頭水跑到穴前，造成風水邏輯錯亂
                 let lairZRef = (state.manualXue ? (state.xueZ || 0) : 5.0);
@@ -4155,9 +4150,10 @@ const Engine3D = {
                 if (state.w !== 'none') {
                     let lairZRefColor = (state.manualXue ? (state.xueZ || 0) : 5.0);
                     let wZColor = 30;
-                    if (['you','jiuqu','bazi','tfork','juanlian','pubu','liulei'].includes(state.w)) wZColor = 70;
+                    if (['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) wZColor = 70;
                     else if (state.w==='ji'||state.w==='fan') wZColor = 55;
                     else if (state.w==='lintou') wZColor = -10;
+                    else if (['hejin','sishui','jushui'].includes(state.w)) wZColor = 35;
                     wZColor += (lairZRefColor - 5.0);
 
                     let rSColor = wZColor;
@@ -4547,9 +4543,10 @@ const Physics = {
 
         // 【修復】河道中心線 Z 座標（與地形生成同步），供水流幾何與伯努利抽吸計算使用
         let wZ = 30;
-        if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei'].includes(state.w)) wZ = 70;
+        if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) wZ = 70;
         else if(state.w==='ji'||state.w==='fan') wZ = 55;
         else if(state.w==='lintou') wZ = -10;
+        else if(['hejin','sishui','jushui'].includes(state.w)) wZ = 35;
         if (state.w !== 'none') wZ += (lairZRef - 5.0);
 
         let rType = 4;
@@ -4705,9 +4702,10 @@ const Physics = {
             let waterSensorLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
             let isNearWater = (state.w !== 'none' || state.yue);
             let riverRefZ = 30;
-            if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei'].includes(state.w)) riverRefZ = 70;
+            if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) riverRefZ = 70;
             else if(state.w==='ji'||state.w==='fan') riverRefZ = 55;
             else if(state.w==='lintou') riverRefZ = -10;
+            else if(['hejin','sishui','jushui'].includes(state.w)) riverRefZ = 35;
             if (isNearWater) riverRefZ += (lz - 5.0);
             let waterSenseZStart = Math.min(lz - 5, riverRefZ - 20);
             let waterSenseZEnd = Math.max(lz + 40, riverRefZ + 20);
@@ -5212,7 +5210,8 @@ const Physics = {
                     }
 
                     if (waterSpeed < 4.5) {
-                        vel.multiplyScalar(Math.pow(0.1, dt)); 
+                        // 僅施加輕微介質阻力，保留大部分流體動能，確保水力感測器能客觀測量實際流速
+                        vel.multiplyScalar(Math.pow(0.95, dt)); 
 
                         // 【客觀深水流體力學】：粒子在深水潭中沿水底坡度自然滑移，禁止在水底生成穴場吉氣
                         let deepWaterThreshold = (state.d === 'pingyang') ? -3.4 : -15.0;
@@ -5536,11 +5535,8 @@ const Physics = {
                    frameScatter++;
                }
 
-                    // 【修復：解除爆炸死鎖】回歸自然流體與向心力，不再因分數低而人為引爆粒子
-                let isOuterEscaping = (st === 1 || st === 3) && (dxTaiji * vel.x + dzTaiji * vel.z > 0.5);
-                if (isOuterEscaping) {
-                    vel.multiplyScalar(Math.pow(0.92, dt));
-                } else {
+                    // 【天條合規】移除對煞氣粒子的特殊減速，讓其自然受地形與風場影響；聚散仍由全域物理機制統一判定
+                    {
                     // 【修正】落水是否造成散氣，必須區分吉水與凶水。
                     // 吉水（玉帶、九曲、四水歸堂、聚水等）為聚氣之象，粒子落入水中應被保留為吉氣；
                     // 僅凶水（割腳、反弓、淋頭等）或水流過急（waterVel>1.8）時，落水才會破壞氣場。
@@ -6092,8 +6088,7 @@ const Physics = {
         // 【修正】移除對 Rules.getCapacityLimit 的依賴，改以聚氣量顯示（符合單向數據流）
         document.getElementById('cap-fill').style.width = Math.min(100, AppState.gatherAcc) + '%';
 
-        // 【天條合規】Physics.update 不得直接調用 Rules.*；五訣評分更新委派至 UI.refreshScores(dt)
-        UI.refreshScores(dt);
+        // 【天條合規】Physics.update 不得直接調用 Rules.*；五訣評分更新交由主循環統一處理
     }
 };
 

@@ -3282,15 +3282,13 @@ void main() {
     
     vec3 p = (u_spawnCount == 0) ? vec3((rand(vec2(a_id, cycle))-0.5)*120.0, 1.0, (rand(vec2(cycle, a_id))-0.5)*120.0) : vec3(0.0, 1.0, 20.0);
     // 【第54輪修正】無煞氣源時，fallback 初速必須乘上環境風壓，避免無風時粒子以 12 m/s 非物理亂飛
-    vec3 startVel = (u_spawnCount == 0) ? vec3((rand(vec2(cycle, a_id))-0.5)*12.0, 1.0, (rand(vec2(a_id, cycle*2.0))-0.5)*12.0) * max(0.0, u_envWind) : vec3((rand(vec2(cycle, a_id))-0.5)*12.0, 1.0, (rand(vec2(a_id, cycle*2.0))-0.5)*12.0);
-    // 煞氣粒子初速度嚴格受環境風速與車速縮放 (u_tSpeed)，無風無動能時維持自然飄散
+    // 【第11輪修正】所有粒子（包括煞氣粒子）出生初速統一為穩態 3.5（天條6）
+    vec3 startVel = vec3(0.0, 0.0, 3.5);
+    // 煞氣粒子初速度不再依賴煞氣源方向，完全交由後續流體動力與地形自然改變
     for(int i=0; i<64; i++) {
         if(i == sIdx && i < u_spawnCount) { 
             p = u_spawns[i] + vec3(rand(vec2(a_id, cycle))-0.5, rand(vec2(cycle, a_id))*2.5, rand(vec2(cycle*2.0, a_id))-0.5) * 8.0;
-            vec3 dir = u_spawnDirs[i];
-            float speedScale = max(0.0, u_envWind);
-            // 【修正】煞氣初始速度完全由環境風速縮放，無風時不得產生非物理上升飄散（天條：無風則無壓）
-            startVel = vec3(dir.x * (4.0 + rand(vec2(a_id, cycle))*6.0) * speedScale, (1.0 + rand(vec2(cycle, a_id))*1.5) * speedScale, dir.z * (4.0 + rand(vec2(a_id*2.0, cycle))*6.0) * speedScale);
+            // 初始速度保持 (0,0,3.5)，不再覆蓋
             break; 
         }
     }
@@ -3312,10 +3310,10 @@ void main() {
         }
 
         if(u_cureTrees && abs(p.z-22.0)<8.0 && abs(p.x)<30.0) { v *= max(0.0, 1.0 - 2.0*dt); }
-        if(u_cureMirror && abs(p.z-20.0)<5.0 && abs(p.x)<12.0) { v.z += (abs(v.z) + max(0.0, u_envWind) * 10.0) * dt; v.y += max(0.0, u_envWind) * 5.0 * dt; }
+        if(u_cureMirror && abs(p.z-20.0)<5.0 && abs(p.x)<12.0) { v.z += max(0.0, u_envWind) * 10.0 * dt; v.y += max(0.0, u_envWind) * 5.0 * dt; }
         // 水體提供黏滯阻尼衰減煞氣動能，自然沉降，嚴禁直接瞬間抹殺
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) { v *= max(0.0, 1.0 - 4.0 * dt); }
-        if(u_cureStone && p.z<22.0 && p.z>10.0 && abs(p.x)<15.0) { v.z += (abs(v.z) * (1.0 + max(0.0, u_envWind) * 0.5) + max(0.0, u_envWind) * 5.0) * dt; v.y += max(0.0, u_envWind) * 4.0 * dt; }
+        if(u_cureStone && p.z<22.0 && p.z>10.0 && abs(p.x)<15.0) { v.z += max(0.0, u_envWind) * 5.0 * dt; v.y += max(0.0, u_envWind) * 4.0 * dt; }
         // 葫蘆作為實體小結構提供局部表面摩擦阻尼，嚴禁設立人工引力黑洞與粒子抹殺
         if(u_cureGourd && p.z<15.0 && abs(p.x - 8.0)<12.0) {
             v *= max(0.0, 1.0 - 1.5 * dt);
@@ -3406,6 +3404,11 @@ class ParticleSystem {
   constructor(scene) {
     this.scene = scene;
     this.TMAX = 1400; this.GMAX = 2000; this.BMAX = 2000;
+    // 【第10輪】粒子顯示數量由外部（UI層）設定，避免粒子系統直接讀取評分結果，確保單向資料流
+    this.goodDrawCount = 0;
+    this.badDrawCount = 0;
+    // 【第13輪】高階物理場參數（如 Helmholtz 共振）由外部 UI 層從幾何計算同步，粒子系統不直接讀取評分結果
+    this.physicalParams = { isCoanda:false, isHelmholtz:false, isHydraulicJump:false, qFactor:0 };
     this.trafParts = [];
     
     this.trafGeo = new THREE.BufferGeometry();
@@ -3564,13 +3567,11 @@ class ParticleSystem {
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
     
-    // 【新增】每幀更新高階物理場參數
-    if (stateManager.analysis) {
-        this.uniforms.u_coanda.value = stateManager.analysis.isCoanda || false;
-        this.uniforms.u_helmholtz.value = stateManager.analysis.isHelmholtz || false;
-        this.uniforms.u_hydraulicJump.value = stateManager.analysis.isHydraulicJump || false;
-        this.uniforms.u_qFactor.value = stateManager.analysis.qFactor || 0; // 同步 Q-Factor
-    }
+    // 【第13輪】高階物理場參數改由外部同步的 this.physicalParams 驅動，確保粒子系統不直接讀取評分結果
+    this.uniforms.u_coanda.value = this.physicalParams.isCoanda || false;
+    this.uniforms.u_helmholtz.value = this.physicalParams.isHelmholtz || false;
+    this.uniforms.u_hydraulicJump.value = this.physicalParams.isHydraulicJump || false;
+    this.uniforms.u_qFactor.value = this.physicalParams.qFactor || 0;
     
     this.uniforms.u_cureTrees.value = st.cure.includes('trees');
     this.uniforms.u_cureMirror.value = st.cure.includes('mirror');
@@ -3579,8 +3580,9 @@ class ParticleSystem {
 	const terrMap = { flat:0, backhigh:1, slope:2, basin:3 };
     this.uniforms.u_terrainType.value = terrMap[st.terrain] || 0;
 
-    const nG = Util.clamp(stateManager.analysis.g*8, 0, this.GMAX)|0;
-    const nB = Util.clamp(stateManager.analysis.s*10, 0, this.BMAX)|0;
+    // 【第10輪】改用外部設定的顯示數量，不在此讀取評分結果
+    const nG = Util.clamp(this.goodDrawCount, 0, this.GMAX)|0;
+    const nB = Util.clamp(this.badDrawCount, 0, this.BMAX)|0;
     this.goodGeo.setDrawRange(0, nG);
     this.badGeo.setDrawRange(0, nB);
     
@@ -4039,9 +4041,13 @@ class UIManager {
     };
     bindH('rHMain', 'main'); bindH('rHDrag', 'drag'); bindH('rHTig', 'tig'); bindH('rHTort', 'tort'); bindH('rHBird', 'bird');
 
-    Util.$('rWind').oninput = e => { this.app.state.wind = +e.target.value; Util.$('windVal').textContent = '+' + this.app.state.wind; this.app.refreshData(); };
+    Util.$('rWind').oninput = e => {
+      this.app.state.current.presetName = 'custom'; // 【第6輪】手動調整風速視為自定義格局，避免 DryRun 誤用預設斷言
+      this.app.state.wind = +e.target.value; Util.$('windVal').textContent = '+' + this.app.state.wind; this.app.refreshData();
+    };
     Util.$('rTraffic').oninput = e => { 
       const v = +e.target.value;
+      this.app.state.current.presetName = 'custom'; // 【第6輪】手動調整車流視為自定義格局，避免 DryRun 誤用預設斷言
       this.app.state.trafficSpeed = v; 
       Util.$('trafVal').textContent = v < 4 ? '慢 (聚財)' : (v > 7 ? '極快 (風煞)' : '中'); 
       this.app.refreshData(); 
@@ -4252,7 +4258,9 @@ class UIManager {
         el.value = val;
       }
     }
+    this.app.state._applyingPreset = true;
     this.app.rebuild();
+    this.app.state._applyingPreset = false;
   }
 
   refreshPanels(stateManager) {
@@ -4365,7 +4373,7 @@ class UIManager {
     }
      
     // 【第27輪診斷修正】高熵/低閉合度/湍流超標時，即使分數偏向吉，也不得顯示吉評，避免 DryRun 回報 CRITICAL 矛盾
-    const hasValidBldsForVerdict = this.app && this.app.builder && this.app.builder.blds.some(b => !b.isWater && !(b.x === (this.app.state.taijiX || 0) && b.z === (this.app.state.taijiZ || 0)));
+    const hasValidBldsForVerdict = app && app.builder && app.builder.blds.some(b => !b.isWater && !(b.x === (app.state.taijiX || 0) && b.z === (app.state.taijiZ || 0)));
     // 【修正】優先使用 analyze 統一的環境混亂標記，避免兩處門檻不一致導致誤降級
     const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean') ? ana.isEnvironmentDisordered : (hasValidBldsForVerdict && (
         (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0) ||
@@ -4459,6 +4467,9 @@ class App {
   }
 
   rebuild() {
+    // 【第5輪靜態審查】若非透過 applyPreset 重建（例如使用者手動調整任何 UI 控制項），
+    // 將 presetName 標記為 custom，避免 DryRun 以過期的預設格局名稱執行正反向斷言。
+    if (!this.state._applyingPreset) this.state.current.presetName = 'custom';
     this.world.updateTerrain(this.state.current.terrain);
     this.state.sources = FengShuiEngine.collectSources(this.state);
     this.builder.buildAll(this.state);
@@ -4486,6 +4497,15 @@ class App {
     this.state.analysis = FengShuiEngine.analyze(stateCopy, this.builder);
     // 【新增】將物理引擎解算出的地氣軌跡發送給渲染器
     this.builder.drawWaterTopology(this.state.analysis.dropPaths);
+    // 【第13輪】將高階物理場參數同步給粒子系統（非分數，僅為幾何計算結果）
+    if (this.particles) {
+        this.particles.physicalParams = {
+            isCoanda: this.state.analysis.isCoanda || false,
+            isHelmholtz: this.state.analysis.isHelmholtz || false,
+            isHydraulicJump: this.state.analysis.isHydraulicJump || false,
+            qFactor: this.state.analysis.qFactor || 0
+        };
+    }
     this.ui.refreshPanels(this.state);
   }
 
@@ -4509,6 +4529,9 @@ class App {
 
     this.world.updateCamera();
     this.builder.update(time, this.state.analysis); // 將觀測數據傳入控制發光
+    // 【第10輪】粒子顯示數量由 UI 層設定，粒子系統僅接收屬性，確保單向資料流
+    this.particles.goodDrawCount = Util.clamp(this.state.analysis.g * 8, 0, this.particles.GMAX);
+    this.particles.badDrawCount = Util.clamp(this.state.analysis.s * 10, 0, this.particles.BMAX);
     this.particles.step(dt, time, this.state, this.builder);
     this.ui.updateBars(time, this.state.analysis);
     this.world.render();
@@ -4578,7 +4601,7 @@ window.DryRunTool = {
     // 強制渲染最後一幀以獲取最新畫面
     app.world.render(); 
     
-    const gl = app.world.renderer.domElement.getContext('webgl2') || app.world.renderer.domElement.getContext('webgl');
+    const gl = app.world.renderer.getContext();
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
     const pixels = new Uint8Array(w * h * 4);
     gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);

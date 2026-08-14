@@ -141,7 +141,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                     return window.DryRunTool.executeSingle(6, true);
                 }
                 return null;
-            })();
+            })()
             """
 
             if is_exam:
@@ -154,7 +154,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                         return window.DryRunTool.executeSuite(6);
                     }
                     return null;
-                })();
+                })()
                 """
                 raw_results = page.evaluate(exam_script)
                 if raw_results:
@@ -192,9 +192,12 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
 
                     try:
                         # 設定 8 秒超時保護，防止 AI 寫出死迴圈凍結主程序
-                        res = page.evaluate(
-                            f"Promise.race([({dry_run_script})(), new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 8000))])"
-                        )
+                        res = page.evaluate(f"""
+                            Promise.race([
+                                Promise.resolve().then(() => {dry_run_script}),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 8000))
+                            ])
+                        """)
                     except Exception as eval_err:
                         logger.error(f"  ❌ 執行 Dry Run 評估失敗或超時: {eval_err}")
                         res = None
