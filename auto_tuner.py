@@ -46,7 +46,7 @@ def extract_json_from_text(text):
     if not text:
         return None
     
-    match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', text, re.IGNORECASE)
+    match = re.search(r'```(?:json)?\s*([\[{][\s\S]*?[\]}])\s*```', text, re.IGNORECASE)
     if match:
         try:
             return json.loads(match.group(1).strip())
@@ -56,9 +56,16 @@ def extract_json_from_text(text):
     first_brace = text.find('{')
     last_brace = text.rfind('}')
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        json_str = text[first_brace : last_brace + 1]
         try:
-            return json.loads(json_str)
+            return json.loads(text[first_brace : last_brace + 1])
+        except json.JSONDecodeError:
+            pass
+            
+    first_bracket = text.find('[')
+    last_bracket = text.rfind(']')
+    if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
+        try:
+            return json.loads(text[first_bracket : last_bracket + 1])
         except json.JSONDecodeError:
             pass
             
@@ -81,34 +88,24 @@ def clean_code_block(text):
 # ============================================================
 # 瀏覽器自動化：執行 Dry Run 收集數據
 # ============================================================
-def run_browser_simulations(html_path, num_runs, logger):
+def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
     results = []
     abs_path = os.path.abspath(html_path)
     file_url = Path(abs_path).as_uri()
     
-    logger.info(f"🌐 啟動無頭瀏覽器，準備執行 {num_runs} 次 Dry Run...")
+    mode_text = "【大考模式 - executeSuite】" if is_exam else f"【一般取樣模式 - {num_runs} 次】"
+    logger.info(f"🌐 啟動無頭瀏覽器，準備執行 Dry Run {mode_text}...")
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True) 
         page = browser.new_page()
         
-        # 💡 [修復 1] 注入靜態腳本，屏蔽 alert 彈窗，避免阻塞 Chrome 事件循環
+        # 屏蔽 alert 彈窗，避免阻塞 Chrome 事件循環
         page.add_init_script("window.alert = () => {};")
         
         page_errors = []
         page.on("pageerror", lambda err: page_errors.append(str(err)))
         page.on("dialog", lambda dialog: dialog.accept())
-        
-        captured_json = None
-        def handle_console(msg):
-            nonlocal captured_json
-            text = msg.text
-            if "請幫我分析以下" in text or "emergenceMetrics" in text or "scores" in text:
-                extracted = extract_json_from_text(text)
-                if extracted:
-                    captured_json = extracted
-        
-        page.on("console", handle_console)
         
         try:
             page.goto(file_url)
@@ -119,45 +116,120 @@ def run_browser_simulations(html_path, num_runs, logger):
                 browser.close()
                 return ("JS_ERROR", page_errors[0])
 
-            for i in range(num_runs):
-                captured_json = None
-                logger.info(f"  ▶ 執行第 {i+1}/{num_runs} 次 Dry Run...")
-                
-                if i > 0 and i % 5 == 0:
-                    page.reload()
-                    page.wait_for_timeout(1000)
+            valid_results = []
+            passed_core_count = 0
+            seen_hashes = set()
 
-                # ⚡ [最大化覆蓋率] 改為每次 Dry Run 都點擊隨機生成，確保收集到完全不同的獨立格局
-                page.click(".preset-btn[data-p='random']")
-                page.wait_for_timeout(1500) # 延長等待時間，確保 3D 地形、DOM 與變數徹底重建，防止舊數據殘留
-                
-                if page_errors:
-                    logger.error(f"❌ 模擬過程發現 JavaScript 執行階段錯誤:\n   {page_errors[0]}")
-                    browser.close()
-                    return ("JS_ERROR", page_errors[0])
+            def clean_and_hash(res):
+                if "meta" in res: del res["meta"]
+                return json.dumps(res, sort_keys=True)
 
-                # 💡 [修復 2] 加上 no_wait_after=True 與 timeout=60000
-                # 避免 Playwright 因為 JS 跑 360 幀模擬過久而卡在 click action 超時
-                try:
-                    page.click("#btn-dry-run", no_wait_after=True, timeout=60000)
-                except Exception as click_err:
-                    # 備用方案：如果 Playwright click 依然失敗，使用 JS 直接觸發
-                    page.evaluate("document.querySelector('#btn-dry-run')?.click()")
+            dry_run_script = """
+            (() => {
+                if (typeof DryRunTool !== 'undefined' && DryRunTool.executeSingle) {
+                    return DryRunTool.executeSingle(6, true);
+                } else if (window.DryRunTool && window.DryRunTool.executeSingle) {
+                    return window.DryRunTool.executeSingle(6, true);
+                }
+                return null;
+            })();
+            """
 
-                # 💡 [修復 3] 延長等待 JSON 的超時時間至 15 秒（給 Headless CPU 足夠時間算完 360 幀）
-                start_wait = time.time()
-                while captured_json is None and (time.time() - start_wait) < 15.0:
-                    if page_errors:
-                        logger.error(f"❌ 模擬過程發現 JavaScript 執行階段錯誤:\n   {page_errors[0]}")
-                        browser.close()
-                        return ("JS_ERROR", page_errors[0])
-                    page.wait_for_timeout(200)
-                
-                if captured_json:
-                    results.append(captured_json)
-                else:
-                    logger.warning(f"  ⚠️ 第 {i+1} 次未捕捉到有效的 JSON 數據")
-                
+            if is_exam:
+                logger.info("  ▶ [階段 1] 執行全格局覆蓋測試 (executeSuite)...")
+                exam_script = """
+                (() => {
+                    if (typeof DryRunTool !== 'undefined' && DryRunTool.executeSuite) {
+                        return DryRunTool.executeSuite(6);
+                    } else if (window.DryRunTool && window.DryRunTool.executeSuite) {
+                        return window.DryRunTool.executeSuite(6);
+                    }
+                    return null;
+                })();
+                """
+                raw_results = page.evaluate(exam_script)
+                if raw_results:
+                    if not isinstance(raw_results, list): raw_results = [raw_results]
+                    for res in raw_results:
+                        preset_name = res.get("presetName", "")
+                        is_fixed = preset_name and not preset_name.startswith("random")
+                        has_warnings = len(res.get("sanityWarnings", [])) > 0
+                        expected = res.get("expectedRating", "動態判定")
+                        actual = res.get("verdict", {}).get("rating", "")
+                        rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
+
+                        if is_fixed and not has_warnings and rating_matches:
+                            passed_core_count += 1
+                            continue
+
+                        res_hash = clean_and_hash(res)
+                        if res_hash not in seen_hashes:
+                            seen_hashes.add(res_hash)
+                            valid_results.append(res)
+            else:
+                all_btns = page.evaluate("Array.from(document.querySelectorAll('.preset-btn')).map(b => b.dataset.p)")
+                fixed_presets = [p for p in all_btns if p != 'random'] if all_btns else ['perfect']
+
+                logger.info(f"  ▶ [階段 1] 執行 {len(fixed_presets)} 項固定格局防迴歸測試...")
+                for i, preset in enumerate(fixed_presets):
+                    if i > 0 and i % 5 == 0:
+                        page.reload()
+                        page.wait_for_timeout(1000)
+                        if page_errors: return ("JS_ERROR", page_errors[0])
+
+                    page.click(f".preset-btn[data-p='{preset}']")
+                    page.wait_for_timeout(1500)
+                    if page_errors: return ("JS_ERROR", page_errors[0])
+
+                    res = page.evaluate(dry_run_script)
+                    if not res: continue
+
+                    has_warnings = len(res.get("sanityWarnings", [])) > 0
+                    expected = res.get("expectedRating", "動態判定")
+                    actual = res.get("verdict", {}).get("rating", "")
+                    rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
+
+                    if not has_warnings and rating_matches:
+                        passed_core_count += 1
+                        continue
+
+                    res_hash = clean_and_hash(res)
+                    if res_hash not in seen_hashes:
+                        seen_hashes.add(res_hash)
+                        valid_results.append(res)
+
+            # 【核心機制】計算不足的扣打，瘋狂跑 Random 補滿！
+            shortfall = num_runs - len(valid_results)
+            if shortfall > 0:
+                logger.info(f"  ▶ [階段 2] 核心測試過濾完畢 (隱藏 {passed_core_count} 筆完美數據)，準備執行 {shortfall} 次隨機測試補滿額度...")
+                attempts = 0
+                while len(valid_results) < num_runs and attempts < shortfall * 4: # 設定最大嘗試次數防無限迴圈
+                    attempts += 1
+                    if attempts % 5 == 0:
+                        page.reload()
+                        page.wait_for_timeout(1000)
+                        if page_errors: return ("JS_ERROR", page_errors[0])
+
+                    page.click(".preset-btn[data-p='random']")
+                    page.wait_for_timeout(1500)
+                    if page_errors: return ("JS_ERROR", page_errors[0])
+
+                    res = page.evaluate(dry_run_script)
+                    if not res: continue
+
+                    res_hash = clean_and_hash(res)
+                    # 只有真正產生出不同地形與參數特徵的 random，才會被收錄
+                    if res_hash not in seen_hashes:
+                        seen_hashes.add(res_hash)
+                        valid_results.append(res)
+                        logger.info(f"    - 獲取有效隨機探索樣本 ({len(valid_results)}/{num_runs})")
+
+            # 亂序交錯，防止 AI 產生閱讀偏誤
+            random.shuffle(valid_results)
+            
+            # 使用 Tuple 回傳多個資訊給主程序
+            return ("SUCCESS", valid_results, passed_core_count)
+            
         except Exception as e:
             logger.error(f"❌ 瀏覽器運行過程發生例外: {e}")
             browser.close()
@@ -380,8 +452,40 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
 2. 【靜態代碼審查】：分析傳入的最新 JS 代碼。
 
+🔥🔥🔥 【數據欄位物理期望與除錯字典 (Metric Benchmarks & Ground Truth)】 🔥🔥🔥
+當你審查 JSON 數據與程式碼時，請嚴格對照以下「物理真相基準」。若發現矛盾，請直接定位對應的函式進行修正：
+
+1. **windSpeed (穴心風速)**：
+   - 【期望】：無風設定或吉局時應維持低檔 (< 1.5)。
+   - 【除錯】：若異常飆高，代表 `Physics.update` 誤將「粒子自主前進的流速」算成了風煞！請改用 CFD 網格風速 (`windGridX`/`windGridZ`) 作為感測來源。
+
+2. **waterDrag (水力抽吸/伯努利負壓)**：
+   - 【期望】：僅在凶水（割腳、反弓、直沖等）且靠近水邊時才應有顯著數值 (> 0.5)。玉帶水/九曲水應極低。
+   - 【除錯】：若吉局出現高水力抽吸，通常是感測器的「距離判定」或「相對座標 (`dzTaiji`)」寫錯，導致明堂被誤判為深水區。
+
+3. **gatherRatio / scatterAcc (聚氣/散氣率)**：
+   - 【期望】：吉局運作 3 秒後，聚氣率應 ≥ 60%，且 `scatterAcc` 極低。大凶局（天斬、地絕）則相反。
+   - 【除錯】：若吉局散氣爆量，代表 `isEscaping` 誤判，或是太極暈/明堂的引力場 (`attractForce`) 計算失效，請檢查 `Physics.update` 中的邊界與阻尼邏輯。
+
+4. **Capacity / capLimit (明堂極限容量 c)**：
+   - 【期望】：吉局（有廣場/明堂）應 > 100；凶局或明堂破敗（如 sunken, none）應嚴格受限 (< 40 或 < 60)。
+   - 【除錯】：若明堂破敗卻有 150 滿容量，代表 `Rules.getCapacityLimit` 漏掉了防呆保護。
+
+5. **yinYangBalance (陰陽平衡)**：
+   - 【期望】：吉局應落在 -3 ~ +3 之間（平）；曠野氣散(yang_extreme)應 > 4；陰濕逼壓(yin_extreme)應 < -4。
+   - 【除錯】：若完美格局顯示「陽氣過盛」，代表天空可視率 (`skyViewFactor` / `frontOpenness`) 或風速算錯，導致系統誤判為空曠。
+
+6. **Z-Fighting 與 拓撲奇異點 (Tearing/破圖)**：
+   - 【期望】：`sanityWarnings` 中不應出現地形撕裂或 Z-Fighting。
+   - 【除錯】：⚠️ 絕對不要去改 Three.js 的 Material、DepthTest 或 Renderer！破圖 100% 是因為 `buildTerrain` 裡面的高度陣列 (`hMap`) 發生數值斷層（如 `Math.max` 與 `Math.min` 邏輯寫反、`riverRefZ` 深度設定高於地表）。請修正高度數學公式。
+
+7. **Mountain (hMap) vs City (blds) 引擎架構區分**：
+   - 山林版 (`3D.html`) 的地形依賴 1D 高度陣列 `hMap[z * size + x]`。
+   - 城市版 (`city.html`) 依賴 AABB 碰撞方塊 `builder.blds` (`b.x, b.z, b.w, b.d`)。
+   - 【除錯】：修改代碼時請認明你正在修改哪個檔案，絕不可混用兩者的碰撞與地形讀取邏輯。
+
 🔥🔥🔥 【特別注意：全能空間、物理與渲染合規性 (兼容雙版本)】 🔥🔥🔥
-動態診斷時，請深入解析 `spatialProfile` 內的警告與數據：
+動態診斷時，請深入解析 JSON 內的警告與數據：
 
 1. **解讀 11x11 降維微縮地圖與八方雷達 (Topo & Radar)**：
    - 觀察 `topoMatrix_11x11` 與 `skylineRadar` 是否出現斷崖錯位、或左右極度不對稱（如 W=45, E=15）。
@@ -411,27 +515,82 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 【輸出要求】
 你必須「嚴格」輸出以下格式的 JSON，絕對不要輸出任何其他說明文字。
 
-🔥🔥🔥【特別嚴禁】🔥🔥🔥
-1. 絕對禁止在 `replace` 中使用 `// ... (省略)` 或 `// 原有代碼保持不變`！你提供的 `replace` 必須是完整且可直接運行的真實代碼，否則系統會崩潰。
-2. `search` 區塊至少需要 5~10 行，必須包含「完整的上下文」，絕不能只有單行代碼（否則會導致多處匹配衝突而失敗）！
+🔥🔥🔥 【風水引擎數學與座標系鐵律 (Engine Math & Coordinate Laws)】 🔥🔥🔥
+1. **相對座標 vs 絕對座標**：
+   - 穴位是可以被玩家「手動點穴」或「高山點穴」移動的！
+   - ❌ 錯誤寫法：`if (z > 20 && z < 50)` (這會導致穴位移動後，物理判定區留在原地，引發狀態矛盾)。
+   - ✅ 正確寫法：使用 `dzTaiji` (Z軸距穴心距離) 或 `dxTaiji`，例如 `if (dzTaiji > 15 && dzTaiji < 45)`。
 
-如果當前測試數據「完全沒有任何 WARNING/CRITICAL 異常」，且分數邏輯與風水學理「100% 吻合」，且靜態審查「找不到任何邊界漏洞」，才能回傳 PERFECT（只要你有一絲疑慮、或是看到數據中有任何 anomalies，都必須回傳 MODIFIED 繼續修正）：
+2. **禁止作弊 (No Hardcoding Scores)**：
+   - ❌ 錯誤寫法：`if (st.presetName === 'perfect') g = 100;` 
+   - ✅ 系統要的是「自然湧現」。如果你發現 perfect 局分數太低，你必須去查「是哪個地形公式擋住了氣流」、「是哪個形煞被誤判」，然後去修復那個 **物理公式**，絕不允許直接竄改最終分數！
+
+3. **防退化原則 (Regression Prevention)**：
+   - 當你要修復某個特定煞氣（如天斬煞）的 Bug 時，請將修改限縮在 `if (state.sha.includes('tianzhan'))` 區塊內。
+   - ⚠️ 絕對不要隨意更改全域的阻尼係數 `Math.pow(0.98, dt)` 或全域重力，那會導致原本正常的其他 14 個格局瞬間崩潰！
+
+🔥🔥🔥 【圖學與數值穩定性鐵律 (Graphics & Numerical Stability)】 🔥🔥🔥
+1. **光學過曝與通用色彩異常 (Optical & Color Anomalies)**：
+   - 若 JSON 回報 `【光學異常】被單一異常色彩覆蓋` 或 `過曝泛白` 或 `全黑`，代表 WebGL 渲染層發生了災難性錯誤。
+   - 【可能病因與解法】：
+     1. **熱力圖或粒子透明度疊加失控**：調降 `rgba` 中的 Alpha 值、減少自發光倍率 (`totalEmissiveRadiance += heatColor.rgb * 0.4`)。
+     2. **相機掉入地底 / 巨型穿模**：檢查相機的 `safeMinY` 碰撞邏輯，或是地形高度生成是否出現 `NaN` 或無限大。
+     3. **Shader 計算錯誤**：檢查 `terrainMat.onBeforeCompile` 中的 GLSL 代碼是否有除以零、未賦值變數，導致整片材質崩潰成單一顏色。
+     4. **顏色變數寫錯**：檢查 `this.pCol` 初始化是否給予了不合理的顏色，或是 `color.setHex()` 溢出。
+
+2. **平滑過渡 (Smooth Falloff) 絕對優先**：
+   - 在修改地形 `y` 高度或流體速度 `vel` 時，絕對禁止使用「硬切斷 (Hard Cutoff)」。硬切斷會導致 3D 網格法線斷裂與嚴重的 Z-Fighting 破圖。
+   - ❌ 致命錯誤：`if (dist < 15) { y -= 10; }` (邊緣會產生 90 度垂直斷崖)。
+   - ✅ 正確做法：使用高斯衰減 (Gaussian Falloff) 或線性插值。例如 `y -= 10 * Math.exp(-(dist*dist)/50);`，讓地形與力場平滑過渡。。
+
+2. **除以零防禦 (Zero-Division & NaN Prevention)**：
+   - 任何涉及距離 `dist`、長度 `length`、或向量相除的公式，分母絕對不可為 0。當你在 JSON 看到 `CRITICAL: 數值出現 NaN`，99% 是因為除以零！
+   - ❌ 致命錯誤：`let force = 10 / dist;` 或 `let dirX = dx / dist;` (當粒子恰好在中心點時，dist 為 0 導致 NaN 爆炸)。
+   - ✅ 正確做法：`let force = 10 / Math.max(0.001, dist);` 永遠為分母加上最小安全閾值 (Epsilon)。
+
+3. **向量歸一化防暴走 (Vector Normalization)**：
+   - 在賦予粒子速度 (`vel.x += ...`) 時，如果牽涉到方向，務必確保方向向量已被歸一化 (Normalized)，否則距離越遠的地方，引力/斥力會無限放大導致「動能暴走」。
+   - ❌ 致命錯誤：`vel.x += dx * speed * dt;` (dx 可能高達 100，導致速度瞬間破表)。
+   - ✅ 正確做法：`vel.x += (dx / Math.max(0.001, dist)) * speed * dt;`。
+
+4. **乘數懲罰的疊加防呆 (Multiplier Stacking Prevention)**：
+   - 扣分或懲罰時，盡量使用 `Math.max()` 設置下限，避免多個形煞同時存在時，連乘導致分數變負數或趨近於無限小。
+   - ❌ 錯誤寫法：`g -= 50;` (可能導致 g 變成負數，引發後續計算崩潰)。
+   - ✅ 正確寫法：`g = Math.max(0, g - 50);` 永遠保護物理指標的安全底線。
+
+🔥🔥🔥【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】🔥🔥🔥
+你必須「嚴格」輸出以下格式的 JSON，絕對不要在 JSON 外輸出任何 markdown 說明文字。
+
+1. **一字不漏的 Search 區塊**：
+   - `search` 區塊的內容，必須與原始代碼 **100% 完全一致**（包含縮排、空格、引號類型、註解）。
+   - ❌ 嚴禁在 `search` 或 `replace` 中使用 `// ... (省略)` 或是 `// 原有代碼保持不變`！你提供的 `replace` 必須是完整可運行的真實代碼。
+   - `search` 區塊**至少需要提供 5~10 行**的完整上下文，絕不能只有單行代碼，否則 Python 腳本會因為「找到太多重複的行」而拒絕套用！
+
+2. **Reason 欄位的結構化思考**：
+   - 在 JSON 的 `reason` 欄位中，請按照以下三步簡述你的思考邏輯：
+     1. [病徵]：JSON 測試數據中哪裡不合理（例如：perfect 局的 scatterAcc 達 80）。
+     2. [病因]：定位到哪行代碼的數學邏輯導致此現象。
+     3. [解法]：你修改了什麼參數來解決它。
+
+【輸出範例】
+如果當前測試數據 `sanityWarnings` 為空，且物理指標完全符合期望，請回傳：
 {
   "status": "PERFECT",
-  "reason": "經過極度嚴格分析，物理引擎與代碼邏輯運作完美，無任何拓撲/穿模/數值異常，無需修改。"
+  "reason": "經過嚴格分析，物理引擎運作完美，無任何拓撲/穿模/數值異常，無需修改。"
 }
 
 如果發現問題需要修改代碼，請回傳：
 {
   "status": "MODIFIED",
-  "reason": "簡述你發現的問題與修正邏輯...",
+  "reason": "[病徵] diwang 局水力抽吸異常高。\n[病因] 淋頭水判定誤用了絕對座標 z > 0。\n[解法] 已將判定改為相對座標 dzTaiji，並加入 isLintou 狀態保護。",
   "changes": [
     {
-      "search": "原有的程式碼（務必完全複製當時代碼中的確切字串，包含正確縮排，至少 3-5 行，確保獨一無二）",
-      "replace": "修正後的新程式碼（請保持與原代碼一致的縮排風格）"
+      "search": "                if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50) {\n                    waterDragCount++;",
+      "replace": "                // 【修正】確保只有真正的凶水且在有效範圍內才引發抽吸，避免誤傷吉水\n                if (isNearWater && isBadWaterSensor && dzTaiji > 5 && dzTaiji < 45 && Math.abs(dxTaiji) < 50) {\n                    waterDragCount++;"
     }
   ]
-}"""
+}
+"""
 
 # ============================================================
 # 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
@@ -620,7 +779,7 @@ def main():
         return
 
     # ==========================
-    # 以下為動靜交替實測循環模式 (4次動態 + 4次靜態)
+    # 以下為先靜後動實測循環模式 (連續5次靜態完美 -> 3次動態大考)
     # ==========================
     is_pro = "pro" in args.model.lower()
     MAX_ROUNDS = args.rounds
@@ -638,7 +797,7 @@ def main():
     needs_full_snapshot = True 
 
     logger.info("="*60)
-    logger.info(f"🚀 開始多輪對話自動化調校任務 (動靜交替高快取模式) (目標檔案: {target_file} | 模型: {args.model})")
+    logger.info(f"🚀 開始多輪對話自動化調校任務 (5次靜態 -> 動態實測高快取模式) (目標檔案: {target_file} | 模型: {args.model})")
     logger.info("="*60)
 
     # 封裝修改套用與重試邏輯，供主循環與大考共用
@@ -678,8 +837,10 @@ def main():
         return success, final_changes
 
     for current_round in range(1, MAX_ROUNDS + 1):
-        is_static = (consecutive_perfects % 2 == 1)
-        is_exam = (not is_static) and (consecutive_perfects == 4)
+        # ⚡ [策略優化] 靜態分析要連續五輪都找不到問題，才進入動態實測
+        # 只要發生修改，consecutive_perfects 歸零，就會重新計算 5 輪靜態審查
+        is_static = (consecutive_perfects < 5)
+        is_exam = (not is_static) and (consecutive_perfects >= 6) # 第 6, 7 關升級為大考
         
         mode_name = "靜態審查" if is_static else ("動態大考" if is_exam else "動態實測")
         logger.info(f"\n【 第 {current_round}/{MAX_ROUNDS} 輪測試 - {mode_name} 】連續完美次數: {consecutive_perfects}/{SUCCESS_TARGET}")
@@ -711,7 +872,7 @@ def main():
             if is_exam:
                 logger.info(f"🎓 進入【畢業大考階段】！正在啟動 {EXAM_RUNS} 次高強度高壓測試 (涵蓋所有預設案例與極端組合)...")
                 
-            run_results = run_browser_simulations(target_file, runs, logger)
+            run_results = run_browser_simulations(target_file, runs, logger, is_exam)
             
             if isinstance(run_results, tuple) and run_results[0] == "JS_ERROR":
                 js_err_msg = run_results[1]
@@ -725,7 +886,6 @@ def main():
                 logger.warning(f"⚠️ 偵測到 JavaScript 語法崩潰 (嘗試自我修復 {syntax_error_retries}/3)...")
                 rollback_file(target_file, logger) 
                 
-                # 💡 不 pop() 助理訊息，維持 user/assistant 角色規則並讓 AI 參考寫錯的上下文
                 err_user_msg = f"【語法崩潰緊急修復】上一輪套用修改後爆發了以下 JavaScript 語法錯誤：\n```\n{js_err_msg}\n```\n檔案已自動復原至備份檔。請重新檢視並提供不含語法錯誤的修正 JSON。"
                 conversation_history.append({"role": "user", "content": err_user_msg})
 
@@ -752,56 +912,50 @@ def main():
             else:
                 syntax_error_retries = 0
 
-            if not run_results:
+            # 接收 Tuple (Status, unique_results, passed_core_count)
+            if not run_results or (isinstance(run_results, tuple) and run_results[0] != "SUCCESS"):
                 logger.error("無法收集到 Dry Run 數據，跳過此輪。")
                 consecutive_perfects = 0
                 time.sleep(2)
                 continue
 
-            # ⚡ [極致省錢優化] 數據去重與瘦身：移除多趟 Dry Run 中重複的 JSON 結果，並刪去無用的時間戳
-            unique_results = []
-            seen_hashes = set()
-            for res in run_results:
-                if "meta" in res:
-                    del res["meta"] # 移除 timestamp 等會干擾去重的變動雜訊，因為 AI 也不需要知道測試時間
-                
-                # 使用排序後的 json 字串作為 Hash Key，過濾掉結構與數值完全相同的重複測試
-                res_str = json.dumps(res, sort_keys=True)
-                if res_str not in seen_hashes:
-                    seen_hashes.add(res_str)
-                    unique_results.append(res)
-            
-            logger.info(f"  ✂️ 數據去重壓縮：從 {len(run_results)} 筆冗餘數據，大幅瘦身至 {len(unique_results)} 筆獨立特徵 (省下海量 Token)")
-            run_results = unique_results
-                
+            _, unique_results, passed_core_count = run_results
+            logger.info(f"  ✂️ 數據收集完成：傳送 {len(unique_results)} 筆高價值特徵 (隱藏 {passed_core_count} 筆防迴歸完美數據)")
+
             # ================= 終端機高亮顯示幾何與物理異常 =================
-            for res in run_results:
-                if res.get("sanityWarnings"):
+            # ⚡ [修復 Bug] 將 run_results 改為 unique_results
+            for res in unique_results:
+                if isinstance(res, dict) and res.get("sanityWarnings"):
                     for warn in res["sanityWarnings"]:
                         if "幾何" in warn or "物理異常" in warn or "穿模" in warn:
                             logger.error(f"📐 🚨 【幾何與物理嚴重警告】: {warn}")
+                        elif "光學異常" in warn:
+                            logger.error(f"🎨 🚨 【光學與色彩嚴重警告】: {warn}")
                 
-                spatial = res.get("lairInfo", {}).get("spatialProfile", {})
-                anomalies = spatial.get("geometryAnomalies", [])
-                for anomaly in anomalies:
-                    logger.warning(f"⛰️ 空間與物理掃描: {anomaly}")
+                if isinstance(res, dict):
+                    spatial = res.get("lairInfo", {}).get("spatialProfile", {})
+                    anomalies = spatial.get("geometryAnomalies", [])
+                    for anomaly in anomalies:
+                        logger.warning(f"⛰️ 空間與物理掃描: {anomaly}")
             # ================================================================
 
             # ⚡ [Cache 優化] 加入 sort_keys=True 確保 JSON 結構鍵值順序 100% 決定論
-            compact_json = json.dumps(run_results, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
+            compact_json = json.dumps(unique_results, separators=(',', ':'), ensure_ascii=False, sort_keys=True)
             
+            summary_text = f"✅ 已在背景默默通過 {passed_core_count} 項經典防迴歸測試，未發現異常（已隱藏其詳細 JSON 以節省 Token 空間）。\n\n" if passed_core_count > 0 else ""
+
             if needs_full_snapshot:
                 current_js = extract_js_from_html(open(target_file, 'r', encoding='utf-8').read())
                 prefix = "畢業大考高壓測試" if is_exam else "Dry Run 診斷"
                 user_msg = (
                     f"```javascript\n{current_js}\n```\n\n"
                     f"【第 {current_round} 輪 - {prefix}請求】\n"
-                    f"【測試數據】:\n{compact_json}"
+                    f"{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}"
                 )
                 needs_full_snapshot = False
             else:
                 prefix = "畢業大考高壓測試" if is_exam else "Dry Run 診斷"
-                user_msg = f"【第 {current_round} 輪 - {prefix}請求】\n（上一輪修改已生效，這是最新的測試數據）：\n{compact_json}"
+                user_msg = f"【第 {current_round} 輪 - {prefix}請求】\n（上一輪修改已生效）。\n{summary_text}【高價值測試數據 (僅列出隨機邊界與異常案例)】:\n{compact_json}"
             
             conversation_history.append({"role": "user", "content": user_msg})
 
@@ -843,12 +997,12 @@ def main():
             consecutive_perfects += 1
             
             if consecutive_perfects == SUCCESS_TARGET:
-                logger.info("🎉 通過全部 6 階段考驗 (3次動態 + 3次靜態交替)！系統已達完美穩定狀態！任務正式結束。")
-                history_logs.append({"round": current_round, "status": "PERFECT", "reason": "通過 6 階段最終大考", "changes": []})
+                logger.info(f"🎉 通過全部 {SUCCESS_TARGET} 階段考驗 (5輪靜態 + 3輪動態)！系統已達完美穩定狀態！任務正式結束。")
+                history_logs.append({"round": current_round, "status": "PERFECT", "reason": f"通過 {SUCCESS_TARGET} 階段最終大考", "changes": []})
                 break
             else:
-                next_is_static = (consecutive_perfects % 2 == 1)
-                next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects == 4 else "動態實測")
+                next_is_static = (consecutive_perfects < 5)
+                next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects >= 6 else "動態實測")
                 logger.info(f"✅ 本輪判定通過 (已連續成功 {consecutive_perfects}/{SUCCESS_TARGET} 次)，準備進入第 {consecutive_perfects + 1} 階段: 【{next_mode}】...")
                 time.sleep(1)
                 
@@ -879,11 +1033,11 @@ def main():
         })
 
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(f"# 3D 風水模擬器 多輪動靜交替調校報告 (Dynamic & Static Run)\n\n")
+        f.write(f"# 3D 風水模擬器 多輪先靜後動調校報告 (Static then Dynamic Run)\n\n")
         f.write(f"- **目標檔案**：`{target_file}`\n")
         f.write(f"- **調校模型**：`{args.model}`\n")
         f.write(f"- **總測試輪數**：{len(history_logs)}\n")
-        f.write(f"- **最終狀態**：{'🎉 已達完美穩定狀態 (通過 6 階段考驗)' if consecutive_perfects >= SUCCESS_TARGET else '⚠️ 中途終止或達到最大輪數'}\n\n")
+        f.write(f"- **最終狀態**：{'🎉 已達完美穩定狀態 (通過 8 階段考驗)' if consecutive_perfects >= SUCCESS_TARGET else '⚠️ 中途終止或達到最大輪數'}\n\n")
         f.write(f"## 歷程明細\n\n")
         for item in history_logs:
             f.write(f"### 第 {item['round']} 輪 - [{item['status']}]\n")
@@ -900,7 +1054,7 @@ def main():
                     f.write(f"```\n\n")
             f.write("\n")
             
-    logger.info(f"📝 已自動生成多輪動靜交替調校報告：{report_path}")
+    logger.info(f"📝 已自動生成多輪先靜後動調校報告：{report_path}")
 
 if __name__ == "__main__":
     main()

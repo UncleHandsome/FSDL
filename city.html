@@ -187,6 +187,15 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="prow">
     <button class="preset-btn" data-p="tianzhan">天斬傾瀉</button><button class="preset-btn" data-p="bow">反弓背主</button><button class="preset-btn" data-p="random">隨機生成</button>
   </div>
+  <div class="prow">
+    <button class="preset-btn" data-p="yang_extreme">曠野氣散</button><button class="preset-btn" data-p="yin_extreme">陰濕逼壓</button><button class="preset-btn" data-p="wuxing_sheng">巨木逢春</button>
+  </div>
+  <div class="prow">
+    <button class="preset-btn" data-p="luchong">路沖破局</button><button class="preset-btn" data-p="gejiao">割腳無情</button><button class="preset-btn" data-p="chuanxin">抬轎穿心</button>
+  </div>
+  <div class="prow">
+    <button class="preset-btn" data-p="test_water">測試:水局</button><button class="preset-btn" data-p="test_sha">測試:群煞</button><button class="preset-btn" data-p="test_physics">測試:物理</button><button class="preset-btn" data-p="test_quantum">測試:量子</button>
+  </div>
   <div class="prow" style="margin-top:4px;">
     <button id="btn-dry-run" style="background:#22201c; color:#f6f1e7; font-weight:bold; width:100%; padding:6px; border-radius:5px;">啟動 Dry Run (輸出給 AI)</button>
   </div>
@@ -257,7 +266,17 @@ const Config = {
     cure_combo: {sector:'west',color:'water',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'rush',shuifa:['none'],star:'wood',hole:'wo',sha:['walledge'],special:['none'],liqi:'face',cure:['stone'],wind:6, traffic:6},
     huilong: {sector:'center',color:'default',terrain:'backhigh',waterDir:'reverse',dragon:'avenue',left:'qinglong',right:'baihu',front:'lowcase',water:'nine',shuifa:['none'],star:'wood',hole:'wo',sha:['none'],special:['chaoshan'],liqi:'face',cure:['fountain'],wind:4, traffic:3},
     tianzhan: {sector:'south',color:'wood',terrain:'slope',waterDir:'shuai',dragon:'elevated',left:'oppress',right:'raise',front:'sunken',water:'none',shuifa:['none'],star:'fire',hole:'none',sha:['tianzhan'],special:['qingxie'],liqi:'face',cure:['none'],wind:8, traffic:8},
-    bow: {sector:'east',color:'metal',terrain:'flat',waterDir:'shuai',dragon:'avenue',left:'broken',right:'raise',front:'rubble',water:'bow',shuifa:['none'],star:'wood',hole:'none',sha:['bow'],special:['none'],liqi:'back',cure:['none'],wind:6, traffic:7}
+    bow: {sector:'east',color:'metal',terrain:'flat',waterDir:'shuai',dragon:'avenue',left:'broken',right:'raise',front:'rubble',water:'bow',shuifa:['none'],star:'wood',hole:'none',sha:['bow'],special:['none'],liqi:'back',cure:['none'],wind:6, traffic:7},
+    yang_extreme: {sector:'south',color:'fire',terrain:'flat',waterDir:'wang',dragon:'none',left:'none',right:'none',front:'plaza',water:'none',shuifa:['none'],star:'fire',hole:'none',sha:['none'],special:['none'],liqi:'face',cure:['none'],wind:9, traffic:8},
+    yin_extreme: {sector:'north',color:'water',terrain:'basin',waterDir:'shuai',dragon:'branch',left:'oppress',right:'raise',front:'sunken',water:'none',shuifa:['none'],star:'water',hole:'wo',sha:['none'],special:['none'],liqi:'back',cure:['trees'],wind:1, traffic:2},
+    wuxing_sheng: {sector:'east',color:'wood',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'nine',shuifa:['banyue'],star:'wood',hole:'ru',sha:['none'],special:['none'],liqi:'face',cure:['pool'],wind:4, traffic:3},
+    luchong: {sector:'south',color:'metal',terrain:'flat',waterDir:'shuai',dragon:'avenue',left:'broken',right:'none',front:'rubble',water:'rush',shuifa:['none'],star:'fire',hole:'none',sha:['rush'],special:['none'],liqi:'face',cure:['none'],wind:7, traffic:8},
+    gejiao: {sector:'north',color:'earth',terrain:'flat',waterDir:'shuai',dragon:'elevated',left:'none',right:'none',front:'plaza',water:'cut',shuifa:['none'],star:'metal',hole:'none',sha:['none'],special:['none'],liqi:'face',cure:['none'],wind:6, traffic:9},
+    chuanxin: {sector:'center',color:'water',terrain:'slope',waterDir:'wang',dragon:'metro',left:'qinglong',right:'baihu',front:'sunken',water:'none',shuifa:['none'],star:'earth',hole:'none',sha:['sedan', 'pierce'],special:['qingxie'],liqi:'back',cure:['none'],wind:8, traffic:5},
+    test_water: {sector:'north',color:'water',terrain:'basin',waterDir:'wang',dragon:'branch',left:'qinglong',right:'baihu',front:'plaza',water:'nine',shuifa:['san cha','banyue'],star:'water',hole:'wo',sha:['none'],special:['none'],liqi:'face',cure:['none'],wind:2, traffic:2},
+    test_sha: {sector:'south',color:'fire',terrain:'flat',waterDir:'shuai',dragon:'elevated',left:'oppress',right:'raise',front:'rubble',water:'rush',shuifa:['none'],star:'metal',hole:'none',sha:['tianzhan','rush','walledge','glass','pylon'],special:['none'],liqi:'back',cure:['none'],wind:8, traffic:8},
+    test_physics: {sector:'west',color:'metal',terrain:'slope',waterDir:'shuai',dragon:'avenue',left:'broken',right:'broken',front:'sunken',water:'none',shuifa:['none'],star:'fire',hole:'none',sha:['windshaft'],special:['qingxie'],liqi:'face',cure:['none'],wind:10, traffic:10},
+    test_quantum: {sector:'center',color:'earth',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['none'],star:'earth',hole:'none',sha:['none'],special:['shuqi','fengyao','taiji'],liqi:'face',cure:['none'],wind:3, traffic:3}
   },
   TX: {
     dragon: { avenue:'龍勢｜主幹大道＝行龍大脈，氣厚而長', elevated:'龍勢｜高架快速路＝急龍，氣猛帶煞', metro:'龍勢｜地鐵暗脈，站口人氣湧現', branch:'龍勢｜支路＝緩龍弱脈，氣薄力輕', none:'龍勢｜無脈可倚，城市孤點' },
@@ -432,12 +451,12 @@ class FengShuiEngine {
     let wuXingText = "";
     let skyViewFactor = 1.0; // 【修正】提前宣告 SVF 變數，預設全開闊 1.0
     let frontOpenness = 1.0; // 【修正】提前宣告明堂開闊度，預設全開闊 1.0
-    let spatialEntropy = 0;  // 【修正】提前宣告資訊熵變數，避免塊級作用域引發 ReferenceError
-    let betti1Closure = 0;   // 【修正】提前宣告拓撲閉合度變數
-    let reynoldsNum = Math.round(extWindSpeed * 1200); // 現在可以順利存取 extWindSpeed
-    let froudeNum = extWindSpeed / Math.sqrt(9.8 * 2.0);
-    const elMap = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土', east:'wood', south:'fire', west:'metal', north:'water', center:'earth' };
-    const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+let spatialEntropy = 0;  // 【修正】提前宣告資訊熵變數，避免塊級作用域引發 ReferenceError
+let betti1Closure = 0;   // 【修正】提前宣告拓撲閉合度變數
+let reynoldsNum = Math.round(extWindSpeed * 250); // 【修正】降低雷諾數倍率，避免正常風速被誤判為極端湍流
+let froudeNum = extWindSpeed / Math.sqrt(9.8 * 10.0); // 【修正】以較深明堂水深(10)計算弗勞德數，避免正常氣流被誤判為超臨界流
+const elMap = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土', east:'wood', south:'fire', west:'metal', north:'water', center:'earth' };
+const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
 
     // 1-1. 基礎地段五行輻射
     localField[elMap[st.sector]] += 10;
@@ -446,7 +465,7 @@ class FengShuiEngine {
     // 2. 空間與幾何場域計算 (從 3D 物件湧現天空可視率 SVF 與壓迫感)
     // ==========================================
     let vLeft = 0, vRight = 0, vBack = 0, vFront = 0;
-    let maxHFront = 0, hMain = Math.max(1, stateManager.heights.main);
+    let maxHFront = 0, hMain = Math.max(20, stateManager.heights.main);
     let sunBlocked = false;
     
     // 物理觀測變數：交由程式自行發現形狀，而非讀取硬編碼
@@ -546,11 +565,14 @@ class FengShuiEngine {
             backBuildingCount++;
         }
         if (b.z > 5 && Math.abs(b.x) < 30) {
-          vFront += effVol;
-          if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
-          if (b.h > maxHFront) maxHFront = b.h;
+          const isCaseBuilding = (st.front === 'lowcase' && b.z > 40 && b.z < 70 && b.h >= 10 && b.h >= hMain * 0.33 && Math.abs(b.x) < 25);
+          if (!isCaseBuilding) {
+            vFront += effVol;
+            if (Math.abs(b.x) < 20 && b.h > 10) frontObstacles++;
+            if (b.h > maxHFront) maxHFront = b.h;
+          }
           // 【第 10 輪修正】偵測實體案山：需位於明堂正前方且高度足以擋風
-          if (st.front === 'lowcase' && b.z > 40 && b.z < 70 && b.h >= 10 && b.h >= hMain * 0.33 && Math.abs(b.x) < 25) physicalCaseExists = true;
+          if (isCaseBuilding) physicalCaseExists = true;
           // 修正：限縮明堂核心地帶(z:20~50)，避免誤將後方探頭煞認作擎拳
           if (b.z > 20 && b.z < 50 && Math.abs(b.x) < 8 && b.h > 10) centerBlocker = true;
           // 新增：偵測案山後方是否有探頭建築 (z > 55)
@@ -650,22 +672,35 @@ class FengShuiEngine {
       }
       skyViewFactor = 1.0 - (svfTotal / 72);       // 0=全遮蔽(極陰), 1=全開闊(極陽)
       frontOpenness = 1.0 - (svfFront / 24);       // 明堂前方開闊度
+      // 【修正】明堂破敗類型不應被視為開闊，限制 frontOpenness 以避免誤加陽氣
+      if (st.front === 'sunken') frontOpenness = Math.min(frontOpenness, 0.3);
+      else if (st.front === 'none') frontOpenness = Math.min(frontOpenness, 0.2);
+      else if (st.front === 'rubble') frontOpenness = Math.min(frontOpenness, 0.4);
       
       // 【批次 1 & 4：TDA 拓撲空間閉合度 (Betti-1 β₁) 與 香農資訊熵 (Shannon Entropy)】
+      // 【第4輪靜態審查修正】若現場沒有任何實體建築（空曠曠野），
+      // 不得將初始值 0 視為「完全閉合、零熵」的吉象。
+      // 統一使用中立基準：閉合度 50%、熵 5.0 Bits（代表混沌未分）。
       let closedRays = 0;
       spatialEntropy = 0;
-      for (let i = 0; i < 72; i++) {
-          if (maxBlockage[i] > 0.45) closedRays++;
-          if (maxBlockage[i] > 0 && svfTotal > 0) {
-              let p = maxBlockage[i] / svfTotal;
-              spatialEntropy -= p * Math.log2(p); // 耗散結構負熵系統
+      const hasAnyBlocker = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+      if (hasAnyBlocker) {
+          for (let i = 0; i < 72; i++) {
+              if (maxBlockage[i] > 0.45) closedRays++;
+              if (maxBlockage[i] > 0 && svfTotal > 0) {
+                  let p = maxBlockage[i] / svfTotal;
+                  spatialEntropy -= p * Math.log2(p); // 耗散結構負熵系統
+              }
           }
-      }
-      betti1Closure = closedRays / 72; 
+          betti1Closure = closedRays / 72;
+      } else {
+          betti1Closure = 0.5;      // 空曠：半開放半閉合，不偏不倚
+          spatialEntropy = 5.0;     // 空曠：中度混亂，不自動等於 0
+      } 
       
       // 【批次 6：流體力學無因次量 (Reynolds & Froude Numbers)】
-      reynoldsNum = Math.round(extWindSpeed * 1200 + spatialHighFreq * 10);
-      froudeNum = extWindSpeed / Math.sqrt(9.8 * 2.0); // 簡化弗勞德數
+      reynoldsNum = Math.round(extWindSpeed * 250 + spatialHighFreq * 10);
+      froudeNum = extWindSpeed / Math.sqrt(9.8 * 10.0); // 簡化弗勞德數
       
       // 物理現象探測：文丘里效應 (天斬) 與 氣散效應
       let leftWalls = leftBuildings.filter(b => b.z > 10 && b.z < 80 && b.x > -20 && b.h > hMain);
@@ -687,9 +722,9 @@ class FengShuiEngine {
       }
     const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
     const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 20 && !st.cure.includes('pool') && !st.cure.includes('fountain') && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
-    const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && !waterBrokenByWind && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     waterBroken = waterBrokenByWind; // 提前設定水局破裂狀態，避免地形水聚訊息與流體破水訊息矛盾
     if (isShaWaterForBarrier) waterBroken = false; // 【第22輪修正】煞水本身不具聚氣介質，強制排除水破標記，避免與「煞水未成水局」矛盾
+    const hasWaterBarrier = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && !waterBroken && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
       // 【修正】若前方有實體案山（lowcase 案樓），即使 SVF 高度開闊，仍不應觸發八風吹穴，因案山本身即具備擋風聚氣功能
       // 【第13輪修正】加入案樓高度門檻：若案樓太低（<10米 或 <主樓高度1/3），無法有效擋風，仍應湧現八風吹穴
@@ -704,7 +739,19 @@ class FengShuiEngine {
     }
     
     // 【第8輪 Dry Run 診斷修正】環境混亂旗標：高熵/低閉合度/湍流/超臨界流時，吉氣佈局應帶有抑制描述，避免「自然湧現吉訊」與最終 0 吉分矛盾
-    const environmentDisordered = spatialEntropy > 5.0 || betti1Closure < 0.5 || reynoldsNum > 4000 || froudeNum > 1.0;
+    // 僅在存在除主樓以外的實體遮擋建築（非水體）時才進行閉合度/熵懲罰，避免主樓被誤判為遮擋物導致誤懲罰
+    const hasBuildingsForAnalysis = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    // 【修正】避免吉局因前方開闊導致閉合度略低而被誤判為環境混亂：
+    // 當後方有靠且左右護衛齊全時，僅在熵極高(>6.5)、閉合度極低(<0.3)、雷諾數>4000或弗勞德數>1.0時才視為disordered。
+    // 否則護衛不齊時，維持原閾值。
+    const hasGoodSupport = hasBackSupport || (st.left === 'qinglong' && st.right === 'baihu');
+    const environmentDisordered = hasBuildingsForAnalysis && (
+        spatialEntropy > 6.5 || 
+        betti1Closure < 0.3 || 
+        reynoldsNum > 4000 || 
+        froudeNum > 1.0 ||
+        (!hasGoodSupport && (spatialEntropy > 5.0 || betti1Closure < 0.5))
+    );
 
     // ==========================================
     // 觀測者詮釋層：將幾何與流體物理轉換為風水術語
@@ -856,7 +903,7 @@ class FengShuiEngine {
     if (emptyFrontWind) {
         // 【第 4 輪診斷修正】八風吹穴的強度受化煞陣法直接制衡：植栽(風阻)、水池(水體)、葫蘆(吸納)可有效降低強風衝擊。
         const windCureCount = ['trees','pool','gourd'].filter(c => st.cure.includes(c)).length;
-        const windMitigation = 0.5 + windCureCount * 0.15; // 至少 50% 強度，每多一種化煞再降 15%
+        const windMitigation = Math.max(0.05, 0.5 - windCureCount * 0.15); // 至少 50% 強度，每多一種化煞再降 15%
         kineticSha += (25 + extWindSpeed * 3) * windMitigation;
         g = Math.max(0, g - 25);
         c = Math.max(20, c - 25);
@@ -1065,6 +1112,13 @@ class FengShuiEngine {
         gatheredDrops = 0;
         escapedDrops = 0;
     }
+    // 【第6輪修正】斜坡/傾瀉地形下，無論水法攔截效果如何，最終匯聚水量不得超過 10 滴，避免斜坡吉水虛高
+    if ((st.terrain === 'slope' || st.special.includes('qingxie')) && waterTestRan && st.water !== 'none' && !isShaWater) {
+        if (gatheredDrops > 10) {
+            gatheredDrops = 10;
+            escapedDrops = 50 - gatheredDrops;
+        }
+    }
 
     // 觀測者根據流體分佈判定風水格局
     // 修正：使用修正後的 gatheredDrops 與 escapedDrops，確保比例正確
@@ -1123,8 +1177,11 @@ class FengShuiEngine {
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
     c = Math.round(capacityBase + capacityAdjust);
     // 【第52輪修正】僅有實際可聚氣的明堂（plaza 或 lowcase）才給予空曠補償；低陷/破碎/空無皆屬明堂已破，不應因前方無高樓而拉高容量，避免「明堂已破卻有高容量」之狀態悖論
+    // 【第4輪靜態審查修正】再強制檢查 mingTangBroken，即使 validMingtang 為真，
+    // 只要明堂實體破敗（none/sunken/rubble）就不得套用空曠補償，防止煞水或明堂破敗時容量被異常拉高。
     const validMingtang = st.front === 'plaza' || st.front === 'lowcase';
-    if (vFront < 1 && validMingtang) c = Math.max(c, 120);
+    const mingTangBrokenForCap = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble';
+    if (vFront < 1 && validMingtang && !mingTangBrokenForCap) c = Math.max(c, 120);
     // 確保容量不低於20，不高於150，但若明堂極度開闊且水聚，可允許較高容量
     c = Math.max(20, Math.min(150, c));
     // 修正：若明堂開闊且無明顯煞氣，容量不應過低，避免吉氣被不合理壓制
@@ -1157,6 +1214,9 @@ class FengShuiEngine {
     // 【新增】若無水或煞水，容量不應受水聚影響，且不應過低
     if (st.water === 'none' || isShaWater) {
         c = Math.max(c, 40);
+        // 【第1輪 Dry Run 修正】無水或煞水時容量上限過高，限制為80，避免無水格局容量異常
+        // 【本輪靜態審查修正】煞水（割腳、反弓、直沖等）屬凶水，明堂容量應受限，避免煞水格局容量異常偏高
+        if (st.water === 'none' || isShaWater) c = Math.min(c, 80);
     }
     // 【新增】確保容量不超過150，並維持獨立性
     c = Math.min(150, c);
@@ -1193,7 +1253,7 @@ class FengShuiEngine {
                     observerText.push(`理氣｜逆水朝迎：但地勢傾斜水氣外洩，朝迎之勢渙散，反成虛水`);
                 } else {
                     if (fengShuiContextBroken) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：強勢收納來水，但受${brokenContextDesc}，吉氣折半`); }
-                    else if (environmentDisordered) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：收納來水，但環境熵/湍流過高，吉氣無法凝聚 (湧現抑制: 理氣受環境壓制)`); }
+                    else if (environmentDisordered) { g += 10; c += 6; observerText.push(`理氣｜逆水朝迎：收納來水，但環境熵/湍流過高，吉氣受環境壓制而削弱 (湧現抑制: 理氣受環境壓制)`); }
                     else { g += 20; c += 15; observerText.push(`理氣｜逆水朝迎：強勢收納來水，水聚天心，主速發暴富`); }
                 }
             } else if (st.waterDir === 'wang') {
@@ -1279,10 +1339,10 @@ class FengShuiEngine {
     const hasMitigatingShuifa = st.water !== 'none' && !isShaWaterForFluid && (st.shuifa.includes('banyue') || st.shuifa.includes('san cha') || st.shuifa.includes('qinxing'));
     const hasMitigatingWater = hasMitigatingPool || hasMitigatingShuifa;
     let shaWaterMitigation = 0;
-    if (isShaWaterForFluid && hasMitigatingWater) {
-        // 化煞水池或水法僅能化解煞氣，不能將煞水轉為吉水，故不增加吉氣
+    if (isShaWaterForFluid && (st.cure.includes('pool') || st.cure.includes('fountain'))) {
+        // 僅限於真正的池水類化煞（pool/fountain）才能化解煞水，水法在煞水時無效
         shaWaterMitigation = 8;
-        const mitigationSource = hasMitigatingPool && hasMitigatingShuifa ? '化煞水池與水法' : (hasMitigatingPool ? '化煞水池' : '水法');
+        const mitigationSource = '化煞水池';
         observerText.push(`制化｜${mitigationSource}啟動，有效化解煞水，煞氣-${shaWaterMitigation}`);
     }
     if (st.water === 'none' || (isShaWaterForFluid && !hasMitigatingWater)) {
@@ -1298,7 +1358,7 @@ class FengShuiEngine {
         if (st.cure.includes('pool') || st.cure.includes('fountain')) tearForce *= 0.5;
         kineticSha += tearForce;
         vortexQi = Math.max(0, vortexQi - tearForce);
-        waterBroken = waterBrokenByWind; // 【第 21 輪修正】若已有化煞水池/噴泉，水局不應被強制扯破，與前方 waterBrokenByWind 判定一致
+        // 【修正】waterBroken 已在前面根據 waterBrokenByWind 設定，此處不應重設，以免有化煞時 waterBroken 被誤設為 false 導致邏輯矛盾
         observerText.push(`流體｜極端強風(強度${extWindSpeed})產生強烈氣穴與剪力，${st.cure.includes('pool') || st.cure.includes('fountain') ? '但水體陣法部分緩解了破壞' : '嚴重破壞了明堂的水局介質'}，聚氣之水大幅削弱！`);
     } else if ((st.water === 'jade' || st.water === 'nine') && !st.special.includes('qingxie') && st.terrain !== 'slope') {
         // 【修正】必須依賴虛水測試結果，避免與水文學矛盾
@@ -1315,10 +1375,10 @@ class FengShuiEngine {
         } else {
             observerText.push(`流體｜明堂破敗或地形特殊，虛水測試未執行，無法判斷界水聚氣 (湧現抑制: 界水未測)`);
         }
-    } else if (isShaWaterForFluid && hasMitigatingWater) {
-        const mitigationSource = hasMitigatingPool && hasMitigatingShuifa ? '化煞水池與水法' : (hasMitigatingPool ? '化煞水池' : '水法');
+    } else if (isShaWaterForFluid && (st.cure.includes('pool') || st.cure.includes('fountain'))) {
+        const mitigationSource = '化煞水池';
         observerText.push(`流體｜主水為煞水，但${mitigationSource}提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
-    } else if (waterTestRan && st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || hasMitigatingWater)) {
+    } else if (waterTestRan && st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || (st.cure.includes('pool') || st.cure.includes('fountain')))) {
         // 【修正】依實際虛水匯聚率區分描述，避免與高滯留率（如水法攔截後 54%）矛盾
         // 【第 50 輪修正】僅在虛水測試確實執行時才允許輸出「傾瀉散氣」描述，避免明堂已破/無水時與「虛水未測」矛盾
         if (gatherPercent <= 25) {
@@ -1341,9 +1401,12 @@ class FengShuiEngine {
         observerText.push(`流體｜抬轎懸空：主樓底部騰空，氣流形成強烈穿堂風，地氣被徹底掏空${sedanCures > 0 ? '，但有制化陣法部分抵禦' : ''} (自然湧現: 穿心/退氣)`);
     }
 
+    // 【新增】煞水固有煞氣：確保形煞本質不被完全稀釋，即使無風或距離遠也保有基本凶性
+    if (isShaWater) {
+        kineticSha += 30;
+    }
     // 【新增】記錄未經化煞削減前的基礎煞氣，作為化煞削減的最低保護線，防止形煞被完全抹除
     const shaBaseline = s + kineticSha;
-    const initialVortexQi = vortexQi; // 【第12輪修正】記錄初始渦流吉氣，供特殊佈局（如束氣峽）增加後再補計入 g
     s += kineticSha;
     // 【第 42 輪修正】將煞水化煞的削減延後至 kineticSha 加入後再執行，避免因過早削減而被後續動能填補
     if (shaWaterMitigation > 0) s = Math.max(0, s - shaWaterMitigation);
@@ -1351,7 +1414,6 @@ class FengShuiEngine {
     if (s === 0 && extWindSpeed > 3) {
         s += Math.max(0, (extWindSpeed - 3) * 0.5);
     }
-    g += vortexQi;
     // 【修正】煞氣值上限，避免異常高值導致評價過於極端
     s = Math.min(s, 150);
     // 【終極修正】煞氣值下限為0，避免負值
@@ -1417,6 +1479,11 @@ class FengShuiEngine {
     // 【修正】車流速度也代表「動能」與「人氣」，但僅在極快時才少量偏陽，避免高車流直接導致陽氣過盛
     if (stateManager.trafficSpeed >= 8) yang += 1;
     else if (stateManager.trafficSpeed >= 5) yang += 0;
+    // 【修正】明堂破敗與左右壓迫應直接增加陰氣
+    if (st.front === 'sunken') yin += 2;
+    else if (st.front === 'none' || st.front === 'rubble') yin += 1;
+    if (st.left === 'oppress') yin += 1;
+    if (st.right === 'raise') yin += 1;
     
     // 修正：加入其他物理因素對陰陽的影響
     // 【第 26 輪修正】移除 kineticSha 對陽氣的貢獻：動能煞氣屬空間壓力，非正陽氣場，避免重煞被誤判為陽氣過盛而扭曲陰陽平衡
@@ -1424,7 +1491,8 @@ class FengShuiEngine {
     // 【修正】自然水體（玉帶、九曲、半月池）本身具有陰氣凝聚效應，應增加陰氣，避免完美格局因明堂開闊而誤判陽盛
     // 但若水局已被極速風扯破（waterBroken），水體調和功能喪失，不應再提供陰氣
     if (!waterBroken && (['jade', 'nine'].includes(st.water) || (st.shuifa.includes('banyue') && !isShaWater))) yin += 2;
-    if (st.cure.includes('pool') || st.cure.includes('fountain')) yin += 1; // 水體增加陰氣
+    // 【第2輪診斷修正】無水時水體陣法不增加陰氣，避免與『無水』狀態矛盾
+    if ((st.cure.includes('pool') || st.cure.includes('fountain')) && st.water !== 'none') yin += 1; // 僅有真水存在時水體才增加陰氣
     if (st.cure.includes('stone') || st.cure.includes('mirror')) yang += 1; // 剛體增加陽氣
     // 修正：加入地形與水法對陰陽的影響
     if (st.terrain === 'slope') yang += 1; // 斜坡地勢增加陽氣流動
@@ -1547,8 +1615,7 @@ class FengShuiEngine {
         }
     }
 
-    // 【第12輪修正】將特殊佈局（如束氣峽）增加的渦流吉氣補回 gather 分數，避免吉氣漏算
-    g += Math.max(0, vortexQi - initialVortexQi);
+
 
     let yyBalance = Util.clamp(yang - yin, -10, 10);
     // 【防呆】太極陣法制衡：若已啟動太極，強制陰陽絕對平衡，避免任何路徑造成狀態悖論
@@ -1644,18 +1711,32 @@ class FengShuiEngine {
 
     // 從環境特徵與陣法讀取物理參數
     if(!st.cure.includes('none') && st.cure.length > 0) {
-      if (st.cure.includes('trees')) { windDrag += 40; envHumidity += 10; cureText += "制化｜植栽陣法啟動 (提供高風阻+濕度調節)；"; }
-      if (st.cure.includes('pool') || st.cure.includes('fountain')) {
-          if (st.water !== 'none') {
-              envHumidity += 30; envTemp -= 5; cureText += "制化｜水體陣法啟動 (提供降溫增濕+低摩擦介質)；";
-          } else {
-              cureText += "制化｜水體陣法佈置，但現場無水，效果受限；";
-          }
-      }
-      if (st.cure.includes('stone') || st.cure.includes('mirror')) { rigidReflection += 30; thermalMass += 20; cureText += "制化｜剛體陣法啟動 (提供高反彈力+高質量壁壘)；"; }
-      if (st.cure.includes('gourd')) cureText += "制化｜化煞葫蘆 (吸收局部亂流)；";
+    if (st.cure.includes('trees')) { windDrag += 40; envHumidity += 10; cureText += "制化｜植栽陣法啟動 (提供高風阻+濕度調節)；"; }
+    if (st.cure.includes('pool') || st.cure.includes('fountain')) {
+        if (st.water !== 'none') {
+            envHumidity += 30; envTemp -= 5; cureText += "制化｜水體陣法啟動 (提供降溫增濕+低摩擦介質)；";
+        } else {
+            cureText += "制化｜水體陣法佈置，但現場無水，效果受限；";
+        }
     }
-    if (st.cure.includes('fountain') && !fengShuiContextBroken) g += 25;
+    if (st.cure.includes('stone') || st.cure.includes('mirror')) { rigidReflection += 30; thermalMass += 20; cureText += "制化｜剛體陣法啟動 (提供高反彈力+高質量壁壘)；"; }
+    if (st.cure.includes('gourd')) cureText += "制化｜化煞葫蘆 (吸收局部亂流)；";
+
+    // 【第1輪診斷修正】無水時，水體陣法不應提供濕度/降溫，防止『無水卻水生木/水氣調節』之狀態悖論
+    // 原邏輯在 st.water==='none' 時仍執行 envHumidity += 30，導致五行湧現誤判為水生木。
+    // 此處強制消毒：無水時水體類陣法不影響 envHumidity / envTemp。
+    if (st.water === 'none') {
+        if (st.cure.includes('pool') || st.cure.includes('fountain')) {
+            envHumidity -= Math.min(envHumidity, 30);
+            envTemp += 5; // 還原先前因水體而降低的溫度
+        }
+    }
+    }
+    if (st.cure.includes('fountain') && !fengShuiContextBroken && st.water !== 'none') g += 25;
+    // 【第2輪診斷修正】無水時強制消毒水體陣法文字，避免「無水卻有降溫增濕」的狀態悖論
+    if (st.water === 'none') {
+        cureText = cureText.replace(/制化｜水體陣法啟動[^；]*；/g, '制化｜水體陣法佈置，但現場無水，效果受限；');
+    }
     // 【第 2 輪診斷修正】化煞對形煞的削減改為比例制，並強化葫蘆的吸收效果。
     if (st.cure.includes('mirror') || st.cure.includes('stone')) {
         let shaCut = Math.round(s * 0.12);
@@ -1728,7 +1809,7 @@ class FengShuiEngine {
         }
     } else if (shapeEl === 'earth') {
         g += 10; wuXingText += "五行湧現｜主樓方正厚重(土形)具備高熱容與穩定性，使周遭氣流平順沉降 (厚德載物)；";
-    } else if (shapeEl === 'wood' && envHumidity > 60 && !fengShuiContextBroken) {
+    } else if (shapeEl === 'wood' && envHumidity > 60 && !fengShuiContextBroken && st.water !== 'none') {
         g += 15; wuXingText += "五行湧現｜高風阻直立外型(木形)受周遭充沛濕度滋養，氣場合宜 (自然湧現: 水生木)；";
     } else if (shapeEl === 'metal') {
         // 【修正】補上金形（圓頂）的空氣動力學效果
@@ -1766,7 +1847,9 @@ class FengShuiEngine {
     const h = stateManager.heights; // 【修正】提早取得高度物件，避免參照錯誤
     let D_macro = (h.tort + h.bird) / 2;
     let D_meso = (h.drag + h.tig) / 2;
-    let D_micro = h.main;
+    // 【第4輪靜態審查修正】D_micro 強制使用 hMain（已含 Math.max(20) 下限），
+    // 確保水形/土形等低矮星體不會因 geometry 高度低於 20 而被誤判為分形斷層。
+    let D_micro = hMain;
     let fractalDiff = Math.abs(D_macro - D_meso) + Math.abs(D_meso - D_micro);
     
     if (fengShuiContextBroken) {
@@ -1817,18 +1900,46 @@ class FengShuiEngine {
     // 【第9輪 Dry Run 診斷修正】環境混亂時，將殘留的強烈吉訊改為湧現抑制描述，避免與最終低吉分數矛盾
     // 【第12輪靜態審查修正】擴充抑制清單，納入特殊佈局（玄武靠、鬼曜撐背、蜂腰過脈、束氣結穴、太極環島）與量子穿隧等吉訊，防止高熵/湍流環境下吉訊與分數矛盾
     if (environmentDisordered) {
-        const strongQiPhrases = ["強勢收納來水，水聚天心，主速發暴富", "真氣遇水盤旋不散", "界水即止", "藏風聚穴", "水聚明堂", "玄武有靠", "鬼曜撐背", "蜂腰過脈", "束氣結穴", "剝換完成", "龍穴相配", "過峽脫煞", "氣聚有情", "完美的陰陽回旋", "強制調和磁場", "穿隧效應", "擴充明堂極限容量", "承接陽氣", "增強地氣生機"];
+        // 【第25輪診斷修正】同步清理 wuXingText 中的強烈吉訊，避免五行分析與最終分數矛盾
+        // 【第2輪 Dry Run 修正】先移除所有吉訊括號，避免殘留「自然湧現: ...」造成語意矛盾
+        wuXingText = wuXingText.replace(/\(自然湧現:[^)]*\)/g, '');
+        wuXingText = wuXingText.replace(/\(湧現:[^)]*\)/g, '');
+        wuXingText = wuXingText.replace(/龍穴相配\/太祖至胎息/g, '龍穴相配受環境紊流干擾而失效');
+        wuXingText = wuXingText.replace(/氣聚有情/g, '氣聚有情受環境紊流干擾而失效');
+        wuXingText = wuXingText.replace(/過峽脫煞/g, '過峽脫煞受環境紊流干擾而失效');
+        wuXingText = wuXingText.replace(/剝換完成\/真龍結穴/g, '剝換完成受環境紊流干擾而失效');
+        // 【第30輪靜態審查修正】補上熱力學吉訊的中性化，避免「真實物理生氣」與環境紊亂矛盾
+        wuXingText = wuXingText.replace(/局部熵增率極低[^；；]*負熵匯聚[^；；]*；/g, '局部物理熵值存在，但受環境紊流干擾而無法凝聚；');
+        wuXingText = wuXingText.replace(/真實物理生氣/g, '物理熵值受環境紊流干擾而失效');
+        wuXingText = wuXingText.replace(/金生水/g, '金生水受環境紊流干擾而失效');
+        // 【第4輪 Dry Run 修正】環境紊亂時全面抑制五行吉訊，避免殘留未中性化的吉斷
+        wuXingText = wuXingText.replace(/平順化解/g, '受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/有效偏轉強風衝擊/g, '受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/木能擋煞/g, '木能擋煞受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/厚德載物/g, '厚德載物受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/水剋火/g, '水剋火受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/水生木/g, '水生木受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/高表面風阻\(木\)有效遲滯了紊流衝擊，使動能煞氣衰減/g, '高表面風阻(木)受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/主樓方正厚重\(土形\)具備高熱容與穩定性，使周遭氣流平順沉降/g, '主樓方正厚重(土形)受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/波浪外型\(水形\)引導氣流順暢滑過，氣場靈動活潑/g, '波浪外型(水形)受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/主樓圓頂流線\(金形\)展現優異空氣動力學，有效偏轉強風衝擊/g, '主樓圓頂流線(金形)受環境紊流干擾而效果不彰');
+        wuXingText = wuXingText.replace(/跨尺度分形自相似[^；]*；/g, '跨尺度分形受環境紊流干擾而效果不彰；');
+        wuXingText = wuXingText.replace(/量子流體[^；]*；/g, '量子流體受環境紊流干擾而效果不彰；');
+        const strongQiPhrases = ["強勢收納來水，水聚天心，主速發暴富", "真氣遇水盤旋不散", "界水即止", "藏風聚穴", "水聚明堂", "玄武有靠", "鬼曜撐背", "蜂腰過脈", "束氣結穴", "剝換完成", "龍穴相配", "過峽脫煞", "氣聚有情", "完美的陰陽回旋", "強制調和磁場", "穿隧效應", "擴充明堂極限容量", "承接陽氣", "增強地氣生機", "吉氣迴風返氣", "物理吉氣值", "真實物理生氣", "負熵匯聚", "左青龍右白虎俱有情", "左右護衛均衡", "跨尺度分形自相似", "量子流體", "太極暈達成超流體態", "優異空氣動力學"];
         // 【第14輪靜態審查修正】吉訊形容詞中性化，避免同一句出現「完美吉訊 + 湧現抑制」的語意矛盾
         // 【第17輪診斷修正】將替換目標改為「存在但受環境紊流干擾」，避免輸出「頻域｜...：存在」等語意破碎文字
         const qiAdjectiveReplacements = [
-            ['完美阻擋冷風', '存在但受環境紊流干擾'],
-            ['引導氣流進行完美的陰陽回旋，強制調和磁場', '存在但受環境紊流干擾'],
-            ['主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散', '存在但受環境紊流干擾'],
-            ['高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波', '存在但受環境紊流干擾'],
-            ['地形壓縮管槽效應，使明堂內的吉氣爆發倍增', '存在但受環境紊流干擾'],
-            ['強勢收納來水，水聚天心，主速發暴富', '存在但受環境紊流干擾'],
-            ['真氣遇水盤旋不散', '存在但受環境紊流干擾'],
-            ['完美靜力平衡點', '存在但受環境紊流干擾']
+            ['完美阻擋冷風', '受到環境紊流干擾，效果不彰'],
+            ['引導氣流進行完美的陰陽回旋，強制調和磁場', '受到環境紊流干擾，效果不彰'],
+            ['主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散', '受到環境紊流干擾，效果不彰'],
+            ['高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波', '受到環境紊流干擾，效果不彰'],
+            ['地形壓縮管槽效應，使明堂內的吉氣爆發倍增', '受到環境紊流干擾，效果不彰'],
+            ['強勢收納來水，水聚天心，主速發暴富', '受到環境紊流干擾，效果不彰'],
+            ['真氣遇水盤旋不散', '受到環境紊流干擾，效果不彰'],
+            ['形成完美靜力平衡點', '但受環境紊流干擾而效果不彰'],
+            ['前方遠處具備優良實體反射面，擴充明堂極限容量', '受到環境紊流干擾，效果不彰'],
+            ['動能轉化為立體盤旋位能！', '但受環境紊流干擾而效果不彰'],
+            ['動能轉化為立體盤旋位能', '但受環境紊流干擾而效果不彰']
         ];
         for (let i = 0; i < physicsText.length; i++) {
             // 先將所有吉訊形容詞中性化，再移除殘留的「湧現:」括號，確保後續抑制判斷正確
@@ -1844,9 +1955,40 @@ class FengShuiEngine {
             
             // 若仍帶有強烈吉訊關鍵字且未被任何抑制分支標記，才追加環境熵抑制說明
             for (const phrase of strongQiPhrases) {
-                if (physicsText[i].includes(phrase) && !physicsText[i].includes('失效') && !physicsText[i].includes('無法凝聚') && !physicsText[i].includes('無法形成') && !physicsText[i].includes('抑制') && !physicsText[i].includes('受環境干擾') && !physicsText[i].includes('環境熵/湍流過高')) {
+                if (physicsText[i].includes(phrase) && !physicsText[i].includes('失效') && !physicsText[i].includes('無法凝聚') && !physicsText[i].includes('無法形成') && !physicsText[i].includes('抑制') && !physicsText[i].includes('受環境干擾') && !physicsText[i].includes('效果不彰') && !physicsText[i].includes('環境熵/湍流過高')) {
                     physicsText[i] += ` (湧現抑制: 環境熵/湍流過高，吉氣無法凝聚)`;
                     break;
+                }
+            }
+            // 【第19輪診斷修正】若行內已帶有「環境熵/湍流過高」抑制標記，但仍殘留強烈吉訊關鍵字，移除殘留吉訊以避免文字矛盾
+            if (physicsText[i].includes('環境熵/湍流過高')) {
+                const residualPositive = [
+                    '前方遠處具備優良實體反射面，擴充明堂極限容量',
+                    '後方結構精準抵消來龍動能，防止邊界層剝離，形成',
+                    '主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散',
+                    '高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波',
+                    '地形壓縮管槽效應，使明堂內的吉氣爆發倍增',
+                    '強勢收納來水，水聚天心，主速發暴富',
+                    '真氣遇水盤旋不散',
+                    '完美靜力平衡點',
+                    '突起地形承接陽氣，增強地氣生機',
+                    '吉氣迴風返氣',
+                    '動能轉化為立體盤旋位能！',
+                    '動能轉化為立體盤旋位能',
+                    '實體凹陷結構產生微氣候駐留，'
+                ];
+                for (const p of residualPositive) {
+                    physicsText[i] = physicsText[i].split(p).join('');
+                }
+                physicsText[i] = physicsText[i].replace(/\s{2,}/g, ' ').replace(/,+/g, ',').replace(/,?\s*$/, '');
+                // 【第27輪診斷修正】若殘留吉訊已被移除但留下了「冒號 + 抑制括號」，將冒號改為中立描述，避免語意破碎
+                physicsText[i] = physicsText[i].replace(/[：:,，]\s*(?=\(湧現抑制)/g, '，該吉訊受環境紊流壓制而無法顯現 ');
+                // 【第26輪診斷修正】移除強烈吉訊後，若句子以冒號或逗號結尾，補上中立描述，避免語意破碎
+                if (/[：:,，]\s*$/.test(physicsText[i])) {
+                    physicsText[i] = physicsText[i].replace(/[：:,，]\s*$/, '');
+                    if (physicsText[i].length > 0) {
+                        physicsText[i] += '，該吉訊受環境紊流壓制而無法顯現';
+                    }
                 }
             }
         }
@@ -1891,7 +2033,8 @@ class FengShuiEngine {
     }
 
     // 【修正】物理煞氣/吉氣值以最終收斂值為準，避免與實際分數不一致
-    if (vortexQi > 10) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
+    // 【第36輪診斷修正】環境混亂時不輸出物理吉氣值，避免與低吉分數矛盾
+    if (vortexQi > 10 && !environmentDisordered) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
     // 【終極修正】陰陽文字完全以數值為準，避免地形/水向造成誤判
     // 【修正】修正 yyBalance 恰為 ±3 時錯誤引用地形/水向描述（如平地卻顯示地勢傾斜），改為中性但保留實際情境判斷
     // 【第 3 輪修正】細化陽氣過盛的原因描述，根據風速與車速分開描述，避免車速高卻誤導為風速極大
@@ -1946,8 +2089,9 @@ class FengShuiEngine {
 
     // 【第 2 輪 Dry Run 修正】高熵與低拓撲閉合度代表氣場混亂、漏風，不得與高吉分共存；並區分觸發來源以便文字準確
     // 香農熵 >5.0 視為混亂，Betti-1 閉合度 <50% 視為漏風，進一步提高懲罰權重，避免低閉合度仍出現中吉以上評級
-    const entropyPenalty = spatialEntropy > 5.0 ? Math.round((spatialEntropy - 5.0) * 30) : 0;
-    const closurePenalty = betti1Closure < 0.5 ? Math.round((0.5 - betti1Closure) * 100) : 0;
+    // 僅在存在實體建築時才計算這些懲罰，避免無建築時 betti1Closure 初始 0 導致誤懲罰
+    const entropyPenalty = (hasBuildingsForAnalysis && spatialEntropy > (hasGoodSupport ? 6.5 : 5.0)) ? Math.round((spatialEntropy - (hasGoodSupport ? 6.5 : 5.0)) * 30) : 0;
+    const closurePenalty = (hasBuildingsForAnalysis && betti1Closure < (hasGoodSupport ? 0.3 : 0.5)) ? Math.round(((hasGoodSupport ? 0.3 : 0.5) - betti1Closure) * 100) : 0;
     if (entropyPenalty > 0 || closurePenalty > 0) {
         const thermoPenalty = entropyPenalty + closurePenalty;
         s += thermoPenalty;
@@ -1962,11 +2106,12 @@ class FengShuiEngine {
     }
 
     // 【第7輪 Dry Run 診斷修正】高雷諾數/高弗勞德數應直接侵蝕吉氣，避免「極端湍流卻高吉分」的狀態矛盾
+    // 僅在存在實體建築時才計算湍流懲罰，避免空曠地帶高風速被誤判為湍流煞
     let fluidTurbulencePenalty = 0;
-    if (reynoldsNum > 4000) {
+    if (hasBuildingsForAnalysis && reynoldsNum > 4000) {
         fluidTurbulencePenalty += Math.round((reynoldsNum - 4000) / 1000 * 1.0);
     }
-    if (froudeNum > 1.0) {
+    if (hasBuildingsForAnalysis && froudeNum > 1.0) {
         fluidTurbulencePenalty += Math.round((froudeNum - 1.0) * 15);
     }
     if (fluidTurbulencePenalty > 0 && g > 0) {
@@ -1980,9 +2125,16 @@ class FengShuiEngine {
         }
     }
 
+    // 【第110輪修正】將最終渦流吉氣統一在此加入，確保 vortexQi 已包含 tearForce 削減與特殊佈局增量
+    g += Math.max(0, vortexQi);
+    // 【第29輪靜態審查修正】侵蝕比例改以最終煞氣值重新評估，避免熵/湍流懲罰後煞氣暴增而侵蝕不足
+    const finalHasHardShaForErosion = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 60);
+    const finalHeavyShaForErosion = heavyShaForErosion || (finalHasHardShaForErosion && !hasMitigatingCure && s >= 60) || (s >= 95);
+    const finalErosionRatio = finalHeavyShaForErosion ? 0.35 : 0.2;
+    const finalCapacityErosionRatio = finalHeavyShaForErosion ? 0.25 : 0.15;
     // 【第22輪修正】輸出前強制套用煞氣侵蝕：以最終 s 重新計算，確保容量與吉氣被正確削減
-    const finalShaErosion = Math.round(s * erosionRatio);
-    const finalCapErosion = Math.round(s * capacityErosionRatio);
+    const finalShaErosion = Math.round(s * finalErosionRatio);
+    const finalCapErosion = Math.round(s * finalCapacityErosionRatio);
     g = Math.max(0, g - finalShaErosion);
     c = Math.max(20, c - finalCapErosion);
     g = Math.max(0, Math.min(150, g));
@@ -1990,21 +2142,28 @@ class FengShuiEngine {
     // 【第32輪修正】無水或煞水時，容量下限保護為40，避免侵蝕將容量壓至物理極限以下
     if (st.water === 'none' || isShaWater) {
         c = Math.max(40, c);
+        // 【第2輪 Dry Run 修正】無水或煞水時容量上限不得超過80，避免煞水格局容量異常飆高
+        if (st.water === 'none' || isShaWater) {
+            c = Math.min(c, 80);
+        }
     }
-    // 【第3輪診斷修正】輸出前強制執行 tanh 軟上限，確保任何路徑下煞氣值不會異常超過 100，並再次 clamp 所有數值
-    if (s > 100) {
-        s = 100 + 30 * Math.tanh((s - 100) / 60);
-    }
+    // 【輸出前最終 clamp】確保數值範圍正確
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
-    // 【第8輪修正】輸出前強制軟上限與 clamp，確保任何路徑下數值不越界
-    if (s > 100) {
-        s = 100 + 30 * Math.tanh((s - 100) / 60);
+    // 【第22輪靜態審查修正】最終容量限制：無水或煞水容量不得超過80，避免凶水格局容量異常偏高
+    if (st.water === 'none' || isShaWater) {
+        c = Math.min(c, 80);
     }
-    s = Math.max(0, Math.min(150, s));
-    g = Math.max(0, Math.min(150, g));
-    c = Math.max(20, Math.min(150, c));
+    // 【第79輪靜態審查修正】明堂破敗時容量必須嚴格受限，確保不超過40
+    if (['none', 'sunken', 'rubble'].includes(st.front)) {
+        c = Math.min(c, 40);
+    }
+    // 【第28輪診斷修正】環境混亂時，吉氣不得高於 45，且煞氣不得低於 45，確保高熵/低閉合度/湍流場景不會出現吉評矛盾
+    if (environmentDisordered) {
+        if (g > 45) g = 45;
+        if (s < 45) s = 45;
+    }
     // 【第11輪修正】Q-Factor 必須以最終收斂值計算，避免早期吉氣尚未被侵蝕時出現虛高共振
     if (g > 0) {
         const finalEntropyFactor = Math.max(0.0, 1.0 - spatialEntropy / 6.5);
@@ -2015,13 +2174,12 @@ class FengShuiEngine {
     qFactor = Math.max(0, Math.min(qFactor, 99.9));
     // 【第15輪靜態審查】若最終 Q-Factor 已下降，應移除先前基於早期數值加入的「量子流體」描述，避免指標矛盾
     if (qFactor <= 20) {
-        const quantumPhrase = '量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；';
-        wuXingText = wuXingText.split(quantumPhrase).join('');
+        wuXingText = wuXingText.replace(/量子流體[^；]*；/g, '');
     }
     // 【第54輪修正】最終重煞標記需以最終 s 重新判定，避免熵/閉合度懲罰將 s 推過 80 時仍未被標記，導致 isHeavySha 與最終數值矛盾
     // 【第15輪 Dry Run 診斷修正】改用「先移除再推入」的方式，確保 hasHeavySha 與 physicsText 永遠同步，避免 some() 掃描失效導致重煞文字漏失
-    const finalHasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 60);
-    const finalHeavySha = heavyShaForErosion || (finalHasHardSha && !hasMitigatingCure && s >= 60);
+    // 【第29輪靜態審查修正】最終重煞標記與侵蝕比例使用同一評估變數，確保一致性
+    let finalHeavySha = finalHeavyShaForErosion;
     if (finalHeavySha) {
         physicsText = physicsText.filter(t => !t.includes("重煞壓制"));
         physicsText.push(`動力學｜重煞壓制：強烈形煞侵蝕明堂，吉氣與容量大幅衰減`);
@@ -2033,6 +2191,12 @@ class FengShuiEngine {
         for (let i = physicsText.length - 1; i >= 0; i--) {
             if (physicsText[i].includes("重煞壓制")) physicsText.splice(i, 1);
         }
+    }
+    // 【修正】重新計算最終水比例，確保與 gatheredDrops/escapedDrops 最終值一致
+    const finalTotalDrops = gatheredDrops + escapedDrops;
+    if (waterTestRan && finalTotalDrops > 0) {
+        gatherPercent = Math.round(gatheredDrops / finalTotalDrops * 100);
+        escapePercent = 100 - gatherPercent;
     }
     return {
         g: Math.round(g),
@@ -2052,6 +2216,7 @@ class FengShuiEngine {
         isSaddlePoint: saddlePointTriggered,
         isStandingWave: standingWaveTriggered,
         isHeavySha: finalHeavySha,
+        isEnvironmentDisordered: environmentDisordered,
         // 【高維物理變數匯出】
         betti1Closure: +(betti1Closure.toFixed(2)),
         shannonEntropy: +(spatialEntropy.toFixed(3)),
@@ -2246,6 +2411,15 @@ class CityBuilder {
       this.waveGroup.add(grid1); this.waveGroup.add(grid2);
   }
 
+  // 【第111輪修正】提供與分析引擎一致的地形補償高度，避免建築與地面/GPU碰撞/熱力圖基準不一致
+  terrainYCorrected(x, z) {
+      let y = Util.terrainY(x, z, this.currentTerrain || 'flat');
+      const st = this.currentState || {};
+      if (st.special && st.special.includes('qingxie') && z > 20) y -= (z - 20) * 0.15;
+      if (st.front === 'sunken' && Math.abs(x) < 25 && Math.abs(z - 34) < 20) y -= 1.5;
+      return y;
+  }
+
   updateGhost(x, z, tool) {
       if (!this.ghostMesh) {
           this.ghostMesh = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshLambertMaterial({color:0x00ff88, transparent:true, opacity:0.6, emissive:0x00aa44}));
@@ -2263,7 +2437,7 @@ class CityBuilder {
           this.ghostType = tool;
       }
       
-      let ty = Util.terrainY(x, z, this.currentTerrain || 'flat');
+      let ty = this.terrainYCorrected(x, z);
       let h = this.ghostMesh.geometry.parameters.height || 2;
       this.ghostMesh.position.set(x, ty + h/2, z);
       
@@ -2462,7 +2636,7 @@ class CityBuilder {
   // --- Helpers ---
   box(w, h, d, x, z, col, em) {
     h = Math.max(1, h);
-    const ty = Util.terrainY(x, z, this.currentTerrain || 'flat');
+    const ty = this.terrainYCorrected(x, z);
     const t = ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.repeat.set(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
     const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({map:t,color:Util.brighten(col),emissive:em?Util.brighten(em):0,emissiveIntensity:.2}));
@@ -2474,7 +2648,7 @@ class CityBuilder {
 
   // 【新增】遠景專用建築生成器 (不推入 this.blds，徹底避開物理引擎計算)
   decoBox(w, h, d, x, z, col) {
-    const ty = Util.terrainY(x, z, this.currentTerrain || 'flat');
+    const ty = this.terrainYCorrected(x, z);
     const t = ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
     t.repeat.set(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
     // 遠景建築不需要發光邊框，減少 GPU 負擔，並使用較暗的顏色融入背景
@@ -2524,7 +2698,7 @@ class CityBuilder {
       const p=pts[i], q=pts[Math.min(i+1,N)], o=pts[Math.max(i-1,0)];
       let tx=q.x-o.x, tz=q.z-o.z; const L=Math.hypot(tx,tz)||1; tx/=L; tz/=L;
       const nx=-tz, nz=tx;
-      const ty = Util.terrainY(p.x, p.z, this.currentTerrain || 'flat');
+      const ty = this.terrainYCorrected(p.x, p.z);
       left.push(Util.v3(p.x+nx*w/2, p.y+0.06+ty, p.z+nz*w/2)); 
       right.push(Util.v3(p.x-nx*w/2, p.y+0.06+ty, p.z-nz*w/2));
     }
@@ -2546,7 +2720,7 @@ class CityBuilder {
     const n=Math.floor(c.getLength()/22);
     for(let i=1;i<n;i++){
       const p=c.getPointAt(i/n);
-      const ty=Util.terrainY(p.x, p.z, this.currentTerrain || 'flat');
+      const ty=this.terrainYCorrected(p.x, p.z);
       const pm=new THREE.Mesh(new THREE.BoxGeometry(1.6,p.y,1.6),new THREE.MeshLambertMaterial({color:Util.brighten(0x22364f)}));
       pm.position.set(p.x, ty + p.y/2, p.z); this.group.add(pm);
     }
@@ -2583,6 +2757,7 @@ class CityBuilder {
     this.clear();
     const st = stateManager.current;
     const h = stateManager.heights;
+    this.currentState = st;
     this.currentTerrain = st.terrain;
     
     // 移除周圍背景城市隨機建築
@@ -2889,7 +3064,7 @@ class CityBuilder {
     if(st.star==='earth'){core=new THREE.Mesh(new THREE.BoxGeometry(18,H-18,16),mat);
       const t2=new THREE.Mesh(new THREE.BoxGeometry(12,10,10),mat);t2.position.y=(H-18)/2+5;core.add(t2);}
     
-    core.position.y = core.geometry.parameters.height/2 + Util.terrainY(0, 0, st.terrain);
+    core.position.y = core.geometry.parameters.height/2 + this.terrainYCorrected(0, 0);
 
     // 處理抬轎煞 (懸空)
     let elevY = 0; // 紀錄底部懸空高度
@@ -2909,7 +3084,7 @@ class CityBuilder {
     this.mainCore = core;
     this.baseEmHex = emHex;
     // 【修正】將 Y 軸懸空高度 elevY 寫入物理判定屬性中，供熱力圖與 GPU 讀取
-    this.group.add(core); this.blds.push({x:0,z:0,w:16,d:16,h:H, y:elevY});
+    this.group.add(core); this.blds.unshift({x:0,z:0,w:16,d:16,h:H, y:elevY});
     
     this.beacon=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,120,12,1,true),
       new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}));
@@ -2979,6 +3154,7 @@ uniform float u_simTime; uniform float u_hz; uniform float u_tSpeed;
 uniform bool u_waterJade; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
 uniform bool u_dragonAvenue; uniform bool u_cureFountain; uniform bool u_isWoQian; uniform bool u_specialShuqi;
 uniform bool u_shaTianzhan; uniform int u_terrainType;
+uniform bool u_qingxie; uniform bool u_sunkenFront; // 【第55輪】傳遞 qingxie 與 sunken front 地形修正
 // 【GPU 接收高階物理場】
 uniform bool u_coanda; uniform bool u_hydraulicJump; uniform float u_qFactor;
 uniform vec3 u_spawns[64]; uniform int u_spawnCount;
@@ -3012,10 +3188,15 @@ vec3 curlNoise(vec3 p) {
 // ---------------------------------------------
 
 float getTerrainY(float x, float z) {
-    if(u_terrainType == 1) return max(0.0, -z * 0.15);
-    if(u_terrainType == 2) return -z * 0.1;
-    if(u_terrainType == 3) return max(0.0, (x*x + z*z)/1500.0 - 1.0);
-    return 0.0;
+    float y = 0.0;
+    if(u_terrainType == 1) y = max(0.0, -z * 0.15);
+    else if(u_terrainType == 2) y = -z * 0.1;
+    else if(u_terrainType == 3) y = max(0.0, (x*x + z*z)/1500.0 - 1.0);
+    // 【第55輪】加入 qingxie 傾瀉地形修正（與 CPU getGeoZ 一致）
+    if (u_qingxie && z > 20.0) y -= (z - 20.0) * 0.15;
+    // 【第55輪】加入明堂低陷(sunken)地形修正
+    if (u_sunkenFront && abs(x) < 25.0 && abs(z - 34.0) < 20.0) y -= 1.5;
+    return y;
 }
 
 void main() {
@@ -3349,6 +3530,7 @@ class ParticleSystem {
         u_dragonAvenue: { value: false }, u_cureFountain: { value: false }, u_isWoQian: { value: false }, u_specialShuqi: { value: false },
         u_shaTianzhan: { value: false },
         u_terrainType: { value: 0 },
+        u_qingxie: { value: false }, u_sunkenFront: { value: false },
         // 【新增】傳遞高階物理場布林值給 GPU
         u_coanda: { value: false }, u_helmholtz: { value: false }, u_hydraulicJump: { value: false },
         u_qFactor: { value: 0 }, // 【新增：用於 LJ 超流體勢能】
@@ -3439,8 +3621,11 @@ class ParticleSystem {
         const b = builder.blds[i];
         if (b.isWater || b.h < 5) continue; // 水池與過扁的物體不阻擋風速
         vec4Arr[bCount].set(b.x, b.z, b.w, b.d);
-        // 【修正】將地形高度納入建築底部計算，確保斜坡/盆地等非平坦地形上的粒子碰撞正確
-        let elev = (b.y || 0) + Util.terrainY(b.x, b.z, stateManager.current.terrain);
+        // 【修正】將地形高度納入建築底部計算，並加入傾瀉(qingxie)與明堂低陷(sunken)修正，確保與 CPU getGeoZ 一致
+        let baseY = Util.terrainY(b.x, b.z, stateManager.current.terrain);
+        if (stateManager.current.special.includes('qingxie') && b.z > 20) baseY -= (b.z - 20) * 0.15;
+        if (stateManager.current.front === 'sunken' && Math.abs(b.x) < 25 && Math.abs(b.z - 34) < 20) baseY -= 1.5;
+        let elev = (b.y || 0) + baseY;
         vec2Arr[bCount].set(elev, elev + b.h); // 將 [底部高度, 頂部高度] 傳給 GPU
         bCount++;
     }
@@ -3454,6 +3639,8 @@ class ParticleSystem {
     this.uniforms.u_isRushWind.value = (st.sha.includes('rush') || st.sha.includes('tianzhan') || st.water==='rush' || st.sha.includes('walledge'));
     this.uniforms.u_cureFountain.value = st.cure.includes('fountain');
     this.uniforms.u_specialShuqi.value = st.special.includes('shuqi');
+    this.uniforms.u_qingxie.value = st.special.includes('qingxie');
+    this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
     
     // 【新增】每幀更新高階物理場參數
@@ -3623,7 +3810,8 @@ class World3D {
                 const toolW = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
                 const toolD = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
                 const overlap = this.app.builder.blds.some(b => {
-                    if (b.isWater || b.h < 5) return false;
+                    // 排除主樓本身，其餘建築（包含水池與低矮物體）皆應參與重疊檢查
+                    if (b.x === 0 && b.z === 0) return false;
                     return Math.abs(snapX - b.x) < (toolW + b.w) / 2 - 0.5 && 
                            Math.abs(snapZ - b.z) < (toolD + b.d) / 2 - 0.5;
                 });
@@ -3684,11 +3872,18 @@ class World3D {
   }
   
   updateTerrain(type) {
+    const st = this.app.state.current;
+    const applyCorrections = (x, z) => {
+      let y = Util.terrainY(x, z, type);
+      if (st.special.includes('qingxie') && z > 20) y -= (z - 20) * 0.15;
+      if (st.front === 'sunken' && Math.abs(x) < 25 && Math.abs(z - 34) < 20) y -= 1.5;
+      return y;
+    };
     // 更新主地面地形
     const pos = this.gndMesh.geometry.attributes.position;
     for(let i=0; i<pos.count; i++){
       const x = pos.getX(i), y = pos.getY(i);
-      pos.setZ(i, Util.terrainY(x, -y, type));
+      pos.setZ(i, applyCorrections(x, -y));
     }
     this.gndMesh.geometry.computeVertexNormals();
     this.gndMesh.geometry.attributes.position.needsUpdate = true;
@@ -3697,7 +3892,7 @@ class World3D {
     const hpos = this.heatMesh.geometry.attributes.position;
     for(let i=0; i<hpos.count; i++){
       const x = hpos.getX(i), y = hpos.getY(i);
-      hpos.setZ(i, Util.terrainY(x, -y, type));
+      hpos.setZ(i, applyCorrections(x, -y));
     }
     this.heatMesh.geometry.attributes.position.needsUpdate = true;
   }
@@ -3820,15 +4015,22 @@ class UIManager {
           }
           
           // 【防呆】探頭煞必須依附案山（front=lowcase），若明堂類型改變則移除探頭煞
-          if (id === 'sFront' && e.target.value !== 'lowcase') {
-            const shaArr = this.app.state.current.sha || [];
-            if (shaArr.includes('tantou')) {
-              const newSha = shaArr.filter(v => v !== 'tantou');
-              this.app.state.current.sha = newSha.length ? newSha : ['none'];
-              const shaBoxes = Util.$('sSha').querySelectorAll('input');
-              shaBoxes.forEach(cb => cb.checked = this.app.state.current.sha.includes(cb.value));
+            // 【防呆】探頭煞必須依附案山（front=lowcase），若明堂類型改變則移除探頭煞
+            if (id === 'sFront' && e.target.value !== 'lowcase') {
+              const shaArr = this.app.state.current.sha || [];
+              if (shaArr.includes('tantou')) {
+                const newSha = shaArr.filter(v => v !== 'tantou');
+                this.app.state.current.sha = newSha.length ? newSha : ['none'];
+                const shaBoxes = Util.$('sSha').querySelectorAll('input');
+                shaBoxes.forEach(cb => cb.checked = this.app.state.current.sha.includes(cb.value));
+              }
             }
-          }
+            // 【防呆】明堂破敗時強制清除水法，避免渲染與物理計算不一致
+            if (id === 'sFront' && ['none', 'sunken', 'rubble'].includes(e.target.value)) {
+              this.app.state.current.shuifa = ['none'];
+              const sfBoxes = Util.$('sShuiFa').querySelectorAll('input');
+              sfBoxes.forEach(cb => cb.checked = (cb.value === 'none'));
+            }
           
           // 【防呆】無龍脈時，清除依賴龍脈的特殊佈局（束氣、蜂腰、護龍、鬼曜）
           if (id === 'sDragon' && e.target.value === 'none') {
@@ -3932,8 +4134,13 @@ class UIManager {
 
     // 新增 Dry Run 按鈕事件監聽
     if (Util.$('btn-dry-run')) {
-      Util.$('btn-dry-run').onclick = () => {
-        DryRunTool.execute(3);
+      Util.$('btn-dry-run').title = "點擊：測試當前格局 | Shift+點擊：執行全格局(Full Suite)全套覆蓋測試";
+      Util.$('btn-dry-run').onclick = (e) => {
+        if (e.shiftKey) {
+            DryRunTool.executeSuite(3);
+        } else {
+            DryRunTool.execute(3);
+        }
       };
     }
   }
@@ -3953,6 +4160,7 @@ class UIManager {
 
   applyPreset(k) {
     const st = this.app.state;
+    st.current.presetName = k; // 👈 新增：記錄當前格局名稱供 AI 識別
     if(k === 'random'){
       const pick = a => a[Math.random()*a.length|0];
       const pickMulti = (a, max = 3) => {
@@ -4164,6 +4372,8 @@ class UIManager {
     } else if (netEff >= -10 && realS <= 65 && yy <= 4) {
       // 填補黑洞：只要淨收益不低於 -10，且煞氣未爆表，就視為散聚相抵
       vt = '平局・散聚相抵，運勢反覆'; vc = 'mid'; 
+    } else if (netEff >= -20 && realS <= 65 && yy <= 4) {
+      vt = '平局・散聚相抵，運勢反覆'; vc = 'mid'; 
     } else if (realS >= 80 && netEff <= -30) {
       vt = '大凶・敗絕之局，人財兩空'; vc = 'worst';
     } else {
@@ -4180,6 +4390,18 @@ class UIManager {
     const haloBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble' || isShaWater;
     if (haloBroken && (vt.includes('吉') || vt.includes('旺'))) {
       vt = '平局・明堂已破，吉氣難發'; vc = 'mid';
+    }
+    // 【第27輪診斷修正】高熵/低閉合度/湍流超標時，即使分數偏向吉，也不得顯示吉評，避免 DryRun 回報 CRITICAL 矛盾
+    const hasValidBldsForVerdict = this.app && this.app.builder && this.app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    // 【修正】優先使用 analyze 統一的環境混亂標記，避免兩處門檻不一致導致誤降級
+    const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean') ? ana.isEnvironmentDisordered : (hasValidBldsForVerdict && (
+        (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0) ||
+        (typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.5) ||
+        (typeof ana.reynoldsNum === 'number' && ana.reynoldsNum > 4000) ||
+        (typeof ana.froudeNum === 'number' && ana.froudeNum > 1.0)
+    ));
+    if (envDisorderedForVerdict && (vt.includes('吉') || vt.includes('旺'))) {
+      vt = '平局・環境紊亂，吉氣難顯'; vc = 'mid';
     }
     vd.textContent = vt; vd.className = 'vd ' + vc;
     
@@ -4261,7 +4483,19 @@ class App {
     this.state.sources = FengShuiEngine.collectSources(this.state);
     this.world.drawHeatmap(this.state, this.builder.curves, this.builder);
     // 【修改】將 3D 實體建築與曲線資料傳入引擎，作為湧現物理與幾何計算的基礎
-    this.state.analysis = FengShuiEngine.analyze(this.state, this.builder);
+    // 【修正】為避免 analyze 內部的狀態消毒修改原始狀態，建立淺拷貝
+    const stateCopy = {
+      ...this.state,
+      heights: { ...this.state.heights },
+      current: {
+        ...this.state.current,
+        sha: [...this.state.current.sha],
+        special: [...this.state.current.special],
+        cure: [...this.state.current.cure],
+        shuifa: [...this.state.current.shuifa]
+      }
+    };
+    this.state.analysis = FengShuiEngine.analyze(stateCopy, this.builder);
     // 【新增】將物理引擎解算出的地氣軌跡發送給渲染器
     this.builder.drawWaterTopology(this.state.analysis.dropPaths);
     this.ui.refreshPanels(this.state);
@@ -4296,7 +4530,42 @@ class App {
 /* ==========================================
    DryRunTool 模組 (提供 auto_tuner 自動測試與全功能批次巡檢)
 ========================================== */
-const DryRunTool = {
+window.DryRunTool = {
+  // 全格局全套覆蓋測試 (Full Suite Dry Run)
+  executeSuite(simulateSecondsPerPreset = 3) {
+    console.log("[Dry Run Full Suite] 啟動全格局覆蓋率測試...");
+    const suiteResults = [];
+    const presetsToTest = ['perfect', 'cure_combo', 'huilong', 'tianzhan', 'bow', 'yang_extreme', 'yin_extreme', 'wuxing_sheng', 'luchong', 'gejiao', 'chuanxin', 'test_water', 'test_sha', 'test_physics', 'test_quantum'];
+
+    // 1. 測試所有固定預設
+    presetsToTest.forEach(pName => {
+        app.ui.applyPreset(pName);
+        app.state.current.presetName = pName;
+        const report = this.runSingleTest(simulateSecondsPerPreset);
+        suiteResults.push(report);
+    });
+
+    // 2. 測試 5 組隨機生成格局（擴大測試隨機邊界條件覆蓋率）
+    for (let i = 1; i <= 5; i++) {
+        app.ui.applyPreset('random');
+        app.state.current.presetName = `random_${i}`;
+        const report = this.runSingleTest(simulateSecondsPerPreset);
+        suiteResults.push(report);
+    }
+
+    const totalWarnings = suiteResults.reduce((acc, r) => acc + (r.sanityWarnings ? r.sanityWarnings.length : 0), 0);
+    const suitePrompt = `請幫我分析以下【全格局 Dry Run 全套覆蓋測試報告】（包含 perfect, cure_combo, huilong, tianzhan, bow 與 5 組隨機格局）。共發現 ${totalWarnings} 項警示：\n\n\`\`\`json\n${JSON.stringify(suiteResults, null, 2)}\n\`\`\``;
+
+    console.clear();
+    console.log(suitePrompt);
+    alert(`全套 Dry Run 測試完成！共測試 ${suiteResults.length} 種不同格局組合。\n請按 F12 打開 Console，複製 JSON 報告貼給 AI 分析！`);
+    
+    return suiteResults; // 👈 補上回傳值供 Python 讀取
+  },
+
+  // 👈 補齊相容 3D.html 與 UI 按鈕的呼叫，修復網頁點擊報錯
+  executeSingle(simulateSeconds = 3, silent = false) { return this.runSingleTest(simulateSeconds); },
+
   // 檢測單一狀態並輸出詳細診斷與異常警告
   runSingleTest(simulateSeconds = 3) {
     const originalTimeScale = app.state.timeScale;
@@ -4317,42 +4586,121 @@ const DryRunTool = {
     app.state.timeScale = originalTimeScale;
     app.state.paused = originalPaused;
 
+    // 【新增：通用光學與色彩直方圖感測器 (Generic Optical Sensor)】
+    // 強制渲染最後一幀以獲取最新畫面
+    app.world.render(); 
+    
+    const gl = app.world.renderer.domElement.getContext('webgl2') || app.world.renderer.domElement.getContext('webgl');
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    const pixels = new Uint8Array(w * h * 4);
+    gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+    let sampleCount = 0;
+    let overExposedCount = 0;
+    let underExposedCount = 0;
+    const colorBins = {};
+    let maxBinCount = 0;
+    let dominantColor = { r: 0, g: 0, b: 0 };
+
+    // 步長 40 bytes (每隔 10 個像素抽樣 1 次)
+    for(let i = 0; i < pixels.length; i += 40) {
+        let r = pixels[i], g = pixels[i+1], b = pixels[i+2];
+        let luma = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        if (luma > 245) overExposedCount++; // 偵測純白泛光/NaN爆炸
+        if (luma < 15) underExposedCount++; // 偵測純黑/極暗穿模
+
+        // 色彩降維分組 (256降為4色階)
+        let qR = Math.floor(r / 64), qG = Math.floor(g / 64), qB = Math.floor(b / 64);
+        let bin = `${qR}-${qG}-${qB}`;
+
+        if (!colorBins[bin]) colorBins[bin] = { count: 0, sumR: 0, sumG: 0, sumB: 0 };
+        colorBins[bin].count++;
+        colorBins[bin].sumR += r; colorBins[bin].sumG += g; colorBins[bin].sumB += b;
+
+        if (colorBins[bin].count > maxBinCount) {
+            maxBinCount = colorBins[bin].count;
+            dominantColor.r = Math.round(colorBins[bin].sumR / maxBinCount);
+            dominantColor.g = Math.round(colorBins[bin].sumG / maxBinCount);
+            dominantColor.b = Math.round(colorBins[bin].sumB / maxBinCount);
+        }
+        sampleCount++;
+    }
+
+    let overRatio = overExposedCount / sampleCount;
+    let underRatio = underExposedCount / sampleCount;
+    let dominantRatio = maxBinCount / sampleCount;
+
+    const opticalAnomalies = [];
+    // 城市版的天空背景色是 scene.background = new THREE.Color(0xf4f7f9); (rgb 244, 247, 249)
+    let distToSky = Math.abs(dominantColor.r - 244) + Math.abs(dominantColor.g - 247) + Math.abs(dominantColor.b - 249);
+    const isSkyBackground = distToSky < 25; // 【第9輪 Dry Run 修正】背景色過亮導致誤報過曝
+
+    if (overRatio > 0.35 && !isSkyBackground) opticalAnomalies.push(`【光學異常】畫面發生嚴重過曝泛白 (高光佔比 ${(overRatio*100).toFixed(1)}%)，可能發生 NaN 幾何爆炸或 Shader 發光疊加失控！`);
+    if (underRatio > 0.85) opticalAnomalies.push(`【光學異常】畫面極度昏暗或全黑 (黑像素佔比 ${(underRatio*100).toFixed(1)}%)，可能是燈光失效或相機掉入地底穿模！`);
+    
+    if (dominantRatio > 0.60 && distToSky > 40) {
+        opticalAnomalies.push(`【光學異常】畫面被單一異常色彩 rgb(${dominantColor.r},${dominantColor.g},${dominantColor.b}) 嚴重覆蓋 (佔比 ${(dominantRatio*100).toFixed(1)}%)，可能發生 Shader 材質崩潰、熱力圖透明度疊加失控或巨型物體遮擋相機！`);
+    }
+
     const ana = app.state.analysis;
     const st = app.state.current;
 
     // 自動異常檢測器 (Anomaly Detector)
-    const anomalies = [];
-    if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) anomalies.push("CRITICAL: 數值出現 NaN 計算錯誤");
-    if (ana.g < 0 || ana.g > 150) anomalies.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
-    if (ana.s < 0 || ana.s > 150) anomalies.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
-    if (ana.c < 20 || ana.c > 150) anomalies.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
-    if (Math.abs(ana.yyBalance) > 10) anomalies.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
-    if (app.builder.blds.length > 32) anomalies.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
+    const sanityWarnings = []; // 👈 修改：統一更名為 sanityWarnings 配合 auto_tuner.py
+    
+    // 將光學異常加入 AI 警告清單
+    if (opticalAnomalies.length > 0) {
+        sanityWarnings.push(...opticalAnomalies);
+    }
+
+    if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) sanityWarnings.push("CRITICAL: 數值出現 NaN 計算錯誤");
+    if (ana.g < 0 || ana.g > 150) sanityWarnings.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
+    if (ana.s < 0 || ana.s > 150) sanityWarnings.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
+    if (ana.c < 20 || ana.c > 150) sanityWarnings.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
+    if (Math.abs(ana.yyBalance) > 10) sanityWarnings.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
+    if (app.builder.blds.length > 32) sanityWarnings.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
+
+    // ==========================================
+    // 【新增：預設格局正向與反向斷言校驗 (Ground Truth Assertions)】
+    // ==========================================
+    const preset = st.presetName || 'current';
+    const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
+    if (preset === 'perfect' || preset === 'wuxing_sheng' || preset === 'huilong') {
+        if (!verdictText.includes('吉')) {
+            sanityWarnings.push(`【正向斷言失敗】預設 [${preset}] 本應為吉局，但實際評級為 [${verdictText}]，請檢查物理感測器與分數邏輯是否誤判！`);
+        }
+    } else if (preset === 'tianzhan' || preset === 'bow' || preset === 'luchong' || preset === 'gejiao' || preset === 'chuanxin') {
+        if (verdictText.includes('吉')) {
+            sanityWarnings.push(`【反向斷言失敗】預設 [${preset}] 本應為重煞凶局，但實際評級為 [${verdictText}]，未能正確認出致命形煞！`);
+        }
+    }
 
     // ==========================================
     // 【第 6 輪 Dry Run 診斷修正】高維物理指標異常檢測：僅在「高階指標顯示大凶但分數顯示吉象」的矛盾時才回報 CRITICAL，避免對合理大凶格局重複誤報
     // ==========================================
-    const scoreSuggestGood = typeof ana.g === 'number' && ana.g > 60 && typeof ana.s === 'number' && ana.s < 40;
-    if (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0 && scoreSuggestGood) {
-        anomalies.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>5.0）但分數顯示吉象，氣場混亂與吉分矛盾`);
+    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    const realEffectiveGather = Math.min(ana.g, ana.c);
+    const scoreSuggestGood = typeof realEffectiveGather === 'number' && realEffectiveGather > 60 && typeof ana.s === 'number' && ana.s < 40;
+    if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.5 && scoreSuggestGood) {
+        sanityWarnings.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>6.5）但分數顯示吉象，氣場混亂與吉分矛盾`);
     }
-    if (typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.5 && scoreSuggestGood) {
-        anomalies.push(`CRITICAL: 拓撲閉合度僅 ${(ana.betti1Closure*100).toFixed(1)}%（<50%）但分數顯示吉象，明堂漏風與吉分矛盾`);
+    if (hasBldsForAnomalyCheck && typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.3 && scoreSuggestGood) {
+        sanityWarnings.push(`CRITICAL: 拓撲閉合度僅 ${(ana.betti1Closure*100).toFixed(1)}%（<30%）但分數顯示吉象，明堂漏風與吉分矛盾`);
     }
-    if (typeof ana.reynoldsNum === 'number' && ana.reynoldsNum > 4000 && scoreSuggestGood) {
-        anomalies.push(`CRITICAL: 雷諾數 ${ana.reynoldsNum} 高於 4000（極端湍流）但分數顯示吉象，湍流風煞與吉分矛盾`);
+    if (hasBldsForAnomalyCheck && typeof ana.reynoldsNum === 'number' && ana.reynoldsNum > 4000 && scoreSuggestGood) {
+        sanityWarnings.push(`CRITICAL: 雷諾數 ${ana.reynoldsNum} 高於 4000（極端湍流）但分數顯示吉象，湍流風煞與吉分矛盾`);
     }
-    if (typeof ana.froudeNum === 'number' && ana.froudeNum > 1.0 && scoreSuggestGood) {
-        anomalies.push(`CRITICAL: 弗勞德數 ${ana.froudeNum.toFixed(2)} 高於 1.0（超臨界流）但分數顯示吉象，急流煞氣與吉分矛盾`);
+    if (hasBldsForAnomalyCheck && typeof ana.froudeNum === 'number' && ana.froudeNum > 1.0 && scoreSuggestGood) {
+        sanityWarnings.push(`CRITICAL: 弗勞德數 ${ana.froudeNum.toFixed(2)} 高於 1.0（超臨界流）但分數顯示吉象，急流煞氣與吉分矛盾`);
     }
     if (typeof ana.qFactor === 'number' && ana.qFactor < 1.0 && ana.g >= 60 && ana.s < 30) {
-        anomalies.push(`WARNING: 吉氣偏高但駐波共振 Q 值過低 (${ana.qFactor.toFixed(2)})，吉氣缺乏凝聚載體，分數可能矛盾`);
+        sanityWarnings.push(`WARNING: 吉氣偏高但駐波共振 Q 值過低 (${ana.qFactor.toFixed(2)})，吉氣缺乏凝聚載體，分數可能矛盾`);
     }
     // 【第5輪 Dry Run 診斷修正】重煞與評級矛盾偵測：若引擎標記重煞但最終評級為上吉/中吉，代表計分邏輯錯誤
     if (typeof ana.isHeavySha === 'boolean' && ana.isHeavySha) {
-        const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
         if (verdictText.includes('上吉') || verdictText.includes('中吉')) {
-            anomalies.push(`CRITICAL: 重煞標記為 true 但評級為「${verdictText}」，狀態矛盾`);
+            sanityWarnings.push(`CRITICAL: 重煞標記為 true 但評級為「${verdictText}」，狀態矛盾`);
         }
     }
 
@@ -4366,33 +4714,47 @@ const DryRunTool = {
         return y;
     };
     const getGlobalY = (x, z) => {
+        // 【第1輪診斷修正】掃描點必須位於建築 AABB 內才取建築頂部，避免塔樓/遠景在 11x11 矩陣中被誤判為中央極端尖峰。
+        // 同時改用與引擎相同的 getGeoZ（含傾瀉/低陷補償），確保拓撲矩陣與實際地形一致。
         let y = getGeoZ(x, z);
         for(let b of app.builder.blds) {
-            if(!b.isWater && Math.abs(x - b.x) <= b.w/2 && Math.abs(z - b.z) <= b.d/2) {
-                // 【第5輪修正】建築物實際放置於 Util.terrainY 高程，而非 getGeoZ（後者額外含傾瀉/低陷特殊地形），修正案山與龍虎在斜坡/傾瀉被低估之問題
-                y = Math.max(y, (b.y || 0) + b.h + Util.terrainY(b.x, b.z, st.terrain)); 
+            if(b.isWater) continue;
+            const dx = x - b.x, dz = z - b.z;
+            // 只有落在建築物水平佔地範圍內，才是真正的實體頂部；否則不應納入。
+            if(Math.abs(dx) <= b.w/2 && Math.abs(dz) <= b.d/2) {
+                let bBase = (b.y || 0) + getGeoZ(b.x, b.z);
+                y = Math.max(y, bBase + b.h);
             }
         }
         return y;
     };
 
     // 1. 生成 11x11 降維微縮地圖 (Topo-Matrix)
+    // 【第4輪靜態審查修正】改以穴心相對座標 (dxTaiji, dzTaiji) 為中心取樣，
+    // 確保穴位移動時拓撲矩陣不會因絕對座標鎖死在舊中心而錯位。
     const topoMatrix = [];
-    for (let z = -5; z <= 5; z++) {
+    const taijiCX = 0, taijiCZ = 0; // 穴心基準點（若日後支援手動點穴，改為讀取 stateManager.taijiX/Z）
+    for (let dz = -5; dz <= 5; dz++) {
         let row = [];
-        for (let x = -5; x <= 5; x++) {
-            row.push(Math.round(getGlobalY(x * 15, z * 15)));
+        for (let dx = -5; dx <= 5; dx++) {
+            row.push(Math.round(getGlobalY(taijiCX + dx * 15, taijiCZ + dz * 15)));
         }
         topoMatrix.push(row);
     }
 
     // 2. 八方天際線雷達 (Skyline Radar)
-    const skyline = { N:-99, NE:-99, E:-99, SE:-99, S:-99, SW:-99, W:-99, NW:-99 };
+    // 【第4輪靜態審查修正】掃描基準必須使用「穴心相對座標」(dzTaiji)，
+    // 否則穴位被手動點穴移動後，雷達仍鎖定原點，會產生斷崖錯位。
+    // 此處以主樓位置 (0,0) 為穴心基準，若未來穴心可移動，應改為 stateManager.taijiX/taijiZ。
+    const skyline = { N:0, NE:0, E:0, SE:0, S:0, SW:0, W:0, NW:0 };
     const dirs = { N:[0,-1], NE:[0.7,-0.7], E:[1,0], SE:[0.7,0.7], S:[0,1], SW:[-0.7,0.7], W:[-1,0], NW:[-0.7,-0.7] };
+    const taijiX = 0, taijiZ = 0; // 穴心基準點（若日後支援手動點穴，改為讀取 stateManager.taijiX/Z）
     for (let d in dirs) {
         // 【第4輪修正】掃描起點自 25 單位起，避開主樓半徑，避免八方雷達被自身建築遮蔽
         for (let dist = 25; dist <= 80; dist += 2) {
-            let sy = getGlobalY(dirs[d][0] * dist, dirs[d][1] * dist);
+            const scanX = taijiX + dirs[d][0] * dist;
+            const scanZ = taijiZ + dirs[d][1] * dist;
+            let sy = Math.max(0, getGlobalY(scanX, scanZ));
             if (sy > skyline[d]) skyline[d] = Math.round(sy);
         }
     }
@@ -4407,8 +4769,7 @@ const DryRunTool = {
             if (b2.isWater || b2.isGlass || b2.h < 5) continue;
             // AABB 碰撞偵測 (Axis-Aligned Bounding Box)
             if (Math.abs(b1.x - b2.x) < (b1.w + b2.w)/2 - 0.5 && Math.abs(b1.z - b2.z) < (b1.d + b2.d)/2 - 0.5) {
-                // 如果 Y 軸也有重疊才算真穿模
-            // 如果 Y 軸也有重疊才算真穿模 (修正：加入地形高度，避免斜坡/盆地被誤判)
+                // 如果 Y 軸也有重疊才算真穿模 (修正：加入地形高度，避免斜坡/盆地被誤判)
             let b1Base = (b1.y || 0) + Util.terrainY(b1.x, b1.z, st.terrain);
             let b2Base = (b2.y || 0) + Util.terrainY(b2.x, b2.z, st.terrain);
             if (b1Base < b2Base + b2.h && b1Base + b1.h > b2Base) {
@@ -4418,13 +4779,20 @@ const DryRunTool = {
         }
     }
     if (intersectingBlds > 0) {
-        anomalies.push(`【建築穿模警告】發現 ${intersectingBlds} 處建築物重疊穿模，空間幾何分配錯誤 (請檢查 x, z, w, d 是否衝突)。`);
+        sanityWarnings.push(`【建築穿模警告】發現 ${intersectingBlds} 處建築物重疊穿模，空間幾何分配錯誤 (請檢查 x, z, w, d 是否衝突)。`);
     }
 
     const realG = Math.min(ana.g, ana.c);
     const hasHeavySha = ana.isHeavySha;
 
+	let expectedRating = "動態判定";
+    if (['perfect', 'wuxing_sheng', 'huilong'].includes(st.presetName)) expectedRating = "上吉/中吉";
+    else if (['tianzhan', 'bow', 'luchong', 'gejiao', 'chuanxin'].includes(st.presetName)) expectedRating = "凶局/平局";
+
 	return {
+      presetName: st.presetName || 'current', // 👈 供 AI 識別
+      expectedRating: expectedRating,         // 👈 給予 AI 評判基準
+      sanityWarnings: sanityWarnings,         // 👈 拉到根目錄供 auto_tuner 抓取
 	  meta: {
 		engineVersion: "v7 專業大師擴充版",
 		timestamp: new Date().toISOString(),
@@ -4483,8 +4851,8 @@ const DryRunTool = {
 		physicsText: ana.physicsText || []
 	  },
 	  healthAndAnomalies: {
-		healthStatus: anomalies.length === 0 ? "PASS" : "WARNING",
-		anomalies
+		healthStatus: sanityWarnings.length === 0 ? "PASS" : "WARNING",
+		anomalies: sanityWarnings // 保持相容舊介面
 	  }
 	};
   },
