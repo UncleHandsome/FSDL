@@ -164,7 +164,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                         is_fixed = preset_name and not preset_name.startswith("random")
                         has_warnings = len(res.get("sanityWarnings", [])) > 0
                         expected = res.get("expectedRating", "動態判定")
-                        actual = res.get("verdict", {}).get("rating", "")
+                        actual = res.get("scoringAndVerdict", {}).get("verdictRating", "") or res.get("verdict", {}).get("rating", "") or res.get("verdict", "")
                         rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
 
                         if is_fixed and not has_warnings and rating_matches:
@@ -205,7 +205,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
 
                     has_warnings = len(res.get("sanityWarnings", [])) > 0
                     expected = res.get("expectedRating", "動態判定")
-                    actual = res.get("verdict", {}).get("rating", "")
+                    actual = res.get("scoringAndVerdict", {}).get("verdictRating", "") or res.get("verdict", {}).get("rating", "") or res.get("verdict", "")
                     rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
 
                     if not has_warnings and rating_matches:
@@ -484,8 +484,7 @@ def rollback_file(html_path, logger):
 # ============================================================
 # 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
-UNIFIED_SYSTEM_PROMPT = """You are a helpful software engineer assistant.
-你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
+UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
 我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
 2. 【靜態代碼審查】：分析傳入的最新 JS 代碼。
@@ -754,7 +753,7 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
         conversation_history.append({"role": "user", "content": user_msg})
         
         # 共通的 AI 請求與套用邏輯
-        ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+        ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, model, conversation_history, logger)
         if prompt_tokens > MAX_TOKEN_THRESHOLD:
             logger.warning(f"⚠️ 當前 Prompt Token ({prompt_tokens}) 已超過閾值 ({MAX_TOKEN_THRESHOLD})，下一輪將自動重置歷史。")
             should_reset_next = True
@@ -1195,7 +1194,7 @@ def main():
         f.write(f"- **目標檔案**：`{target_file}`\n")
         f.write(f"- **調校模型**：`{args.model}`\n")
         f.write(f"- **總測試輪數**：{len(history_logs)}\n")
-        f.write(f"- **最終狀態**：{'🎉 已達完美穩定狀態 (通過 8 階段考驗)' if consecutive_perfects >= SUCCESS_TARGET else '⚠️ 中途終止或達到最大輪數'}\n\n")
+        f.write(f"- **最終狀態**：{'🎉 已達完美穩定狀態 (通過 ' + str(SUCCESS_TARGET) + ' 階段考驗)' if consecutive_perfects >= SUCCESS_TARGET else '⚠️ 中途終止或達到最大輪數'}\n\n")
         f.write(f"## 歷程明細\n\n")
         for item in history_logs:
             f.write(f"### 第 {item['round']} 輪 - [{item['status']}]\n")

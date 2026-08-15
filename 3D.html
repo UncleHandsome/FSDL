@@ -396,6 +396,9 @@ const Rules = {
         if(state.d !== 'si' && state.d !== 'po' && state.xia && (state.xing === 'jin' || state.xing === 'mu' || state.xing === 'shui') && state.ml === 'you' && state.mr === 'you' && (state.w === 'you' || state.w === 'jiuqu') && state.an) m *= 1.15;
         if(state.d === 'huilong' && state.d !== 'si' && state.d !== 'po' && !isBadWater && state.zutai && state.face === '0') m *= 1.2;
         if(state.fengyao && state.hulong && state.zutai && state.d !== 'si' && state.d !== 'po') m *= 1.1;
+        if (state.mr === 'kaikou' || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.tasha || state.d === 'si' || state.d === 'po' || state.d === 'gufeng' || state.yangwa || state.tianjing || state.ml === 'fanbei' || state.mr === 'fanbei' || brokenSandCount >= 2 || ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha', 'lanyao', 'wuwei'].includes(state.road)) {
+            m = Math.min(m, 1.0);
+        }
         return m;
     },
     computeScores() {
@@ -676,7 +679,14 @@ const Rules = {
         emergenceBonus = Math.max(-50, Math.min(30, emergenceBonus));
         const isBadWaterFinal = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w);
         const brokenCount = (state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0);
-        const hasFatalShaFinal = isBadWaterFinal || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.tasha || state.mr === 'kaikou' || state.yangwa || state.tianjing || state.ml === 'fanbei' || state.mr === 'fanbei' || (brokenCount >= 2) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha', 'lanyao', 'wuwei'].includes(state.road);
+        const hasFatalShaFinal = isBadWaterFinal || state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.tasha || state.mr === 'kaikou' || state.d === 'si' || state.d === 'po' || state.d === 'gufeng' || state.yangwa || state.tianjing || state.ml === 'fanbei' || state.mr === 'fanbei' || (brokenCount >= 2) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha', 'lanyao', 'wuwei'].includes(state.road);
+        if (hasFatalShaFinal) {
+            emergenceBonus = Math.min(emergenceBonus, 0);
+            X = Math.min(X, 20);
+            S = Math.min(S, 20);
+            Wa = Math.min(Wa, 20);
+            Xg = Math.min(Xg, 20);
+        }
         let coherenceFactor = 1.0;
         const totalPForCoherence = AppState.gatherAcc + AppState.scatterAcc;
         if (!isCapacityFullSc && totalPForCoherence > 20 && AppState.scatterAcc > AppState.gatherAcc) {
@@ -688,6 +698,13 @@ const Rules = {
         let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.3)) * coherenceFactor;
         let finalWa = Math.max(0, Math.min(100, Wa + emergenceBonus * 0.3)) * coherenceFactor;
         let finalXg = Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.4)) * coherenceFactor;
+        if (hasFatalShaFinal) {
+            finalD = Math.min(finalD, 20);
+            finalX = Math.min(finalX, 20);
+            finalS = Math.min(finalS, 20);
+            finalWa = Math.min(finalWa, 20);
+            finalXg = Math.min(finalXg, 20);
+        }
         if (!hasFatalShaFinal && state.xia && state.xue !== 'none' && !isBadDragon) {
             finalX = Math.max(finalX, 5); 
         }
@@ -709,7 +726,7 @@ const Rules = {
         const hasBrokenSands = (state.mn === 'po' || state.ml === 'po' || state.mr === 'po' || state.ms === 'po');
         const hasAnyBrokenSands = (state.mn === 'po' || state.ml === 'po' || state.mr === 'po' || state.ms === 'po');
         const brokenCountForFatal = (state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0);
-        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.tasha || state.mr === 'kaikou' || state.ml === 'fanbei' || state.mr === 'fanbei' || (brokenCountForFatal >= 2) || state.tianjing || state.yangwa || ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha', 'lanyao', 'wuwei'].includes(state.road);
+        const hasFatalSha = state.tianzhan || state.tantou || state.ao || state.qingquan || state.sherui || state.qing || state.posui || state.wugong || state.bidao || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.tasha || state.mr === 'kaikou' || state.d === 'gufeng' || state.ml === 'fanbei' || state.mr === 'fanbei' || (brokenCountForFatal >= 2) || state.tianjing || state.yangwa || ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w) || ['zhichong', 'sickle', 'jiandao', 'zuocha', 'youcha', 'lanyao', 'wuwei'].includes(state.road);
         if(state.d === 'si' || state.d === 'po'){ 
             return { rating:'大凶・來龍枯潰', color:'#a63a2b', text: (state.d==='si'?'死病龍氣盡枯槁，無生氣可乘，不可立穴。':'破龍山體崩瀉，凶煞直沖穴場，絕不可用。') };
         }
@@ -720,14 +737,14 @@ const Rules = {
         const windSpeedLimitForLair = isPingyangWindExempt ? 5.0 : 3.0;
         const windTurbLimitForLair = isPingyangWindExempt ? 8.0 : 5.0;
         const hasPerfectGathering = AppState.gatherAcc > 50 && AppState.scatterAcc < 0.001 && AppState.sensors.qiDensity > 0.5 && AppState.sensors.shannonEntropy < 4.0;
-        const ultraGatherAuspicious = AppState.gatherAcc > 100 && AppState.scatterAcc < 5 && AppState.sensors.qiDensity > 0.5 && !hasFatalSha;
+        const ultraGatherAuspicious = AppState.gatherAcc > 100 && AppState.scatterAcc < 5 && !hasFatalSha;
         if (hasFatalSha) {
             rating = '大凶・形煞沖射'; color = '#a63a2b'; tail = '凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
         } else if (effectiveAvg >= 70 && state.xia && state.xue !== 'none' && state.mt && !hasAnyBrokenSands) {
             const hasBadWater = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w);
             const hasPhysicalBreakdown = (totalP > 50 && (AppState.sensors.windSpeed > 6.0 || AppState.sensors.turbulence > 8.0));
-            if (hasBadWater || hasPhysicalBreakdown) {
-                rating = '中平・有瑕'; color = '#3f6b52'; tail = '巒頭尚可，但水法或風場導致氣場受損，需化解。';
+            if (hasBadWater || hasPhysicalBreakdown || !ultraGatherAuspicious) {
+                rating = '中平・有瑕'; color = '#3f6b52'; tail = '巒頭尚可，但水法、風場或氣場凝聚不足，需化解。';
             } else {
                 rating = '上吉・龍真穴的'; color = '#b98a2e'; tail = '巒頭完美且實時粒子物理流動藏風聚氣，上上之局。';
             }
@@ -742,9 +759,10 @@ const Rules = {
         }
         else {
             if(hasFatalSha){rating='大凶・形煞沖射';color='#a63a2b';tail='凶煞直沖穴場，雖有形巒，實為絕地，不可用。';}
-            else if(AppState.gatherAcc < 0.5 && AppState.scatterAcc < 0.5 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
             else if(!state.xia){rating='大凶・無穴可立';color='#a63a2b';tail=(state.d === 'pingyang' ? '平洋' : '山龍') + '無穴星融結，煞氣肆橫，不可用。';}
+            else if(AppState.gatherAcc < 0.5 && AppState.scatterAcc < 0.5 && AppState.frames > 120 && AppState.sensors.qiDensity < 0.005 && AppState.sensors.windSpeed < 0.1 && totalP < 5){rating='大凶・氣場斷絕';color='#a63a2b';tail='實時物理顯示穴場毫無生氣流動，真氣無法凝聚，不可用。';}
             else if(dynRatio < 0.2 && totalP > 50){rating='大凶・極度吹散';color='#a63a2b';tail='實時動態物理顯示強烈風場/煞氣已完全摧毀穴場氣脈。';}
+            else if(ultraGatherAuspicious){rating='中平・有瑕';color='#3f6b52';tail='巒頭有瑕，但實時氣場凝聚良好，需化解形煞。';}
             else{rating='大凶・不聚';color='#a63a2b';tail='煞氣肆橫，生氣耗散。';}
         }
         let shaNotes = [];
@@ -769,7 +787,6 @@ const Rules = {
         if(state.yangwa) shaNotes.push('仰瓦(漏胎煞)');
         if(state.tasha) shaNotes.push('孤陽塔煞');
         if(state.tianjing) shaNotes.push('天井煞(坐井觀天)');
-        if(state.w === 'sishui') shaNotes.push('四水歸堂(大聚財)');
         if(state.qingquan) shaNotes.push('擎拳煞'); if(state.an && state.tantou) shaNotes.push('探頭煞'); 
         if(state.sherui) shaNotes.push('射肋煞'); if(state.posui) shaNotes.push('破碎崖');
         if(state.wugong) shaNotes.push('蜈蚣脊'); if(state.bidao) shaNotes.push('刀削壁');
@@ -3971,8 +3988,8 @@ const Physics = {
     },
     resetParticles() {
         const state = AppState.current;
-        const xueXOffset = 0;
-        const xueZOffset = 0;
+        const xueXOffset = state.manualXue ? (state.xueX || 0) : 0;
+        const xueZOffset = state.manualXue ? state.xueZ : 5.0;
         for(let i=0; i<this.pCount; i++) {
             this.pPos[i*3] = (Math.random()-0.5)*60;
             if(state.d === 'pingyang') {
@@ -4017,7 +4034,7 @@ const Physics = {
                 this.pState[i] = 0;
                 this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.8; this.pCol[i*3+2]=0.6; 
             }
-            this.pLife[i] = 100 + Math.random() * 500;
+            this.pLife[i] = 600;
         }
         this.pGeom.attributes.position.needsUpdate = true;
         this.pGeom.attributes.color.needsUpdate = true;
@@ -4158,15 +4175,11 @@ const Physics = {
             else if(['hejin','sishui','jushui'].includes(state.w)) riverRefZ = 35;
             let waterSenseZStart = riverRefZ - 20;
             let waterSenseZEnd = riverRefZ + 20;
-            let waterSenseXMin = -50;
-            let waterSenseXMax = 50;
             if (state.yue) {
                 waterSenseZStart = Math.min(waterSenseZStart, lz - 5);
                 waterSenseZEnd = Math.max(waterSenseZEnd, lz + 45);
-                waterSenseXMin = lx - 50;
-                waterSenseXMax = lx + 50;
             }
-            if (isNearWater && z > waterSenseZStart && z < waterSenseZEnd && x > waterSenseXMin && x < waterSenseXMax && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
+            if (isNearWater && Math.abs(dxTaiji) < 50 && Math.abs(dzTaiji) < 60 && z > waterSenseZStart && z < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 let driftSpeed = 2.5 * (state.waterVel || 1.0);
                 let relativeSpeed = Math.max(0, Math.sqrt(vel.x * vel.x + vel.z * vel.z) - driftSpeed);
                 let physicalDrag = relativeSpeed * 0.35 + Math.max(0, -vel.y) * 0.65;
@@ -4176,7 +4189,7 @@ const Physics = {
                 }
             }
             vel.y -= 0.025 * dt;
-            vel.x += (Math.random()-0.5)*0.1*dt; vel.z += (Math.random()-0.5)*0.1*dt;
+            vel.x += (Math.random()-0.5)*0.1*Math.abs(baseWind)*dt; vel.z += (Math.random()-0.5)*0.1*Math.abs(baseWind)*dt;
             if(AppState.obstacles.length > 0) {
                 if (st === 0 || st === 2) {
                     for(let obs of AppState.obstacles) {
@@ -4185,10 +4198,17 @@ const Physics = {
                         let distObsSq = dxObs*dxObs + dzObs*dzObs;
                         if(distObsSq < 36.0 && y < obs.mesh.position.y + 5.0) {
                             let dObs = Math.max(0.1, Math.sqrt(distObsSq));
-                            localTurbulence += 15.0;
-                            vel.x = (dxObs / dObs) * 4.5;
-                            vel.z = (dzObs / dObs) * 4.5;
-                            vel.y += 2.0;
+                            localTurbulence += 15.0 * Math.abs(baseWind);
+                            let nxObs = dxObs / dObs;
+                            let nzObs = dzObs / dObs;
+                            let dot = vel.x * nxObs + vel.z * nzObs;
+                            if (dot < 0) {
+                                vel.x -= (1.0 + 0.7) * dot * nxObs;
+                                vel.z -= (1.0 + 0.7) * dot * nzObs;
+                            }
+                            vel.x *= Math.pow(0.6, dt);
+                            vel.z *= Math.pow(0.6, dt);
+                            vel.y += Math.max(0, (obs.mesh.position.y + 5.0 - y)) * dt;
                             this.pCol[i*3]=1.0; this.pCol[i*3+1]=0.2; this.pCol[i*3+2]=0.1;
                             if (st === 2) Engine3D.createShockwave(x, y, z, 0xff0000);
                             break;
@@ -4395,7 +4415,7 @@ const Physics = {
                     this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.9;
                 }
             }
-            let caveZoneFalloff = Math.max(0, Math.min(1, (dzTaiji + 30) / 8.0)) * Math.max(0, Math.min(1, (25 - dzTaiji) / 8.0));
+            let caveZoneFalloff = 0;
             caveZoneFalloff *= Math.max(0, 1 - Math.abs(dxTaiji) / 35.0);
             caveZoneFalloff = caveZoneFalloff * caveZoneFalloff * (3 - 2 * caveZoneFalloff);
             if (state.xia && state.d !== 'si' && state.d !== 'po' && caveZoneFalloff > 0.001 && y < t.y + 25) {
@@ -4437,14 +4457,6 @@ const Physics = {
                         vel.y -= 2.5 * thermalDraft * dt * yangwaFalloff; 
                         vel.z -= 1.5 * thermalDraft * dt * yangwaFalloff; 
                     }
-                    if (state.xia && state.xue !== 'none' && dzTaiji >= -12 && dzTaiji <= 16 && Math.abs(dxTaiji) <= 14) {
-                        let caveFalloffX = Math.max(0, 1 - Math.abs(dxTaiji) / 14.0);
-                        let caveFalloffZ = Math.max(0, Math.min(1, (dzTaiji + 12) / 4.0)) * Math.max(0, Math.min(1, (16 - dzTaiji) / 4.0));
-                        let caveFalloff = Math.min(caveFalloffX, caveFalloffZ);
-                        caveFalloff = caveFalloff * caveFalloff * (3 - 2 * caveFalloff);
-                        vel.multiplyScalar(Math.pow(0.70, dt * caveFalloff)); 
-                        vel.y -= 0.2 * dt * caveFalloff; 
-                    }
                     vel.multiplyScalar(Math.pow(0.8, dt * caveZoneFalloff));
                     vel.y -= 0.15 * dt * caveZoneFalloff;
                 }
@@ -4466,20 +4478,11 @@ const Physics = {
                     vel.y -= 1.0 * dt;
                 }
                 y = Math.max(y, t.y + 0.8);
-                if (state.caoshe && state.d === 'pingyang' && y < t.y + 2.0) {
-                    vel.multiplyScalar(Math.pow(0.92, dt)); 
-                }
-                if (state.emei && dzTaiji > 18 && dzTaiji < 42 && Math.abs(dxTaiji) < 28 && y < t.y + 3.0) {
-                    let emeiFalloff = Math.max(0, Math.min(1, (dzTaiji - 18) / 4.0)) * Math.max(0, Math.min(1, (42 - dzTaiji) / 4.0));
-                    emeiFalloff *= Math.max(0, 1 - Math.abs(dxTaiji) / 28.0);
-                    emeiFalloff = emeiFalloff * emeiFalloff * (3 - 2 * emeiFalloff);
-                    vel.multiplyScalar(Math.pow(0.90, dt * emeiFalloff)); 
-                }
                 if (state.bohuan === 'no' && dzTaiji < -10) {
                     if (vel.y < 0) {
                         frameBounce++; 
                         vel.y = Math.abs(vel.y) * 0.75; 
-                        vel.x += (Math.random() - 0.5) * 4.0; 
+                        vel.x += (Math.random() - 0.5) * 4.0 * thermalDraft; 
                     }
                 } else {
                     if (vel.y < 0) vel.y *= 0.5; 
@@ -4487,21 +4490,13 @@ const Physics = {
                 if (dzTaiji < 72) {
                     let guideFalloff = 1.0 - Math.max(0, Math.min(1, (dzTaiji - 60) / 12.0));
                     guideFalloff = guideFalloff * guideFalloff * (3 - 2 * guideFalloff);
-                    let pulse = 2.5; 
-                    let pullDist = Math.max(0, (lz - z));
-                    let pullFactor = Math.min(1.0, pullDist / 100.0);
-                    pulse *= (0.3 + pullFactor * 0.7);
-                    let taijiDistSqPulse = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
-                    if (taijiDistSqPulse < 625) {
-                        let taijiDistPulse = Math.sqrt(taijiDistSqPulse);
-                        pulse *= Math.max(0.05, (taijiDistPulse - 3.0) / 22.0);
-                    }
+                    let pulse = 2.5;
                     vel.z += pulse * dt * guideFalloff;
                     if (state.d === 'huilong') {
                         let rx = x - (state.manualXue ? (state.xueX || 0) : 0);
                         let rz = z - (state.manualXue ? state.xueZ : 5.0);
                         let rSq = rx*rx + rz*rz;
-                        if (rSq < 10000.0) {
+                        if (rSq < 10000.0 && thermalDraft > 0.01) {
                             frameHelicity++; 
                         }
                     }
@@ -4638,17 +4633,17 @@ const Physics = {
                     let ruggedness = Math.sqrt(t.nx*t.nx + t.nz*t.nz);
                     if (dzTaiji > -15 && dzTaiji < 15 && Math.abs(dxTaiji) < 25) {
                         let expectedDecay = Math.exp(-Math.pow(dzTaiji + 15, 2) / 50.0); 
-                        if (ruggedness > expectedDecay + 4.0) {
+                        if (ruggedness > expectedDecay + 4.0 && thermalDraft > 0.01) {
                             frameWaveletSpike++; 
-                            vel.x += (Math.random() - 0.5) * ruggedness * 2.0 * dt;
-                            vel.z += (Math.random() - 0.5) * ruggedness * 2.0 * dt;
+                            vel.x += (Math.random() - 0.5) * ruggedness * 2.0 * thermalDraft * dt;
+                            vel.z += (Math.random() - 0.5) * ruggedness * 2.0 * thermalDraft * dt;
                         }
                     }
                     let isPhysicallySmooth = (ruggedness < 1.5 && y < t.y + 5.0 && dzTaiji > -50 && dzTaiji < 10);
-                    if (isPhysicallySmooth) {
+                    if (isPhysicallySmooth && thermalDraft > 0.01) {
                         frameCoanda++; 
-                        vel.y -= 0.8 * dt; 
-                        vel.x += (t.nx * 0.3 - vel.x) * 0.5 * dt; 
+                        vel.y -= 0.8 * thermalDraft * dt; 
+                        vel.x += (t.nx * 0.3 - vel.x) * 0.5 * thermalDraft * dt; 
                     }
                     let ruggedFactor = Math.max(0, Math.min(1, (ruggedness - 5.0) / 8.0));
                     ruggedFactor = ruggedFactor * ruggedFactor * (3 - 2 * ruggedFactor);
@@ -4700,14 +4695,14 @@ const Physics = {
 							let steepness = rearH - (y + 8);
                             let steepFactor = Math.max(0, Math.min(1, (steepness - 10.0) / 10.0));
                             steepFactor = steepFactor * steepFactor * (3 - 2 * steepFactor);
-                            if (steepFactor > 0.001) { 
+                            if (steepFactor > 0.001 && thermalDraft > 0.01) { 
 								frameDowndraft++; 
 								vel.y -= steepness * 0.6 * thermalDraft * dt * downwashFalloff * steepFactor; 
 								vel.z += steepness * 0.4 * thermalDraft * dt * downwashFalloff * steepFactor; 
 								localTurbulence += steepness * 0.5 * thermalDraft * downwashFalloff * steepFactor; 
+								vel.multiplyScalar(Math.pow(0.85, dt * downwashFalloff * thermalDraft));
+								vel.y -= 0.3 * thermalDraft * dt * downwashFalloff;
 							}
-							vel.multiplyScalar(Math.pow(0.85, dt * downwashFalloff));
-							vel.y -= 0.3 * dt * downwashFalloff;
 						}
                         let rearSlopeNormal = Engine3D.getTerrainY(x, z - 10).nz;
                         let rearSlopeFactor = Math.max(0, Math.min(1, (rearSlopeNormal - 5.0) / 8.0));
@@ -4738,11 +4733,11 @@ const Physics = {
                         let widthRight = Engine3D.getTerrainY(x + 12, z).y;
                         if (widthLeft > t.y + 5 && widthRight > t.y + 5) {
                             vel.x += (0 - x) * 0.8 * thermalDraft * dt * passFalloff; 
-                            if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
-                                frameVenturi++; 
-                                vel.z += 3.5 * thermalDraft * dt * passFalloff; 
-                                vel.y *= Math.pow(0.6, dt * passFalloff); 
-                            } else {
+                        if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
+                            if (thermalDraft > 0.01) frameVenturi++; 
+                            vel.z += 3.5 * thermalDraft * dt * passFalloff; 
+                            vel.y *= Math.pow(0.6, dt * passFalloff * thermalDraft); 
+                        } else {
                                 vel.z += 1.5 * thermalDraft * dt * passFalloff; 
                                 if (Math.abs(globalWindX) > 0.3) {
                                     vel.x += globalWindX * 3.5 * dt * passFalloff; 
@@ -4755,7 +4750,7 @@ const Physics = {
                 vel.multiplyScalar(Math.pow(0.98, dt));
                 vel.y -= 2.5 * dt; 
             }
-            let hasGuards = state.luo || state.hua || state.shixiang || state.qin || state.riyue;
+            let hasGuards = false;
             if (hasGuards && z > 50 && z < 90 && Math.abs(x) < 55) {
                 let guardFalloffX = Math.max(0, 1 - Math.abs(x) / 55.0);
                 let guardFalloffZ = Math.min(1, Math.max(0, (z - 50) / 8.0)) * Math.min(1, Math.max(0, (90 - z) / 8.0));
@@ -4778,8 +4773,8 @@ const Physics = {
                 }
             }
             if(st === 1) {
-                vel.x += (Math.random()-0.5)*0.8;
-                vel.z += (Math.random()-0.5)*0.8;
+                vel.x += (Math.random()-0.5)*0.8*thermalDraft;
+                vel.z += (Math.random()-0.5)*0.8*thermalDraft;
             }
             let coriolisStrength = 0.08; 
             const oldVelX = vel.x;
@@ -4827,9 +4822,9 @@ const Physics = {
                 let taijiEdge = 1.0 - Math.max(0, Math.min(1, (distToTaijiEdge - taijiRadiusEdge * 0.85) / (taijiRadiusEdge * 0.15)));
                 taijiEdge = taijiEdge * taijiEdge * (3 - 2 * taijiEdge);
                 if (state.soil === 'wanshi' && y < 2.0) {
-                    vel.y += 3.5 * dt * taijiEdge; 
-                    vel.x += (Math.random()-0.5) * 4.0 * dt;
-                    vel.z += (Math.random()-0.5) * 4.0 * dt;
+                    if (vel.y < 0) vel.y = Math.abs(vel.y) * 0.5;
+                    vel.x *= Math.pow(0.8, dt);
+                    vel.z *= Math.pow(0.8, dt);
                 } else if (state.soil === 'yuni' && y < 1.0) {
                     frameDarcyDrag++; 
                     let viscousDrag = 0.02; 
@@ -4838,7 +4833,7 @@ const Physics = {
                 } else if (state.soil === 'wuse') {
                     let seepagePermeability = 0.85; 
                     vel.multiplyScalar(Math.pow(seepagePermeability, dt)); 
-                    vel.y += (0.1 - vel.y) * 0.5 * dt; 
+                    vel.y *= Math.pow(0.8, dt * taijiEdge);
                 }
                let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
                let escapeDistThreshold = (state.d === 'pingyang') ? 26.88 : 15.21;
@@ -4909,11 +4904,7 @@ const Physics = {
                    vel.x += qiGradX * 0.35 * dt; 
                    vel.z += qiGradZ * 0.35 * dt;
                }
-               if (state.soil === 'wuse' && Math.random() < 0.15) {
-                   vel.y += 0.20 * dt * taijiEdge; 
-               } else {
-                   vel.y *= Math.pow(0.8, dt * taijiEdge); 
-               }
+               vel.y *= Math.pow(0.8, dt * taijiEdge); 
                let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5);
                let isFrontRiseSlope = (dzTaiji > 20 && t.nz < -0.1);
                let deepWaterFloor = (state.d === 'pingyang') ? -3.4 : -15.0;
@@ -4951,8 +4942,8 @@ const Physics = {
             let isBoundaryExceeded = (isOutOfMap || isStuck || isLifeExpired);
             if (isBoundaryExceeded) {
                 if (isOutOfMap && (st === 1 || st === 3)) frameScatter += 1;
-                const xueXOffset = 0;
-                const xueZOffset = 0;
+                const xueXOffset = state.manualXue ? (state.xueX || 0) : 0;
+                const xueZOffset = state.manualXue ? state.xueZ : 5.0;
                 if(state.d === 'pingyang') {
                     z = -35 - Math.random()*10 + xueZOffset; 
                     x = (Math.random()-0.5)*20 + xueXOffset;
@@ -4984,7 +4975,7 @@ const Physics = {
                     this.pState[i] = 0;
                     this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.8; this.pCol[i*3+2]=0.6;
                 }
-                this.pLife[i] = 100 + Math.random() * 500;
+                this.pLife[i] = 600;
             }
             this.pPos[i*3]=x; this.pPos[i*3+1]=y; this.pPos[i*3+2]=z;
             this.pGeom.attributes.velocity.setXYZ(i, vel.x, vel.y, vel.z);
@@ -5222,18 +5213,18 @@ const Physics = {
         AppState.sensors.betti1Closure += (currentBetti - AppState.sensors.betti1Closure) * 0.05 * dt;
         AppState.gatherAcc += (frameGather - AppState.gatherAcc) * 0.05 * dt;
         AppState.scatterAcc += (frameScatter - AppState.scatterAcc) * 0.10 * dt;
-        AppState.sensors.coanda = (frameCoanda / this.pCount) * 100;
-        AppState.sensors.downdraft = (frameDowndraft / this.pCount) * 100;
-        AppState.sensors.venturi = (frameVenturi / this.pCount) * 100;
-        AppState.sensors.bounce = (frameBounce / this.pCount) * 100;
-        AppState.sensors.phreatic = (framePhreatic / this.pCount) * 200;
-        AppState.sensors.tensorFrac = (frameTensorFracture / this.pCount) * 500;
-        AppState.sensors.helicity = (frameHelicity / this.pCount) * 100;
-        AppState.sensors.thermalShear = (frameThermalShear / this.pCount) * 300;
-        AppState.sensors.waveletSpike = (frameWaveletSpike / this.pCount) * 200;
-        AppState.sensors.coriolisCrash = (frameCoriolisCrash / this.pCount) * 500;
-        AppState.sensors.darcyDrag = (frameDarcyDrag / this.pCount) * 100;
-        AppState.sensors.boundarySep = (frameBoundarySep / this.pCount) * 300;
+        AppState.sensors.coanda = Math.min(100, (frameCoanda / this.pCount) * 100);
+        AppState.sensors.downdraft = Math.min(100, (frameDowndraft / this.pCount) * 100);
+        AppState.sensors.venturi = Math.min(100, (frameVenturi / this.pCount) * 100);
+        AppState.sensors.bounce = Math.min(100, (frameBounce / this.pCount) * 100);
+        AppState.sensors.phreatic = Math.min(100, (framePhreatic / this.pCount) * 200);
+        AppState.sensors.tensorFrac = Math.min(100, (frameTensorFracture / this.pCount) * 500);
+        AppState.sensors.helicity = Math.min(100, (frameHelicity / this.pCount) * 100);
+        AppState.sensors.thermalShear = Math.min(100, (frameThermalShear / this.pCount) * 300);
+        AppState.sensors.waveletSpike = Math.min(100, (frameWaveletSpike / this.pCount) * 200);
+        AppState.sensors.coriolisCrash = Math.min(100, (frameCoriolisCrash / this.pCount) * 500);
+        AppState.sensors.darcyDrag = Math.min(100, (frameDarcyDrag / this.pCount) * 100);
+        AppState.sensors.boundarySep = Math.min(100, (frameBoundarySep / this.pCount) * 300);
         let reynoldsNum = Math.round(AppState.sensors.windSpeed * 350 + AppState.sensors.turbulence * 180);
         let froudeNum = (state.w !== 'none') ? Math.max(0, AppState.sensors.waterDrag / 5.0 + ((state.waterVel || 1.0) - 1.0) * 0.4) : 0;
         let isTurbulentSha = (reynoldsNum > 2300 && AppState.sensors.windSpeed > 2.0);

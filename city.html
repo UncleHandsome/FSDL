@@ -603,8 +603,8 @@ class FengShuiEngine {
           }
           betti1Closure = closedRays / 72;
       } else {
-          betti1Closure = 0.5;      
-          spatialEntropy = 5.0;     
+          betti1Closure = 0.0;
+          spatialEntropy = 0.0;
       }
       reynoldsNum = Math.round(stateManager.wind * 500);
       froudeNum = stateManager.wind / Math.sqrt(9.8 * 10.0); 
@@ -660,21 +660,22 @@ class FengShuiEngine {
         }
     }
     else {
-        if ((st.left === 'qinglong' && st.right === 'none' && !(vLeft > 20 && vLeft > vRight * 1.5)) || 
-            (st.left === 'none' && st.right === 'baihu' && !(vRight > 20 && vRight > vLeft * 1.5))) {
+        if ((st.left === 'qinglong' && st.right === 'none') || 
+            (st.left === 'none' && st.right === 'baihu')) {
             s += 25; g = Math.max(0, g - 5); c = Math.max(20, c - 5);
             observerText.push(st.left === 'qinglong' ? "空間｜青龍獨存，白虎虛空，氣場失衡 (湧現: 青龍無虎/左強右弱)" : "空間｜白虎獨存，青龍虛空，氣場失衡 (湧現: 白虎無青龍/右強左弱)");
         }
         if (vLeft < 5 && vRight < 5) {
             observerText.push("空間｜左右側翼空虛，氣場無護 (四象空虛)");
         }
-        if (vLeft > 20 && vLeft > vRight * 1.5 && st.left !== 'broken') {
+        if (vLeft > 20 && vLeft > vRight * 1.5 && st.left !== 'broken' && (st.left === 'oppress' || stateManager.heights.drag > hMain)) {
+            s += 35; g = Math.max(0, g - 10); c = Math.max(20, c - 5);
             observerText.push("空間｜左側實體高大逼壓主樓 (青龍逼壓)"); wuXingText += "｜青龍逼壓；";
         }
         if (st.right === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push("空間｜右側破碎殘缺，白虎無力"); }
         if (st.left === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push("空間｜左側破碎殘缺，青龍無力"); }
     }
-    if (!fengShuiContextBroken && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) {
+    if (!fengShuiContextBroken && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30 && (st.right === 'raise' || stateManager.heights.tig > hMain)) {
         s += 35; g = Math.max(0, g - 10); c = Math.max(20, c - 5);
         observerText.push("空間｜右側實體過於高大逼壓主樓，白虎雖選但物理上已成抬頭之勢 (湧現: 白虎抬頭)");
         wuXingText += "｜白虎逼壓；";
@@ -901,17 +902,21 @@ class FengShuiEngine {
             observerText.push(`地形｜重力學：無水或煞水，虛水測試未執行，地形不影響水聚`);
         }
     } else if (gatheredDrops >= 30) {
-        let bonus = 20 + Math.round((gatheredDrops - 30) * 0.4); 
-        if (st.waterDir === 'shuai') bonus = Math.round(bonus * 0.5); 
-        if (fengShuiContextBroken) {
-            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚於明堂底層，但${brokenContextDesc}，聚水不成吉格 (湧現抑制: 水聚明堂失效)`);
-        } else if (environmentDisordered) {
-            g += Math.round(bonus * 0.4);
-            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層，但環境熵/湍流過高，聚氣效果大打折扣 (自然湧現: 水聚明堂受環境干擾)`);
+        if (st.terrain === 'slope' || st.special.includes('qingxie')) {
+            observerText.push(`地形｜重力學：${gatherPercent}% 虛水受傾斜地形影響，聚氣乏力 (自然湧現: 坡地漫流)`);
         } else {
-            g += bonus;
-            let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
-            observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
+            let bonus = 20 + Math.round((gatheredDrops - 30) * 0.4); 
+            if (st.waterDir === 'shuai') bonus = Math.round(bonus * 0.5); 
+            if (fengShuiContextBroken) {
+                observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚於明堂底層，但${brokenContextDesc}，聚水不成吉格 (湧現抑制: 水聚明堂失效)`);
+            } else if (environmentDisordered) {
+                g += Math.round(bonus * 0.4);
+                observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層，但環境熵/湍流過高，聚氣效果大打折扣 (自然湧現: 水聚明堂受環境干擾)`);
+            } else {
+                g += bonus;
+                let desc = st.terrain === 'basin' ? '藏風聚穴/盆地' : '平洋停滯/水聚明堂';
+                observerText.push(`地形｜重力學：${gatherPercent}% 虛水匯聚停滯於明堂底層 (自然湧現: ${desc})`);
+            }
         }
     } else if (escapedDrops > 25) {
         s += 25 + Math.round((escapedDrops - 25) * 0.5); 
@@ -1111,6 +1116,8 @@ class FengShuiEngine {
         observerText.push(`空間｜SVF 射線探測：明堂開闊度僅 ${Math.round(frontOpenness*100)}%，明堂受阻 (自然湧現: 堂氣難伸)`);
     }
     if (!directSunlight) yin += 3; 
+    if (vLeft > 3000 || vRight > 3000) yin += 2;
+    if (vLeft > 3000 && vRight > 3000) yin += 2;
     if (stateManager.wind >= 8) yang += 2;
     else if (stateManager.wind >= 5) yang += 1; 
     if (stateManager.wind <= 3) yin += 2;
@@ -1422,50 +1429,6 @@ class FengShuiEngine {
         c = Math.max(c, 40);
     }
     if (vortexQi > 10 && !environmentDisordered) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
-    if (yyBalance > 3) {
-        if (stateManager.wind >= 5 && stateManager.trafficSpeed >= 5) {
-            yyText = "陽氣過盛 (明堂空曠且風速車流極大，氣散不聚)";
-        } else if (stateManager.wind >= 5) {
-            yyText = "陽氣過盛 (風速極大，氣散不聚)";
-        } else if (stateManager.trafficSpeed >= 5) {
-            yyText = "陽氣過盛 (車流極快，氣散不聚)";
-        } else {
-            yyText = "陽氣過盛 (明堂開闊或氣流躁動，氣散不聚)";
-        }
-    } else if (yyBalance < -3) {
-        yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
-    } else if (yyBalance > 0) {
-        yyText = "陽氣略盛 (氣場流動稍快，稍微偏陽)";
-    } else if (yyBalance < 0) {
-        yyText = "陰氣略盛 (氣場流動稍緩，稍微偏陰)";
-    } else {
-        yyText = "平 (空間開闊度與氣波動能適中)";
-    }
-    if (yyBalance > 3) {
-        if (stateManager.wind >= 5 && stateManager.trafficSpeed >= 5) {
-            if (st.front === 'none' || st.front === 'sunken' || st.front === 'rubble') {
-                yyText = "陽氣過盛 (明堂空曠且風速車流極大，氣散不聚)";
-            } else {
-                yyText = "陽氣過盛 (風速車流極大，氣散不聚)";
-            }
-        } else if (stateManager.wind >= 5) yyText = "陽氣過盛 (風速極大，氣散不聚)";
-        else if (stateManager.trafficSpeed >= 5) yyText = "陽氣過盛 (車流極快，氣散不聚)";
-        else {
-            if (st.front === 'none' || st.front === 'sunken' || st.front === 'rubble') {
-                yyText = "陽氣過盛 (明堂開闊或氣流躁動，氣散不聚)";
-            } else {
-                yyText = "陽氣過盛 (氣流躁動，氣散不聚)";
-            }
-        }
-    } else if (yyBalance < -3) {
-        yyText = "陰氣過重 (周圍逼壓遮擋或氣流停滯，死氣沉沉)";
-    } else if (yyBalance > 0) {
-        yyText = "陽氣略盛 (氣場流動稍快，稍微偏陽)";
-    } else if (yyBalance < 0) {
-        yyText = "陰氣略盛 (氣場流動稍緩，稍微偏陰)";
-    } else {
-        yyText = "平 (空間開闊度與氣波動能適中)";
-    }
     wuXingText = wuXingText.replace(/^｜/, '');
     const entropyPenalty = (hasBuildingsForAnalysis && spatialEntropy > (hasGoodSupport ? 5.8 : 5.0)) ? Math.round((spatialEntropy - (hasGoodSupport ? 5.8 : 5.0)) * 30) : 0;
     const closurePenalty = (hasBuildingsForAnalysis && betti1Closure < (hasGoodSupport ? 0.3 : 0.5)) ? Math.round(((hasGoodSupport ? 0.3 : 0.5) - betti1Closure) * 100) : 0;
@@ -2478,7 +2441,7 @@ void main() {
             v *= max(0.0, 1.0 - 0.35 * dt);
         }
         isWater = false; isWind = false;
-        if(u_waterJade && abs(p.z-70.0)<15.0 && abs(p.x)<80.0) { isWater = true; }
+        if(u_waterJade && abs(p.z-80.0)<22.0 && abs(p.x)<80.0) { isWater = true; }
         if(u_shuifaBanyue && abs(p.z-52.0)<15.0 && abs(p.x)<20.0) isWater = true;
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) isWater = true;
         if(hasWind && u_isRushWind && abs(p.x)<20.0 && p.z>25.0) isWind = true;
