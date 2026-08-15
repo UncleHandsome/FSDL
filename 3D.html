@@ -633,9 +633,9 @@ const Rules = {
             else if (state.face === '1') xiangBonus -= 25; 
         }
         if(!isBadDragon && state.xia && ['jin','tu','shui'].includes(state.xing) && state.ml === 'you' && state.mr === 'you' && ['you','jiuqu'].includes(state.w) && state.an) X += 10;
-        let densityBonus = Math.min(30, AppState.sensors.qiDensity * 600); 
-        let windPenalty = Math.min(30, AppState.sensors.windSpeed * 5 + AppState.sensors.turbulence * 1.0); 
-        let dragPenalty = Math.min(35, AppState.sensors.waterDrag * 4); 
+        let densityBonus = Math.min(30, (AppState.sensors.qiDensity || 0) * 600); 
+        let windPenalty = Math.min(30, (AppState.sensors.windSpeed || 0) * 5.0 + (AppState.sensors.turbulence || 0) * 1.0); 
+        let dragPenalty = Math.min(35, (AppState.sensors.waterDrag || 0) * 4.0); 
         const smoothFactor = Math.min(1, (AppState.gatherAcc + AppState.scatterAcc) / 20);
         if (AppState.sensors.windSpeed > 0.5 || AppState.sensors.turbulence > 2.0) {
             windPenalty += (AppState.sensors.windSpeed + AppState.sensors.turbulence) * 1.0;
@@ -784,7 +784,7 @@ const Rules = {
         if(state.road === 'zuocha' || state.road === 'youcha') shaNotes.push(`${state.road === 'zuocha'?'左':'右'}脅擦邊路`);
         if(state.road === 'jiandao') shaNotes.push('剪刀煞');
         let shaStr = shaNotes.length > 0 ? `⚠️【煞氣現象】：${shaNotes.join('、')}\n` : '';
-        const deg = state.degree !== undefined ? state.degree : 0;
+        const deg = state.degree !== undefined ? ((state.degree % 360) + 360) % 360 : 0;
         const isBadWaterText = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w);
         let facingName = isBadWaterText ? "朝北 (坎宮-零神位逢凶水)" : "朝北 (坎宮-零神催財)";
         if (deg >= 22.5 && deg < 67.5) facingName = "朝東北 (艮宮)";
@@ -794,6 +794,7 @@ const Rules = {
         else if (deg >= 202.5 && deg < 247.5) facingName = "朝西南 (坤宮)";
         else if (deg >= 247.5 && deg < 292.5) facingName = "朝西 (兌宮-平常)";
         else if (deg >= 292.5 && deg < 337.5) facingName = "朝西北 (乾宮-平常)";
+        else if (deg >= 337.5 || deg < 22.5) facingName = isBadWaterText ? "朝北 (坎宮-零神位逢凶水)" : "朝北 (坎宮-零神催財)";
         let compassStr = state.w !== 'none' ? `🧭【理氣立向】：${facingName}\n` : `🧭【理氣立向】：${facingName.split(' ')[0]}\n`;
         let multStr = mult < 1 ? `【總加權 ×${mult.toFixed(2)}】\n` : '';
         let advice = [];
@@ -1398,7 +1399,7 @@ window.DryRunTool = {
         if (st.bidao) activeShaList.push('刀削壁');
         if (['zhichong', 'sickle', 'zuocha', 'youcha', 'jiandao', 'lanyao', 'wuwei'].includes(st.road)) activeShaList.push(`路煞(${st.road})`);
         if (AppState.obstacles.length > 0) activeShaList.push(`手動置煞(${AppState.obstacles.length}處)`);
-        const deg = st.degree !== undefined ? st.degree : 0;
+        const deg = st.degree !== undefined ? ((st.degree % 360) + 360) % 360 : 0;
         let facingName = "朝北 (坎宮)";
         if (deg >= 22.5 && deg < 67.5) facingName = "朝東北 (艮宮)";
         else if (deg >= 67.5 && deg < 112.5) facingName = "朝東 (震宮)";
@@ -1407,6 +1408,7 @@ window.DryRunTool = {
         else if (deg >= 202.5 && deg < 247.5) facingName = "朝西南 (坤宮)";
         else if (deg >= 247.5 && deg < 292.5) facingName = "朝西 (兌宮)";
         else if (deg >= 292.5 && deg < 337.5) facingName = "朝西北 (乾宮)";
+        else if (deg >= 337.5 || deg < 22.5) facingName = "朝北 (坎宮)";
         const isBadWaterCompass = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei','jiaojian'].includes(st.w);
         let zeroGodStatus = "無見水";
         if (st.w !== 'none') {
@@ -2094,16 +2096,16 @@ const UI = {
             rCtx.fillText(labs[k], cx + Math.cos(a)*(R+15), cy + Math.sin(a)*(R+15));
         }
         const rawTarget = AppState.smoothedScores || Rules.computeScores();
-        const target = rawTarget.map(v => Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 50);
+        const target = rawTarget.map(v => (typeof v === 'number' && Number.isFinite(v)) ? Math.max(0.0, Math.min(100.0, v)) : 50.0);
         rCtx.beginPath();
-        const smoothDt = Math.min(dt, 0.1);
-        let logicDt = smoothDt * 60;
+        const smoothDt = Math.min(dt || 0.016, 0.1);
+        let logicDt = smoothDt * 60.0;
         for(let k=0; k<5; k++){
-            let currentDisp = Number.isFinite(this.radarDisp[k]) ? this.radarDisp[k] : 50;
+            let currentDisp = (typeof this.radarDisp[k] === 'number' && Number.isFinite(this.radarDisp[k])) ? this.radarDisp[k] : 50.0;
             this.radarDisp[k] = currentDisp + (target[k] - currentDisp) * (1.0 - Math.pow(0.75, logicDt));
-            const v = Math.min(R, Math.max(0, this.radarDisp[k]/100 * R));
-            const a = -Math.PI/2 + k*2*Math.PI/5;
-            const x = cx + Math.cos(a)*v, y = cy + Math.sin(a)*v;
+            const v = Math.min(R, Math.max(0.0, this.radarDisp[k] / 100.0 * R));
+            const a = -Math.PI / 2.0 + k * 2.0 * Math.PI / 5.0;
+            const x = cx + Math.cos(a) * v, y = cy + Math.sin(a) * v;
             k ? rCtx.lineTo(x, y) : rCtx.moveTo(x, y);
         }
         rCtx.closePath();
@@ -2216,7 +2218,7 @@ const Engine3D = {
                 #include <emissivemap_fragment>
                 #ifdef USE_UV
                     vec4 heatColor = texture2D(heatmap, vUv);
-                    totalEmissiveRadiance += heatColor.rgb * 0.4; 
+                    totalEmissiveRadiance += clamp(heatColor.rgb * 0.35, 0.0, 0.6); 
                 #endif
                 `
             ).replace(
@@ -2289,12 +2291,13 @@ const Engine3D = {
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
                 if (riverType == 5 && rz > -3.0) distToShore = 999.0; 
-                if (riverType == 7) distToShore = length(vec2(vWorldXZ.x, rz - 35.0)) - 10.0; 
-                    if (riverType == 6) { 
-                        float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
-                        distToShore = min(distToShore, branchDist);
-                    }
+                if (riverType == 7) distToShore = max(0.0, length(vec2(vWorldXZ.x, rz - 35.0)) - 10.0); 
+                if (riverType == 6) { 
+                    float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
+                    distToShore = min(distToShore, branchDist);
+                }
                 float depthFactor = clamp(1.0 - (distToShore / 25.0), 0.0, 1.0); 
+                depthFactor = depthFactor * depthFactor * (3.0 - 2.0 * depthFactor); 
                 vec3 viewDir = normalize(cameraPosition - vWorldPosGeo);
                 float fresnel = pow(1.0 - max(dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0), 3.0);
                 #ifdef USE_MAP
@@ -2403,9 +2406,9 @@ const Engine3D = {
                 `#include <project_vertex>`,
                 `
                 vec4 treeWorldPos = instanceMatrix * vec4(transformed, 1.0);
-                float sway = sin(treeWorldPos.x * 0.1 + time * 1.5) * cos(treeWorldPos.z * 0.1 + time * 1.2) * 0.15;
-                transformed.x += sway * position.y; 
-                transformed.z += sway * position.y * 0.5;
+                float sway = sin(treeWorldPos.x * 0.1 + time * 1.5) * cos(treeWorldPos.z * 0.1 + time * 1.2) * 0.12;
+                transformed.x += sway * clamp(position.y, 0.0, 4.0); 
+                transformed.z += sway * clamp(position.y, 0.0, 4.0) * 0.5;
                 #include <project_vertex>
                 `
             );
@@ -3071,14 +3074,15 @@ const Engine3D = {
                     }
                 }
                 if (state.tianjing && Math.abs(dxLair) < 45 && dzLair > -30 && dzLair < 40) {
-                    let shaftDist = Math.max(Math.abs(dxLair), Math.abs(dzLair - 5));
-                    if (shaftDist > 12) {
-                        let wallBlend = Math.min(1.0, (shaftDist - 12) / 8.0);
-                        let outerX = Math.max(0, 1 - (Math.abs(dxLair) - 38) / 7.0);
-                        outerX = Math.max(0, Math.min(1, outerX));
-                        let outerZ = Math.max(0, Math.min(1, (dzLair + 28) / 4.0)) * Math.max(0, Math.min(1, (38 - dzLair) / 4.0));
+                    let shaftDist = Math.max(Math.abs(dxLair), Math.abs(dzLair - 5.0));
+                    if (shaftDist > 12.0) {
+                        let wallBlend = Math.min(1.0, (shaftDist - 12.0) / 8.0);
+                        wallBlend = wallBlend * wallBlend * (3.0 - 2.0 * wallBlend);
+                        let outerX = Math.max(0.0, 1.0 - (Math.abs(dxLair) - 38.0) / 7.0);
+                        outerX = Math.max(0.0, Math.min(1.0, outerX));
+                        let outerZ = Math.max(0.0, Math.min(1.0, (dzLair + 28.0) / 4.0)) * Math.max(0.0, Math.min(1.0, (38.0 - dzLair) / 4.0));
                         let outerBlend = Math.min(outerX, outerZ);
-                        outerBlend = outerBlend * outerBlend * (3 - 2 * outerBlend);
+                        outerBlend = outerBlend * outerBlend * (3.0 - 2.0 * outerBlend);
                         y = y + (65.0 - y) * wallBlend * outerBlend; 
                     }
                 }
@@ -4197,11 +4201,11 @@ const Physics = {
             let isTianchiLake = (state.tianchi && state.zhu && Math.sqrt(x*x + Math.pow(z+60, 2)) < 16 && Math.abs(t.y - 33 * (state.zhuScale || 1.0)) < 2.0);
             let isWater = (((state.w !== 'none' || state.yue) && t.y <= waterLevel + 0.5) || isTianchiLake);
             let isWaterZone = (((state.w !== 'none' || state.yue) && t.y <= waterLevel + 1.5 && y <= waterLevel + 5.0) || isTianchiLake);
-            let sampleX = Math.max(0, Math.min(63, Math.floor((x + 175) / 350 * 64)));
-            let sampleZ = Math.max(0, Math.min(63, Math.floor((z + 175) / 350 * 64)));
+            let sampleX = Math.max(0, Math.min(63, Math.floor((x + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+            let sampleZ = Math.max(0, Math.min(63, Math.floor((z + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
             let gridIdx = sampleZ * 64 + sampleX;
-            let globalWindX = this.windGridX[gridIdx];
-            let globalWindZ = this.windGridZ[gridIdx];
+            let globalWindX = this.windGridX[gridIdx] || 0;
+            let globalWindZ = this.windGridZ[gridIdx] || 0;
             let localWindX = globalWindX;
             let localWindZ = globalWindZ;
             let thermalDraft = Math.abs(baseWind); 
@@ -4490,11 +4494,11 @@ const Physics = {
                     let taijiDistSqPulse = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
                     if (taijiDistSqPulse < 625) {
                         let taijiDistPulse = Math.sqrt(taijiDistSqPulse);
-                        pulse *= Math.max(0.05, (taijiDistPulse - 3) / 22);
+                        pulse *= Math.max(0.05, (taijiDistPulse - 3.0) / 22.0);
                     }
                     vel.z += pulse * dt * guideFalloff;
                     if (state.d === 'huilong') {
-                        let rx = x - (state.manualXue ? state.xueX : 0);
+                        let rx = x - (state.manualXue ? (state.xueX || 0) : 0);
                         let rz = z - (state.manualXue ? state.xueZ : 5.0);
                         let rSq = rx*rx + rz*rz;
                         if (rSq < 10000.0) {
@@ -4786,25 +4790,25 @@ const Physics = {
                 frameCoriolisCrash++; 
             }
             if (state.taiji) {
-            let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
-            if (attractDistSq < 3600) {
-                let attractDist = Math.sqrt(attractDistSq);
-                if (attractDist > 0.1) {
-                    let attractForce = 0.35 * (1 - attractDist/60);
-                    vel.x += (-dxTaiji/attractDist) * attractForce * dt;
-                    vel.z += (-dzTaiji/attractDist) * attractForce * dt;
-                    if (attractDist < 25) {
-                        let proximityFalloff = 1.0 - attractDist / 25.0;
-                        proximityFalloff = proximityFalloff * proximityFalloff * (3 - 2 * proximityFalloff);
-                        let proximityDamping = Math.pow(0.90, dt * proximityFalloff);
-                        vel.x *= proximityDamping;
-                        vel.z *= proximityDamping;
+                let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
+                if (attractDistSq < 3600.0) {
+                    let attractDist = Math.max(0.001, Math.sqrt(attractDistSq));
+                    if (attractDist > 0.1) {
+                        let attractForce = 0.35 * (1.0 - attractDist / 60.0);
+                        vel.x += (-dxTaiji / attractDist) * attractForce * dt;
+                        vel.z += (-dzTaiji / attractDist) * attractForce * dt;
+                        if (attractDist < 25.0) {
+                            let proximityFalloff = 1.0 - attractDist / 25.0;
+                            proximityFalloff = proximityFalloff * proximityFalloff * (3 - 2 * proximityFalloff);
+                            let proximityDamping = Math.pow(0.90, dt * proximityFalloff);
+                            vel.x *= proximityDamping;
+                            vel.z *= proximityDamping;
+                        }
                     }
                 }
             }
-        }
             if(state.vHeat && AppState.frames % 4 === 0 && y > -8) {
-				let hx = (x / 350 + 0.5) * 256; let hz = (z / 350 + 0.5) * 256;
+				let hx = (x / CONFIG.tSize + 0.5) * 256; let hz = (z / CONFIG.tSize + 0.5) * 256;
 				let heatAlpha = (st === 2) ? 0.80 : (st === 1 ? 0.80 : 0.05);
 				let heatSize = (st === 2) ? 6.0 : (st === 1 ? 7.0 : 2.5);
 				if (st === 1) {
@@ -4893,8 +4897,8 @@ const Physics = {
                        vel.x += (alignX - vel.x) * 0.4 * dt;
                        vel.z += (alignZ - vel.z) * 0.4 * dt;
                    }
-                   let cx = Math.max(0, Math.min(63, Math.floor((x + 175) / 350 * 64)));
-                   let cz = Math.max(0, Math.min(63, Math.floor((z + 175) / 350 * 64)));
+                   let cx = Math.max(0, Math.min(63, Math.floor((x + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+                   let cz = Math.max(0, Math.min(63, Math.floor((z + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
                    let qiLeft = this.qiGrid[cz * 64 + Math.max(0, cx - 1)] || 0;
                    let qiRight = this.qiGrid[cz * 64 + Math.min(63, cx + 1)] || 0;
                    let qiUp = this.qiGrid[Math.max(0, cz - 1) * 64 + cx] || 0;
@@ -4910,10 +4914,12 @@ const Physics = {
                } else {
                    vel.y *= Math.pow(0.8, dt * taijiEdge); 
                }
-               let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y > t.y);
+               let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5);
                let isFrontRiseSlope = (dzTaiji > 20 && t.nz < -0.1);
-               if (st === 0 && isCalmFlow && !isWaterZone && (dzTaiji > -15 || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.30 * dt) {
-                   this.pState[i]=2;
+               let deepWaterFloor = (state.d === 'pingyang') ? -3.4 : -15.0;
+               let isDryLand = (t.y >= deepWaterFloor && !isWaterZone);
+               if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -15 || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.30 * dt) {
+                   this.pState[i] = 2;
                    if (state.xing === 'jin') {
                        this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 
                    } else if (state.xing === 'mu') {
@@ -4951,7 +4957,7 @@ const Physics = {
                     z = -35 - Math.random()*10 + xueZOffset; 
                     x = (Math.random()-0.5)*20 + xueXOffset;
                     y = Engine3D.getTerrainY(x, z).y + Math.random()*3;
-                    vel.set((Math.random()-0.5)*0.5, 0, 3.5); 
+                    vel.set((Math.random()-0.5)*0.5, 0.0, 3.5); 
                 } else {
                     z = (state.zutai ? -75 : -55) - Math.random()*10 + xueZOffset;
                     let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
@@ -4966,7 +4972,7 @@ const Physics = {
                         x = (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random()*40) + xueXOffset;
                     }
                     y = Engine3D.getTerrainY(x, z).y - 2 + Math.random()*4; 
-                    vel.set((Math.random()-0.5)*0.5, 0, 3.5);
+                    vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
                 }
                 if(state.d === 'si') {
                     this.pState[i] = 0;
@@ -4994,17 +5000,17 @@ const Physics = {
                 let ty = Engine3D.getTerrainY(w.bx, w.bz).y;
                 w.line.position.set(0, 0, 0); 
                 let wf = baseWind;
-                if(Math.abs(wf)>0.01) {
-                    let sh = Engine3D.getTerrainY(w.bx - Math.sign(wf)*20, w.bz).y;
-                    if(sh>ty) wf *= (1 - Math.min(1, (sh-ty)/15));
+                if(Math.abs(wf) > 0.01) {
+                    let sh = Engine3D.getTerrainY(w.bx - Math.sign(wf) * 20, w.bz).y;
+                    if(sh > ty) wf *= Math.max(0, 1.0 - Math.min(1.0, (sh - ty) / 15.0));
                 }
-                if (state.tianzhan && Math.abs(w.bx) < 20 && w.bz > -20 && w.bz < 20) wf *= 5.0;
-                if (state.ao && Math.abs(w.bx) < 30 && w.bz > -10 && w.bz < 30) wf *= 2.5;
+                if (state.tianzhan && Math.abs(w.bx) < 20 && w.bz > -20 && w.bz < 20) wf *= 3.0;
+                if (state.ao && Math.abs(w.bx) < 30 && w.bz > -10 && w.bz < 30) wf *= 2.0;
                 let dyn = Math.sin(w.bx * 0.05 + time) * Math.cos(w.bz * 0.05 + time) * 0.5;
                 let totalWind = wf + (dyn * Math.max(0.5, Math.abs(wf)));
                 let pos = w.line.geometry.attributes.position.array;
-                let endX = w.bx + totalWind * 60;
-                let endZ = w.bz + Math.sin(w.bx * 0.1 + time * 1.5) * Math.abs(totalWind) * 15;
+                let endX = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bx + totalWind * 60));
+                let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + Math.sin(w.bx * 0.1 + time * 1.5) * Math.abs(totalWind) * 15));
                 let endY = Engine3D.getTerrainY(endX, endZ).y;
                 pos[0] = w.bx; pos[1] = ty > -5 ? ty + 1.5 : -100; pos[2] = w.bz;
                 pos[3] = endX; pos[4] = endY > -5 ? endY + 1.5 : -100; pos[5] = endZ;
@@ -5070,8 +5076,8 @@ const Physics = {
         for (let i = 0; i < this.pCount; i++) {
             if (this.pState[i] === 2) {
                 let x = this.pPos[i*3], z = this.pPos[i*3+2];
-                let gx = Math.floor((x + 175) / 350 * 64);
-                let gz = Math.floor((z + 175) / 350 * 64);
+                let gx = Math.floor((x + CONFIG.tSize / 2) / CONFIG.tSize * 64);
+                let gz = Math.floor((z + CONFIG.tSize / 2) / CONFIG.tSize * 64);
                 if (gx >= 0 && gx < 64 && gz >= 0 && gz < 64) {
                     this.qiGrid[gz * 64 + gx] += 1.0 * dt;
                 }
@@ -5118,8 +5124,10 @@ const Physics = {
                 Engine3D.taijiDecalMesh.visible = hasRealXue;
                 Engine3D.taijiDecalMesh.position.set(this.bestLairPos.x, this.bestLairPos.y + 0.8, this.bestLairPos.z);
                 let tLair = Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z);
-                Engine3D.taijiDecalMesh.rotation.x = -Math.PI/2 + (tLair.nz * 0.08);
-                Engine3D.taijiDecalMesh.rotation.y = (tLair.nx * 0.08);
+                let safeNx = Math.max(-1.0, Math.min(1.0, tLair.nx * 0.08));
+                let safeNz = Math.max(-1.0, Math.min(1.0, tLair.nz * 0.08));
+                Engine3D.taijiDecalMesh.rotation.x = -Math.PI / 2 + safeNz;
+                Engine3D.taijiDecalMesh.rotation.y = safeNx;
                 Engine3D.taijiDecalMesh.rotation.z += 0.01;
                 let energyDensity = 0;
                 if (AppState.sensors.shannonEntropy > 0) {
@@ -5154,12 +5162,13 @@ const Physics = {
             if (Engine3D.dragonLineMesh) {
                 Engine3D.dragonLineMesh.visible = !!state.showDragonLine && state.d !== 'pingyang';
                 const linePositions = Engine3D.dragonLineMesh.geometry.attributes.position.array;
-                let stepZ = (-150 - this.bestLairPos.z) / 99;
+                let startZ = -CONFIG.tSize * 0.43;
+                let stepZ = (startZ - this.bestLairPos.z) / 99.0;
                 for (let k = 0; k < 100; k++) {
-                    let curZ = -150 - stepZ * k;
+                    let curZ = startZ - stepZ * k;
                     let curX = this.bestLairPos.x * (k / 99.0);
                     if (state.d === 'huilong') {
-                        let curveAngle = Math.max(0, Math.min(Math.PI, (curZ + 100) / 110 * Math.PI));
+                        let curveAngle = Math.max(0.0, Math.min(Math.PI, (curZ + 100.0) / 110.0 * Math.PI));
                         curX += Math.sin(curveAngle) * 65.0; 
                     }
                     let curY = Engine3D.getTerrainY(curX, curZ).y + 2.5; 
@@ -5212,7 +5221,7 @@ const Physics = {
         let currentBetti = closedSectors / totalSectors;
         AppState.sensors.betti1Closure += (currentBetti - AppState.sensors.betti1Closure) * 0.05 * dt;
         AppState.gatherAcc += (frameGather - AppState.gatherAcc) * 0.05 * dt;
-        AppState.scatterAcc += (frameScatter - AppState.scatterAcc) * 0.1 * dt;
+        AppState.scatterAcc += (frameScatter - AppState.scatterAcc) * 0.10 * dt;
         AppState.sensors.coanda = (frameCoanda / this.pCount) * 100;
         AppState.sensors.downdraft = (frameDowndraft / this.pCount) * 100;
         AppState.sensors.venturi = (frameVenturi / this.pCount) * 100;
@@ -5366,7 +5375,7 @@ function animate() {
     UI.drawRadar(delta);
     Engine3D.controls.update();
     let currentGroundY = Engine3D.getTerrainY(Engine3D.camera.position.x, Engine3D.camera.position.z).y;
-    let safeMinY = currentGroundY === -100 ? -5.0 : currentGroundY + 1.0; 
+    let safeMinY = (currentGroundY <= -90.0) ? -3.0 : currentGroundY + 1.2; 
     if (Engine3D.camera.position.y < safeMinY) {
         let deltaY = safeMinY - Engine3D.camera.position.y;
         Engine3D.camera.position.y = safeMinY;
