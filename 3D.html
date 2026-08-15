@@ -4683,7 +4683,7 @@ const Engine3D = {
                     // 限制全域極端高度
                     this.hMap[idx] = Math.max(-45, Math.min(130, this.hMap[idx]));
                     
-                    // 【全域防穿模】平滑下壓河道帶內地形，避開案山/朝山，防止 Z-Fighting 與地形斷崖
+                    // 【全域防穿模】僅微調與水面幾乎重疊的頂點，避免 Z-Fighting 又不破壞地貌
                     let lxGuard = state.manualXue ? (state.xueX || 0) : 0;
                     let lzGuard = state.manualXue ? state.xueZ : 5.0;
                     let dxLairGuard = x - lxGuard;
@@ -4698,11 +4698,9 @@ const Engine3D = {
                     else if (state.w === 'bazi') rS_guard += Math.abs(x) * 0.5;
                     if (state.w === 'lintou' && z > 2.0) rS_guard = 999;
                     let dR_guard = Math.abs(z - rS_guard);
-                    if (dR_guard < 24 && !isKeyMountainGuard) {
-                        // 平滑過渡邊緣，避免硬切斷造成地形撕裂
-                        let edgeGuard = Math.max(0, Math.min(1, (24 - dR_guard) / 8.0));
-                        edgeGuard = edgeGuard * edgeGuard * (3 - 2 * edgeGuard);
-                        this.hMap[idx] = this.hMap[idx] * (1 - edgeGuard) + minRiverDepth * edgeGuard;
+                    // 僅當頂點高度與水面幾乎重疊時，微幅下壓至水面下 0.8，徹底消除 Z-Fighting
+                    if (dR_guard < 24 && !isKeyMountainGuard && Math.abs(this.hMap[idx] - waterLevel) < 0.8) {
+                        this.hMap[idx] = waterLevel - 0.8;
                     }
                 }
             }
