@@ -518,8 +518,8 @@ const Rules = {
         if(isBadDragon) D_raw = Math.min(D_raw, 15);
         let D = Math.max(0, Math.min(100, D_raw));
 
-        let mlScore = {you:35, xiasha:55, jiaoya:45, ya:15, fanbei:-25, po:-8, none:0}[state.ml]; 
-        let mrScore = {you:35, xiasha:55, jiaoya:45, tai:10, kaikou:-35, fanbei:-25, po:-8, none:0}[state.mr]; 
+        let mlScore = ({you:35, xiasha:55, jiaoya:45, ya:15, fanbei:-25, po:-8, none:0}[state.ml] || 0); 
+        let mrScore = ({you:35, xiasha:55, jiaoya:45, tai:10, kaikou:-35, fanbei:-25, po:-8, none:0}[state.mr] || 0); 
         
         let baseS_bonus = 0;
         let X_raw_bonus = 0;
@@ -531,8 +531,8 @@ const Rules = {
         if(state.tianjing) baseS_bonus -= 45; // 天井煞極凶
         if(state.riyue) waterExitScore_bonus += 30; // 日月捍門最高水口
         
-        let msScore = {you:35, bijia:45, yin:55, di:-10, po:-35, sunken:-45, none:-10}[state.ms]; 
-        let mnScore = {you:40, pingfeng:50, kang:-15, po:-12, none:0}[state.mn];
+        let msScore = ({you:35, bijia:45, yin:55, di:-10, po:-35, sunken:-45, none:-10}[state.ms] || 0); 
+        let mnScore = ({you:40, pingfeng:50, kang:-15, po:-12, none:0}[state.mn] || 0);
         if (state.tianzhan && mnScore > 0) mnScore = 0;
 
         let baseS = (state.d === 'pingyang' && state.ml === 'none' && state.mr === 'none') ? 55 : (mlScore + mrScore + msScore + mnScore);
@@ -600,7 +600,7 @@ const Rules = {
         }
         waterExitScore += waterExitScore_bonus;
 
-        let baseWa = {you:65, jiuqu:95, hejin:90, hulu:95, sishui:100, jushui:100, fuliu:85, gejiao:8, lintou:0, none:35, ji:12, fan:8, bazi:5, tfork:0, juanlian:0, pubu:-10, liulei:-20, jiaojian:0}[state.w];
+        let baseWa = ({you:65, jiuqu:95, hejin:90, hulu:95, sishui:100, jushui:100, fuliu:85, gejiao:8, lintou:0, none:35, ji:12, fan:8, bazi:5, tfork:0, juanlian:0, pubu:-10, liulei:-20, jiaojian:0}[state.w] ?? 35);
         
         // 死龍或破龍無生氣，水法基礎分上限限制為 15
         if (isBadDragon) {
@@ -775,8 +775,8 @@ const Rules = {
         let deg = (state.degree !== undefined) ? state.degree : 0;
         // 【修復：精確八宮理氣度數劃分】正北坎宮同步涵蓋 315°~360° 與 0°~45°
         let isZeroGodWater = (state.w !== 'none') && (state.face === '1') && (deg < 45 || deg >= 315); // 坎宮零神催財
-        let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (deg >= 90 && deg < 135); // 震宮照神催官
-        let isDirectGodWaterClash = (state.w !== 'none') && (state.face === '1') && (deg >= 180 && deg < 225); // 離宮正神下水
+        let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (deg >= 67.5 && deg < 112.5); // 震宮照神催官
+        let isDirectGodWaterClash = (state.w !== 'none') && (state.face === '1') && (deg >= 157.5 && deg < 202.5); // 離宮正神下水
 
         const isBadWaterZero = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei','jiaojian'].includes(state.w);
         if (isZeroGodWater && !isBadWaterZero) zeroGodBonus += 15; // 零神(北)得水催財大吉 (凶水除外)
@@ -888,7 +888,7 @@ const Rules = {
             coherenceFactor = Math.min(1.0, Math.max(0.75, 1.0 - (scatterDiffForCoherence - 10) * 0.01));
         }
         // 【修復：穴分回歸穴場本身品質，xiangBonus 僅作用於向首理氣分數 finalXg】
-        let finalD = Math.max(0, Math.min(100, D + emergenceBonus * 0.2)) * coherenceFactor;
+        let finalD = Math.max(0, Math.min(isBadDragon ? 15 : 100, D + emergenceBonus * 0.2)) * coherenceFactor;
         let finalX = Math.max(0, Math.min(100, (isBadDragon ? Math.min(X + emergenceBonus, 30) : X + emergenceBonus))) * coherenceFactor;
         let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.3)) * coherenceFactor;
         let finalWa = Math.max(0, Math.min(100, Wa + emergenceBonus * 0.3)) * coherenceFactor;
@@ -1027,15 +1027,15 @@ const Rules = {
         
         // 【修復：補齊後天八卦完整的 8 個宮位（含西北乾宮 315°），修正角度區間】
         const deg = state.degree !== undefined ? state.degree : 0;
-        let facingName = "朝北 (坎宮-零神催財)";
+        const isBadWaterText = ['fan', 'bazi', 'gejiao', 'ji', 'lintou', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(state.w);
+        let facingName = isBadWaterText ? "朝北 (坎宮-零神位逢凶水)" : "朝北 (坎宮-零神催財)";
         if (deg >= 22.5 && deg < 67.5) facingName = "朝東北 (艮宮)";
-        else if (deg >= 67.5 && deg < 112.5) facingName = "朝東 (震宮-照神催官)";
+        else if (deg >= 67.5 && deg < 112.5) facingName = isBadWaterText ? "朝東 (震宮-照神位逢凶水)" : "朝東 (震宮-照神催官)";
         else if (deg >= 112.5 && deg < 157.5) facingName = "朝東南 (巽宮)";
         else if (deg >= 157.5 && deg < 202.5) facingName = "朝南 (離宮-正神下水)";
         else if (deg >= 202.5 && deg < 247.5) facingName = "朝西南 (坤宮)";
         else if (deg >= 247.5 && deg < 292.5) facingName = "朝西 (兌宮-平常)";
-        else if (deg >= 292.5 && deg < 337.5) facingName = "朝西北 (乾宮)";
-        else if (deg >= 315) facingName = "朝西北 (乾宮)";
+        else if (deg >= 292.5 && deg < 337.5) facingName = "朝西北 (乾宮-平常)";
         let compassStr = state.w !== 'none' ? `🧭【理氣立向】：${facingName}\n` : `🧭【理氣立向】：${facingName.split(' ')[0]}\n`;
 
         let multStr = mult < 1 ? `【總加權 ×${mult.toFixed(2)}】\n` : '';
@@ -1044,7 +1044,7 @@ const Rules = {
         let advice = [];
         if(!state.xia) advice.push('宜尋找龍脈止落處建立穴星');
         if(!state.mt) advice.push('宜開闢內外明堂以聚生氣');
-        if(state.d === 'heng' && !state.guiyao && !(effectiveAvg >= 70 && rating.includes('上吉'))) advice.push('橫龍結穴必賴鬼星，後方空虛無靠，亟需築造「鬼山/鬼曜」撐托');
+        if(state.d === 'heng' && !state.guiyao) advice.push('橫龍結穴必賴鬼星，後方空虛無靠，亟需築造「鬼山/鬼曜」撐托');
         if(state.ml === 'none' || state.mr === 'none') advice.push('兩邊缺砂，宜築造護龍或植林以禦風吹');
         if(state.w === 'gejiao' || state.w === 'fan' || state.w === 'ji') advice.push('宜改建半月池或三叉水以改道避煞'); // 修正：加入直沖水化解對策
         if(state.ao) advice.push('宜增加「束氣」或補齊側砂以擋凹風');
@@ -1100,10 +1100,10 @@ const Rules = {
     getCapacityLimit() {
         const state = AppState.current;
         let cap = 0;
-        if(state.ml==='you') cap+=20; else if(state.ml==='ya') cap-=10; else if(state.ml==='po') cap-=8;
-        if(state.mr==='you') cap+=20; else if(state.mr==='tai') cap-=10; else if(state.mr==='po') cap-=8;
-        if(state.ms==='you') cap+=20; else if(state.ms==='di') cap-=15; else if(state.ms==='po') cap-=12;
-        if(state.mn==='you') cap+=25; else if(state.mn==='kang') cap-=15; else if(state.mn==='po') cap-=12;
+        if(state.ml==='you'||state.ml==='xiasha'||state.ml==='jiaoya') cap+=20; else if(state.ml==='ya') cap-=10; else if(state.ml==='po') cap-=8; else if(state.ml==='fanbei') cap-=15;
+        if(state.mr==='you'||state.mr==='xiasha'||state.mr==='jiaoya') cap+=20; else if(state.mr==='tai'||state.mr==='kaikou') cap-=10; else if(state.mr==='po') cap-=8; else if(state.mr==='fanbei') cap-=15;
+        if(state.ms==='you'||state.ms==='bijia'||state.ms==='yin') cap+=20; else if(state.ms==='di') cap-=15; else if(state.ms==='po') cap-=12; else if(state.ms==='sunken') cap-=20;
+        if(state.mn==='you'||state.mn==='pingfeng') cap+=25; else if(state.mn==='kang') cap-=15; else if(state.mn==='po') cap-=12;
 
         if(state.an) cap+=10; if(state.ms==='bijia') cap+=10; if(state.chao) cap+=8; if(state.xia && state.xue !== 'none') cap+=10;
         if(state.zhu) cap+=10; if(state.mn==='pingfeng') cap+=15; if(state.xu) cap+=10; if(state.mt) cap+=20;
@@ -1437,7 +1437,7 @@ window.DryRunTool = {
             scatterAcc: AppState.scatterAcc,
             sensors: { ...AppState.sensors },
             frames: AppState.frames,
-            smoothedScores: AppState.smoothedScores,
+            smoothedScores: AppState.smoothedScores ? [...AppState.smoothedScores] : null,
             windGridX: new Float32Array(Physics.windGridX),
             windGridZ: new Float32Array(Physics.windGridZ),
             windGridX_next: new Float32Array(Physics.windGridX_next),
@@ -1819,20 +1819,20 @@ window.DryRunTool = {
 		// 2. 計算朝向與九運理氣方位名稱 (compassOrientation)
         const deg = st.degree !== undefined ? st.degree : 0;
         let facingName = "朝北 (坎宮)";
-        if (deg >= 45 && deg < 90) facingName = "朝東北 (艮宮)";
-        else if (deg >= 90 && deg < 135) facingName = "朝東 (震宮)";
-        else if (deg >= 135 && deg < 180) facingName = "朝東南 (巽宮)";
-        else if (deg >= 180 && deg < 225) facingName = "朝南 (離宮)";
-        else if (deg >= 225 && deg < 270) facingName = "朝西南 (坤宮)";
-        else if (deg >= 270 && deg < 315) facingName = "朝西 (兌宮)";
-        else if (deg >= 315) facingName = "朝西北 (乾宮)"; // 【修復：補齊西北乾宮】
+        if (deg >= 22.5 && deg < 67.5) facingName = "朝東北 (艮宮)";
+        else if (deg >= 67.5 && deg < 112.5) facingName = "朝東 (震宮)";
+        else if (deg >= 112.5 && deg < 157.5) facingName = "朝東南 (巽宮)";
+        else if (deg >= 157.5 && deg < 202.5) facingName = "朝南 (離宮)";
+        else if (deg >= 202.5 && deg < 247.5) facingName = "朝西南 (坤宮)";
+        else if (deg >= 247.5 && deg < 292.5) facingName = "朝西 (兌宮)";
+        else if (deg >= 292.5 && deg < 337.5) facingName = "朝西北 (乾宮)";
 
         const isBadWaterCompass = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei','jiaojian'].includes(st.w);
         let zeroGodStatus = "無見水";
         if (st.w !== 'none') {
             if (st.face === '1' && (deg < 45 || deg >= 315)) zeroGodStatus = isBadWaterCompass ? "九運坎宮見水 (零神方位但為凶水, 不吉反凶)" : "九運坎宮見水 (零神催財大吉)";
-            else if (st.face === '1' && (deg >= 90 && deg < 135)) zeroGodStatus = isBadWaterCompass ? "九運震宮見水 (照神方位但為凶水, 不吉反凶)" : "九運震宮見水 (照神催官吉)";
-            else if (st.face === '1' && (deg >= 180 && deg < 225)) zeroGodStatus = isBadWaterCompass ? "九運離宮見水 (正神下水且為凶水, 大凶)" : "九運離宮見水 (正神下水大凶)";
+            else if (st.face === '1' && (deg >= 67.5 && deg < 112.5)) zeroGodStatus = isBadWaterCompass ? "九運震宮見水 (照神方位但為凶水, 不吉反凶)" : "九運震宮見水 (照神催官吉)";
+            else if (st.face === '1' && (deg >= 157.5 && deg < 202.5)) zeroGodStatus = isBadWaterCompass ? "九運離宮見水 (正神下水且為凶水, 大凶)" : "九運離宮見水 (正神下水大凶)";
             else zeroGodStatus = isBadWaterCompass ? `凶水(${st.w})` : "一般水法方位";
         }
 
@@ -1901,7 +1901,7 @@ window.DryRunTool = {
                     })().toFixed(2)),
                     fractalDimension_D: Number((2.0 + Math.min(0.99, (AppState.sensors.turbulence || 0) * 0.08)).toFixed(3)),
                     betti1Closure_Topological: Number(((AppState.sensors.betti1Closure || 0) * 100).toFixed(1)) + "%",
-                    reynoldsNumber_CFD: Math.round((AppState.sensors.windSpeed || 0) * 1500 + (AppState.sensors.turbulence || 0) * 800),
+                    reynoldsNumber_CFD: Math.round((AppState.sensors.windSpeed || 0) * 350 + (AppState.sensors.turbulence || 0) * 180),
                     froudeNumber_CFD: (st.w && st.w !== 'none') ? Number((Math.max(0, (AppState.sensors.waterDrag || 0) / 5.0 + ((st.waterVel || 1.0) - 1.0) * 0.4)).toFixed(3)) : 0
                 },
 				advancedPhysics: {
@@ -2070,7 +2070,7 @@ window.DryRunTool = {
         for (let i = 1; i <= 5; i++) {
             AppState.resetTo('random');
             AppState.current.presetName = `random_${i}`;
-            const report = this.executeSingle(simulateSecondsPerPreset, true);
+            const report = this.executeSingle(simulateSecondsPerPreset, true, true);
             suiteResults.push(report);
         }
 
@@ -2261,7 +2261,8 @@ const UI = {
             let lx = AppState.current.xueX || 0;
             let lz = AppState.current.manualXue ? AppState.current.xueZ : 5.0;
             let lookDir = AppState.current.face === '1' ? 1.0 : -1.0;
-            let humanY = Engine3D.getTerrainY(lx, lz).y + 1.8; // 以人眼站立高度 (+1.8m) 為基準
+            let groundY = Math.max(-5.0, Engine3D.getTerrainY(lx, lz).y);
+            let humanY = groundY + 1.8; // 以人眼站立高度 (+1.8m) 為基準
             Engine3D.targetCamPos = new THREE.Vector3(lx, humanY, lz);
             // ★ 將 target 設在眼前 0.5 米處：滑鼠拖曳旋轉時 100% 呈現第一人稱就地轉頭，不再甩出相機
             Engine3D.targetLookAt = new THREE.Vector3(lx, humanY, lz + lookDir * 0.5);
@@ -2598,7 +2599,7 @@ const UI = {
             }
         });
         document.querySelectorAll('.tog').forEach(b => {
-            b.classList.toggle('on', AppState.current[b.dataset.k]);
+            b.classList.toggle('on', !!AppState.current[b.dataset.k]);
         });
         const windSlider = document.getElementById('wind-slider');
         if (windSlider) {
@@ -2626,11 +2627,12 @@ const UI = {
         // 同步穴高海拔滑桿
         const xuehSlider = document.getElementById('xueh-slider');
         if (xuehSlider) {
-            xuehSlider.value = AppState.current.xueHeight || 0;
+            const hVal = (AppState.current.d === 'pingyang' || AppState.current.d === 'si' || AppState.current.d === 'po' || !AppState.current.xia || AppState.current.xue === 'none') ? 0 : (AppState.current.xueHeight || 0);
+            xuehSlider.value = hVal;
             const xuehVal = document.getElementById('xueh-val');
             if (xuehVal) {
                 const labels = ["平洋", "谷底", "淺山", "半山腰", "高山懸崖"];
-                xuehVal.innerText = labels[Math.floor((AppState.current.xueHeight || 0) / 5)] || `${AppState.current.xueHeight}`;
+                xuehVal.innerText = labels[Math.floor(hVal / 5)] || `${hVal}`;
             }
         }
 
@@ -3101,7 +3103,10 @@ const Engine3D = {
             this.camera.updateProjectionMatrix();
             this.renderer.setPixelRatio(window.devicePixelRatio); // 保持全設備最高解析度
             this.renderer.setSize(window.innerWidth, window.innerHeight);
-            if (this.composer) this.composer.setSize(window.innerWidth, window.innerHeight); // 新增：同步更新後期處理畫布尺寸
+            if (this.composer) {
+                this.composer.setPixelRatio(window.devicePixelRatio);
+                this.composer.setSize(window.innerWidth, window.innerHeight); // 新增：同步更新後期處理畫布尺寸與像素比
+            }
         });
 
         let isPointerDown = false;
@@ -3263,8 +3268,8 @@ const Engine3D = {
 				let lookDir = AppState.current.face === '1' ? 1.0 : -1.0;
 				let humanY = Engine3D.getTerrainY(lx, lz).y + 1.8; // 以人眼站立高度 (+1.8m) 為基準
 				Engine3D.targetCamPos = new THREE.Vector3(lx, humanY, lz);
-				Engine3D.targetLookAt = new THREE.Vector3(lx, humanY + 0.5, lz + lookDir * 15.0); // 將旋轉樞紐收近至 15 單位，避免第一人稱視角旋轉時發生大範圍甩飛
-				Engine3D.targetFov = 105; // 擴大上下左右視野至 105° 超廣角
+				Engine3D.targetLookAt = new THREE.Vector3(lx, humanY, lz + lookDir * 0.5); // 將目標鎖定在眼前 0.5m 原地就地旋轉
+				Engine3D.targetFov = 95; // 統一採用 95° 人眼自然廣角視角
 				Engine3D.isTransitioning = true;
 			} else if (k === 'r') {
                 Engine3D.targetCamPos = new THREE.Vector3(0, 150, 190);
@@ -3367,7 +3372,7 @@ const Engine3D = {
                 for(let iz = 1; iz < tSeg; iz++) {
                     for(let ix = 1; ix < tSeg; ix++) {
                         const i = iz * (tSeg+1) + ix;
-                        const h = this.hMap[i];
+                        let h = this.hMap[i];
                         for(let k = 0; k < 4; k++) {
                             const j = i + neigh[k];
                             const diff = h - this.hMap[j];
@@ -3375,6 +3380,7 @@ const Engine3D = {
                                 const move = (diff - 80.0) * 0.5;
                                 this.hMap[i] -= move;
                                 this.hMap[j] += move * 0.8;
+                                h -= move;
                                 if (move > maxMoveThisIteration) maxMoveThisIteration = move;
                             }
                         }
@@ -3581,7 +3587,7 @@ const Engine3D = {
                             let dzEdgeG = Math.max(0, Math.min(1, (dzLair + 60) / 4.0)) * Math.max(0, Math.min(1, (-25 - dzLair) / 4.0));
                             dzEdgeG = dzEdgeG * dzEdgeG * (3 - 2 * dzEdgeG);
                             let edgeG = Math.min(dxEdgeG, dzEdgeG);
-                            let spurH = 22.0 * Math.exp(-(dxLair * dxLair) / 45.0) * Math.sin((dzLair + 55) / 25.0 * Math.PI) * edgeG;
+                            let spurH = 22.0 * Math.exp(-(dxLair * dxLair) / 45.0) * Math.sin((dzLair + 60) / 35.0 * Math.PI) * edgeG;
                             sBase = Math.max(sBase, spurH);
                         } else if (Math.abs(dxLair) < 45) {
                             // 修正：移除布林值硬切換 (>0.8) 導致的垂直方塊破圖。改用平滑的連續函數產生自然曜星丘陵。
@@ -3614,14 +3620,15 @@ const Engine3D = {
                             let squareD = Math.max(Math.abs(dxLair), Math.abs(dzLair+50));
                             h = 38 * Math.exp(-Math.pow(squareD/22, 6)); // 平頂方丘
                         } else if(state.xing==='huo') {
-                            // 火星尖焰：頂部陡峭刺天且帶 jagged 尖牙
-                            h = 50 * Math.exp(-mD/12) + this.pNoise(dxLair*0.8, dzLair*0.8) * 14;
+                            // 火星尖焰：頂部陡峭刺天且帶 jagged 尖牙（將尖銳雜訊精準約束於主峰範圍內）
+                            h = (50 + this.pNoise(dxLair*0.8, dzLair*0.8) * 14) * Math.exp(-mD/12);
                         }
                     }
                     if(state.mn==='pingfeng') {
-                        // 屏風山：橫向平展如屏障的巨壁，且帶有摺疊感
-                        let wallBase = 45 * Math.exp(-Math.pow(z+65, 2)/300) * Math.exp(-Math.pow(x/120, 4));
-                        let folding = Math.cos(x * 0.15) * 5.0 * Math.exp(-Math.pow(z+65, 2)/300);
+                        // 屏風山：橫向平展如屏障的巨壁，且帶有摺疊感（摺疊項同步收斂於主山體內）
+                        let wallCutoff = Math.exp(-Math.pow(z+65, 2)/300) * Math.exp(-Math.pow(x/120, 4));
+                        let wallBase = 45 * wallCutoff;
+                        let folding = Math.cos(x * 0.15) * 5.0 * wallCutoff;
                         h += (wallBase + folding);
                     } else if(state.mn==='you') {
                         if (z > -50 && z < -25) {
@@ -3655,7 +3662,7 @@ const Engine3D = {
                         if (distToPeak >= 12 && distToPeak < 26) {
                             let ringBlend = Math.max(0, Math.min(1, (distToPeak - 12) / 2.0)) * Math.max(0, Math.min(1, (26 - distToPeak) / 4.0));
                             ringBlend = ringBlend * ringBlend * (3 - 2 * ringBlend);
-                            h += 4 * Math.sin((distToPeak - 14)/8 * Math.PI) * ringBlend * outerEdge;
+                            h += 4 * Math.sin((distToPeak - 12)/14.0 * Math.PI) * ringBlend * outerEdge;
                         }
                     }
                     
@@ -3687,9 +3694,10 @@ const Engine3D = {
                     if (distFromSpine > 3 && distFromSpine < 45) {
                         let ribFrequency = 1.2;
                         let ribPattern = Math.abs(Math.cos(z * ribFrequency));
-                        let ribHeight = 16.0 * ribPattern * Math.exp(-(Math.pow(distFromSpine - 15, 2))/100);
-                        // 平滑連續的毒刺高度，消除硬切斷
-                        let spike = 6.0 * ribPattern * ribPattern;
+                        let ribDecay = Math.exp(-(Math.pow(distFromSpine - 15, 2))/100);
+                        let ribHeight = 16.0 * ribPattern * ribDecay;
+                        // 平滑連續的毒刺高度，與肋骨高斯衰減協同
+                        let spike = 6.0 * ribPattern * ribPattern * ribDecay;
                         // 【平滑邊界】加入內外側 smoothstep 衰減，消除硬切斷造成的 Z-Fighting
                         let spineEdgeInner = Math.max(0, Math.min(1, (distFromSpine - 3) / 2.0));
                         spineEdgeInner = spineEdgeInner * spineEdgeInner * (3 - 2 * spineEdgeInner);
@@ -3775,7 +3783,7 @@ const Engine3D = {
                         let qqEdge = Math.min(qqXEdge, qqZEdge);
                         sH += 20*Math.exp(-Math.pow(dxLair+20,2)/50) * qqEdge;
                     }
-                    if(state.posui && sH > 5) sH += brokenNoise;
+                    if(state.posui && sH > 5) sH = Math.max(0, sH + brokenNoise); // 非負防禦，防止破碎崩塌挖穿地表
                     
                     if (state.bidao && dzLair > 10 && dzLair < 70) {
                         let edgeDist = Math.abs(dxLair) - 15; // ★ 修正：取絕對值，讓左青龍砂能正確雕刻出刀削壁
@@ -3938,7 +3946,8 @@ const Engine3D = {
                     let pCenter = 28 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-70, 2))/80);
                     let pLeft   = 22 * Math.exp(-(Math.pow(dxLair+25, 2) + Math.pow(dzLair-70, 2))/80);
                     let pRight  = 22 * Math.exp(-(Math.pow(dxLair-25, 2) + Math.pow(dzLair-70, 2))/80);
-                    flatTableAn = Math.max(flatTableAn, (pCenter + pLeft + pRight));
+                    let pRidgeBase = 12 * Math.exp(-(Math.pow(dxLair/1.8, 2) + Math.pow(dzLair-70, 2))/300); // 筆架連山底座平滑過渡
+                    flatTableAn = Math.max(flatTableAn, pRidgeBase + Math.max(pCenter, Math.max(pLeft, pRight)));
                 } else if (state.ms === 'yin') {
                     // 【印砂 (Seal Sand)】：如方形官印般四平八穩的特異吉石
                     let squareX = Math.pow(dxLair, 4);
@@ -4228,10 +4237,6 @@ const Engine3D = {
                 tianzhanEdge = tianzhanEdge * tianzhanEdge * (3 - 2 * tianzhanEdge);
                 y -= Math.max(0, tCut - 4.0) * tianzhanEdge;
             }
-            // 修正：地理拓撲悖論！當立向為背水(face=0)時，若將半月池建在 z: -35 處，
-            // 會直接挖穿背後高聳的主山峰，造成嚴重的 3D 地形撕裂與邏輯悖論。
-            // 半月池實體必須建於前方的平坦明堂(z: 30)，與人面朝向無關。
-            // 【修正】半月池也應隨穴位水平位移 (lairZRef) 連動，確保池體位於明堂前方
             let targetYueZ = lairZRef + 25;
             // 修正 2：半月池的總半徑為 18，邊界裁切範圍必須大於 18 (放寬至 20)，否則池堤前後端會被像切蛋糕一樣削平
             let yueZMin = targetYueZ - 20, yueZMax = targetYueZ + 20;
@@ -4498,8 +4503,10 @@ const Engine3D = {
                     let luoEdgeZ = Math.max(0, Math.min(1, (z - 58) / 4.0)) * Math.max(0, Math.min(1, (82 - z) / 4.0));
                     let luoEdge = Math.min(luoEdgeX, luoEdgeZ);
                     luoEdge = luoEdge * luoEdge * (3 - 2 * luoEdge);
-                    let luoH = 8.0 * Math.exp(-(x*x + Math.pow(z-70, 2))/35);
-                    y = Math.max(y, -15 + luoH * luoEdge); // 從河床抬升為水中央山洲（平滑過渡）
+                    let riverBase = (state.d === 'pingyang') ? -4.5 : ((state.w === 'gejiao') ? -18.0 : -15.0);
+                    let islandRise = (state.d === 'pingyang') ? 3.5 : 8.0;
+                    let luoH = islandRise * Math.exp(-(x*x + Math.pow(z-70, 2))/35);
+                    y = Math.max(y, riverBase + luoH * luoEdge); // 自適應河床深度平滑抬升為水中山洲
                 }
                 // 【華表捍門與獅象把水口】：左右兩岸對峙聳立陡峭雙峰峽谷門（捍門雙峰）
                 if((state.shixiang || state.hua) && z > 58 && z < 82) {
@@ -4516,8 +4523,8 @@ const Engine3D = {
                     // 【平滑邊界】加入 z 方向線性衰減，消除禽星硬切斷造成的 Z-Fighting
                     let qinEdge = Math.max(0, Math.min(1, (z - 41) / 3.0)) * Math.max(0, Math.min(1, (65 - z) / 3.0));
                     qinEdge = qinEdge * qinEdge * (3 - 2 * qinEdge);
-                    let qinRock = 6.0 * Math.exp(-(Math.pow(Math.abs(x) - 15, 2) + Math.pow(z - 53, 2)) / 25);
-                    y = Math.max(y, -12 + qinRock * qinEdge); // 凸起出水面的龜蛇奇石
+                    let qinRock = 9.0 * Math.exp(-(Math.pow(Math.abs(x) - 15, 2) + Math.pow(z - 53, 2)) / 25);
+                    y = Math.max(y, -15.0 + qinRock * qinEdge); // 自河床隆起出水面的龜蛇奇石（保持河道通暢不築壩）
                 }
             }
 
@@ -4565,28 +4572,25 @@ const Engine3D = {
                     let roadCurve = 10 - Math.pow(x / 35, 2) * 12; 
                     let distToRoad = Math.abs(z - roadCurve);
                     if (distToRoad < 3.5) {
-                        let roadY = y + 0.15; // ★ 貼地：隨地形起伏微墊高 0.15，消除懸空拱帶
                         let blend = Math.pow(1.0 - distToRoad / 3.5, 1.2);
-                        y = y * (1 - blend * 0.3) + roadY * (blend * 0.3);
+                        y += 0.15 * blend; // ★ 貼地：隨地形起伏微墊高 0.15，消除懸空拱帶
                     }
                 } else if (state.road === 'zhichong') {
                     let distToRoad = Math.abs(x);
                     if (distToRoad < 3.0 && z > 5 && z < 145) {
-                        let roadY = y + 0.15; // ★ 貼地鋪設路面
                         let blend = Math.pow(1.0 - distToRoad / 3.0, 1.5);
                         // 【平滑邊界】加入 z 方向線性衰減，消除道路起點與終點硬切斷
                         let zEdge = Math.min(1, Math.max(0, (z - 5) / 8), Math.max(0, (145 - z) / 8));
                         blend *= zEdge;
-                        y = y * (1 - blend * 0.3) + roadY * (blend * 0.3);
+                        y += 0.15 * blend; // ★ 貼地鋪設路面
                     }
                 } else if (state.road === 'sickle') {
                     // 【生態移植：鐮刀煞 (Sickle Road)】比反弓更銳利的近距離切腰彎道
                     let sickleCurve = 30 - Math.pow(x / 40, 2) * 20; 
                     let distToSickle = Math.abs(z - sickleCurve);
                     if (distToSickle < 3.5) {
-                        let roadY = y + 0.15; // ★ 貼地：消除鐮刀路懸空
                         let blend = Math.pow(1.0 - distToSickle / 3.5, 1.2);
-                        y = y * (1 - blend * 0.3) + roadY * (blend * 0.3);
+                        y += 0.15 * blend; // ★ 貼地：消除鐮刀路懸空
                     }
                 } else if (state.road === 'zuocha' || state.road === 'youcha') {
                     // 左/右脅路 (斜擦邊而過)
@@ -4594,12 +4598,11 @@ const Engine3D = {
                     let expectedX = sign * (z * 0.4 + 14); // 斜率
                     let distToRoad = Math.abs(x - expectedX) * 0.8; 
                     if (distToRoad < 3.0 && z > -15 && z < 115) {
-                        let roadY = y + 0.15; // ★ 貼地：消除斜路切山懸空
                         let blend = Math.pow(1.0 - distToRoad / 3.0, 1.5);
                         // 【平滑邊界】加入 z 方向線性衰減，消除道路起點與終點硬切斷
                         let zEdge = Math.min(1, Math.max(0, (z + 15) / 8), Math.max(0, (115 - z) / 8));
                         blend *= zEdge;
-                        y = y * (1 - blend * 0.3) + roadY * (blend * 0.3);
+                        y += 0.15 * blend; // ★ 貼地：消除斜路切山懸空
                     }
                 } else if (state.road === 'jiandao') {
                     // 剪刀煞 (Y字型交叉路)
@@ -4607,12 +4610,11 @@ const Engine3D = {
                     let rightDist = Math.abs(x - (z-10)*0.6) * 0.8;
                     let distToRoad = Math.min(leftDist, rightDist);
                     if (distToRoad < 3.0 && z > 0 && z < 145) {
-                        let roadY = y + 0.15; // ★ 貼地：消除剪刀叉路懸空
                         let blend = Math.pow(1.0 - distToRoad / 3.0, 1.5);
                         // 【平滑邊界】加入 z 方向線性衰減，消除道路起點與終點硬切斷
                         let zEdge = Math.min(1, Math.max(0, z / 8), Math.max(0, (145 - z) / 8));
                         blend *= zEdge;
-                        y = y * (1 - blend * 0.3) + roadY * (blend * 0.3);
+                        y += 0.15 * blend; // ★ 貼地：消除剪刀叉路懸空
                     }
                 } else if (state.road === 'lanyao') {
                     // 【高架攔腰煞】：明堂正前方橫跨一座高聳的陸橋/土堤
@@ -4915,7 +4917,7 @@ const Engine3D = {
                     if (state.road === 'wuwei') {
                         if (Math.abs(x) < 4.0 && z > 20 && z < 145) isOnRoad = true;
                     }
-                    if (state.w !== 'none' && y <= ((state.d === 'pingyang') ? -2.5 : -10.0)) isOnRoad = true;
+                    if ((state.w !== 'none' || state.yue) && y <= ((state.d === 'pingyang') ? -2.5 : -10.0)) isOnRoad = true;
                     if (isOnRoad) continue;
 
                     let treeProb = 0.06;
@@ -5184,11 +5186,11 @@ const Physics = {
         if (Engine3D.waterMesh.material.userData.shader) {
             // 【修復】：讓水面著色器的波浪流動速度，完美與物理 UI 滑桿連動！
             let visualWVel = state.waterVel || 1.0;
-            Engine3D.waterMesh.material.userData.shader.uniforms.time.value = AppState.frames * 0.05 * visualWVel;
+            Engine3D.waterMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05 * visualWVel;
             Engine3D.waterMesh.material.userData.shader.uniforms.riverType.value = rType;
         }
         if (Engine3D.treeMesh && Engine3D.treeMesh.material.userData.shader) {
-            Engine3D.treeMesh.material.userData.shader.uniforms.time.value = AppState.frames * 0.05;
+            Engine3D.treeMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05;
         }
 
         let baseWind = state.wind * 0.015;
@@ -6298,15 +6300,10 @@ const Physics = {
 			}
 
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < (state.d === 'pingyang' ? 1000 : 320) && y > t.y - 5 && y < t.y + 15);
-            // 【大一統湧現】移除對 lintou (淋頭) 與 qing (傾瀉) 的例外排除。
-            // 太極暈的物理容器若存在 (state.taiji)，渦流潛力就存在。
-            // 若犯淋頭水或傾瀉，粒子會被水流與重力自然扯出渦流範圍，無需使用腳本強行關閉。
-            // 修正：必須有實際穴形（xue !== 'none'）、非死/破龍、非孤峰八風且無致命形煞，才允許太極暈物理作用
-            // 修正：致命形煞存在時，太極暈不得凝聚，讓兇煞能真實摧毀氣場
             if (inTaiji && state.taiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng') {
                 // 【平滑過渡】統一邊緣衰減因子，供太極暈內所有力場連續淡出
                 let distToTaijiEdge = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
-                let taijiRadiusEdge = (state.d === 'pingyang') ? Math.sqrt(1000) : Math.sqrt(320);
+                let taijiRadiusEdge = (state.d === 'pingyang') ? 31.62 : 17.89;
                 let taijiEdge = 1.0 - Math.max(0, Math.min(1, (distToTaijiEdge - taijiRadiusEdge * 0.85) / (taijiRadiusEdge * 0.15)));
                 taijiEdge = taijiEdge * taijiEdge * (3 - 2 * taijiEdge);
 
@@ -6330,8 +6327,7 @@ const Physics = {
                 }
 
                let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
-               let taijiRadius = (state.d === 'pingyang') ? Math.sqrt(1000) : Math.sqrt(320);
-               let escapeDistThreshold = taijiRadius * 0.85;
+               let escapeDistThreshold = (state.d === 'pingyang') ? 26.88 : 15.21;
                let escapeVelThreshold = 3.0;
                let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.5 && vel.lengthSq() > escapeVelThreshold*escapeVelThreshold);
                
@@ -6391,9 +6387,10 @@ const Physics = {
 
                                // 【修復：移除彈弓斥力，改為柔和的微觀流體排斥，避免高空拋射】
                                if (distSq < 2.0 && distSq > 0.01) {
-                                   let softRepulsion = (2.0 - Math.sqrt(distSq)) * 0.4;
-                                   vel.x += (rx / Math.sqrt(distSq)) * softRepulsion * dt;
-                                   vel.z += (rz / Math.sqrt(distSq)) * softRepulsion * dt;
+                                   let dNeighbor = Math.sqrt(distSq);
+                                   let softRepulsion = (2.0 - dNeighbor) * 0.4;
+                                   vel.x += (rx / dNeighbor) * softRepulsion * dt;
+                                   vel.z += (rz / dNeighbor) * softRepulsion * dt;
                                }
                            }
                        }
@@ -6718,7 +6715,8 @@ const Physics = {
                 if (AppState.sensors.shannonEntropy > 0) {
                     const totalQiForEnergy = AppState.gatherAcc + AppState.scatterAcc;
                     const coherenceForEnergy = totalQiForEnergy > 0 ? (AppState.gatherAcc / totalQiForEnergy) : 0;
-                    energyDensity = Math.min(99.9, (1.0 / AppState.sensors.shannonEntropy) * AppState.sensors.qiDensity * 500 * coherenceForEnergy * coherenceForEnergy);
+                    let safeEntropy = Math.max(0.08, AppState.sensors.shannonEntropy);
+                    energyDensity = Math.min(99.9, (1.0 / safeEntropy) * AppState.sensors.qiDensity * 500 * coherenceForEnergy * coherenceForEnergy);
                 }
                 if (energyDensity > 10.0) {
                     let heartBeat = Math.pow(Math.sin(AppState.frames * 0.08), 64.0); // 模擬心臟急促跳動的波形
@@ -6918,6 +6916,10 @@ const Input = {
             if ((k === 'shift' || k === 'alt') && Engine3D.brushCursor) {
                 Engine3D.brushCursor.material.opacity = 0.0;
             }
+        });
+        window.addEventListener('blur', () => {
+            for (let k in this.keys) this.keys[k] = false;
+            if (Engine3D.brushCursor) Engine3D.brushCursor.material.opacity = 0.0;
         });
     }
 };
