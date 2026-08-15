@@ -1617,12 +1617,7 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     // 【第1輪診斷修正】無水時，水體陣法不應提供濕度/降溫，防止『無水卻水生木/水氣調節』之狀態悖論
     // 原邏輯在 st.water==='none' 時仍執行 envHumidity += 30，導致五行湧現誤判為水生木。
     // 此處強制消毒：無水時水體類陣法不影響 envHumidity / envTemp。
-    if (st.water === 'none') {
-        if (st.cure.includes('pool') || st.cure.includes('fountain')) {
-            envHumidity -= Math.min(envHumidity, 30);
-            envTemp += 5; // 還原先前因水體而降低的溫度
-        }
-    }
+    // 無水時水體陣法未提供降溫增濕，無需回溯調整 envHumidity / envTemp
     }
     // 噴泉動水之生發與陣法擋煞完全交由後續物理熱力學 (envHumidity, envTemp, rigidReflection, thermalMass, windDrag) 之交互作用自然消長，移除字串直接加分與按比例打折
     if (st.water === 'none') {

@@ -271,7 +271,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 "model": model,
                 "messages": conversation_history,
                 "temperature": 0.1,
-                "max_tokens": 16384
+                "max_tokens": 65536
             }
             
             # ⚡ [修復空回覆 Bug] 移除 API 層級的強制 JSON 模式 (response_format)
@@ -286,8 +286,16 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 hit_tokens = getattr(usage, 'prompt_cache_hit_tokens', 0)
                 miss_tokens = getattr(usage, 'prompt_cache_miss_tokens', 0)
                 total_prompt = usage.prompt_tokens
+                
+                # ⚡ [新增] 統計 Output Token 與思考鏈 Reasoning Token
+                completion_tokens = getattr(usage, 'completion_tokens', 0)
+                details = getattr(usage, 'completion_tokens_details', None)
+                reasoning_tokens = getattr(details, 'reasoning_tokens', 0) if details else 0
+                reasoning_str = f" (含思考: {reasoning_tokens})" if reasoning_tokens > 0 else ""
+                
                 hit_rate = (hit_tokens / total_prompt * 100) if total_prompt > 0 else 0
-                logger.info(f"  ⚡ Token 消耗: 總輸入 {total_prompt} | 快取命中: {hit_tokens} ({hit_rate:.1f}%) | 未命中: {miss_tokens}")
+                total_tokens = total_prompt + completion_tokens
+                logger.info(f"  ⚡ Token 消耗: 輸入 {total_prompt} (快取命中: {hit_tokens} / {hit_rate:.1f}%, 未命中: {miss_tokens}) | 輸出 {completion_tokens}{reasoning_str} | 總計 {total_tokens}")
                 
             raw_response = response.choices[0].message.content or ""
             
@@ -297,6 +305,16 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
             extracted_json = extract_json_from_text(raw_response)
             if not extracted_json:
                 logger.warning(f"⚠️ 警告：無法從 AI 原始回覆中解析出有效的 JSON 結構！(嘗試 {attempt+1}/{max_retries})")
+                
+                # 🚨 [防破產優化] 若回傳完全空白，代表檔案 Context 爆量，無腦重試會無限噴錢
+                if not raw_response.strip():
+                    logger.error("🛑 偵測到 AI 回傳完全空白！(可能是單一檔案過大超出 128K Token 極限，或 API 崩潰)")
+                    import sys
+                    if len(conversation_history) <= 2:
+                        logger.error("💀 致命錯誤：首輪代碼快照即突破 API 極限！繼續重試只會無限扣款，強制終止腳本！")
+                        os._exit(1)
+                    return {"status": "CONTEXT_LIMIT", "reason": "API 回傳完全空白，觸發緊急重置"}, "", 0
+
                 if attempt < max_retries - 1:
                     sleep_time = (2 ** attempt) + random.random()
                     logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後自動重試 API 請求...")
@@ -636,6 +654,10 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
      2. [病因]：定位到哪行代碼的數學邏輯導致此現象。
      3. [解法]：你修改了什麼參數來解決它。
 
+3. **【精簡思考與果斷判定（禁止過度思考）】**：
+   - 審查時請聚焦於「重大語法錯誤、數值崩潰、違背十全天條或幾何異常」。
+   - 若代碼已無致命缺陷且物理數值合理，**禁止為了修改而修改，禁止進行主觀的代碼風格重構**，請直接果斷判定 `PERFECT`，避免浪費無效的思考過程。
+
 【輸出範例】
 如果當前測試數據 `sanityWarnings` 為空，且物理指標完全符合期望，請回傳：
 {
@@ -671,12 +693,13 @@ CORE_RULES_REMINDER = """
 8. 【變數作用域防呆】替換代碼中引用的所有變數（如 `tz`, `lz`, `xueZOffset` 等）必須確保在當前函式/區塊作用域內已正確宣告，嚴禁跨作用域引用未定義變數！
 9. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、註解、Hex 顏色碼），必須提供 5~10 行上下文，嚴禁在 search 或 replace 中使用 `// ... (省略)` 偷懶！
 10. 【嚴格輸出規範】只准輸出合法的 JSON 格式，絕對不要在 JSON 外附帶任何 Markdown 說明文字。
+11. 【果斷判定與禁止無病呻吟】若審查之代碼無語法錯誤、無崩潰、無違背天條且數據符合基準，請『立即回傳 PERFECT』！嚴禁無病呻吟或為了修改而修改，非實質重大 Bug 嚴禁進行無意義的微調！
 """
 
 # ============================================================
 # 多輪靜態審查模式 (不執行瀏覽器，純 Code Review)
 # ============================================================
-def run_static_review(target_file, client, model, logger, report_path, max_rounds=125):
+def run_static_review(target_file, client, model, logger, report_path, max_rounds=225):
     logger.info("="*60)
     logger.info(f"🕵️‍♂️ 啟動多輪靜態代碼審查模式 (目標檔案: {target_file} | 模型: {model} | 最大輪數: {max_rounds})")
     logger.info("="*60)
@@ -841,14 +864,14 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
 def main():
     parser = argparse.ArgumentParser(description="3D 模擬器多輪對話自動 Dry Run 與 AI 修正工具")
     parser.add_argument("--file", type=str, default="3D.html", help="HTML 檔案路徑")
-    parser.add_argument("--rounds", type=int, default=125, help="最高執行幾輪修正循環")
+    parser.add_argument("--rounds", type=int, default=225, help="最高執行幾輪修正循環")
     parser.add_argument("--runs-per-round", type=int, default=10, help="每一輪執行幾次 Dry Run 取樣")
     parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
     args = parser.parse_args()
 
     base_name = os.path.splitext(os.path.basename(args.file))[0]
-    log_file = f"auto_tuner_{base_name}.log"
+    log_file = f"auto_tuner_{base_name}_log.txt"
     report_path = f"tuning_report_{base_name}.md"
 
     logger = setup_logger(log_file)
@@ -870,13 +893,17 @@ def main():
         return
 
     # ==========================
-    # 以下為先靜後動實測循環模式 (連續5次靜態完美 -> 3次動態大考)
+    # 以下為先靜後動實測循環模式 (連續2次靜態完美 -> 動態實測 -> 畢業大考)
     # ==========================
     is_pro = "pro" in args.model.lower()
     MAX_ROUNDS = args.rounds
     RUNS_PER_ROUND = max(args.runs_per_round, 20) # 提高平時取樣基數，加快暴露出問題
     EXAM_RUNS = 100 if is_pro else 60             # 大幅提升大考壓測量，確保抓出 1% 低機率的 Bug
-    SUCCESS_TARGET = 8                            # 延長考驗階段至 8 關，杜絕幸運過關
+    
+    # ⚡ [省錢調校] 靜態審查縮短為 2 輪，避免反覆罰坐 5 輪燃燒昂貴的思考鏈 (Reasoning Tokens)
+    STATIC_TARGET = 2                             # 靜態審查通過門檻 (2 輪即達標)
+    SUCCESS_TARGET = STATIC_TARGET + 3            # 總通關目標：2 輪靜態 + 2 輪動態 + 1 輪畢業大考 = 5 關
+    
     MAX_TOKEN_THRESHOLD = 900000  # 統一拉高門檻以最大化利用 Prompt Cache 省錢
     should_reset_next = False
     
@@ -888,7 +915,7 @@ def main():
     needs_full_snapshot = True 
 
     logger.info("="*60)
-    logger.info(f"🚀 開始多輪對話自動化調校任務 (5次靜態 -> 動態實測高快取模式) (目標檔案: {target_file} | 模型: {args.model})")
+    logger.info(f"🚀 開始多輪對話自動化調校任務 ({STATIC_TARGET}次靜態 -> 動態實測高快取模式) (目標檔案: {target_file} | 模型: {args.model})")
     logger.info("="*60)
 
     # 封裝修改套用與重試邏輯，供主循環與大考共用
@@ -928,10 +955,9 @@ def main():
         return success, final_changes
 
     for current_round in range(1, MAX_ROUNDS + 1):
-        # ⚡ [策略優化] 靜態分析要連續五輪都找不到問題，才進入動態實測
-        # 只要發生修改，consecutive_perfects 歸零，就會重新計算 5 輪靜態審查
-        is_static = (consecutive_perfects < 5)
-        is_exam = (not is_static) and (consecutive_perfects >= 6) # 第 6, 7 關升級為大考
+        # ⚡ [策略優化] 連續通過 STATIC_TARGET 輪靜態審查後直接進入動態實測；最後一關為畢業大考
+        is_static = (consecutive_perfects < STATIC_TARGET)
+        is_exam = (not is_static) and (consecutive_perfects >= (SUCCESS_TARGET - 1))
         
         mode_name = "靜態審查" if is_static else ("動態大考" if is_exam else "動態實測")
         logger.info(f"\n【 第 {current_round}/{MAX_ROUNDS} 輪測試 - {mode_name} 】連續完美次數: {consecutive_perfects}/{SUCCESS_TARGET}")
@@ -1115,12 +1141,12 @@ def main():
             consecutive_perfects += 1
             
             if consecutive_perfects == SUCCESS_TARGET:
-                logger.info(f"🎉 通過全部 {SUCCESS_TARGET} 階段考驗 (5輪靜態 + 3輪動態)！系統已達完美穩定狀態！任務正式結束。")
+                logger.info(f"🎉 通過全部 {SUCCESS_TARGET} 階段考驗 ({STATIC_TARGET}輪靜態 + {SUCCESS_TARGET - STATIC_TARGET}輪動態)！系統已達完美穩定狀態！任務正式結束。")
                 history_logs.append({"round": current_round, "status": "PERFECT", "reason": f"通過 {SUCCESS_TARGET} 階段最終大考", "changes": []})
                 break
             else:
-                next_is_static = (consecutive_perfects < 5)
-                next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects >= 6 else "動態實測")
+                next_is_static = (consecutive_perfects < STATIC_TARGET)
+                next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects >= (SUCCESS_TARGET - 1) else "動態實測")
                 logger.info(f"✅ 本輪判定通過 (已連續成功 {consecutive_perfects}/{SUCCESS_TARGET} 次)，準備進入第 {consecutive_perfects + 1} 階段: 【{next_mode}】...")
                 time.sleep(1)
                 
