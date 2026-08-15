@@ -760,8 +760,8 @@ const Rules = {
         const isPingyangWindExempt = (state.d === 'pingyang' && (['you','jiuqu','hejin','hulu','sishui','jushui','fuliu'].includes(state.w) || state.yue));
         const windSpeedLimitForLair = isPingyangWindExempt ? 5.0 : 3.0;
         const windTurbLimitForLair = isPingyangWindExempt ? 8.0 : 5.0;
-        const hasPerfectGathering = AppState.gatherAcc > 50 && AppState.scatterAcc < 0.001 && AppState.sensors.qiDensity > 0.5 && AppState.sensors.shannonEntropy < 4.0;
-        const ultraGatherAuspicious = AppState.gatherAcc > 100 && AppState.scatterAcc < 5 && !hasFatalSha;
+        const hasPerfectGathering = AppState.gatherAcc > 50 && AppState.scatterAcc < 100 && AppState.sensors.qiDensity > 0.1 && AppState.sensors.shannonEntropy < 4.0;
+        const ultraGatherAuspicious = AppState.gatherAcc > 100 && AppState.scatterAcc < 100 && !hasFatalSha;
         if (hasFatalSha) {
             rating = '大凶・形煞沖射'; color = '#a63a2b'; tail = '凶煞直沖穴場，雖有形巒，實為絕地，不可用。';
         } else if (effectiveAvg >= 70 && state.xia && state.xue !== 'none' && state.mt && !hasAnyBrokenSands) {
@@ -1453,7 +1453,7 @@ window.DryRunTool = {
         const isBadWaterCompass = ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei','jiaojian'].includes(st.w);
         let zeroGodStatus = "無見水";
         if (st.w !== 'none') {
-            if (st.face === '1' && (deg < 45 || deg >= 315)) zeroGodStatus = isBadWaterCompass ? "九運坎宮見水 (零神方位但為凶水, 不吉反凶)" : "九運坎宮見水 (零神催財大吉)";
+            if (st.face === '1' && (deg >= 337.5 || deg < 22.5)) zeroGodStatus = isBadWaterCompass ? "九運坎宮見水 (零神方位但為凶水, 不吉反凶)" : "九運坎宮見水 (零神催財大吉)";
             else if (st.face === '1' && (deg >= 67.5 && deg < 112.5)) zeroGodStatus = isBadWaterCompass ? "九運震宮見水 (照神方位但為凶水, 不吉反凶)" : "九運震宮見水 (照神催官吉)";
             else if (st.face === '1' && (deg >= 157.5 && deg < 202.5)) zeroGodStatus = isBadWaterCompass ? "九運離宮見水 (正神下水且為凶水, 大凶)" : "九運離宮見水 (正神下水大凶)";
             else zeroGodStatus = isBadWaterCompass ? `凶水(${st.w})` : "一般水法方位";
@@ -4394,7 +4394,7 @@ const Physics = {
         if (Engine3D.treeMesh && Engine3D.treeMesh.material.userData.shader) {
             Engine3D.treeMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05;
         }
-        let baseWind = state.wind * 0.015;
+        let baseWind = state.wind * 0.3;
         if (Math.abs(baseWind) <= 0.001) {
             this.windGridX.fill(0);
             this.windGridZ.fill(0);
@@ -4413,7 +4413,7 @@ const Physics = {
                     let worldX = (gx / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let worldZ = (gz / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let t = Engine3D.getTerrainY(worldX, worldZ);
-                    let blockingThreshold = (state.d === 'pingyang') ? 0.5 : 5.0;
+                    let blockingThreshold = (state.d === 'pingyang') ? 999.0 : 5.0;
                     if (t.y > blockingThreshold) { 
                         this.windGridX[idx] *= 0.5; 
                         this.windGridZ[idx] *= 0.5;
@@ -4424,10 +4424,10 @@ const Physics = {
                     let avgX = (this.windGridX[idx-1] + this.windGridX[idx+1] + this.windGridX[idx-64] + this.windGridX[idx+64]) * 0.25;
                     let avgZ = (this.windGridZ[idx-1] + this.windGridZ[idx+1] + this.windGridZ[idx-64] + this.windGridZ[idx+64]) * 0.25;
                     let curl = (this.windGridZ[idx+1] - this.windGridZ[idx-1]) - (this.windGridX[idx+64] - this.windGridX[idx-64]);
-                    this.windGridX_next[idx] = (avgX + curl * 0.05 * dt) * 0.92;
-                    this.windGridZ_next[idx] = (avgZ - curl * 0.05 * dt) * 0.92;
-                    this.windGridX_next[idx] = Math.max(-2.5, Math.min(2.5, this.windGridX_next[idx]));
-                    this.windGridZ_next[idx] = Math.max(-2.5, Math.min(2.5, this.windGridZ_next[idx]));
+                    this.windGridX_next[idx] = (avgX + curl * 0.05 * dt) * 0.98;
+                    this.windGridZ_next[idx] = (avgZ - curl * 0.05 * dt) * 0.98;
+                    this.windGridX_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridX_next[idx]));
+                    this.windGridZ_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridZ_next[idx]));
                 }
             }
             let tmpX = this.windGridX; this.windGridX = this.windGridX_next; this.windGridX_next = tmpX;
@@ -4745,7 +4745,7 @@ const Physics = {
                     this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.9;
                 }
             }
-            let caveZoneFalloff = 0;
+            let caveZoneFalloff = Math.max(0, 1 - Math.abs(dzTaiji) / 35.0);
             caveZoneFalloff *= Math.max(0, 1 - Math.abs(dxTaiji) / 35.0);
             caveZoneFalloff = caveZoneFalloff * caveZoneFalloff * (3 - 2 * caveZoneFalloff);
             if (state.xia && state.d !== 'si' && state.d !== 'po' && caveZoneFalloff > 0.001 && y < t.y + 25) {
@@ -4820,6 +4820,11 @@ const Physics = {
                 if (dzTaiji < 72) {
                     let guideFalloff = 1.0 - Math.max(0, Math.min(1, (dzTaiji - 60) / 12.0));
                     guideFalloff = guideFalloff * guideFalloff * (3 - 2 * guideFalloff);
+                    let taijiDistForGuide = Math.sqrt(Math.max(0, dxTaiji*dxTaiji + dzTaiji*dzTaiji));
+                    let taijiRadiusForGuide = Math.sqrt(state.d === 'pingyang' ? 1000 : 320);
+                    let taijiFadeForGuide = Math.max(0, Math.min(1, (taijiDistForGuide - taijiRadiusForGuide * 1.0) / (taijiRadiusForGuide * 0.2)));
+                    taijiFadeForGuide = taijiFadeForGuide * taijiFadeForGuide * (3 - 2 * taijiFadeForGuide);
+                    guideFalloff *= taijiFadeForGuide;
                     let pulse = 2.5;
                     vel.z += pulse * dt * guideFalloff;
                     if (state.d === 'huilong') {
@@ -5177,9 +5182,8 @@ const Physics = {
                    frameScatter += 2; 
                    vel.y -= 0.5 * dt; 
                } else {
-                   if (st === 0 || st === 2) {
+                   if (st === 2) {
                        frameGather++;
-                       if (st === 2) frameGather += 2; 
                    }
                }
                let isYang = (i % 2 === 0);
@@ -5188,7 +5192,8 @@ const Physics = {
                vel.x += ((-dzTaiji)*0.06 * spiralDir - dxTaiji*attractStrength) * dt * taijiEdge;
                vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt * taijiEdge;
                vel.y += (isYang ? 0.25 : -0.20) * dt * taijiEdge;
-               vel.multiplyScalar(Math.pow(0.72, dt * taijiEdge));
+               let taijiDampingFactor = (localTurbulence < 0.5) ? 0.45 : 0.95;
+               vel.multiplyScalar(Math.pow(taijiDampingFactor, dt * taijiEdge));
                if (st === 2 && Math.random() < 0.3) {
                    let cohesionX = 0, cohesionZ = 0;
                    let alignX = 0, alignZ = 0;
@@ -5240,7 +5245,7 @@ const Physics = {
                let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;
                // 嚴格禁止水面以下生成吉氣（水底絕不結穴，界水則止）
                let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone);
-               if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -15 || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.30 * dt) {
+               if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {
                    this.pState[i] = 2;
                    if (state.xing === 'jin') {
                        this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 

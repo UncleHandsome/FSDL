@@ -931,7 +931,7 @@ class FengShuiEngine {
     let capacityBase = Math.round(30 + frontOpenness * 90) - vFront * 0.2;
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
     c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust)));
-    if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing')) {
+    if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing') && !mingTangBroken) {
         c = Math.max(c, 40);
     }
     if ((st.terrain === 'slope' || st.special.includes('qingxie')) && st.water !== 'none' && !isShaWater) {
@@ -1470,7 +1470,7 @@ class FengShuiEngine {
         g = Math.max(0, g - Math.round(g * finalErosionRatio));
         c = Math.max(20, c - Math.round(c * finalCapacityErosionRatio));
     }
-    if (st.water === 'none' || isShaWater) {
+    if ((st.water === 'none' || isShaWater) && !mingTangBroken) {
         c = Math.max(40, c);
         if (isShaWater) c = Math.min(80, c);
     }
@@ -1480,6 +1480,7 @@ class FengShuiEngine {
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
+    if (s > 60 || (s > 30 && s > g)) c = Math.min(c, 59);
     if (g > 0) {
         const finalEntropyFactor = Math.max(0.0, 1.0 - spatialEntropy / 6.5);
         qFactor = (g / (s + 1)) * finalEntropyFactor * 10.0;
@@ -2445,7 +2446,6 @@ void main() {
         if(u_shuifaBanyue && abs(p.z-52.0)<15.0 && abs(p.x)<20.0) isWater = true;
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) isWater = true;
         if(hasWind && u_isRushWind && abs(p.x)<20.0 && p.z>25.0) isWind = true;
-        if(hasWind && u_dragonAvenue && u_tSpeed > 1.4 && abs(p.z+70.0)<15.0) isWind = true;
         if(hasWind && u_shaTianzhan && abs(p.x) < 4.0 && p.z > 30.0 && p.z < 80.0) {
             v.z -= 45.0 * u_envWind * dt; v.x *= max(0.0, 1.0 - 5.0 * dt); isWind = true;
         }
