@@ -529,7 +529,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // 【升級】使用精確的 SVF frontOpenness 判斷前方開闊度，取代舊版粗糙的體積加總
     if (builder && builder.blds) {
       for (const b of builder.blds) {
-        if (b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)) continue; // 跳過主樓（穴心）
+        // 【第97輪修正】主樓永遠固定於 (0,0)，不應因穴位移動而被誤判為一般建築
+        if (b.x === 0 && b.z === 0) continue; // 跳過主樓（穴心）
         
         // 【第14輪修正】穴位相對座標統一在迴圈頂部宣告，確保所有後續判定皆以穴心為基準，避免穴位移動時絕對座標錯位
         const dxTaiji = b.x - (stateManager.taijiX || 0), dzTaiji = b.z - (stateManager.taijiZ || 0);
@@ -668,7 +669,7 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       let obsX = taijiX, obsZ = taijiZ + 15;
       if (builder && builder.blds) {
           for (const b of builder.blds) {
-              if ((b.x === taijiX && b.z === taijiZ) || b.isWater) continue;
+              if ((b.x === 0 && b.z === 0) || b.isWater) continue; // 主樓固定為穴心核心
               let dx = b.x - obsX, dz = b.z - obsZ;
               let dist = Math.hypot(dx, dz);
               if (dist < 1) continue;
@@ -709,7 +710,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
       // 統一使用中立基準：閉合度 50%、熵 5.0 Bits（代表混沌未分）。
       let closedRays = 0;
       spatialEntropy = 0;
-      const hasAnyBlocker = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)));
+      // 【第97輪修正】主樓固定於 (0,0)，無論穴位如何移動都視為穴心，不列入遮擋建築
+      const hasAnyBlocker = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
       // 【第52輪修正】若存在建築但皆未遮擋射線(svfTotal=0)時，應視為空曠，避免閉合度0與熵0誤判
       if (hasAnyBlocker && svfTotal > 0) {
           for (let i = 0; i < 72; i++) {
@@ -768,18 +770,19 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     
     // 【第8輪 Dry Run 診斷修正】環境混亂旗標：高熵/低閉合度/湍流/超臨界流時，吉氣佈局應帶有抑制描述，避免「自然湧現吉訊」與最終 0 吉分矛盾
     // 僅在存在除主樓以外的實體遮擋建築（非水體）時才進行閉合度/熵懲罰，避免主樓被誤判為遮擋物導致誤懲罰
-    const hasBuildingsForAnalysis = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === (stateManager.taijiX || 0) && b.z === (stateManager.taijiZ || 0)));
+    const hasBuildingsForAnalysis = builder && Array.isArray(builder.blds) && builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
     // 【修正】避免吉局因前方開闊導致閉合度略低而被誤判為環境混亂：
     // 當後方有靠且左右護衛齊全時，僅在熵極高(>6.5)、閉合度極低(<0.3)、雷諾數>4000或弗勞德數>1.0時才視為disordered。
     // 否則護衛不齊時，維持原閾值。
     // 【第57輪修正】hasGoodSupport 改由實際物理量決定，避免字串配置直接影響熵懲罰
     const hasGoodSupport = hasBackSupport || (vLeft > 8 && vRight > 8);
+    // 【第94輪修正】environmentDisordered 僅由「資訊熵過高」與「流體無因次量超標」驅動；
+    // 閉合度不足僅代表漏風，由 closurePenalty 獨立懲罰，不應觸發全域吉訊抑制，避免吉局因側翼開闊被誤判為環境紊亂。
     const environmentDisordered = hasBuildingsForAnalysis && (
-        spatialEntropy > (hasGoodSupport ? 5.8 : 5.0) || 
-        betti1Closure < 0.3 || 
+        (hasGoodSupport && spatialEntropy > 5.8) ||
+        (!hasGoodSupport && spatialEntropy > 5.0) ||
         reynoldsNum > 4000 || 
-        froudeNum > 1.0 ||
-        (!hasGoodSupport && (spatialEntropy > 5.0 || betti1Closure < 0.5))
+        froudeNum > 1.0
     );
 
     // ==========================================
@@ -988,8 +991,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
             // 【修正】平坦/盆地地形擴大初始範圍，避免水滴集中於明堂導致 100% 水聚的虛高
             // backhigh 從後山高處起始，slope 從前方傾斜起始，其餘（flat/basin）從遠方四周隨機起始
             // 虛水水滴在明堂集水流域全域均勻灑落採樣，水流去向完全交由 3D 地形真實高程梯度 (-grad) 自然引導，移除依字串人為偏置生成座標
-            let px = (pseudoRandom() - 0.5) * 60;
-            let pz = -10 + pseudoRandom() * 70;
+            // 【第95輪修正】水滴出生點以穴位 (taijiX, taijiZ) 為基準，確保穴位移動時虛水測試仍正確作用於明堂
+            let px = (stateManager.taijiX || 0) + (pseudoRandom() - 0.5) * 60;
+            let pz = (stateManager.taijiZ || 0) - 10 + pseudoRandom() * 70;
             
             let currentPath = [Util.v3(px, getGeoZ(px, pz) + 0.3, pz)]; // 【新增】軌跡起點
 
@@ -1015,7 +1019,10 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
 
             // 判定最終水滴落點是否停留在主樓有效範圍內（無需實際移動，原地聚水也算）
             // 【修正】平坦地形上，水滴可能完全靜止，但只要停在明堂範圍內即為聚水，避免 100% 外洩誤判
-            if (Math.abs(px) < 30 && pz > -10 && pz < 60) gatheredDrops++;
+            // 【第95輪修正】改用穴心相對座標 (relPx, relPz)，避免穴位移動時判定區錯位
+            const relPx = px - (stateManager.taijiX || 0);
+            const relPz = pz - (stateManager.taijiZ || 0);
+            if (Math.abs(relPx) < 30 && relPz > -10 && relPz < 60) gatheredDrops++;
             else escapedDrops++;
         }
         // 修正：確保匯聚比例不超過100%，並考慮水法攔截
@@ -1162,6 +1169,11 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     }
 
     // 明堂容量完全由 3D 空間實際天空可視率 (frontOpenness / SVF) 與重力水聚差分自然得出，移除字串查表寫死基礎值與開闊直接送分
+    // 【第93輪修正】先套用明堂破敗最小閉合法則（上限40），再進行後續補償，避免先拉高容量後又強制壓回的偽物理假象
+    if (['none', 'sunken', 'rubble'].includes(st.front)) {
+        // 明堂已破：物理上無法收納大量地氣，容量嚴格受限，不因開闊度補償而解除限制
+        c = Math.min(c, 40);
+    }
     let capacityBase = Math.round(30 + frontOpenness * 90) - vFront * 0.2;
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
     c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust)));
@@ -1197,6 +1209,10 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     }
     // 【新增】確保容量不超過150，並維持獨立性
     c = Math.min(150, c);
+    // 【第93輪修正】最後再鎖定明堂破敗上限，確保任何後續補償都無法突破物理限制
+    if (['none', 'sunken', 'rubble'].includes(st.front)) {
+        c = Math.min(c, 40);
+    }
 
         // 【修正】補回理氣水向的實質影響，並考慮煞氣與吉氣的平衡
         // 【終極修正】若無水或煞水，理氣水向不應產生任何影響，避免無中生有
@@ -1681,15 +1697,15 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
         wuXingText += `熱力學｜局部熵增率低 (${Math.round(entropyGenRate)})：流速平穩有序；`;
     }
 
-    // 分形幾何連續性完全從場景實際 3D 建築體積 (vBack, vFront, vLeft, vRight) 採樣平均特徵高度，移除偷讀 UI 滑桿與硬編碼加分
-    let D_macro = (vBack + vFront) * 0.5;
-    let D_meso = (vLeft + vRight) * 0.5;
-    let D_micro = hMain;
+    // 【第12輪修正】分形連續性改用體積對數比（無因次）計算，避免 vBack/vFront 與 hMain 量綱不同導致所有案例皆誤判為分形斷層
+    let D_macro = Math.log((vBack + vFront) * 0.5 + 1.0);
+    let D_meso = Math.log((vLeft + vRight) * 0.5 + 1.0);
+    let D_micro = Math.log(hMain + 1.0);
     let fractalDiff = Math.abs(D_macro - D_meso) + Math.abs(D_meso - D_micro);
     
-    if (fractalDiff < 20 && !waterBroken && !fengShuiContextBroken && D_macro > 5 && D_meso > 5) {
+    if (fractalDiff < 1.5 && !waterBroken && !fengShuiContextBroken && D_macro > 1.0 && D_meso > 1.0) {
         wuXingText += `幾何學｜跨尺度分形自相似：周遭建築與主樓維度具備連續性 (龍穴相配)；`;
-    } else if (fractalDiff > 60) {
+    } else if (fractalDiff > 12.0) {
         s += 15;
         wuXingText += `幾何學｜分形斷層：大環境與微觀幾何尺度嚴重脫節，能量傳遞中斷 (自然湧現: 龍穴不配/剝換失敗)；`;
     } else if (waterBroken) {
@@ -1710,7 +1726,8 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
     }
     qFactor = Math.max(0, Math.min(qFactor, 99.9)); // 限制物理量上下限
     
-    if (qFactor > 20 && !fengShuiContextBroken) {
+    // 【第34輪修正】太極暈超流體描述必須以實際存在太極環島佈局為前提，避免無太極暈卻湧現該吉訊的狀態悖論
+    if (st.special.includes('taiji') && qFactor > 20 && !fengShuiContextBroken) {
         wuXingText += `量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；`;
     }
     
@@ -2053,6 +2070,9 @@ const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st
   
   static collectSources(stateManager) {
     const A=[], st=stateManager.current;
+    // 【第4輪靜態審查修正】煞氣源座標必須與 CityBuilder 生成的 3D 實體建築世界座標完全一致。
+    // 穴位移動時，analyze 內部已用 (taijiX - src.x) 與 (sensorFrontZ - src.z) 進行相對距離計算，
+    // 因此此處嚴禁將煞氣源隨穴心平移，否則會造成「建築不動、煞氣源卻跟著穴心走」的錯位 bug。
     if(st.sha.includes('tianzhan'))A.push({x:0,z:58,dx:0,dz:-1,w:26,pw:8,len:52});
     if(st.sha.includes('rush'))A.push({x:0,z:60,dx:0,dz:-1,w:24,pw:8,len:50});
     if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:14,len:40});
@@ -3116,6 +3136,11 @@ void main() {
         vec2 grad = vec2(getTerrainY(p.x+1.0, p.z) - getTerrainY(p.x-1.0, p.z), getTerrainY(p.x, p.z+1.0) - getTerrainY(p.x, p.z-1.0)) * 0.5;
         // 粒子軌跡完全由地形坡度重力梯度 (-grad)、環境風場旋度 (curlNoise) 與實體建築碰撞自然驅動，移除全域人工向心引力黑洞
         v.x -= grad.x * 25.0 * dt; v.z -= grad.y * 25.0 * dt;
+        // 【第15輪修正】太極暈不得施加入工切向導向力（違反天條#2：禁止人工推力/磁吸力），
+        // 改為僅在環島範圍內提供地面摩擦阻尼，讓粒子自然減速但不強制盤旋。
+        if (u_hz > -900.0 && d < 28.0) {
+            v *= max(0.0, 1.0 - 0.35 * dt);
+        }
         
         isWater = false; isWind = false;
         // 【修正】玉帶水為水體，不應由車流速度 u_tSpeed 驅動成風煞
@@ -3132,32 +3157,24 @@ void main() {
         }
 
         if(u_cureFountain && abs(p.z-18.0)<15.0 && abs(p.x)<15.0) {
-            // 【修正】噴泉渦流以噴泉中心為焦點，並歸一化方向向量，避免距離越大力量越大的非物理爆炸
-            float fx = p.x; float fz = p.z - 18.0;
-            float fl = length(vec2(fx, fz)) + 0.001;
-            v.x += (-fz * 2.5 / fl) * dt;
-            v.z += (fx * 2.5 / fl) * dt;
+            // 【第18輪】移除噴泉人工切向推力（違反天條#2），改為僅提供黏滯阻尼，模擬噴泉水體對氣流的制動
+            v *= max(0.0, 1.0 - 0.8 * dt);
         }
         
         if(isWater) { 
-            float cx = p.x; float cz = p.z;
-            // 【修正 Bug 2】根據粒子「當下所在的物理位置」來決定環繞中心，解決多重水體共存時引力場錯亂的 Bug
-            if (u_waterJade && abs(p.z-70.0)<15.0) cz -= 70.0;
-            else if (u_shuifaBanyue && abs(p.z-52.0)<15.0) cz -= 52.0;
-            else if (u_curePool && abs(p.z-24.0)<12.0) cz -= 24.0;
-            float tx = -cz; float tz = cx; float tLen = length(vec2(tx, tz)) + 0.001;
-            v.x = mix(v.x, (tx / tLen) * 4.5, 3.0 * dt);
-            v.z = mix(v.z, (tz / tLen) * 4.5, 3.0 * dt);
+            // 【第17輪修正】移除水體人工切向力 (常數 4.5)，改為僅提供黏滯阻尼與浮力，
+            // 避免違反天條#2：禁止人工推力/磁吸力；水體影響應由地形與自然風場產生。
+            v *= max(0.0, 1.0 - 1.5 * dt);
             p.y += (ty + 0.4 - p.y) * 4.0 * dt;
         } else if(isWind) { 
             // 【修正】風切加速度必須乘以真實環境風壓 u_envWind，無風時不產生非物理常數風
             v.z -= 15.0 * max(0.0, u_envWind) * dt; 
-            // 新增：風氣帶有和緩的旋度擾動，呈現自然風流
-            v += curlNoise(p * 0.08 + u_simTime * 0.5) * 8.0 * dt;
+            // 【第26輪修正】旋度擾動也必須隨環境風壓縮放，避免微風時出現過度紊流
+            v += curlNoise(p * 0.08 + u_simTime * 0.5) * max(0.0, u_envWind) * 8.0 * dt;
         } else { 
             v *= max(0.0, 1.0 - 0.6*dt); 
-            // 新增：滯留吉氣產生微觀的太極渦旋盤旋感（強度隨環境風壓縮放，無風時僅保留極微弱擴散）
-            v += curlNoise(p * 0.15) * (0.2 + u_envWind) * 3.0 * dt; 
+            // 【第28輪修正】移除常數 0.2，使吉氣擴散完全由環境風壓驅動，無風時不產生人工旋度
+            v += curlNoise(p * 0.15) * max(0.0, u_envWind) * 3.0 * dt; 
             
         }
 
@@ -3176,15 +3193,9 @@ void main() {
             bool inY = p.y >= bh.x && p.y <= bh.y;
 
             if (bdx < hw && bdz < hd && inY) {
-                // 依真實物理：穿過峽谷時沿著側壁邊界層滑動穿流，禁止非物理瞬間傳送
-                if (u_specialShuqi) {
-                    // 【第74輪修正】移除人工向前推力，改由剛體側向滑動自然引導粒子沿峽谷穿流，避免字串驅動的非物理加速
-                    v.x += sign(p.x - b.x) * (hw - bdx) * 3.0 * dt;
-                    v.z += sign(p.z - b.y) * (hd - bdz) * 3.0 * dt;
-                    isTunneling = 1.0;
-                } else {
-                    hitObstacle = true; break;
-                }
+                // 【第96輪修正】移除 u_specialShuqi 的人工穿隧推力：所有建築一律視為剛體阻擋，粒子不得穿入；
+                // 特殊佈局之導流應由地形幾何與天然風場產生，嚴禁字串驅動的非物理加速。
+                hitObstacle = true; break;
             } else if (bdx < hw + 7.0 && bdz < hd + 7.0 && inY && !isWater) {
                 v.x += sign(p.x - b.x) * (hw + 7.0 - bdx) * 3.0 * dt;
                 v.z += sign(p.z - b.y) * (hd + 7.0 - bdz) * 3.0 * dt;
@@ -3193,8 +3204,7 @@ void main() {
         if (hitObstacle) { p.y = -999.0; break; }
 
         p += v * dt; 
-        // 【修正】太極暈中心為聚氣之處，不應刪除粒子；但強烈阻尼僅在微風環境下生效，避免形成無敵護盾，強風時粒子仍如實被吹散
-        if(d < 3.0 && !isWater && u_envWind < 1.5) { v *= 0.1; }
+        // 【第99輪修正】移除人工中心阻尼：粒子不應因靠近任何特定座標而被強制減速；藏風聚氣必須完全由地形幾何與自然風場產生
     }
     
     vLife = 1.0 - (age / a_life);
@@ -3318,8 +3328,8 @@ void main() {
         if(u_cureGourd && p.z<15.0 && abs(p.x - 8.0)<12.0) {
             v *= max(0.0, 1.0 - 1.5 * dt);
         }
-        // 煞氣粒子垂直運動純由真實旋度紊流 (curlNoise) 驅動，強度隨環境風壓縮放，並加入極小自然擴散防止無風時凍結（符合無風則無壓，但保留微觀布朗運動）
-        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (max(0.0, u_envWind) * 10.0 + length(v) * 0.4 + 0.5);
+        // 【第28輪修正】煞氣粒子亂流完全由環境風壓與粒子自身速度驅動，移除常數 0.5，確保無風時無人工湍流
+        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (max(0.0, u_envWind) * 10.0 + length(v) * 0.4);
         v += turbulence * dt;
         // 【修正】煞氣粒子同樣遵守單向托舉，貼合地形避免穿入山坡
         p.y = max(p.y, getTerrainY(p.x, p.z) + 0.8);
@@ -3488,12 +3498,15 @@ class ParticleSystem {
 
   updateSpawns(curves, sources) {
       const spawns = [], dirs = [];
+      // 【第93輪修正】預先過濾探頭煞等非實體煞源，避免 validSources 空陣列時 index 錯誤
+      const validSources = sources.filter(s => !s.isTantou);
+      const hasCurves = curves.length > 0;
+      const hasUsableSources = validSources.length > 0;
       for(let i=0; i<64; i++) {
-          if(curves.length && i%2===0) {
+          if(hasCurves && (i%2===0 || !hasUsableSources)) {
               const c = curves[Math.random()*curves.length|0], q = c.pts[Math.random()*c.pts.length|0];
               spawns.push(Util.v3(q.x, 1, q.z)); dirs.push(Util.v3(0,0,0));
-          } else if(sources.some(s => !s.isTantou)) {
-              const validSources = sources.filter(s => !s.isTantou);
+          } else if(hasUsableSources) {
               const s0 = validSources[Math.random()*validSources.length|0];
               spawns.push(Util.v3(s0.x+Util.R(-4,4), Util.R(0.5,3), s0.z+Util.R(-4,4)));
               let dx=s0.dx,dz=s0.dz;
@@ -4373,14 +4386,10 @@ class UIManager {
     }
      
     // 【第27輪診斷修正】高熵/低閉合度/湍流超標時，即使分數偏向吉，也不得顯示吉評，避免 DryRun 回報 CRITICAL 矛盾
-    const hasValidBldsForVerdict = app && app.builder && app.builder.blds.some(b => !b.isWater && !(b.x === (app.state.taijiX || 0) && b.z === (app.state.taijiZ || 0)));
-    // 【修正】優先使用 analyze 統一的環境混亂標記，避免兩處門檻不一致導致誤降級
-    const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean') ? ana.isEnvironmentDisordered : (hasValidBldsForVerdict && (
-        (typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 5.0) ||
-        (typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.5) ||
-        (typeof ana.reynoldsNum === 'number' && ana.reynoldsNum > 4000) ||
-        (typeof ana.froudeNum === 'number' && ana.froudeNum > 1.0)
-    ));
+    // 【修正】100% 信任 analyze 回傳的單一環境混亂標記，UI 層不再自行重算感測器閾值，確保單向資料流與判讀一致性
+    const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean')
+        ? ana.isEnvironmentDisordered
+        : false;
     if (envDisorderedForVerdict && (vt.includes('吉') || vt.includes('旺'))) {
       vt = '平局・環境紊亂，吉氣難顯'; vc = 'mid';
     }
@@ -4678,7 +4687,7 @@ window.DryRunTool = {
     const preset = st.presetName || 'current';
     const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
     if (preset === 'perfect' || preset === 'wuxing_sheng' || preset === 'huilong') {
-        if (!verdictText.includes('吉')) {
+        if (!(verdictText.includes('上吉') || verdictText.includes('中吉'))) {
             sanityWarnings.push(`【正向斷言失敗】預設 [${preset}] 本應為吉局，但實際評級為 [${verdictText}]，請檢查物理感測器與分數邏輯是否誤判！`);
         }
     } else if (preset === 'tianzhan' || preset === 'bow' || preset === 'luchong' || preset === 'gejiao' || preset === 'chuanxin') {
@@ -4690,7 +4699,8 @@ window.DryRunTool = {
     // ==========================================
     // 【第 6 輪 Dry Run 診斷修正】高維物理指標異常檢測：僅在「高階指標顯示大凶但分數顯示吉象」的矛盾時才回報 CRITICAL，避免對合理大凶格局重複誤報
     // ==========================================
-    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === (app.state.taijiX || 0) && b.z === (app.state.taijiZ || 0)));
+    // 【第98輪修正】主樓固定於 (0,0)，避免穴位移動時主樓被誤判為遮擋建築
+    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
     const realEffectiveGather = Math.min(ana.g, ana.c);
     const scoreSuggestGood = typeof realEffectiveGather === 'number' && realEffectiveGather > 60 && typeof ana.s === 'number' && ana.s < 40;
     if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.5 && scoreSuggestGood) {
