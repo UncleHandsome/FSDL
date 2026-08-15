@@ -107,7 +107,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                 "--use-angle=swiftshader-webgl"  # 確保無頭模式下 WebGL / Three.js 100% 正常運作
             ]
         ) 
-        page = browser.new_page()
+        page = browser.new_page(viewport={"width": 1920, "height": 1080})
         
         # 屏蔽 alert 彈窗，避免阻塞 Chrome 事件循環
         page.add_init_script("window.alert = () => {};")
@@ -117,8 +117,8 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
         page.on("dialog", lambda dialog: dialog.accept())
         
         try:
-            page.goto(file_url)
-            page.wait_for_timeout(1000)
+            page.goto(file_url, wait_until="domcontentloaded", timeout=60000)
+            page.wait_for_timeout(1500)
             
             if page_errors:
                 logger.error(f"❌ 頁面載入失敗，發現 JavaScript 語法錯誤:\n   {page_errors[0]}")
@@ -182,11 +182,11 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                 logger.info(f"  ▶ [階段 1] 執行 {len(fixed_presets)} 項固定格局防迴歸測試...")
                 for i, preset in enumerate(fixed_presets):
                     if i > 0 and i % 5 == 0:
-                        page.reload()
+                        page.reload(wait_until="domcontentloaded", timeout=60000)
                         page.wait_for_timeout(1000)
                         if page_errors: return ("JS_ERROR", page_errors[0])
 
-                    page.click(f".preset-btn[data-p='{preset}']")
+                    page.evaluate(f"document.querySelector(\".preset-btn[data-p='{preset}']\")?.click()")
                     page.wait_for_timeout(1500)
                     if page_errors: return ("JS_ERROR", page_errors[0])
 
@@ -225,11 +225,11 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                 while len(valid_results) < num_runs and attempts < shortfall * 4: # 設定最大嘗試次數防無限迴圈
                     attempts += 1
                     if attempts % 5 == 0:
-                        page.reload()
+                        page.reload(wait_until="domcontentloaded", timeout=60000)
                         page.wait_for_timeout(1000)
                         if page_errors: return ("JS_ERROR", page_errors[0])
 
-                    page.click(".preset-btn[data-p='random']")
+                    page.evaluate("document.querySelector(\".preset-btn[data-p='random']\")?.click()")
                     page.wait_for_timeout(1500)
                     if page_errors: return ("JS_ERROR", page_errors[0])
 

@@ -373,7 +373,7 @@ const Rules = {
         if(AppState.obstacles.length > 0) {
             let totalObsImpact = 0;
             const lx = AppState.current.manualXue ? (AppState.current.xueX || 0) : 0;
-            const lz = AppState.current.manualXue ? (AppState.current.xueZ) : 5.0;
+            const lz = AppState.current.manualXue ? AppState.current.xueZ : 5.0;
             AppState.obstacles.forEach(obs => {
                 let dx = obs.mesh.position.x - lx;
                 let dz = obs.mesh.position.z - lz;
@@ -627,7 +627,7 @@ const Rules = {
 
         // 現場真實地形校驗 (In-situ Topographic Verification)
         let lx_in_situ = state.manualXue ? (state.xueX || 0) : 0;
-        let lz_in_situ = state.manualXue ? (state.xueZ || 5.0) : 5.0;
+        let lz_in_situ = state.manualXue ? state.xueZ : 5.0;
         let tLairActual = Engine3D.getTerrainY(lx_in_situ, lz_in_situ);
         let waterLevelActual = (state.d === 'pingyang') ? -3.5 : -12.0;
 
@@ -4163,8 +4163,7 @@ const Engine3D = {
                 if (isRoadSurface && !isLakeSurface) {
                     c.setRGB(0.35, 0.35, 0.35); 
                 }
-                let dynTaijiOffset = (state.xue === 'wo') ? -10.0 : (state.xue === 'ru' ? 7.0 : (state.xue === 'qian' ? -5.0 : 0.0));
-                let dynTaijiZ_visual = lzColor + dynTaijiOffset;
+                let dynTaijiZ_visual = lzColor;
                 let inTaijiVisual = (state.xia && Math.abs(x - lxColor) < 20 && z > (dynTaijiZ_visual - 10) && z < (dynTaijiZ_visual + 13));
                 if (inTaijiVisual && slope < 1.0 && y > -2) {
                     let soilCenterFactor = Math.exp(-(Math.pow(x - lxColor, 2) + Math.pow(z - dynTaijiZ_visual, 2))/100);
@@ -4542,14 +4541,10 @@ const Physics = {
             let localTurbulence = 0; 
             let xueH = state.xueHeight || 0;
             let lx = state.manualXue ? (state.xueX || 0) : 0;
-            let lz = state.manualXue ? (state.xueZ || 5.0) : 5.0;
-            // 嚴格同步地形雕刻的穴形微位移（窩後縮、乳前伸、鉗平收）
-            let dynTaijiOffset = (state.xue === 'wo') ? -10.0 : (state.xue === 'ru' ? 7.0 : (state.xue === 'qian' ? -5.0 : 0.0));
-            let dynamicTaijiZ = lz + dynTaijiOffset;
+            let lz = state.manualXue ? state.xueZ : 5.0;
+            let dynamicTaijiZ = lz;
             let dxTaiji = x - lx;
             let dzTaiji = z - dynamicTaijiZ;
-            
-            // [新增] 絕對地形幾何座標：用於鎖定形煞與山脈物理力場
             let dxGeom = x;
             let dzGeom = z - 5.0;
 
@@ -4586,7 +4581,7 @@ const Physics = {
                 waterSenseZStart = Math.min(waterSenseZStart, lz - 5);
                 waterSenseZEnd = Math.max(waterSenseZEnd, lz + 45);
             }
-            if (isNearWater && Math.abs(dxGeom) < 50 && Math.abs(dzGeom) < 60 && z > waterSenseZStart && z < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
+            if (isNearWater && Math.abs(x) < 50 && Math.abs(z - 5.0) < 60 && z > waterSenseZStart && z < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 let driftSpeed = 2.5 * (state.waterVel || 1.0);
                 let relativeSpeed = Math.max(0, Math.sqrt(vel.x * vel.x + vel.z * vel.z) - driftSpeed);
                 let physicalDrag = relativeSpeed * 0.35 + Math.max(0, -vel.y) * 0.65;
@@ -5198,14 +5193,14 @@ const Physics = {
             }
             if (state.taiji) {
                 let attractDistSq = dxTaiji*dxTaiji + dzTaiji*dzTaiji;
-                if (attractDistSq < 3600.0) {
+                if (attractDistSq < 14400.0) {
                     let attractDist = Math.max(0.001, Math.sqrt(attractDistSq));
                     if (attractDist > 0.1) {
-                        let attractForce = 0.35 * (1.0 - attractDist / 60.0);
+                        let attractForce = 0.35 * (1.0 - attractDist / 120.0);
                         vel.x += (-dxTaiji / attractDist) * attractForce * dt;
                         vel.z += (-dzTaiji / attractDist) * attractForce * dt;
-                        if (attractDist < 25.0) {
-                            let proximityFalloff = 1.0 - attractDist / 25.0;
+                        if (attractDist < 35.0) {
+                            let proximityFalloff = 1.0 - attractDist / 35.0;
                             proximityFalloff = proximityFalloff * proximityFalloff * (3 - 2 * proximityFalloff);
                             let proximityDamping = Math.pow(0.90, dt * proximityFalloff);
                             vel.x *= proximityDamping;

@@ -63,7 +63,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
 .vd.worst { color:#d31515; border-color:#f2a3a3; background:rgba(255,50,50,.15); }
 #eff { font-size:11px; color:var(--text-light); text-align:center; margin-bottom:6px; }
 #theory { font-size:11px; line-height:1.7; color:var(--text-light); }
-#hint { position:fixed; bottom:0; left:0; right:0; text-align:center; font-size:11px; color:var(--text); background:rgba(244,247,249,.85); padding:7px; z-index:10; box-shadow:0 -2px 10px rgba(0,0,0,0.05); }
+#hint { position:fixed; bottom:0; left:0; right:0; text-align:center; font-size:11px; color:var(--text); background:rgba(244,247,249,.85); padding:7px; z-index:10; box-shadow:0 -2px 10px rgba(0,0,0,0.05); pointer-events:none; }
 </style>
 </head>
 <body>
@@ -1002,17 +1002,23 @@ class FengShuiEngine {
         if (dist < 40) {
           s += (40 - dist) * src.pw * 0.15;
         }
-      } else if (dist < src.len + 30) {
-        const safeDist = Math.max(0.001, dist);
+      } else {
         const srcLen = Math.hypot(src.dx, src.dz) || 1.0;
         const normDx = src.dx / srcLen, normDz = src.dz / srcLen;
-        const dot = (dx * normDx + dz * normDz) / safeDist;
-        const venturiMultiplier = src.w < 16 ? (16 / src.w) * 1.5 : 1;
-        const distanceFalloff = Math.pow(Math.max(0, 1 - dist / (src.len + 60)), 1.5);
-        const impactForce = Math.abs(dot) * extWindSpeed * venturiMultiplier * src.pw * distanceFalloff;
-        if (impactForce > 1.0) {
+        const tProj = dx * normDx + dz * normDz;
+        const tClamped = Math.max(0, Math.min(src.len, tProj));
+        const closestDx = dx - normDx * tClamped;
+        const closestDz = dz - normDz * tClamped;
+        const closeDist = Math.hypot(closestDx, closestDz);
+        if (closeDist < src.len + 30) {
+          const dot = Math.abs(tProj) / Math.max(0.001, Math.hypot(tProj, closeDist));
+          const venturiMultiplier = src.w < 16 ? (16 / src.w) * 1.5 : 1;
+          const distanceFalloff = Math.pow(Math.max(0, 1 - closeDist / (src.len + 60)), 1.5);
+          const impactForce = Math.abs(dot) * extWindSpeed * venturiMultiplier * src.pw * distanceFalloff;
+          if (impactForce > 1.0) {
             let normalizedForce = impactForce * 0.15 * (1.0 + Math.min(1.0, impactForce / 100.0));
             kineticSha += normalizedForce;
+          }
         }
       }
     }
