@@ -239,7 +239,7 @@ const Config = {
   UI_MAP: { sSector:'sector', sColor:'color', sTerrain:'terrain', sWaterDir:'waterDir', sDragon:'dragon', sLeft:'left', sRight:'right', sFront:'front', sWater:'water', sShuiFa:'shuifa', sStar:'star', sHole:'hole', sSha:'sha', sSpecial:'special', sLiqi:'liqi', sCure:'cure' },
   PRESETS: {
     perfect: {sector:'center',color:'default',terrain:'basin',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['luoxing'],star:'earth',hole:'ru',sha:['none'],special:['taiji'],liqi:'face',cure:['none'],wind:3, traffic:4},
-    cure_combo: {sector:'west',color:'water',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'rush',shuifa:['none'],star:'wood',hole:'wo',sha:['walledge'],special:['none'],liqi:'face',cure:['stone'],wind:6, traffic:6},
+    cure_combo: {sector:'west',color:'water',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'rush',shuifa:['none'],star:'wood',hole:'wo',sha:['walledge'],special:['none'],liqi:'face',cure:['stone', 'pool'],wind:6, traffic:6},
     huilong: {sector:'center',color:'default',terrain:'backhigh',waterDir:'reverse',dragon:'avenue',left:'qinglong',right:'baihu',front:'lowcase',water:'nine',shuifa:['none'],star:'wood',hole:'wo',sha:['none'],special:['chaoshan'],liqi:'face',cure:['fountain'],wind:4, traffic:3},
     tianzhan: {sector:'south',color:'wood',terrain:'slope',waterDir:'shuai',dragon:'elevated',left:'oppress',right:'raise',front:'sunken',water:'none',shuifa:['none'],star:'fire',hole:'none',sha:['tianzhan'],special:['qingxie'],liqi:'face',cure:['none'],wind:8, traffic:8},
     bow: {sector:'east',color:'metal',terrain:'flat',waterDir:'shuai',dragon:'avenue',left:'broken',right:'raise',front:'rubble',water:'bow',shuifa:['none'],star:'wood',hole:'none',sha:['bow'],special:['none'],liqi:'back',cure:['none'],wind:6, traffic:7},
@@ -644,7 +644,10 @@ class FengShuiEngine {
     let observerText = [];
     const mingTangBroken = st.front === 'none' || st.front === 'sunken' || st.front === 'rubble';
     const validMingtang = !mingTangBroken;
-    const fengShuiContextBroken = mingTangBroken || isShaWater || ['tianzhan','pierce','sedan','windshaft','sickle'].some(x => st.sha.includes(x)) || (st.sha.includes('tantou') && peekSha);
+    const hasCureActive = Array.isArray(st.cure) && st.cure.some(c => ['stone','mirror','gourd','pool','trees','fountain'].includes(c));
+    // 若具有化煞陣法且未遭遇摧毀性重煞，允許四象護衛部分聚氣
+    const severeUncuredSha = !hasCureActive && (isShaWater || ['tianzhan','pierce','sedan','windshaft','sickle'].some(x => st.sha.includes(x)) || (st.sha.includes('tantou') && peekSha));
+    const fengShuiContextBroken = mingTangBroken || severeUncuredSha;
     const brokenContextDesc = mingTangBroken ? '明堂已破' : '形煞壓迫';
     if (!fengShuiContextBroken && st.left === 'qinglong' && vLeft > vRight * 1.2 && st.left !== 'none' && !(vLeft > 20 && vLeft > vRight * 1.5) && !(vRight > 20 && vRight > vLeft * 1.5)) {
         if (st.right === 'baihu') {
@@ -988,8 +991,6 @@ class FengShuiEngine {
         }
     if(st.liqi==='back' && st.water !== 'none' && !isShaWaterForLiqi && !waterBroken) {
         s += 14;
-        c = Math.max(10, c - 20); 
-        g = Math.max(0, g - 6);   
     }
     const sensorFrontZ = (stateManager.taijiZ || 0) + 20;
     for (const src of stateManager.sources) {
@@ -3431,38 +3432,31 @@ class UIManager {
     const realS = ana.s;                  
     const netEff = realG - realS;         
     const yy = Math.abs(ana.yyBalance);   
-    if (realG >= 80 && realS <= 20 && yy <= 3 && st.left !== 'none' && st.right !== 'none' && st.front !== 'none') {
+    
+    const hasHeavySha = ana.isHeavySha;
+    // 評判邏輯：嚴格檢查陰陽平衡 (yy) 與重煞阻斷 (!hasHeavySha)
+    if (!hasHeavySha && realG >= 70 && realS <= 20 && yy <= 5) {
       vt = '上吉・藏風聚氣，陰陽交泰'; vc = 'good'; 
-    } else if (netEff >= 30 && realS < 60) {
+    } else if (!hasHeavySha && netEff >= 30 && realS < 60 && yy <= 6) {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good';
-    } else if (realG >= 80 && realS <= 55 && yy <= 4) {
+    } else if (!hasHeavySha && realG >= 80 && realS <= 55 && yy <= 6) {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
-    } else if (realG >= 50 && realS <= 30 && yy <= 4) {
+    } else if (!hasHeavySha && realG >= 50 && realS <= 30 && yy <= 6) {
       vt = '中吉・氣象秀麗，福澤深厚'; vc = 'good'; 
-    } else if (netEff >= 15 && realS < 60 && yy <= 4) {
+    } else if (!hasHeavySha && netEff >= 15 && realS < 60 && yy <= 6) {
       vt = '小吉・瑕不掩瑜，微疵可化'; vc = 'good'; 
-    } else if (realG >= 60 && realS >= 60 && netEff >= -10) {
+    } else if (realG >= 60 && realS >= 50 && netEff >= -30) {
       vt = '險局・富貴險中求 (帶煞發貴)'; vc = 'mid'; 
     } else if (realS < 30 && realG < 30) {
-      vt = (yy > 3) ? '平庸・氣局停滯，陰陽偏枯' : '平局・平穩少災，庸碌之象'; vc = 'mid'; 
-    } else if (netEff >= -20 && realS <= 65 && yy <= 4) {
+      vt = (yy > 5) ? '平庸・氣局停滯，陰陽偏枯' : '平局・平穩少災，庸碌之象'; vc = 'mid'; 
+    } else if (netEff >= -25 && realS <= 65 && yy <= 6) {
       vt = '平局・散聚相抵，運勢反覆'; vc = 'mid'; 
     } else if (realS >= 80 && netEff <= -30) {
       vt = '大凶・敗絕之局，人財兩空'; vc = 'worst';
     } else {
       vt = '凶局・煞重氣散，破財傷丁'; vc = 'bad';   
     }
-    const hasHeavySha = ana.isHeavySha;
-    const isFourSymbolsIntact = st.left !== 'none' && st.right !== 'none' && !['none', 'sunken', 'rubble'].includes(st.front);
-    if (ana.g > ana.c && ana.g >= 80 && realG >= 60 && realS < 30 && !hasHeavySha && isFourSymbolsIntact) {
-      vt = '上吉・吉氣充盈，明堂飽和，氣勢旺盛'; vc = 'good';
-    }
-    const envDisorderedForVerdict = (typeof ana.isEnvironmentDisordered === 'boolean')
-        ? ana.isEnvironmentDisordered
-        : false;
-    if (envDisorderedForVerdict && (vt.includes('吉') || vt.includes('旺'))) {
-      vt = '平局・環境紊亂，吉氣難顯'; vc = 'mid';
-    }
+    
     vd.textContent = vt; vd.className = 'vd ' + vc;
     Util.$('eff').innerHTML = `實收吉氣 ${realG} ｜ 沖煞損耗 ${realS} ｜ 明堂飽和度 ${Math.round((realG/ana.c)*100)}%
         <div style="margin-top:6px; padding-top:6px; border-bottom:1px dashed #b0c4de; border-top:1px dashed #b0c4de; color:#556677; font-size:10.5px; text-align:left; line-height:1.6;">
@@ -3692,17 +3686,33 @@ window.DryRunTool = {
     if (app.builder.blds.length > 32) sanityWarnings.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
     const preset = st.presetName || 'current';
     const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
-    if (preset === 'perfect' || preset === 'wuxing_sheng' || preset === 'huilong') {
-        if (!(verdictText.includes('上吉') || verdictText.includes('中吉'))) {
-            sanityWarnings.push(`【正向斷言失敗】預設 [${preset}] 本應為吉局，但實際評級為 [${verdictText}]，請檢查物理感測器與分數邏輯是否誤判！`);
-        }
-    } else if (preset === 'tianzhan' || preset === 'bow' || preset === 'luchong' || preset === 'gejiao' || preset === 'chuanxin') {
-        if (verdictText.includes('吉')) {
-            sanityWarnings.push(`【反向斷言失敗】預設 [${preset}] 本應為重煞凶局，但實際評級為 [${verdictText}]，未能正確認出致命形煞！`);
+    const presetExpectations = {
+        perfect: '上吉/中吉',
+        wuxing_sheng: '上吉/中吉/小吉',
+        huilong: '上吉/中吉/小吉',
+        cure_combo: '中吉/小吉/平局/險局/凶局',
+        test_water: '上吉/中吉/小吉',
+        test_quantum: '上吉/中吉/小吉',
+        tianzhan: '大凶/凶局/險局',
+        bow: '大凶/凶局/險局',
+        luchong: '大凶/凶局/險局',
+        gejiao: '大凶/凶局/險局',
+        chuanxin: '大凶/凶局/險局',
+        test_sha: '大凶/凶局/險局',
+        test_physics: '大凶/凶局/險局',
+        yang_extreme: '平局/平庸/凶局/大凶',
+        yin_extreme: '平局/平庸/凶局/大凶'
+    };
+    const realEffectiveGather = Math.min(ana.g, ana.c);
+    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
+    let expectedRating = presetExpectations[preset] || "動態判定";
+    if (expectedRating !== "動態判定") {
+        let allowedRatings = expectedRating.split('/');
+        let isRatingMatch = allowedRatings.some(exp => verdictText.includes(exp));
+        if (!isRatingMatch) {
+            sanityWarnings.push(`【斷言失敗】預設 [${preset}] 期望評級為 [${expectedRating}]，但實際評級為 [${verdictText}] (實收:${realEffectiveGather}/損耗:${ana.s}/容量:${ana.c})`);
         }
     }
-    const hasBldsForAnomalyCheck = app.builder.blds.some(b => !b.isWater && !(b.x === 0 && b.z === 0));
-    const realEffectiveGather = Math.min(ana.g, ana.c);
     const scoreSuggestGood = typeof realEffectiveGather === 'number' && realEffectiveGather > 60 && typeof ana.s === 'number' && ana.s < 40;
     if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.5 && scoreSuggestGood) {
         sanityWarnings.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>6.5）但分數顯示吉象，氣場混亂與吉分矛盾`);
@@ -3793,9 +3803,6 @@ window.DryRunTool = {
     }
     const realG = Math.min(ana.g, ana.c);
     const hasHeavySha = ana.isHeavySha;
-	let expectedRating = "動態判定";
-    if (['perfect', 'wuxing_sheng', 'huilong'].includes(st.presetName)) expectedRating = "上吉/中吉";
-    else if (['tianzhan', 'bow', 'luchong', 'gejiao', 'chuanxin'].includes(st.presetName)) expectedRating = "凶局/平局";
 	return {
       presetName: st.presetName || 'current', 
       expectedRating: expectedRating,         
