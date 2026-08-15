@@ -3719,7 +3719,7 @@ const Engine3D = {
 
                 if(state.xue==='wo') tY = xueBaseY + (-8 * pScale * Math.cos(normMtD*Math.PI/60) + wall);
                 else if(state.xue==='tu') tY = xueBaseY + (8 * pScale * Math.cos(normMtD*Math.PI/60) - wall*0.5);
-                else if(state.xue==='ru' && dzLair<5) tY = xueBaseY + (12 * pScale * Math.exp(-(dxLair*dxLair + Math.pow(dzLair+5,2))/50) + wall);
+                else if(state.xue==='ru') tY = xueBaseY + (12 * pScale * Math.exp(-(dxLair*dxLair + Math.pow(dzLair+5,2))/50) + wall);
                 else if(state.xue==='qian') {
                     let qianArm = 12 * Math.exp(-(Math.pow(Math.abs(dxLair)-15, 2) + Math.pow(Math.max(0, dzLair), 2))/80);
                     tY = xueBaseY + (-5 * pScale) + wall + (qianArm * pScale);
@@ -3783,54 +3783,60 @@ const Engine3D = {
                     // 7. 四大穴形 (窩、鉗、乳、突) 專屬微地貌強化
                     if (state.xue === 'wo') {
                         // 窩穴：強化「弦稜」 (窩緣的圓潤包覆) 與前方的開口平滑
-                        if (mtD > 6 && mtD < 16) {
-                            let rim = Math.sin((mtD - 6) / 10 * Math.PI) * 4.0 * pScale;
-                            tY += rim * Math.max(0, (12 - dzLair) / 15); // 前方開口放低，背側隆起
-                        }
+                        // rim 透過 clamp 使 sin 參數在 0~PI 連續，開口衰減也連續
+                        let rim = Math.sin(Math.max(0, Math.min(1, (mtD - 6) / 10)) * Math.PI) * 4.0 * pScale;
+                        let frontOpen = Math.max(0, (12 - dzLair) / 15);
+                        tY += rim * frontOpen; // 前方開口放低，背側隆起
                     } else if (state.xue === 'qian') {
                         // 鉗穴：牛角砂 (雙臂微向內彎曲延伸，抱緊穴心)
-                        if (dzLair > -2 && dzLair < 22) {
-                            let armCurve = 11 + Math.sin(dzLair * 0.15) * 4; 
-                            let armDist = Math.abs(Math.abs(dxLair) - armCurve);
-                            if (armDist < 5) {
-                                let horn = 5.5 * Math.exp(-(armDist*armDist)/8) * Math.exp(-(dzLair - 10)*(dzLair - 10)/150) * pScale;
-                                tY += horn;
-                            }
-                        }
+                        let armCurve = 11 + Math.sin(dzLair * 0.15) * 4; 
+                        let armDist = Math.abs(Math.abs(dxLair) - armCurve);
+                        // 以 smoothstep 在 armDist 4~6 之間淡出，消除硬邊界
+                        let armEdge = 1.0 - Math.max(0, Math.min(1, (armDist - 4) / 2.0));
+                        armEdge = armEdge * armEdge * (3 - 2 * armEdge);
+                        let horn = 5.5 * Math.exp(-(armDist*armDist)/8) * Math.exp(-(dzLair - 10)*(dzLair - 10)/150) * pScale * armEdge;
+                        tY += horn;
                     } else if (state.xue === 'ru') {
                         // 乳穴：強化「垂珠」的飽滿度與尖端突起，讓乳穴更圓潤立體
-                        if (mtD < 11 && dzLair < 6) {
-                            let drop = 4.5 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair + 2, 2))/20) * pScale;
-                            tY += drop;
-                        }
+                        let mtEdgeRu = 1.0 - Math.max(0, Math.min(1, (mtD - 8) / 4.0));
+                        mtEdgeRu = mtEdgeRu * mtEdgeRu * (3 - 2 * mtEdgeRu);
+                        let drop = 4.5 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair + 2, 2))/20) * pScale * mtEdgeRu;
+                        tY += drop;
                     } else if (state.xue === 'tu') {
                         // 突穴：突起四周挖出隱約的「微型界水」 (護城溝)，凸顯平中生突的孤高感
-                        if (mtD > 4.5 && mtD < 10) {
-                            let moat = 1.8 * Math.exp(-(Math.pow(mtD - 7.5, 2))/4) * pScale;
-                            tY -= moat;
-                        }
+                        let moatEdge = Math.max(0, Math.min(1, (mtD - 3.0) / 2.0)) * Math.max(0, Math.min(1, (11.0 - mtD) / 2.0));
+                        moatEdge = moatEdge * moatEdge * (3 - 2 * moatEdge);
+                        let moat = 1.8 * Math.exp(-(Math.pow(mtD - 7.5, 2))/4) * pScale * moatEdge;
+                        tY -= moat;
                     } else if (state.xue === 'ping') {
                         // 坪穴：中心點猶如棋盤般平坦開闊，四周略微隆起一圈微不可察的「土唇」
-                        if (mtD < 12) {
-                            let flatBoard = Math.exp(-(mtD*mtD)/144) * 0.5 * pScale;
-                            tY = tY * 0.5 + flatBoard; // 強制壓平
-                        }
+                        let flatEdge = 1.0 - Math.max(0, Math.min(1, (mtD - 8) / 4.0));
+                        flatEdge = flatEdge * flatEdge * (3 - 2 * flatEdge);
+                        let flatBoard = Math.exp(-(mtD*mtD)/144) * 0.5 * pScale;
+                        tY = tY * (1.0 - 0.5 * flatEdge) + flatBoard * flatEdge; // 強制壓平並平滑淡出
                     } else if (state.xue === 'ya') {
                         // 崖穴(壁穴)：穴後背靠如刀削般垂直，前方呈現懸崖斷層
-                        if (dzLair < -2 && dzLair > -10 && Math.abs(dxLair) < 8) {
-                            let cliffBack = 8.0 * pScale * Math.exp(-(dxLair*dxLair)/20);
-                            tY += cliffBack;
-                        } else if (dzLair > 2 && dzLair < 12 && Math.abs(dxLair) < 10) {
-                            let cliffDrop = 12.0 * pScale * Math.exp(-(dxLair*dxLair)/30);
-                            tY -= cliffDrop;
-                        }
+                        let backEdge = Math.max(0, Math.min(1, (-2 - dzLair) / 3.0)) * Math.max(0, Math.min(1, (10 + dzLair) / 3.0));
+                        backEdge = backEdge * backEdge * (3 - 2 * backEdge);
+                        let cliffBack = 8.0 * pScale * Math.exp(-(dxLair*dxLair)/20) * backEdge;
+                        tY += cliffBack;
+                        let frontEdge = Math.max(0, Math.min(1, (dzLair - 2) / 3.0)) * Math.max(0, Math.min(1, (12 - dzLair) / 3.0));
+                        frontEdge = frontEdge * frontEdge * (3 - 2 * frontEdge);
+                        let cliffDrop = 12.0 * pScale * Math.exp(-(dxLair*dxLair)/30) * frontEdge;
+                        tY -= cliffDrop;
                     }
                 }
 
                 // 【修復】移除寫死的重複氈唇(已由上方的 lipFactor 動態取代)
                 // 並將合襟水(穴前匯水微坑)改為相對坐標 (dzLair 與 dxLair)，完美跟隨穴場移動
-                if (state.xia && dzLair >= 7 && dzLair <= 15 && Math.abs(dxLair) <= 8) {
-                    let hejinPit = Math.exp(-(dxLair*dxLair + Math.pow(dzLair-11, 2))/20) * 3.0 * pScale;
+                if (state.xia && dzLair >= 5 && dzLair <= 17 && Math.abs(dxLair) <= 10) {
+                    // 【平滑邊界】加入矩形邊界線性衰減，消除合襟水坑硬切斷造成的 Z-Fighting
+                    let hejinEdgeX = Math.max(0, 1 - Math.abs(dxLair) / 10.0);
+                    hejinEdgeX = hejinEdgeX * hejinEdgeX * (3 - 2 * hejinEdgeX);
+                    let hejinEdgeZ = Math.max(0, Math.min(1, (dzLair - 5) / 2.0)) * Math.max(0, Math.min(1, (17 - dzLair) / 2.0));
+                    hejinEdgeZ = hejinEdgeZ * hejinEdgeZ * (3 - 2 * hejinEdgeZ);
+                    let hejinEdge = Math.min(hejinEdgeX, hejinEdgeZ);
+                    let hejinPit = Math.exp(-(dxLair*dxLair + Math.pow(dzLair-11, 2))/20) * 3.0 * pScale * hejinEdge;
                     tY -= hejinPit; 
                 }
 
@@ -4138,15 +4144,20 @@ const Engine3D = {
                 // 【風水地理修復】：水口神獸關攔（獅象/華表/羅星）實體窄化河道，形成 S 型交鎖峽谷
                 // 【修正】水口神獸與河道固定世界座標，此處必須使用絕對座標，否則穴位移動會拉扯河道
                 let hasGuardsGorge = state.shixiang || state.hua || state.luo;
-                if(hasGuardsGorge && Math.abs(x) > 50 && z > 35) {
+                if(hasGuardsGorge && Math.abs(x) > 50 && z > 33) {
                     let sideSign = Math.sign(x);
                     // 擠壓河道道中心線，形成犬牙交鎖（S 彎）
                     rS += Math.sin(x * 0.2) * 12;
                     // 左右山腳強行向河心延伸，將河道收窄為狹谷
                     let gorgeChoke = Math.exp(-Math.pow(Math.abs(x) - 65, 2) / 150) * 18;
-                    if (z > rS - 15 && z < rS + 15) {
-                        y = Math.max(y, -5 + gorgeChoke); // 強行抬高峽谷兩側地基
-                    }
+                    // 【平滑邊界】加入 z 方向線性衰減，消除 z>35 硬切斷造成的 Z-Fighting
+                    let zGorgeEdge = Math.max(0, Math.min(1, (z - 33) / 4.0));
+                    zGorgeEdge = zGorgeEdge * zGorgeEdge * (3 - 2 * zGorgeEdge);
+                    // 【平滑河道】以 riverBand 平滑衰減，取代硬矩形 if
+                    let riverBand = 1.0 - Math.max(0, Math.min(1, Math.abs(z - rS) / 15.0));
+                    riverBand = riverBand * riverBand * (3 - 2 * riverBand);
+                    let gorgeH = (-5 + gorgeChoke) * zGorgeEdge * riverBand;
+                    y = Math.max(y, gorgeH); // 平滑抬高峽谷兩側地基
                 }
 
                 dR = Math.abs(z - rS);
@@ -4408,8 +4419,9 @@ const Engine3D = {
             
             // 【修復：同步更新物理碰撞網格 hMap，確保粒子能在天池水面平穩滑行不沉底】
             if (isLakeSurface) {
-                let shoreDist = Math.max(0, 15 - distToPeak); // 離湖心越近值越大
-                let lakeBlend = Math.pow(shoreDist / 15.0, 0.8);
+                // 使用 smoothstep 在 12~18 之間平滑過渡，確保湖岸邊緣不會產生硬切斷
+                let lakeBlend = 1.0 - Math.max(0, Math.min(1, (distToPeak - 12) / 6.0));
+                lakeBlend = lakeBlend * lakeBlend * (3 - 2 * lakeBlend);
                 y = y * (1.0 - lakeBlend) + tianchiWaterLevel * lakeBlend;
                 this.hMap[gZ*(tSeg+1) + gX] = y;
             }
@@ -5357,12 +5369,15 @@ const Physics = {
 
             // 【鬼山支撐效應】：山脊幾何已雕刻於地貌，粒子自然受地形法線與重力引導，無需人為阻尼
 
-            let isInCaveZone = (dzTaiji > -30 && dzTaiji < 25 && Math.abs(dxTaiji) < 35); 
+            // 【平滑過渡】將原本硬矩形邊界改為 smoothstep 衰減，確保穴場引導力場連續
+            let caveZoneFalloff = Math.max(0, Math.min(1, (dzTaiji + 30) / 8.0)) * Math.max(0, Math.min(1, (25 - dzTaiji) / 8.0));
+            caveZoneFalloff *= Math.max(0, 1 - Math.abs(dxTaiji) / 35.0);
+            caveZoneFalloff = caveZoneFalloff * caveZoneFalloff * (3 - 2 * caveZoneFalloff);
             // 【純客觀地形引導】：移除五行星體字串比對與人為噴射力，完全回歸 3D 地貌法線與坡度引導
-            if (state.xia && state.d !== 'si' && state.d !== 'po' && isInCaveZone && y < t.y + 25) {
+            if (state.xia && state.d !== 'si' && state.d !== 'po' && caveZoneFalloff > 0.001 && y < t.y + 25) {
                 // 依據地形法線進行自然的重力沉降與導流（凹地自然聚氣、凸坡自然滑開）
-                vel.x += t.nx * 1.5 * dt;
-                vel.z += t.nz * 1.5 * dt;
+                vel.x += t.nx * 1.5 * dt * caveZoneFalloff;
+                vel.z += t.nz * 1.5 * dt * caveZoneFalloff;
 
                 // 若地形呈現碗狀聚氣凹陷（法線指向穴心），粒子自然減速沉降
                 let normalTowardsCenter = (dxTaiji * t.nx + dzTaiji * t.nz);
@@ -5375,9 +5390,9 @@ const Physics = {
                 }
 
                 if(state.xue === 'wo' || state.xue === 'qian') {
-                        vel.x += t.nx * 1.2 * dt;
-                        vel.z += t.nz * 1.2 * dt;
-                        vel.multiplyScalar(Math.pow(0.85, dt)); 
+                        vel.x += t.nx * 1.2 * dt * caveZoneFalloff;
+                        vel.z += t.nz * 1.2 * dt * caveZoneFalloff;
+                        vel.multiplyScalar(Math.pow(0.85, dt * caveZoneFalloff)); 
                         // 【天條合規】移除局部字串比對強制轉化吉氣，狀態轉化統一交由太極暈 isCalmFlow 機制判定
                         // 此處僅保留窩穴的物理減速阻尼
                     } else if ((state.xue === 'tu' || state.xue === 'ru') && state.d === 'pingyang') {
@@ -5428,8 +5443,8 @@ const Physics = {
                     }
 
                     // 【全域統一自然阻尼】：地形法線與重力已提供足夠的流速調節，移除依星體字串的人為阻尼
-                    vel.multiplyScalar(Math.pow(0.8, dt));
-                    vel.y -= 0.15 * dt;
+                    vel.multiplyScalar(Math.pow(0.8, dt * caveZoneFalloff));
+                    vel.y -= 0.15 * dt * caveZoneFalloff;
                 }
 
             if (t.y > -100 && y <= t.y + 15.0) { // 貼地邊界層感應區（允許粒子在三維空間自由升降）
@@ -5631,11 +5646,14 @@ const Physics = {
                     // 【修正】河道/半月池中心線必須跟隨動態穴心 (相對座標)，確保手動點穴後力場不偏移
                     let waterCenterZ = riverRefZ;
                     if (state.yue) waterCenterZ = lz + 25;
-                    if (Math.abs(x - lx) < 30 && y <= waterLevel + 2.0) {
+                    if (Math.abs(x - lx) < 32 && y <= waterLevel + 2.0) {
+                        // 【平滑邊界】加入 smoothstep 衰減，消除力場硬矩形邊界造成的受力跳變
+                        let secondaryFalloff = Math.max(0, 1 - Math.abs(x - lx) / 32.0);
+                        secondaryFalloff = secondaryFalloff * secondaryFalloff * (3 - 2 * secondaryFalloff);
                         let helicoidalShear = waterSpeed * 0.35;
-                        vel.z += Math.sign(waterCenterZ - z) * helicoidalShear * dt; // 沿水流梯度拖拽
-                        vel.y -= Math.abs(t.nz) * helicoidalShear * 0.5 * dt; // 沿河床坡度下切
-                        if (helicoidalShear > 2.0) frameBoundarySep++; // 【探針：客觀記錄二次流剝離】
+                        vel.z += Math.sign(waterCenterZ - z) * helicoidalShear * dt * secondaryFalloff;
+                        vel.y -= Math.abs(t.nz) * helicoidalShear * 0.5 * dt * secondaryFalloff;
+                        if (helicoidalShear > 2.0) frameBoundarySep++;
                     }
 
                     // 【客觀高速水流沖刷】：任何水體超速時均自然產生強大動能下拽（移除字串綁定與狀態強改）
@@ -5665,12 +5683,21 @@ const Physics = {
                     vel.z += t.nz * 0.5 * dt; 
 
                     // 【客觀斷崖伯努利抽吸力場】：前方地形急遽下切時，產生流體邊界層剝離負壓加速度（狀態由物理主循環自然判定）
-                    if (t.y > -12 && t.y < 8 && dzTaiji > 10 && dzTaiji < 55 && Math.abs(dxTaiji) < 40) {
+                    if (t.y > -14 && t.y < 12 && dzTaiji > 8 && dzTaiji < 58 && Math.abs(dxTaiji) < 44) {
+                        // 【平滑邊界】加入 dz/dx 方向 smoothstep 衰減，消除硬矩形邊界造成的力場跳變
+                        let cliffDz = Math.max(0, Math.min(1, (dzTaiji - 8) / 6.0)) * Math.max(0, Math.min(1, (58 - dzTaiji) / 6.0));
+                        cliffDz = cliffDz * cliffDz * (3 - 2 * cliffDz);
+                        let cliffDx = Math.max(0, 1 - Math.abs(dxTaiji) / 44.0);
+                        cliffDx = cliffDx * cliffDx * (3 - 2 * cliffDx);
+                        let cliffFalloff = Math.min(cliffDz, cliffDx);
                         let cliffCheck = Engine3D.getTerrainY(x, z + 8); 
                         let dropThreshold = (state.d === 'pingyang') ? 2.0 : 8.0; 
-                        if (t.y - cliffCheck.y > dropThreshold) { 
+                        let dropExcess = (t.y - cliffCheck.y) - dropThreshold;
+                        if (dropExcess > 0) { 
+                            let dropFactor = Math.max(0, Math.min(1, dropExcess / 5.0));
+                            dropFactor = dropFactor * dropFactor * (3 - 2 * dropFactor);
                             // 【修正】斷崖抽吸必須乘以 thermalDraft，無風時不得產生人工負壓，且移除 waterVel 避免流水誤入
-                            let suctionForce = (t.y - cliffCheck.y) * 0.15 * thermalDraft; 
+                            let suctionForce = (t.y - cliffCheck.y) * 0.15 * thermalDraft * cliffFalloff * dropFactor; 
                             vel.z += suctionForce * dt; // 負壓向前加速扯出
                             vel.y -= suctionForce * 0.8 * dt; // 負壓向下吸入低谷
                         }
@@ -5724,16 +5751,18 @@ const Physics = {
                     }
 
                     // 【客觀地表法線梯度撕裂】：僅注入高亂流與動量散射，狀態轉化統一交由全域亂流閾值判定
-                    if (ruggedness > 8.0 && st !== 1 && st !== 3 && Math.random() < ruggedness * 0.01 * dt) {
+                    let ruggedFactor = Math.max(0, Math.min(1, (ruggedness - 5.0) / 8.0));
+                    ruggedFactor = ruggedFactor * ruggedFactor * (3 - 2 * ruggedFactor);
+                    if (ruggedFactor > 0.001 && st !== 1 && st !== 3 && Math.random() < ruggedness * 0.01 * dt) {
                         // 尖銳地形引發的高強度亂流（不會直接強制改寫粒子狀態）
                         // 【修正】亂流與動量散射必須乘上 thermalDraft，無風時不得無中生有颳風
-                        localTurbulence += ruggedness * 0.5 * thermalDraft;
+                        localTurbulence += ruggedness * 0.5 * thermalDraft * ruggedFactor;
                         if (ruggedness > 12.0 && Math.random() < 0.02) {
                             Engine3D.createShockwave(x, y, z, 0xff3333);
                         }
-                        vel.x += (Math.random() - 0.5) * ruggedness * 1.0 * thermalDraft;
-                        vel.y += ruggedness * 0.3 * thermalDraft;
-                        vel.z += (Math.random() - 0.5) * ruggedness * 1.0 * thermalDraft;
+                        vel.x += (Math.random() - 0.5) * ruggedness * 1.0 * thermalDraft * ruggedFactor;
+                        vel.y += ruggedness * 0.3 * thermalDraft * ruggedFactor;
+                        vel.z += (Math.random() - 0.5) * ruggedness * 1.0 * thermalDraft * ruggedFactor;
                     }
 
                     // 【湧現物理】4. 陸地地形屏障與微氣候 
@@ -5752,12 +5781,14 @@ const Physics = {
                             vel.multiplyScalar(Math.pow(0.92, dt)); 
                         }
 
-                        // 修復：將坡度亂流門檻調高至 6.0，避免正常坡道觸發斷崖逼壓炸成紅煞
-                        if (Math.abs(t.nx) > 9.0) { 
+                        // 修復：以 smoothstep 平滑過渡，避免坡度門檻造成力場跳變
+                        let steepThreshold = Math.max(0, Math.min(1, (Math.abs(t.nx) - 7.0) / 5.0));
+                        let steepCollision = steepThreshold * steepThreshold * (3 - 2 * steepThreshold);
+                        if (steepCollision > 0.001) { 
                             // 【純客觀地形碰撞反彈】：移除瞬間傳送作弊，依據表面法線進行流體折射與減速
-                            vel.x -= Math.sign(t.nx) * 2.5 * dt; 
-                            vel.y += 1.0 * dt; 
-                            vel.multiplyScalar(Math.pow(0.75, dt)); // 碰撞剛體消耗動能
+                            vel.x -= Math.sign(t.nx) * 2.5 * dt * steepCollision; 
+                            vel.y += 1.0 * dt * steepCollision; 
+                            vel.multiplyScalar(Math.pow(0.75, dt * steepCollision)); // 碰撞剛體消耗動能
                             // 【天條合規】陡坡碰撞只提供動量衰減，紅煞轉化交由全域亂流閾值統一判定
                         }
                     }
@@ -5793,12 +5824,14 @@ const Physics = {
                         if (rearH > y + 8) {
 							// 【進化：下洗氣流 (Downdraft / 壓穴)】父母山過高時自然產生下衝氣流與高壓剪切亂流
 							let steepness = rearH - (y + 8);
-                            if (steepness > 15.0) { 
+                            let steepFactor = Math.max(0, Math.min(1, (steepness - 10.0) / 10.0));
+                            steepFactor = steepFactor * steepFactor * (3 - 2 * steepFactor);
+                            if (steepFactor > 0.001) { 
 								frameDowndraft++; // 【探針：客觀記錄下洗氣流】
 								// 【天條合規】下洗氣流必須乘以 thermalDraft 動態縮放，無風時不得無中生有颳風
-								vel.y -= steepness * 0.6 * thermalDraft * dt * downwashFalloff; // 重力下衝砸地（動態縮放）
-								vel.z += steepness * 0.4 * thermalDraft * dt * downwashFalloff; // 貼地高速穿堂（動態縮放）
-								localTurbulence += steepness * 0.5 * thermalDraft * downwashFalloff; // 注入真實流體亂流（隨環境風壓縮放）
+								vel.y -= steepness * 0.6 * thermalDraft * dt * downwashFalloff * steepFactor; // 重力下衝砸地（動態縮放）
+								vel.z += steepness * 0.4 * thermalDraft * dt * downwashFalloff * steepFactor; // 貼地高速穿堂（動態縮放）
+								localTurbulence += steepness * 0.5 * thermalDraft * downwashFalloff * steepFactor; // 注入真實流體亂流（隨環境風壓縮放）
 							}
 							vel.multiplyScalar(Math.pow(0.85, dt * downwashFalloff));
 							vel.y -= 0.3 * dt * downwashFalloff;
@@ -5806,10 +5839,12 @@ const Physics = {
                         
                         // 【拒屍煞後傾絕壁】：背靠陡峭反傾引發氣流撞擊反彈與縱向亂流
                         let rearSlopeNormal = Engine3D.getTerrainY(x, z - 10).nz;
-                        if (rearSlopeNormal > 8.0) { 
-                            vel.z -= 2.5 * thermalDraft * dt * downwashFalloff; // 峭壁剛體反彈（動態縮放）
-                            vel.y += 1.8 * thermalDraft * dt * downwashFalloff; 
-                            localTurbulence += 4.5 * thermalDraft * downwashFalloff; // 注入真實碰撞亂流（隨環境風壓縮放）
+                        let rearSlopeFactor = Math.max(0, Math.min(1, (rearSlopeNormal - 5.0) / 8.0));
+                        rearSlopeFactor = rearSlopeFactor * rearSlopeFactor * (3 - 2 * rearSlopeFactor);
+                        if (rearSlopeFactor > 0.001) { 
+                            vel.z -= 2.5 * thermalDraft * dt * downwashFalloff * rearSlopeFactor; // 峭壁剛體反彈（動態縮放）
+                            vel.y += 1.8 * thermalDraft * dt * downwashFalloff * rearSlopeFactor; 
+                            localTurbulence += 4.5 * thermalDraft * downwashFalloff * rearSlopeFactor; // 注入真實碰撞亂流（隨環境風壓縮放）
                         }
                     }
 
@@ -5962,11 +5997,16 @@ const Physics = {
             // 修正：必須有實際穴形（xue !== 'none'）、非死/破龍且無致命形煞，才允許太極暈物理作用
             // 修正：致命形煞存在時，太極暈不得凝聚，讓兇煞能真實摧毀氣場
             if (inTaiji && state.taiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po') {
+                // 【平滑過渡】統一邊緣衰減因子，供太極暈內所有力場連續淡出
+                let distToTaijiEdge = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
+                let taijiRadiusEdge = (state.d === 'pingyang') ? Math.sqrt(1000) : Math.sqrt(320);
+                let taijiEdge = 1.0 - Math.max(0, Math.min(1, (distToTaijiEdge - taijiRadiusEdge * 0.85) / (taijiRadiusEdge * 0.15)));
+                taijiEdge = taijiEdge * taijiEdge * (3 - 2 * taijiEdge);
 
                 // 【進化：達西定律與多孔介質滲透流 (Darcy's Law of Porous Media)】純物理介質參數
                 if (state.soil === 'wanshi' && y < 2.0) {
                     // 頑石 (零孔隙率)：地表堅硬如鐵，無法發生滲透，粒子觸底產生絕緣反彈
-                    vel.y += 3.5 * dt; 
+                    vel.y += 3.5 * dt * taijiEdge; 
                     vel.x += (Math.random()-0.5) * 4.0 * dt;
                     vel.z += (Math.random()-0.5) * 4.0 * dt;
                 } else if (state.soil === 'yuni' && y < 1.0) {
@@ -6015,11 +6055,11 @@ const Physics = {
 
                // 【修復：物理向心力與地形形狀掛鉤，徹底解耦分數乘數】
                let attractStrength = 0.32; // 恆定自然向心引力
-               vel.x += ((-dzTaiji)*0.06 * spiralDir - dxTaiji*attractStrength) * dt;
-               vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt;
-               vel.y += (isYang ? 0.25 : -0.20) * dt;
+               vel.x += ((-dzTaiji)*0.06 * spiralDir - dxTaiji*attractStrength) * dt * taijiEdge;
+               vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt * taijiEdge;
+               vel.y += (isYang ? 0.25 : -0.20) * dt * taijiEdge;
                // 恆定物理空間阻尼，確保粒子能夠安穩駐留在穴場
-               vel.multiplyScalar(Math.pow(0.82, dt));
+               vel.multiplyScalar(Math.pow(0.82, dt * taijiEdge));
 
                // 【優化：Boids 生氣群集效應】讓吉氣如同魚群般具有生命力，互相吸引與對齊
                if (st === 2 && Math.random() < 0.3) {
@@ -6081,9 +6121,9 @@ const Physics = {
 
                // 純物理垂直阻尼與土壤微浮力（不再由 mult 控制）
                if (state.soil === 'wuse' && Math.random() < 0.15) {
-                   vel.y += 0.20 * dt; 
+                   vel.y += 0.20 * dt * taijiEdge; 
                } else {
-                   vel.y *= Math.pow(0.8, dt); 
+                   vel.y *= Math.pow(0.8, dt * taijiEdge); 
                }
 
                // 【客觀湧現物理結穴】：僅在粒子處於「陸地」且「層流沉降」狀態時，才允許將生氣轉化為吉氣（pState = 2）
