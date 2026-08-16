@@ -2566,6 +2566,7 @@ const Engine3D = {
                         Physics.qiGrid.fill(0); 
                         this.createShockwave(p.x, p.y, p.z, 0xffd700);
                         UI.update(true);
+                        Physics.resetParticles();
                     }
                 }
             }
@@ -2976,6 +2977,7 @@ const Engine3D = {
             let finalY = this.getTerrainY(bestX, bestZ).y;
             this.createShockwave(bestX, finalY, bestZ, 0xffd700);
             UI.update(true);
+            Physics.resetParticles();
             
             // 觸發相機飛梭 (Cinematic Fly-to)
             let lookDir = state.face === '1' ? 1.0 : -1.0;
@@ -4369,8 +4371,8 @@ const Physics = {
     },
     resetParticles() {
         const state = AppState.current;
-        const xueXOffset = 0;
-        const xueZOffset = 5.0;
+        const xueXOffset = state.manualXue ? (state.xueX || 0) : 0;
+        const xueZOffset = state.manualXue ? state.xueZ : 5.0;
         for(let i=0; i<this.pCount; i++) {
             this.pPos[i*3] = (Math.random()-0.5)*60;
             if(state.d === 'pingyang') {
@@ -4396,8 +4398,8 @@ const Physics = {
                 else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-tz)*0.02)*50.0;
                 let tx = dragonCurveX + (Math.random()-0.5)*10 + xueXOffset;
                 if (state.d === 'heng') {
-                    tz = -70 + (Math.random()-0.5)*15 + xueZOffset;
-                    tx = (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random()*40) + xueXOffset;
+                    tz = -35 + (Math.random()-0.5)*10 + xueZOffset;
+                    tx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset;
                 }
                 let ty = Engine3D.getTerrainY(tx, tz).y;
                 this.pPos[i*3] = tx;
@@ -4581,7 +4583,7 @@ const Physics = {
                 waterSenseZStart = Math.min(waterSenseZStart, lz - 5);
                 waterSenseZEnd = Math.max(waterSenseZEnd, lz + 45);
             }
-            if (isNearWater && Math.abs(x) < 50 && Math.abs(z - 5.0) < 60 && z > waterSenseZStart && z < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
+            if (isNearWater && Math.abs(dxTaiji) < 50 && Math.abs(dzTaiji) < 60 && z > waterSenseZStart && z < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 let driftSpeed = 2.5 * (state.waterVel || 1.0);
                 let relativeSpeed = Math.max(0, Math.sqrt(vel.x * vel.x + vel.z * vel.z) - driftSpeed);
                 let physicalDrag = relativeSpeed * 0.35 + Math.max(0, -vel.y) * 0.65;
@@ -5350,8 +5352,8 @@ const Physics = {
             let isBoundaryExceeded = (isOutOfMap || isStuck || isLifeExpired);
             if (isBoundaryExceeded) {
                 if (isOutOfMap && (st === 1 || st === 3)) frameScatter += 1;
-                const xueXOffset = 0;
-                const xueZOffset = 5.0;
+                const xueXOffset = state.manualXue ? (state.xueX || 0) : 0;
+                const xueZOffset = state.manualXue ? state.xueZ : 5.0;
                 if(state.d === 'pingyang') {
                     z = -35 - Math.random()*10 + xueZOffset; 
                     x = (Math.random()-0.5)*20 + xueXOffset;
@@ -5368,8 +5370,8 @@ const Physics = {
                     else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-z)*0.02)*50.0;
                     x = dragonCurveX + (Math.random()-0.5)*15.0 + xueXOffset;
                     if (state.d === 'heng') {
-                        z = -70 + (Math.random()-0.5)*15 + xueZOffset;
-                        x = (Math.random() > 0.5 ? 1 : -1) * (60 + Math.random()*40) + xueXOffset;
+                        z = -35 + (Math.random()-0.5)*10 + xueZOffset;
+                        x = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset;
                     }
                     y = Engine3D.getTerrainY(x, z).y - 2 + Math.random()*4; 
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
