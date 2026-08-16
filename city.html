@@ -574,7 +574,7 @@ class FengShuiEngine {
               let elevAngle = Math.max(0, Math.atan2(bTop - obsY, dist));
               let blockage = Math.min(1.0, elevAngle / (Math.PI / 2.0)); 
               for (let i = 0; i < 72; i++) {
-                  let rayAng = (i / 72) * Math.PI * 2 - Math.PI; 
+                  let rayAng = ((i + 0.5) / 72) * Math.PI * 2 - Math.PI; 
                   let diff = Math.atan2(Math.sin(rayAng - centerAngle), Math.cos(rayAng - centerAngle));
                   if (Math.abs(diff) < angWidth) {
                       if (blockage > maxBlockage[i]) maxBlockage[i] = blockage;
@@ -585,7 +585,7 @@ class FengShuiEngine {
       let svfTotal = 0, svfFront = 0;
       for (let i = 0; i < 72; i++) {
           svfTotal += maxBlockage[i];
-          let rayAng = (i / 72) * Math.PI * 2 - Math.PI; 
+          let rayAng = ((i + 0.5) / 72) * Math.PI * 2 - Math.PI; 
           if (Math.abs(rayAng) < Math.PI / 3) svfFront += maxBlockage[i]; 
       }
       skyViewFactor = 1.0 - (svfTotal / 72);       
@@ -999,8 +999,9 @@ class FengShuiEngine {
       const dz = sensorFrontZ - src.z;
       const dist = Math.hypot(dx, dz);
       if (src.len === 0) {
+        const windScale = Math.max(0, extWindSpeed) / 5.0;
         if (dist < 40) {
-          s += (40 - dist) * src.pw * 0.15;
+          s += (40 - dist) * src.pw * 0.15 * windScale;
         }
       } else {
         const srcLen = Math.hypot(src.dx, src.dz) || 1.0;
