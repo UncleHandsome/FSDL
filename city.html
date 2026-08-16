@@ -3792,10 +3792,10 @@ window.DryRunTool = {
     let intersectingBlds = 0;
     for (let i = 0; i < app.builder.blds.length; i++) {
         const b1 = app.builder.blds[i];
-        if (b1.isWater || b1.isGlass || b1.h < 5) continue; 
+        if (b1.isWater || b1.h < 5) continue; 
         for (let j = i + 1; j < app.builder.blds.length; j++) {
             const b2 = app.builder.blds[j];
-            if (b2.isWater || b2.isGlass || b2.h < 5) continue;
+            if (b2.isWater || b2.h < 5) continue;
             if (Math.abs(b1.x - b2.x) < (b1.w + b2.w)/2 - 0.5 && Math.abs(b1.z - b2.z) < (b1.d + b2.d)/2 - 0.5) {
                 let b1Base = (b1.y || 0) + getGeoZ(b1.x, b1.z);
                 let b2Base = (b2.y || 0) + getGeoZ(b2.x, b2.z);

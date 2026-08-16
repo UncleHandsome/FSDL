@@ -2307,8 +2307,10 @@ const Engine3D = {
         const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 100, 100); waterGeo.rotateX(-Math.PI/2); 
         const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.35, metalness: 0.2 });
         waterMat.onBeforeCompile = (shader) => {
-            shader.uniforms.time = { value: 0 };
-            shader.uniforms.riverType = { value: 0 };
+        shader.uniforms.time = { value: 0 };
+        shader.uniforms.riverType = { value: 0 };
+        shader.uniforms.lairX = { value: 0.0 };
+        shader.uniforms.lairZ = { value: 5.0 };
             shader.vertexShader = `
                 varying vec2 vWorldXZ;
                 varying vec3 vWorldPosGeo;
@@ -2326,16 +2328,18 @@ const Engine3D = {
                 `
             );
             shader.fragmentShader = `
-                uniform float time;
-                uniform int riverType;
-                varying vec2 vWorldXZ;
-                varying vec3 vWorldPosGeo;
-                ${shader.fragmentShader}
+        uniform float time;
+        uniform int riverType;
+        uniform float lairX;
+        uniform float lairZ;
+        varying vec2 vWorldXZ;
+        varying vec3 vWorldPosGeo;
+        ${shader.fragmentShader}
             `.replace(
                 `#include <map_fragment>`,
                 `
                 vec2 flowUV = vUv;
-                float rx = vWorldXZ.x;
+                float rx = vWorldXZ.x - lairX;
                 float shift = 0.0;
                 if (riverType == 1) shift = sin(rx * 0.15) * 8.0; 
                 else if (riverType == 0) shift = cos(rx * 0.05) * 15.0; 
@@ -2349,12 +2353,12 @@ const Engine3D = {
                 flowUV1.y -= flowSpeedY;
                 flowUV2.x -= flowSpeedX * 0.6;
                 flowUV2.y -= flowSpeedY * 1.3;
-                float rz = vWorldXZ.y;
+                float rz = vWorldXZ.y - lairZ + 5.0;
                 float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6) ? 70.0 : ((riverType == 2) ? 55.0 : ((riverType == 5) ? -10.0 : ((riverType == 7) ? 35.0 : 30.0)));
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
                 if (riverType == 5 && rz > -3.0) distToShore = 999.0; 
-                if (riverType == 7) distToShore = max(0.0, length(vec2(vWorldXZ.x, rz - 35.0)) - 10.0); 
+                if (riverType == 7) distToShore = max(0.0, length(vec2(rx, rz - 35.0)) - 10.0); 
                 if (riverType == 6) { 
                     float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
                     distToShore = min(distToShore, branchDist);
@@ -3093,9 +3097,9 @@ const Engine3D = {
             let lz = state.manualXue ? state.xueZ : 5.0;
             let dxLair = x - lx, dzLair = z - lz;
             if (state.d === 'pingyang') {
-                let microTopo = this.pNoise(x*0.8, z*0.8) * 1.5 + this.ridgeNoise(x*2, z*2) * 0.8;
+                let microTopo = this.pNoise(dxLair*0.8, dzLair*0.8) * 1.5 + this.ridgeNoise(dxLair*2, dzLair*2) * 0.8;
                 if (state.caoshe) {
-                    let snakeDist = Math.abs(x - Math.sin(z * 0.05) * 15.0);
+                    let snakeDist = Math.abs(dxLair - Math.sin(dzLair * 0.05) * 15.0);
                     if (snakeDist < 12) microTopo += 1.2 * Math.exp(-(snakeDist*snakeDist)/15);
                 }
                 let lx_ping = state.manualXue ? (state.xueX || 0) : 0;
@@ -3109,52 +3113,52 @@ const Engine3D = {
                 }
                 y = 2.0 + microTopo; 
             } else {
-                let dX = x;
-                let dZ = z;
+                let dX = dxLair;
+                let dZ = dzLair;
                 let sBase = 0;
                 let ridge = 0;
                 if (state.d === 'gufeng') {
-                    let dist = Math.sqrt(x*x + Math.pow(z+45, 2));
+                    let dist = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+45, 2));
                     sBase = 85 * Math.exp(-(dist*dist)/250); 
                 } else if (state.d === 'heng') {
-                    let hengZ = z + 60; 
-                    ridge = this.ridgeNoise(x * 0.4, hengZ * 0.4) * 25;
+                    let hengZ = dzLair + 60; 
+                    ridge = this.ridgeNoise(dxLair * 0.4, hengZ * 0.4) * 25;
                     let hengBase = 45 * Math.exp(-(hengZ * hengZ) / (400 + ridge * 12)) + ridge * 0.6;
-                    hengBase += Math.max(0, Math.cos(x * 0.05) * 15 * Math.exp(-(hengZ * hengZ) / 800)); 
-                    let branchZRatio = Math.max(0, Math.min(1.0, -z / 60)); 
-                    let branchBase = 25 * Math.exp(-(x * x) / (150 + ridge * 5)) * branchZRatio;
+                    hengBase += Math.max(0, Math.cos(dxLair * 0.05) * 15 * Math.exp(-(hengZ * hengZ) / 800)); 
+                    let branchZRatio = Math.max(0, Math.min(1.0, -dzLair / 60)); 
+                    let branchBase = 25 * Math.exp(-(dxLair * dxLair) / (150 + ridge * 5)) * branchZRatio;
                     sBase = Math.max(hengBase, branchBase);
                 } else {
                     if(state.d==='huilong') {
-                        let curveAngle = Math.max(0, Math.min(Math.PI, (z + 100) / 110 * Math.PI));
+                        let curveAngle = Math.max(0, Math.min(Math.PI, (dzLair + 100) / 110 * Math.PI));
                         let curveCenterX = Math.sin(curveAngle) * 65.0; 
-                        dX = x - curveCenterX;
+                        dX = dxLair - curveCenterX;
                     }
-                    let zRatio = Math.min(2.2, Math.max(0, -z/40));
-                    ridge = this.ridgeNoise(dX, dZ) * 15;
+                    let zRatio = Math.min(2.2, Math.max(0, -dzLair/40));
+                    ridge = this.ridgeNoise(dX, dzLair) * 15;
                     sBase = 25 * Math.exp(-(dX*dX)/(300 + ridge*10)) * zRatio + ridge * zRatio * 0.5;
-                    if(['sheng','ji','huan'].includes(state.d)) sBase += (Math.sin(z*(state.d==='ji'?0.15:0.08)) + this.pNoise(x*0.5, z*0.5)*0.5)*(state.d==='ji'?15:8)*Math.min(2.0, Math.max(0,-z/50));
-                    if(state.d==='si') sBase *= 0.3; if(state.d==='po') sBase += this.pNoise(x,z)*15;
+                    if(['sheng','ji','huan'].includes(state.d)) sBase += (Math.sin(dzLair*(state.d==='ji'?0.15:0.08)) + this.pNoise(dxLair*0.5, dzLair*0.5)*0.5)*(state.d==='ji'?15:8)*Math.min(2.0, Math.max(0,-dzLair/50));
+                    if(state.d==='si') sBase *= 0.3; if(state.d==='po') sBase += this.pNoise(dxLair,dzLair)*15;
                 }
                 let hierarchyBoost = 0;
-                let spinePulse = Math.sin(z * 0.15) * 8.0 + Math.cos(z * 0.07) * 12.0; 
-                if (z < -25) {
-                    let t = Math.max(0, Math.min(1, (-z - 25) / 105)); 
-                    let entrance = Math.min(1, (-z - 25) / 10); 
+                let spinePulse = Math.sin(dzLair * 0.15) * 8.0 + Math.cos(dzLair * 0.07) * 12.0; 
+                if (dzLair < -25) {
+                    let t = Math.max(0, Math.min(1, (-dzLair - 25) / 105)); 
+                    let entrance = Math.min(1, (-dzLair - 25) / 10); 
                     let base = 8 * entrance + t * (45 - 8); 
                     let pulseAmp = 0.5 * entrance + t * 1.0; 
                     hierarchyBoost = base + spinePulse * pulseAmp;
                 }
-                sBase += hierarchyBoost * Math.exp(-(x*x)/(300 + Math.max(0, hierarchyBoost)*10));
-                let roughFactor = (state.bohuan === 'no') ? 1.0 : Math.min(1.0, Math.max(0, (-z - 40) / 60));
-                let rockyNoise = this.pNoise(x * 1.5, z * 1.5) * 12.0 * roughFactor; 
+                sBase += hierarchyBoost * Math.exp(-(dxLair*dxLair)/(300 + Math.max(0, hierarchyBoost)*10));
+                let roughFactor = (state.bohuan === 'no') ? 1.0 : Math.min(1.0, Math.max(0, (-dzLair - 40) / 60));
+                let rockyNoise = this.pNoise(dxLair * 1.5, dzLair * 1.5) * 12.0 * roughFactor; 
                 if (state.xing === 'huo' && state.bohuan === 'no') rockyNoise += Math.abs(Math.sin(x * 0.8) * Math.cos(z * 0.8)) * 15.0;
                 sBase += rockyNoise;
-                if (state.zhijiao !== 'none' && z < -20) {
+                if (state.zhijiao !== 'none' && dzLair < -20) {
                     let branchDir = (state.zhijiao === 'shun') ? 1.5 : -1.5; 
-                    let branchPattern = Math.cos((z + Math.abs(x) * branchDir) * 0.2); 
+                    let branchPattern = Math.cos((dzLair + Math.abs(dxLair) * branchDir) * 0.2); 
                     if (branchPattern > 0.6) {
-                        let branchHeight = (branchPattern - 0.6) * 35.0 * Math.exp(-Math.abs(x)/80);
+                        let branchHeight = (branchPattern - 0.6) * 35.0 * Math.exp(-Math.abs(dxLair)/80);
                         sBase = Math.max(sBase, branchHeight);
                     }
                 }
@@ -3334,11 +3338,11 @@ const Engine3D = {
                     let zutaiEdge = Math.max(0, Math.min(1, (-dzLair - 90) / 20.0));
                     zutaiEdge = zutaiEdge * zutaiEdge * (3 - 2 * zutaiEdge);
                     y = Math.max(y, zuTotal * state.zhuScale * zutaiEdge);
-                } else if (state.d !== 'pingyang' && z < -110) {
-                    let distantRanges = (this.ridgeNoise(x * 0.4, z * 0.4) * 30.0 + this.pNoise(x * 0.2, z * 0.2, 2) * 20.0) * Math.min(1.0, (-z - 110) / 40.0);
+                } else if (state.d !== 'pingyang' && dzLair < -110) {
+                    let distantRanges = (this.ridgeNoise(dxLair * 0.4, dzLair * 0.4) * 30.0 + this.pNoise(dxLair * 0.2, dzLair * 0.2, 2) * 20.0) * Math.min(1.0, (-dzLair - 110) / 40.0);
                     y = Math.max(y, distantRanges * state.zhuScale);
                 }
-                let brokenNoise = state.posui ? (this.pNoise(x*2.0, z*2.0) * 20.0 - 5.0) : 0; 
+                let brokenNoise = state.posui ? (this.pNoise(dxLair*2.0, dzLair*2.0) * 20.0 - 5.0) : 0; 
                 if(state.ml!=='none' && dxLair<0 && dzLair>-35 && dzLair<120) {
                     let sH = 0;
                     if (state.ml === 'jiaoya') {
@@ -3354,7 +3358,7 @@ const Engine3D = {
                         else if (dzLair > 55 && dzLair < 85) curve += Math.sin((dzLair - 55) / 30 * Math.PI) * 45;
                         let centerX = lx - Math.max(-10, r - curve); 
                         sH = 35*Math.exp(-Math.pow(x-centerX,2)/200)*Math.max(0,1-(dzLair+20)/130);
-                        if(state.ml==='po') sH *= (1+this.pNoise(x,z)*0.5); 
+                        if(state.ml==='po') sH *= (1+this.pNoise(dxLair,dzLair)*0.5); 
                         if(state.ao && dzLair>0 && dzLair<30) {
                             let aoFalloff = Math.max(0, Math.min(1, dzLair / 8.0)) * Math.max(0, Math.min(1, (30 - dzLair) / 8.0));
                             aoFalloff = aoFalloff * aoFalloff * (3 - 2 * aoFalloff);
@@ -3402,7 +3406,7 @@ const Engine3D = {
                         else if (dzLair > 75 && dzLair < 105) curve += Math.sin((dzLair - 75) / 30 * Math.PI) * 45;
                         let centerX = lx + Math.max(-10, r - curve);
                         sH = (state.mr==='tai'?45:35)*Math.exp(-Math.pow(x-centerX,2)/200)*Math.max(0,1-(dzLair+20)/130);
-                        if(state.mr==='po') sH *= (1+this.pNoise(x,z)*0.5); 
+                        if(state.mr==='po') sH *= (1+this.pNoise(dxLair,dzLair)*0.5); 
                         if(state.ao && dzLair>0 && dzLair<30) {
                             let aoFalloff = Math.max(0, Math.min(1, dzLair / 8.0)) * Math.max(0, Math.min(1, (30 - dzLair) / 8.0));
                             aoFalloff = aoFalloff * aoFalloff * (3 - 2 * aoFalloff);
@@ -3750,27 +3754,27 @@ const Engine3D = {
                 } else if(state.w === 'bazi') {
                     rS += Math.abs(dxLair) * 0.5;
                 }
-                let dR = Math.abs(dzLair - rS);
-                if(state.w === 'lintou' && Math.abs(x) < 14 && z > -32 && z < -1) {
+                    let dR = Math.abs(dzLair - rS);
+                    if(state.w === 'lintou' && Math.abs(dxLair) < 14 && dzLair > -32 && dzLair < -1) {
                     let lintouDepth = -12.0;
-                    let edgeBlend = Math.max(0.0, Math.min(1.0, (z + 3) / 5.0)); 
-                    let xEdgeBlend = Math.max(0, 1 - Math.abs(x) / 14.0);
+                    let edgeBlend = Math.max(0.0, Math.min(1.0, (dzLair + 3) / 5.0)); 
+                    let xEdgeBlend = Math.max(0, 1 - Math.abs(dxLair) / 14.0);
                     xEdgeBlend = xEdgeBlend * xEdgeBlend * (3 - 2 * xEdgeBlend); 
                     edgeBlend *= xEdgeBlend;
                     y = y * (1 - edgeBlend) + lintouDepth * edgeBlend;
                 }
-                if(state.w === 'hejin' && z > -28 && z < 28) {
-                    let hejinCurve = 12 + z * 0.4;
-                    let distToHejin = Math.abs(Math.abs(x) - hejinCurve);
+                if(state.w === 'hejin' && dzLair > -28 && dzLair < 28) {
+                    let hejinCurve = 12 + dzLair * 0.4;
+                    let distToHejin = Math.abs(Math.abs(dxLair) - hejinCurve);
                     if (distToHejin < 4) {
                         let blend = Math.pow(1.0 - distToHejin / 4.0, 1.2);
-                        let zEdgeBlend = Math.max(0, Math.min(1, (z + 28) / 3.0)) * Math.max(0, Math.min(1, (28 - z) / 3.0));
+                        let zEdgeBlend = Math.max(0, Math.min(1, (dzLair + 28) / 3.0)) * Math.max(0, Math.min(1, (28 - dzLair) / 3.0));
                         blend *= zEdgeBlend;
                         y = y * (1 - blend) + (-3.5) * blend;
                     }
-                    if (z > 15 && z < 30 && Math.abs(x) < 15) {
-                        let centerBlend = Math.max(0.0, Math.min(1.0, Math.abs(x) / 15.0));
-                        let zEdge = Math.max(0, Math.min(1, (z - 15) / 3.0)) * Math.max(0, Math.min(1, (30 - z) / 3.0));
+                    if (dzLair > 15 && dzLair < 30 && Math.abs(dxLair) < 15) {
+                        let centerBlend = Math.max(0.0, Math.min(1.0, Math.abs(dxLair) / 15.0));
+                        let zEdge = Math.max(0, Math.min(1, (dzLair - 15) / 3.0)) * Math.max(0, Math.min(1, (30 - dzLair) / 3.0));
                         centerBlend *= zEdge;
                         y = y * (1 - centerBlend) + (-6.5) * centerBlend;
                     }
@@ -3805,8 +3809,8 @@ const Engine3D = {
                     }
                 }
                 if (state.w === 'hulu') {
-                    let huluW = 12 + Math.sin(x * 0.15) * 10;
-                    let huluDist = Math.abs(z - 60);
+                    let huluW = 12 + Math.sin(dxLair * 0.15) * 10;
+                    let huluDist = Math.abs(dzLair - 60);
                     if (huluDist < huluW) {
                         let edgeFactor = Math.max(0, 1.0 - huluDist / huluW);
                         let depthFactor = Math.pow(edgeFactor, 1.2);
@@ -3828,13 +3832,13 @@ const Engine3D = {
                         dR = 0; 
                     }
                 }
-                if (state.w === 'juanlian' && Math.abs(x) < 45 && z > 12 && z < 73) {
-                    let smoothProgress = Math.min(1.0, (z - 15) / 55.0);
+                if (state.w === 'juanlian' && Math.abs(dxLair) < 45 && dzLair > 12 && dzLair < 73) {
+                    let smoothProgress = Math.min(1.0, (dzLair - 15) / 55.0);
                     let smoothDrop = Math.pow(smoothProgress, 1.5) * 27.0;
-                    let endFalloff = Math.min(1.0, Math.max(0.0, (70 - z) / 8.0));
-                    let xEdgeBlend = Math.max(0, 1 - Math.abs(x) / 45.0);
+                    let endFalloff = Math.min(1.0, Math.max(0.0, (70 - dzLair) / 8.0));
+                    let xEdgeBlend = Math.max(0, 1 - Math.abs(dxLair) / 45.0);
                     xEdgeBlend = xEdgeBlend * xEdgeBlend * (3 - 2 * xEdgeBlend);
-                    let zEdgeBlend = Math.max(0, Math.min(1, (z - 12) / 3.0)) * Math.max(0, Math.min(1, (73 - z) / 3.0));
+                    let zEdgeBlend = Math.max(0, Math.min(1, (dzLair - 12) / 3.0)) * Math.max(0, Math.min(1, (73 - dzLair) / 3.0));
                     smoothDrop *= endFalloff * xEdgeBlend * zEdgeBlend;
                     y -= smoothDrop;
                     dR = 0;
@@ -3850,9 +3854,9 @@ const Engine3D = {
                         dR = 0;
                     }
                 }
-                if((state.w === 'jiuqu' || state.w === 'you' || state.w === 'fan') && Math.abs(z - rS) < 25) {
-                    let curveCoeff = (state.w === 'jiuqu') ? Math.sin(x * 0.12) : ((state.w === 'you') ? 1.0 : -1.0);
-                    let bankDist = (z - rS) * curveCoeff;
+                if((state.w === 'jiuqu' || state.w === 'you' || state.w === 'fan') && Math.abs(dzLair - rS) < 25) {
+                    let curveCoeff = (state.w === 'jiuqu') ? Math.sin(dxLair * 0.12) : ((state.w === 'you') ? 1.0 : -1.0);
+                    let bankDist = (dzLair - rS) * curveCoeff;
                     if (bankDist > 1.5 && bankDist < 18.0) {
                         let spitH = Math.exp(-Math.pow(bankDist - 8.0, 2) / 20) * 4.5;
                         y += spitH;
@@ -3862,30 +3866,35 @@ const Engine3D = {
                     }
                 }
                 let hasGuardsGorge = state.shixiang || state.hua || state.luo;
-                if(hasGuardsGorge && Math.abs(x) > 50 && z > 33) {
-                    let sideSign = Math.sign(x);
-                    rS += Math.sin(x * 0.2) * 12;
-                    let gorgeChoke = Math.exp(-Math.pow(Math.abs(x) - 65, 2) / 150) * 18;
-                    let zGorgeEdge = Math.max(0, Math.min(1, (z - 33) / 4.0));
+                if(hasGuardsGorge && Math.abs(dxLair) > 50 && dzLair > 33) {
+                    let sideSign = Math.sign(dxLair);
+                    rS += Math.sin(dxLair * 0.2) * 12;
+                    let gorgeChoke = Math.exp(-Math.pow(Math.abs(dxLair) - 65, 2) / 150) * 18;
+                    let zGorgeEdge = Math.max(0, Math.min(1, (dzLair - 33) / 4.0));
                     zGorgeEdge = zGorgeEdge * zGorgeEdge * (3 - 2 * zGorgeEdge);
-                    let riverBand = 1.0 - Math.max(0, Math.min(1, Math.abs(z - rS) / 15.0));
+                    let riverBand = 1.0 - Math.max(0, Math.min(1, Math.abs(dzLair - rS) / 15.0));
                     riverBand = riverBand * riverBand * (3 - 2 * riverBand);
                     let gorgeH = (-5 + gorgeChoke) * zGorgeEdge * riverBand;
                     y = Math.max(y, gorgeH); 
                 }
                 if (state.w !== 'sishui' && state.w !== 'jushui') {
-                    dR = Math.abs(z - rS);
+                    dR = Math.abs(dzLair - rS);
                 }
-				if(dR < 25 && state.w !== 'sishui' && state.w !== 'jushui') {
+                if(dR < 25 && state.w !== 'sishui' && state.w !== 'jushui') {
                     let isKeyMountain = (state.an && dzLair > 50 && dzLair < 95 && Math.abs(dxLair) < 40) || (state.chao && dzLair > 105 && Math.abs(dxLair) < 80);
-					if (!isKeyMountain) {
-						let t = Math.max(0, dR / 25);
-						let smoothT = t * t * (3 - 2 * t);
-						let riverBottom = (state.d === 'pingyang') ? -4.5 : ((state.w === 'gejiao') ? -18 : -15);
-						let flowTilt = 0;
-						if (state.w === 'bazi') flowTilt = -Math.abs(x) * 0.08; 
-						else if (state.w === 'lintou') flowTilt = (z < 20) ? (z - 20) * 0.5 : -Math.abs(x) * 0.05; 
-						else flowTilt = -x * 0.03; 
+                    if (!isKeyMountain) {
+                        let t = Math.max(0, dR / 25);
+                        let smoothT = t * t * (3 - 2 * t);
+                        if (state.taiji && mtD < 24) {
+                            let protectT = Math.max(0, Math.min(1, (24 - mtD) / 8));
+                            protectT = protectT * protectT * (3 - 2 * protectT);
+                            smoothT = Math.max(smoothT, protectT);
+                        }
+                        let riverBottom = (state.d === 'pingyang') ? -4.5 : ((state.w === 'gejiao') ? -18 : -15);
+                        let flowTilt = 0;
+                        if (state.w === 'bazi') flowTilt = -Math.abs(dxLair) * 0.08; 
+                        else if (state.w === 'lintou') flowTilt = (dzLair < 20) ? (dzLair - 20) * 0.5 : -Math.abs(dxLair) * 0.05; 
+                        else flowTilt = -dxLair * 0.03; 
 						let targetRiverY = riverBottom + flowTilt;
                         let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
                         targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.8));
@@ -3933,7 +3942,7 @@ const Engine3D = {
                     y = Math.max(y, -15.0 + qinRock * qinEdge); 
                 }
             }
-            if (state.d !== 'huilong' && state.d !== 'pingyang') y -= (z + 170) * 0.015;
+            if (state.d !== 'huilong' && state.d !== 'pingyang') y -= (dzLair + 170) * 0.015;
             if (state.bendi && state.d !== 'pingyang') {
                 let basinRadius = Math.sqrt(dxLair*dxLair + Math.pow(dzLair-10, 2));
                 if (basinRadius > 55) {
@@ -4040,6 +4049,13 @@ const Engine3D = {
             } else if (state.terrain === 'fanpo') {
                 y += Math.max(0, dzLair * 0.18); 
             }
+            if (state.taiji && mtD < 24) {
+                let taijiFloor = -2.5 + (state.d === 'pingyang' ? 0 : xueH * 0.8);
+                let taijiBlend = Math.max(0, 1 - mtD / 24);
+                taijiBlend = taijiBlend * taijiBlend * (3 - 2 * taijiBlend);
+                let floorBoost = Math.max(0, taijiFloor - y);
+                y += floorBoost * taijiBlend;
+            }
             let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
             this.hMap[gZ*(tSeg+1) + gX] = y;
         } 
@@ -4060,16 +4076,17 @@ const Engine3D = {
                     let dzLairGuard = z - lzGuard;
                     let isKeyMountainGuard = (state.an && dzLairGuard > 50 && dzLairGuard < 95 && Math.abs(dxLairGuard) < 40) || (state.chao && dzLairGuard > 105 && Math.abs(dxLairGuard) < 80);
                     let rS_guard = wZ;
-                    if (state.d === 'pingyang') rS_guard += Math.sin(x * 0.08) * 20.0 + Math.cos(x * 0.18) * 8.0;
-                    else if (state.w === 'jiuqu') { let zCurve = Math.sin(x * 0.12); rS_guard += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
-                    else if (state.w === 'you') rS_guard += (1.0 - Math.pow(x / 90.0, 2)) * 28.0;
-                    else if (state.w === 'fan') rS_guard -= Math.cos(x * 0.05) * 15;
-                    else if (state.w === 'bazi') rS_guard += Math.abs(x) * 0.5;
-                    if (state.w === 'lintou' && z > 2.0) rS_guard = 999;
-                    let dR_guard = Math.abs(z - rS_guard);
-                    if (dR_guard < 24 && !isKeyMountainGuard && Math.abs(this.hMap[idx] - waterLevel) < 0.8) {
-                        this.hMap[idx] = waterLevel - 0.8;
-                    }
+                    if (state.d === 'pingyang') rS_guard += Math.sin(dxLairGuard * 0.08) * 20.0 + Math.cos(dxLairGuard * 0.18) * 8.0;
+                    else if (state.w === 'jiuqu') { let zCurve = Math.sin(dxLairGuard * 0.12); rS_guard += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
+                    else if (state.w === 'you') rS_guard += (1.0 - Math.pow(dxLairGuard / 90.0, 2)) * 28.0;
+                    else if (state.w === 'fan') rS_guard -= Math.cos(dxLairGuard * 0.05) * 15;
+                    else if (state.w === 'bazi') rS_guard += Math.abs(dxLairGuard) * 0.5;
+            if (state.w === 'lintou' && dzLairGuard > 2.0) rS_guard = 999;
+            let dR_guard = Math.abs(dzLairGuard - rS_guard);
+            let mtDGuard = Math.sqrt(dxLairGuard * dxLairGuard + dzLairGuard * dzLairGuard);
+            if (dR_guard < 24 && !isKeyMountainGuard && !(state.taiji && mtDGuard < 24) && Math.abs(this.hMap[idx] - waterLevel) < 0.8) {
+                this.hMap[idx] = waterLevel - 0.8;
+            }
                 }
             }
         }
@@ -4107,14 +4124,14 @@ const Engine3D = {
                     else if (state.w==='lintou') wZColor = -10;
                     else if (['hejin','sishui','jushui'].includes(state.w)) wZColor = 35;
                     let rSColor = wZColor;
-                    if (state.d === 'pingyang') rSColor += Math.sin(x * 0.08) * 20.0 + Math.cos(x * 0.18) * 8.0;
-                    if (state.w === 'jiuqu') { let zCurveC = Math.sin(x * 0.12); rSColor += Math.sign(zCurveC) * Math.pow(Math.abs(zCurveC), 0.5) * 14; }
-                    if (state.w === 'you') rSColor += (1.0 - Math.pow(x / 90.0, 2)) * 28.0;
-                    if (state.w === 'fan') rSColor -= Math.cos(x*0.05)*15;
-                    if (state.w === 'bazi') rSColor += Math.abs(x)*0.5;
-                    let dRColor = (state.w === 'sishui' || state.w === 'jushui') ? Math.sqrt(x * x + Math.pow(z - (state.w === 'sishui' ? 40 : 30), 2)) : Math.abs(z - rSColor);
-                    if (state.w === 'tfork' && Math.abs(x) < 12 && z > 20 && z < 75) dRColor = 0; 
-                    if (state.w === 'lintou' && z > 2.0) dRColor = 999;
+                    if (state.d === 'pingyang') rSColor += Math.sin(dxLair * 0.08) * 20.0 + Math.cos(dxLair * 0.18) * 8.0;
+                    if (state.w === 'jiuqu') { let zCurveC = Math.sin(dxLair * 0.12); rSColor += Math.sign(zCurveC) * Math.pow(Math.abs(zCurveC), 0.5) * 14; }
+                    if (state.w === 'you') rSColor += (1.0 - Math.pow(dxLair / 90.0, 2)) * 28.0;
+                    if (state.w === 'fan') rSColor -= Math.cos(dxLair*0.05)*15;
+                    if (state.w === 'bazi') rSColor += Math.abs(dxLair)*0.5;
+                    let dRColor = (state.w === 'sishui' || state.w === 'jushui') ? Math.sqrt(dxLair * dxLair + Math.pow(dzLair - (state.w === 'sishui' ? 40 : 30), 2)) : Math.abs(dzLair - rSColor);
+                    if (state.w === 'tfork' && Math.abs(dxLair) < 12 && dzLair > 20 && dzLair < 75) dRColor = 0; 
+                    if (state.w === 'lintou' && dzLair > 2.0) dRColor = 999;
                     if (dRColor < 22.0) isActualRiverChannel = true;
             }
                 if (isActualRiverChannel && y < -10.0) {
@@ -4144,21 +4161,21 @@ const Engine3D = {
                 }
                 let isRoadSurface = false;
                 if (state.road === 'huanbao') {
-                    let roadCurve = 10 - Math.pow(x / 35, 2) * 12; 
-                    if (Math.abs(z - roadCurve) < 3.0) isRoadSurface = true;
+                    let roadCurve = 10 - Math.pow(dxLair / 35, 2) * 12; 
+                    if (Math.abs(dzLair - roadCurve) < 3.0) isRoadSurface = true;
                 } else if (state.road === 'zhichong') {
-                    if (Math.abs(x) < 2.5 && z > 5 && z < 145) isRoadSurface = true;
+                    if (Math.abs(dxLair) < 2.5 && dzLair > 5 && dzLair < 145) isRoadSurface = true;
                 } else if (state.road === 'sickle') {
-                    let sickleCurve = 30 - Math.pow(x / 40, 2) * 20; 
-                    if (Math.abs(z - sickleCurve) < 3.0) isRoadSurface = true;
+                    let sickleCurve = 30 - Math.pow(dxLair / 40, 2) * 20; 
+                    if (Math.abs(dzLair - sickleCurve) < 3.0) isRoadSurface = true;
                 } else if (state.road === 'zuocha' || state.road === 'youcha') {
                     let sign = state.road === 'zuocha' ? -1 : 1;
-                    let expectedX = sign * (z * 0.4 + 14);
-                    if (Math.abs(x - expectedX) * 0.8 < 2.5 && z > -15 && z < 115) isRoadSurface = true;
+                    let expectedX = sign * (dzLair * 0.4 + 14);
+                    if (Math.abs(dxLair - expectedX) * 0.8 < 2.5 && dzLair > -15 && dzLair < 115) isRoadSurface = true;
                 } else if (state.road === 'jiandao') {
-                    let leftDist = Math.abs(x + (z-10)*0.6) * 0.8;
-                    let rightDist = Math.abs(x - (z-10)*0.6) * 0.8;
-                    if (Math.min(leftDist, rightDist) < 2.5 && z > 0 && z < 145) isRoadSurface = true;
+                    let leftDist = Math.abs(dxLair + (dzLair-10)*0.6) * 0.8;
+                    let rightDist = Math.abs(dxLair - (dzLair-10)*0.6) * 0.8;
+                    if (Math.min(leftDist, rightDist) < 2.5 && dzLair > 0 && dzLair < 145) isRoadSurface = true;
                 }
                 if (isRoadSurface && !isLakeSurface) {
                     c.setRGB(0.35, 0.35, 0.35); 
@@ -4211,27 +4228,27 @@ const Engine3D = {
                     let dzLairTree = z - lz_tree;
                     let distToLairTree = Math.sqrt(dxLairTree * dxLairTree + dzLairTree * dzLairTree);
                     let isOnRoad = false;
-                    if (state.road === 'zhichong' && Math.abs(x) < 4.0 && z > 0) isOnRoad = true;
-                    if (state.road === 'huanbao' && Math.abs(z - (10 - Math.pow(x / 35, 2) * 12)) < 4.5) isOnRoad = true;
+                    if (state.road === 'zhichong' && Math.abs(dxLairTree) < 4.0 && dzLairTree > 0) isOnRoad = true;
+                    if (state.road === 'huanbao' && Math.abs(dzLairTree - (10 - Math.pow(dxLairTree / 35, 2) * 12)) < 4.5) isOnRoad = true;
                     if (state.road === 'sickle') {
-                        let roadCurve = 30 - Math.pow(x / 40, 2) * 20;
-                        if (Math.abs(z - roadCurve) < 4.0) isOnRoad = true;
+                        let roadCurve = 30 - Math.pow(dxLairTree / 40, 2) * 20;
+                        if (Math.abs(dzLairTree - roadCurve) < 4.0) isOnRoad = true;
                     }
                     if (state.road === 'zuocha' || state.road === 'youcha') {
                         let sign = state.road === 'zuocha' ? -1 : 1;
-                        let expectedX = sign * (z * 0.4 + 14);
-                        if (Math.abs(x - expectedX) * 0.8 < 3.0 && z > -15 && z < 115) isOnRoad = true;
+                        let expectedX = sign * (dzLairTree * 0.4 + 14);
+                        if (Math.abs(dxLairTree - expectedX) * 0.8 < 3.0 && dzLairTree > -15 && dzLairTree < 115) isOnRoad = true;
                     }
                     if (state.road === 'jiandao') {
-                        let leftDist = Math.abs(x + (z-10)*0.6) * 0.8;
-                        let rightDist = Math.abs(x - (z-10)*0.6) * 0.8;
-                        if (Math.min(leftDist, rightDist) < 3.0 && z > 0 && z < 145) isOnRoad = true;
+                        let leftDist = Math.abs(dxLairTree + (dzLairTree-10)*0.6) * 0.8;
+                        let rightDist = Math.abs(dxLairTree - (dzLairTree-10)*0.6) * 0.8;
+                        if (Math.min(leftDist, rightDist) < 3.0 && dzLairTree > 0 && dzLairTree < 145) isOnRoad = true;
                     }
                     if (state.road === 'lanyao') {
-                        if (Math.abs(z - 20) < 4.0 && Math.abs(x) < 80) isOnRoad = true;
+                        if (Math.abs(dzLairTree - 20) < 4.0 && Math.abs(dxLairTree) < 80) isOnRoad = true;
                     }
                     if (state.road === 'wuwei') {
-                        if (Math.abs(x) < 4.0 && z > 20 && z < 145) isOnRoad = true;
+                        if (Math.abs(dxLairTree) < 4.0 && dzLairTree > 20 && dzLairTree < 145) isOnRoad = true;
                     }
                     if ((state.w !== 'none' || state.yue) && y <= ((state.d === 'pingyang') ? -2.5 : -10.0)) isOnRoad = true;
                     if (isOnRoad) continue;
@@ -4443,6 +4460,8 @@ const Physics = {
             let visualWVel = state.waterVel || 1.0;
             Engine3D.waterMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05 * visualWVel;
             Engine3D.waterMesh.material.userData.shader.uniforms.riverType.value = rType;
+            Engine3D.waterMesh.material.userData.shader.uniforms.lairX.value = state.manualXue ? (state.xueX || 0) : 0.0;
+            Engine3D.waterMesh.material.userData.shader.uniforms.lairZ.value = state.manualXue ? (state.xueZ || 0) : 5.0;
         }
         if (Engine3D.treeMesh && Engine3D.treeMesh.material.userData.shader) {
             Engine3D.treeMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05;
@@ -5157,20 +5176,20 @@ const Physics = {
                 vel.multiplyScalar(Math.pow(0.98, dt));
                 vel.y -= 2.5 * dt; 
             }
-            let hasGuards = false;
-            if (hasGuards && z > 50 && z < 90 && Math.abs(x) < 55) {
-                let guardFalloffX = Math.max(0, 1 - Math.abs(x) / 55.0);
-                let guardFalloffZ = Math.min(1, Math.max(0, (z - 50) / 8.0)) * Math.min(1, Math.max(0, (90 - z) / 8.0));
+            let hasGuards = (state.shixiang || state.hua || state.luo || state.qin || state.riyue) && (state.w !== 'none' && state.w !== 'lintou');
+            if (hasGuards && dzTaiji > 50 && dzTaiji < 90 && Math.abs(dxTaiji) < 55) {
+                let guardFalloffX = Math.max(0, 1 - Math.abs(dxTaiji) / 55.0);
+                let guardFalloffZ = Math.min(1, Math.max(0, (dzTaiji - 50) / 8.0)) * Math.min(1, Math.max(0, (90 - dzTaiji) / 8.0));
                 let guardFalloff = Math.min(guardFalloffX, guardFalloffZ);
                 guardFalloff = guardFalloff * guardFalloff * (3 - 2 * guardFalloff); 
                 let guardStrength = (state.luo ? 0.4 : 0) + (state.hua ? 0.4 : 0) + (state.shixiang ? 0.8 : 0) + (state.qin ? 0.3 : 0) + (state.riyue ? 0.9 : 0);
                 if (state.riyue) {
-                    let riyuePressure = -1.5 + (2.5 - (-1.5)) * (0.5 + Math.atan(x / 8.0) / Math.PI);
+                    let riyuePressure = -1.5 + (2.5 - (-1.5)) * (0.5 + Math.atan(dxTaiji / 8.0) / Math.PI);
                     localWindZ += riyuePressure * thermalDraft * guardFalloff * dt;
                     localTurbulence += 3.0 * thermalDraft * guardFalloff; 
                 }
-                let dxToCenter = -x; 
-                let dzToCenter = 70 - z; 
+                let dxToCenter = -dxTaiji; 
+                let dzToCenter = 70 - dzTaiji; 
                 let distToCenter = Math.sqrt(dxToCenter*dxToCenter + dzToCenter*dzToCenter);
                 if (distToCenter > 0) {
                     let guardForce = guardStrength * 3.5 * thermalDraft * guardFalloff;
