@@ -4095,8 +4095,8 @@ const Engine3D = {
                 let lxColor = state.manualXue ? (state.xueX || 0) : 0;
                 let lzColor = state.manualXue ? state.xueZ : 5.0;
                 let dxLair = x - lxColor, dzLair = z - lzColor;
-                let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
-                let y = this.hMap[gZ*(tSeg+1) + gX]; 
+                    let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
+                    y = this.hMap[gZ*(tSeg+1) + gX];
             let distToPeak = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+60, 2));
             let tianchiWaterLevel = 33 * (state.zhuScale || 1.0); 
             let isLakeSurface = (state.tianchi && state.zhu && distToPeak < 20 && y < tianchiWaterLevel + 5.0);
@@ -4600,7 +4600,7 @@ const Physics = {
                 waterSenseZStart = Math.min(waterSenseZStart, 5);
                 waterSenseZEnd = Math.max(waterSenseZEnd, 45);
             }
-            if (isNearWater && Math.abs(dxTaiji) < 50 && Math.abs(dzTaiji) < 60 && dzTaiji > waterSenseZStart && dzTaiji < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
+            if (isNearWater && Math.abs(dxTaiji) < 60 && dzTaiji > waterSenseZStart && dzTaiji < waterSenseZEnd && Engine3D.getTerrainY(x, z).y <= waterSensorLevel + 0.5 && y <= waterSensorLevel + 5.0) {
                 let driftSpeed = 2.5 * (state.waterVel || 1.0);
                 let relativeSpeed = Math.max(0, Math.sqrt(vel.x * vel.x + vel.z * vel.z) - driftSpeed);
                 let physicalDrag = relativeSpeed * 0.35 + Math.max(0, -vel.y) * 0.65;

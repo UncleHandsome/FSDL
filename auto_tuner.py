@@ -31,13 +31,197 @@ def setup_logger(log_file):
     logger.addHandler(fh)
     return logger
 
-def load_api_key():
-    key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "api_key.txt")
-    if not os.path.exists(key_file):
+# ============================================================
+# 多金鑰輪換池管理器 (API Key Pool)
+# ============================================================
+class ApiKeyPool:
+    """多 API Key 負載、壞 Key 自動剔除與全滅狀態管理器"""
+    def __init__(self, keys):
+        self.all_keys = [k.strip() for k in keys if k and k.strip()]
+        self.active_keys = list(self.all_keys)
+        self.current_idx = 0
+
+    def next_key_for_request(self, client):
+        """★ 每一個 Request 輪流切換至下一把 Key"""
+        if not self.active_keys:
+            return ""
+        self.current_idx = (self.current_idx + 1) % len(self.active_keys)
+        new_key = self.active_keys[self.current_idx]
+        self._apply_key_to_client(client, new_key)
+        return new_key
+
+    def get_current_key(self):
+        if not self.active_keys:
+            return ""
+        return self.active_keys[self.current_idx % len(self.active_keys)]
+
+    def rotate(self):
+        """在所有有效金鑰之間輪流切換"""
+        if not self.active_keys:
+            return ""
+        self.current_idx = (self.current_idx + 1) % len(self.active_keys)
+        return self.active_keys[self.current_idx]
+
+    def _apply_key_to_client(self, client, key):
+        """深層穿透更新 OpenAI Client 實例的 API Key 與授權 Header"""
+        if hasattr(client, "api_key"):
+            client.api_key = key
+        # 同步更新自訂 Header 與 httpx 內部 Header（避免大小寫重複設置導致 Cloudflare 400 Bad Request）
+        if hasattr(client, "_custom_headers") and isinstance(client._custom_headers, dict):
+            client._custom_headers["Authorization"] = f"Bearer {key}"
+            client._custom_headers.pop("authorization", None)
+        # 兼容最新 OpenAI Python SDK 內部 Client 配置
+        if hasattr(client, "_client"):
+            try:
+                if hasattr(client._client, "headers"):
+                    client._client.headers["Authorization"] = f"Bearer {key}"
+            except Exception:
+                pass
+        if hasattr(client, "_auth") and hasattr(client._auth, "token"):
+            try:
+                client._auth.token = key
+            except Exception:
+                pass
+
+    def rotate_client(self, client, logger, reason="觸發限制/異常"):
+        """切換下一把金鑰並同步更新 OpenAI Client"""
+        if not self.active_keys:
+            return ""
+        new_key = self.rotate()
+        self._apply_key_to_client(client, new_key)
+        logger.warning(
+            f"    🔑 [金鑰輪換] {reason}，已自動切換至可用 Key ({self.mask_key(new_key)})"
+        )
+        return new_key
+
+    def mark_current_dead(self, client, logger, reason="欠費/失效"):
+        """★ 將當前 Key 永久剔除出活躍清單，並切換至下一把可用 Key（若全部陣亡回傳 True）"""
+        if not self.active_keys:
+            return True
+
+        dead_key = self.get_current_key()
+        if dead_key in self.active_keys:
+            self.active_keys.remove(dead_key)
+
+        logger.error(
+            f"    💀 [金鑰陣亡] Key ({self.mask_key(dead_key)}) 因「{reason}」已永久剔除！"
+            f"剩餘可用金鑰數: {len(self.active_keys)}/{len(self.all_keys)}"
+        )
+
+        if not self.active_keys:
+            logger.critical("    🚫 [警報] 金鑰池中所有 API Key 皆已全數耗盡或失效！")
+            return True
+
+        self.current_idx = self.current_idx % len(self.active_keys)
+        new_key = self.active_keys[self.current_idx]
+        self._apply_key_to_client(client, new_key)
+        logger.info(f"    ✨ 已無縫接軌切換至下一把正常 Key ({self.mask_key(new_key)})")
+        return False
+
+    def is_all_dead(self):
+        """判斷是否全部 Key 皆已失效"""
+        return len(self.active_keys) == 0
+
+    def has_multiple(self):
+        return len(self.active_keys) > 1
+
+    def mask_key(self, key=None):
+        k = key or self.get_current_key()
+        if not k or len(k) <= 10:
+            return "***"
+        return f"{k[:6]}...{k[-4:]}"
+
+    def __len__(self):
+        return len(self.active_keys)
+
+
+_LAST_API_CALL_TIME = 0.0
+
+
+def load_api_keys(
+    key_file=None,
+    api_key_str=None,
+    is_opencode=False,
+    is_free_glm=False,
+    is_gemini=False,
+    is_nvidia=False
+):
+    """讀取多 API Key 並構建 ApiKeyPool（支援多行、註解、逗號分隔）"""
+    keys = []
+
+    def _parse_keys(raw: str):
+        res = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("//"):
+                continue
+            for piece in re.split(r"[,;]+", line):
+                piece = piece.strip().strip("'\"")
+                if piece and not piece.startswith("#") and piece not in res:
+                    res.append(piece)
+        return res
+
+    if api_key_str and api_key_str.strip():
+        keys.extend(_parse_keys(api_key_str))
+
+    # 環境變數查找映射
+    if not keys:
+        if is_gemini:
+            env_candidates = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY"]
+        elif is_nvidia:
+            env_candidates = ["NVIDIA_API_KEY", "NV_API_KEY", "OPENAI_API_KEY"]
+        elif is_free_glm:
+            env_candidates = ["OPENROUTER_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY"]
+        elif is_opencode:
+            env_candidates = ["OPENCODE_API_KEY", "OPENAI_API_KEY"]
+        else:
+            env_candidates = ["DEEPSEEK_API_KEY", "OPENAI_API_KEY"]
+
+        for var in env_candidates:
+            val = os.environ.get(var)
+            if val and val.strip():
+                parsed = _parse_keys(val)
+                if parsed:
+                    keys.extend(parsed)
+                    break
+
+    # 本地金鑰檔案查找映射
+    if not keys:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        file_map = {
+            "gemini": ["gemini_key.txt", "google_key.txt", "gemini_api_key.txt", "api_key.txt"],
+            "nvidia": ["nvidia_key.txt", "nvidia_api_key.txt", "nv_key.txt", "api_key.txt"],
+            "free_glm": ["openrouter_key.txt", "openrouter_api_key.txt", "glm_key.txt", "api_key.txt"],
+            "opencode": ["opencode_key.txt", "opencode_api_key.txt", "api_key.txt"],
+            "deepseek": ["api_key.txt", "deepseek_key.txt", "deepseek_api_key.txt", "key.txt"],
+        }
+        category = "gemini" if is_gemini else ("nvidia" if is_nvidia else ("free_glm" if is_free_glm else ("opencode" if is_opencode else "deepseek")))
+        candidate_filenames = file_map[category]
+
+        cwd_dir = os.getcwd()
+        candidate_paths = [key_file] if key_file else []
+        # 同時支援當前工作目錄 (cwd) 與腳本所在目錄 (base_dir)
+        for fname in candidate_filenames:
+            candidate_paths.append(os.path.join(cwd_dir, fname))
+            if base_dir != cwd_dir:
+                candidate_paths.append(os.path.join(base_dir, fname))
+
+        for kf in candidate_paths:
+            if kf and os.path.exists(kf):
+                try:
+                    with open(kf, "r", encoding="utf-8") as f:
+                        parsed = _parse_keys(f.read())
+                    if parsed:
+                        keys.extend(parsed)
+                        break
+                except Exception:
+                    pass
+
+    if not keys:
+        print("❌ 找不到 API 金鑰，請建立對應金鑰檔案或設定環境變數！")
         return None
-    with open(key_file, "r", encoding="utf-8") as f:
-        api_key = f.read().strip()
-    return api_key if api_key else None
+
+    return ApiKeyPool(keys)
 
 def extract_json_from_text(text):
     if not text or not isinstance(text, str):
@@ -259,90 +443,256 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
     return results
     
 # ============================================================
-# 多輪對話 AI 診斷 (指數退避重試 + 極速快取)
+# 共用 API 異常處理與重試退避機制 (同步自 sutra.py)
+# ============================================================
+def handle_api_exception(
+    e,
+    client,
+    model,
+    logger,
+    retry,
+    max_retries,
+    context_desc=""
+):
+    """
+    統一處理 API 請求異常、金鑰剔除/輪換與階梯退避時間計算
+    回傳: (should_terminate: bool, backoff_seconds: float)
+    """
+    err_msg = str(e)
+    pool = getattr(client, "key_pool", None)
+
+    # 1. 模型不可用或下線
+    model_fatal_keywords = [
+        "unavailable for free", "use this slug instead", "model_not_found",
+        "does not exist", "no allowed providers are available"
+    ]
+    if any(kw in err_msg.lower() for kw in model_fatal_keywords):
+        logger.critical(f"❌ [模型不可用] 模型 '{model}' 無法使用 ({err_msg})！請使用 --model 指定其他可用模型。")
+        return True, 0.0
+
+    # 2. 模型協議不匹配 (例如 OpenCode Zen 需要走 Responses API)
+    if "modelerror" in err_msg.lower() or "not supported" in err_msg.lower():
+        logger.error(f"❌ [模型協議/端點錯誤] 模型 '{model}' 無法在此端點運行 ({err_msg})！")
+        return True, 0.0
+
+    # 3. 帳號失效、欠費或每日配額耗盡
+    fatal_keywords = [
+        "insufficient balance", "creditserror", "authenticationerror",
+        "invalid_api_key", "402", "payment required",
+        "exceeded your current quota", "resource_exhausted", "quota exceeded",
+        "generaterequestsperday", "perday"
+    ]
+    is_fatal = any(kw in err_msg.lower() for kw in fatal_keywords) or ("401" in err_msg and "model" not in err_msg.lower())
+
+    if is_fatal:
+        if pool:
+            all_dead = pool.mark_current_dead(client, logger, reason=f"額度耗盡/失效 ({err_msg[:40]})")
+            if all_dead:
+                logger.error("❌ 所有 API 金鑰皆已失效或配額耗盡！流水線立即安全中止。")
+                return True, 0.0
+            return False, 1.0  # 切換新 Key 後立即重試
+        else:
+            logger.error(f"❌ API 金鑰無效或帳號餘額不足 ({err_msg})！流水線立即中止。")
+            return True, 0.0
+
+    # 3. 嘗試從錯誤訊息中提取官方建議等待秒數 (支援 OpenRouter / Google)
+    retry_delay = 0.0
+    m_retry = re.search(r"(?:retry_after_seconds['\"]?:\s*|retry in\s+|retryDelay['\"]?:\s*['\"]?)(\d+(?:\.\d+)?)", err_msg, re.IGNORECASE)
+    if m_retry:
+        try:
+            retry_delay = float(m_retry.group(1))
+        except Exception:
+            pass
+
+    # 4. 限流（429 / RESOURCE_EXHAUSTED / 配額限制）或網路異常：輪換 Key 並智慧退避
+    if pool is not None and pool.has_multiple():
+        is_rate_limit = any(kw in err_msg.lower() for kw in ["429", "rate", "quota", "resource_exhausted"])
+        reason_desc = "觸發頻率限制 (429/RPM)" if is_rate_limit else f"API 請求異常 ({err_msg[:45]})"
+        pool.rotate_client(client, logger, reason=reason_desc)
+        if retry_delay > 0:
+            backoff_time = max(retry_delay + 2.0, 6.0)
+        else:
+            backoff_time = min(30.0, (retry + 1) * 6.0)
+    else:
+        if retry_delay > 0:
+            backoff_time = max(retry_delay + 3.0, 8.0)
+        else:
+            is_free_or_rate_limit = (
+                ":free" in model.lower()
+                or "openrouter" in str(getattr(client, "base_url", "")).lower()
+                or "googleapis" in str(getattr(client, "base_url", "")).lower()
+                or "nvidia" in str(getattr(client, "base_url", "")).lower()
+                or "429" in err_msg
+                or "rate" in err_msg.lower()
+                or "quota" in err_msg.lower()
+            )
+            backoff_time = min(120.0, (retry + 1) * 15.0) if is_free_or_rate_limit else min(30.0, (retry + 1) * 5.0)
+
+    desc_str = f"（{context_desc}）" if context_desc else ""
+    logger.error(
+        f"    ❌ API 呼叫失敗 ({e}){desc_str}，等待 {backoff_time:.1f} 秒後進行第 {retry + 1}/{max_retries} 次重試..."
+    )
+    return False, backoff_time
+
+# ============================================================
+# 多輪對話 AI 診斷 (同步 sutra.py 時間間隔與 API 規範)
 # ============================================================
 def get_ai_correction_multiturn(client, model, conversation_history, logger):
+    global _LAST_API_CALL_TIME
     logger.info(f"🧠 正在請求 AI 模型 ({model}) 進行診斷 (對話歷史深度: {len(conversation_history)})...")
-    
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            kwargs = {
-                "model": model,
-                "messages": conversation_history,
-                "temperature": 0.1,
-                "max_tokens": 65536
-            }
-            
-            # ⚡ [修復空回覆 Bug] 移除 API 層級的強制 JSON 模式 (response_format)
-            # 當上下文中(如測試數據)充滿大量 JSON 時，強制 JSON 模式極易觸發模型產生幻覺，
-            # 以為 JSON 已經結束而直接輸出停止詞 (EOS Token)，導致 100% 空回覆。
-            # 我們已在 System Prompt 要求輸出 JSON，且有強大的 Regex 擷取函數，故無需此參數。
 
-            response = client.chat.completions.create(**kwargs)
-            
-            usage = response.usage
+    pool = getattr(client, "key_pool", None)
+    max_retries = max(len(pool) * 2, 6) if (pool and pool.has_multiple()) else 3
+
+    is_third_party_or_free = (
+        ":free" in model.lower()
+        or "glm" in model.lower()
+        or "gemini" in model.lower()
+        or "dots" in model.lower()
+        or "openrouter" in str(getattr(client, "base_url", "")).lower()
+        or "googleapis" in str(getattr(client, "base_url", "")).lower()
+    )
+
+    m_lower = model.lower()
+    if "dots" in m_lower:
+        max_tokens_val = 200000
+    elif "nvidia" in str(getattr(client, "base_url", "")).lower():
+        max_tokens_val = 16384
+    elif "glm-5.2" in m_lower or "glm" in m_lower:
+        max_tokens_val = 150000
+    elif "muse" in m_lower or "spark" in m_lower:
+        max_tokens_val = 256000
+    elif "ox" in m_lower or "preview" in m_lower or "alpha" in m_lower:
+        max_tokens_val = 256000
+    elif "gemini" in m_lower or "googleapis" in str(getattr(client, "base_url", "")).lower():
+        max_tokens_val = 65536
+    elif is_third_party_or_free:
+        max_tokens_val = 65536
+    else:
+        max_tokens_val = 384000
+
+    for attempt in range(max_retries):
+        # 1. 時間間隔控制 (OpenRouter / NVIDIA / Gemini 每 10 秒，其餘每 2 秒)
+        url_and_model = f"{client.base_url} {model}".lower()
+        target_interval = 10.0 if any(kw in url_and_model for kw in ["openrouter", "nvidia", "gemini", "googleapis"]) else 2.0
+
+        now = time.time()
+        elapsed = now - _LAST_API_CALL_TIME
+        if elapsed < target_interval:
+            wait_seconds = target_interval - elapsed
+            logger.info(f"  ⏳ [頻率管控] 距離上次請求間隔保護中，等待 {wait_seconds:.1f} 秒...")
+            time.sleep(wait_seconds)
+        _LAST_API_CALL_TIME = time.time()
+
+        # 2. 金鑰輪換至下一把
+        if pool and len(pool.active_keys) > 0:
+            pool.next_key_for_request(client)
+
+        create_kwargs = {
+            "model": model,
+            "messages": conversation_history,
+            "temperature": 1.0,
+            "max_tokens": max_tokens_val,
+            "reasoning_effort": "high",
+        }
+
+        is_opencode_responses = "opencode.ai/zen" in str(getattr(client, "base_url", "")).lower() and (
+            "muse" in model.lower() or "spark" in model.lower()
+        )
+
+        try:
+            if is_opencode_responses:
+                # OpenCode Zen / Go 專屬 Responses API 協議轉發
+                resp_data = client.post(
+                    "/responses",
+                    cast_to=object,
+                    body={
+                        "model": model,
+                        "input": conversation_history,
+                        "temperature": 1.0,
+                        "max_output_tokens": min(max_tokens_val, 32768),
+                    }
+                )
+                raw_response = ""
+                if isinstance(resp_data, dict):
+                    raw_response = resp_data.get("output_text", "")
+                    if not raw_response and "output" in resp_data:
+                        for item in resp_data.get("output", []):
+                            if isinstance(item, dict) and "content" in item:
+                                for c in item.get("content", []):
+                                    if isinstance(c, dict) and c.get("text"):
+                                        raw_response += c.get("text")
+                usage = None
+            else:
+                try:
+                    response = client.chat.completions.create(**create_kwargs)
+                except Exception as api_err:
+                    err_str = str(api_err).lower()
+                    if "max_tokens" in err_str or "maximum allowed" in err_str:
+                        create_kwargs["max_tokens"] = 8192
+                    if "extra_body" in create_kwargs:
+                        create_kwargs.pop("extra_body", None)
+                    response = client.chat.completions.create(**create_kwargs)
+
+                usage = getattr(response, "usage", None)
+                raw_response = response.choices[0].message.content or ""
+
+            _LAST_API_CALL_TIME = time.time()
+
             if usage:
-                hit_tokens = getattr(usage, 'prompt_cache_hit_tokens', 0)
-                miss_tokens = getattr(usage, 'prompt_cache_miss_tokens', 0)
-                total_prompt = usage.prompt_tokens
-                
-                # ⚡ [新增] 統計 Output Token 與思考鏈 Reasoning Token
-                completion_tokens = getattr(usage, 'completion_tokens', 0)
-                details = getattr(usage, 'completion_tokens_details', None)
-                reasoning_tokens = getattr(details, 'reasoning_tokens', 0) if details else 0
+                hit_tokens = getattr(usage, "prompt_cache_hit_tokens", 0)
+                miss_tokens = getattr(usage, "prompt_cache_miss_tokens", 0)
+                total_prompt = getattr(usage, "prompt_tokens", 0)
+                completion_tokens = getattr(usage, "completion_tokens", 0)
+                details = getattr(usage, "completion_tokens_details", None)
+                reasoning_tokens = getattr(details, "reasoning_tokens", 0) if details else 0
                 reasoning_str = f" (含思考: {reasoning_tokens})" if reasoning_tokens > 0 else ""
-                
                 hit_rate = (hit_tokens / total_prompt * 100) if total_prompt > 0 else 0
                 total_tokens = total_prompt + completion_tokens
                 logger.info(f"  ⚡ Token 消耗: 輸入 {total_prompt} (快取命中: {hit_tokens} / {hit_rate:.1f}%, 未命中: {miss_tokens}) | 輸出 {completion_tokens}{reasoning_str} | 總計 {total_tokens}")
-                
-            raw_response = response.choices[0].message.content or ""
-            
-            # ================= 增加：印出 AI 原始回覆與除錯日誌 =================
+
             logger.info(f"💬 [AI 原始回覆內容]:\n{'='*50}\n{raw_response}\n{'='*50}")
-            
+
             extracted_json = extract_json_from_text(raw_response)
             if not extracted_json:
                 logger.warning(f"⚠️ 警告：無法從 AI 原始回覆中解析出有效的 JSON 結構！(嘗試 {attempt+1}/{max_retries})")
-                
-                # 🚨 [防破產優化] 若回傳完全空白，代表檔案 Context 爆量，無腦重試會無限噴錢
                 if not raw_response.strip():
                     logger.error("🛑 偵測到 AI 回傳完全空白！(可能是單一檔案過大超出 128K Token 極限，或 API 崩潰)")
-                    import sys
                     if len(conversation_history) <= 2:
-                        logger.error("💀 致命錯誤：首輪代碼快照即突破 API 極限！繼續重試只會無限扣款，強制終止腳本！")
+                        logger.error("💀 致命錯誤：首輪代碼快照即突破 API 極限！強制終止腳本！")
                         os._exit(1)
                     return {"status": "CONTEXT_LIMIT", "reason": "API 回傳完全空白，觸發緊急重置"}, "", 0
 
-                if attempt < max_retries - 1:
-                    sleep_time = (2 ** attempt) + random.random()
-                    logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後自動重試 API 請求...")
-                    time.sleep(sleep_time)
-                    continue
-            # ====================================================================
-            
-            # ⚡ [省錢優化] 拔除冗長的 <think> 思考過程，不塞入歷史紀錄，避免 Context 爆炸與無謂 Input 計費
-            history_text = re.sub(r'<think>.*?</think>', '', raw_response, flags=re.DOTALL).strip()
+                time.sleep(2)
+                continue
 
-            prompt_tokens = usage.prompt_tokens if usage else 0
+            history_text = re.sub(r"<think>[\s\S]*?</think>", "", raw_response, flags=re.IGNORECASE).strip()
+            prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
             return extracted_json, history_text, prompt_tokens
-            
+
+        except KeyboardInterrupt:
+            logger.warning("\n🛑 使用者中斷了 AI 請求流程 (Ctrl+C)")
+            raise
         except Exception as e:
+            _LAST_API_CALL_TIME = time.time()
             error_msg = str(e).lower()
-            logger.error(f"❌ API 請求失敗 (嘗試 {attempt+1}/{max_retries}): {e}")
-            
-            # ⚡ [防閃退保護] 若觸發 Context Token 上限，強制回傳特殊狀態，讓主循環執行硬重置清空記憶
             if "context_length_exceeded" in error_msg or "context length" in error_msg or "too large" in error_msg:
                 logger.error("🚨 偵測到 Token 歷史爆量！準備緊急觸發硬重置...")
                 return {"status": "CONTEXT_LIMIT", "reason": "歷史 Token 爆量，觸發緊急重置"}, error_msg, 0
 
-            if attempt < max_retries - 1:
-                sleep_time = (2 ** attempt) + random.random()
-                logger.info(f"⏳ 等待 {sleep_time:.1f} 秒後重試...")
-                time.sleep(sleep_time)
-            else:
+            should_term, backoff = handle_api_exception(
+                e=e,
+                client=client,
+                model=model,
+                logger=logger,
+                retry=attempt,
+                max_retries=max_retries,
+                context_desc=f"第 {attempt+1}/{max_retries} 次診斷呼叫"
+            )
+            if should_term:
                 return None, str(e), 0
+            time.sleep(backoff)
+
     return None, "", 0
 
 # ============================================================
@@ -484,7 +834,7 @@ def rollback_file(html_path, logger):
 # ============================================================
 # 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
-UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
+UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
 我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
 2. 【靜態代碼審查】：分析傳入的最新 JS 代碼。
@@ -689,7 +1039,7 @@ UNIFIED_SYSTEM_PROMPT = """你是一個頂尖的 3D 風水模擬器開發者、W
 # ============================================================
 # 每輪尾部強制重申的終極十全緊箍咒 (封死所有物理作弊、除零崩潰與變數未定義)
 # ============================================================
-CORE_RULES_REMINDER = """
+CORE_RULES_REMINDER = r"""
 ⚡⚡⚡【全域物理湧現與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
 1. 【空間座標與網格定址】全域尺度 CONFIG.tSize 為 350（-175~+175）；網格定址必為 `idx = ngz * 64 + ngx`（嚴禁把 X 軸寫成 Z 軸）；穴位周邊判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
 2. 【禁止偽物理與人工推力】嚴禁依格局名稱字串給予推進/吸力 (`state.d === '...'`)；嚴禁外掛磁吸力或人工黑洞；局部風煞向量必須乘上環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓），嚴禁寫死常數向量！
@@ -875,30 +1225,124 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
 # ============================================================
 def main():
     parser = argparse.ArgumentParser(description="3D 模擬器多輪對話自動 Dry Run 與 AI 修正工具")
-    parser.add_argument("--file", type=str, default="3D.html", help="HTML 檔案路徑")
+    parser.add_argument("--file", type=str, required=True, help="HTML 檔案路徑")
     parser.add_argument("--rounds", type=int, default=225, help="最高執行幾輪修正循環")
     parser.add_argument("--runs-per-round", type=int, default=10, help="每一輪執行幾次 Dry Run 取樣")
     parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
+    parser.add_argument("--timeout", type=int, default=300, help="單次 API 超時時間（秒）")
+    parser.add_argument("--gemini", "--google", action="store_true", dest="gemini", help="★ 使用 Google AI Studio Gemini 端點 (https://generativelanguage.googleapis.com/v1beta/openai/)")
+    parser.add_argument("--nvidia", "--nim", action="store_true", dest="nvidia", help="★ 使用 NVIDIA NIM (build.nvidia.com) GLM-5.2 端點")
+    parser.add_argument("--dots", nargs="?", const="dots-studio/dots-3-note-preview:free", type=str, default=None, help="★ 使用 OpenRouter Dots3-Note Preview 免費模型 (https://openrouter.ai/api/v1)")
+    parser.add_argument("--free-glm", "--glm5", action="store_true", dest="free_glm", help="★ 使用 OpenRouter Free GLM 5.2 免費模型端點 (https://openrouter.ai/api/v1)")
+    parser.add_argument("--opencode", "--go", action="store_true", dest="opencode", help="★ 使用 OpenCode Go 訂閱端點 (https://opencode.ai/zen/go/v1)")
+    parser.add_argument("--zen", action="store_true", help="使用 OpenCode Zen 按量計費端點 (https://opencode.ai/zen/v1)")
+    parser.add_argument("--glm", "--glm53", nargs="?", const="glm-5.3", type=str, default=None, help="使用 OpenCode GLM 模型 (預設 glm-5.3，自動啟用 OpenCode Go)")
+    parser.add_argument("--kimi", nargs="?", const="kimi-k3", type=str, default=None, help="使用 OpenCode Kimi 模型 (預設 kimi-k3，自動啟用 OpenCode Go)")
+    parser.add_argument("--muse", "--spark", nargs="?", const="muse-spark-1.2-contributor-free", type=str, default=None, help="★ 使用 OpenCode Muse Spark 1.2 模型 (預設 muse-spark-1.2-contributor-free)")
+    parser.add_argument("--ox", "--ox-alpha", "--alpha", nargs="?", const="x-preview-f-free", type=str, default=None, help="★ 使用 OpenCode Zen / OpenRouter Ox Alpha Free 免費模型 (預設 x-preview-f-free)")
+    parser.add_argument("--base-url", type=str, default=None, help="自訂 API Base URL")
+    parser.add_argument("--api-key", type=str, default=None, help="直接指定 API Key 字串")
+    parser.add_argument("--api-key-file", type=str, default=None, help="指定 API Key 檔案路徑")
     args = parser.parse_args()
+
+    # 快捷模型覆寫
+    if args.dots:
+        dots_val = args.dots.strip()
+        if not ("/" in dots_val):
+            dots_val = f"dots-studio/{dots_val}"
+        if not (dots_val.endswith(":free") or dots_val.endswith(":preview")):
+            dots_val = f"{dots_val}:free"
+        args.model = dots_val
+    elif args.free_glm and args.model == "deepseek-v4-flash":
+        args.model = "z-ai/glm-5.2:free"
+    elif args.glm:
+        args.model = args.glm
+    elif args.kimi:
+        args.model = args.kimi
+    elif args.muse:
+        args.model = args.muse
+    elif args.ox:
+        ox_val = args.ox.strip()
+        if "stealth" in ox_val.lower():
+            if not ("/" in ox_val):
+                ox_val = f"stealth/{ox_val}"
+            args.model = ox_val
+        elif ox_val in ["ox", "ox-alpha", "ox-alpha-free", "alpha"]:
+            args.model = "x-preview-f-free"
+        else:
+            args.model = ox_val
+
+    # OpenCode API 端點要求純模型 ID (不可包含 opencode/ 或 opencode-go/ 前綴)
+    if args.model.startswith("opencode/"):
+        args.model = args.model[len("opencode/"):]
+    elif args.model.startswith("opencode-go/"):
+        args.model = args.model[len("opencode-go/"):]
 
     base_name = os.path.splitext(os.path.basename(args.file))[0]
     log_file = f"auto_tuner_{base_name}_log.txt"
     report_path = f"tuning_report_{base_name}.md"
 
     logger = setup_logger(log_file)
-    
-    api_key = load_api_key()
-    if not api_key:
-        logger.error("❌ 找不到 api_key.txt 或 Key 為空！")
-        return
-        
+
     target_file = args.file
     if not os.path.exists(target_file):
         logger.error(f"❌ 找不到目標檔案: {target_file}")
         return
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    # 初始化 API 提供商端點與模型
+    is_gemini_provider = args.gemini
+    is_nvidia_provider = args.nvidia
+    is_openrouter_provider = bool(args.dots) or args.free_glm or ("stealth" in args.model.lower())
+    is_opencode_provider = args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or (bool(args.ox) and not is_openrouter_provider)
+
+    if args.gemini:
+        base_url = args.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
+        provider_name = "Google AI Studio (Gemini Free 每日 1500 額度)"
+        if args.model == "deepseek-v4-flash":
+            args.model = "gemini-flash-latest"
+    elif args.nvidia:
+        base_url = args.base_url or "https://integrate.api.nvidia.com/v1"
+        provider_name = "NVIDIA NIM GLM-5.2 (build.nvidia.com)"
+        if args.model == "deepseek-v4-flash":
+            args.model = "z-ai/glm-5.2"
+    elif args.free_glm:
+        base_url = args.base_url or "https://openrouter.ai/api/v1"
+        provider_name = "OpenRouter Free GLM 5.2 (https://openrouter.ai/api/v1)"
+        if args.model == "deepseek-v4-flash":
+            args.model = "z-ai/glm-5.2:free"
+    elif is_openrouter_provider:
+        base_url = args.base_url or "https://openrouter.ai/api/v1"
+        provider_name = f"OpenRouter ({args.model})"
+    elif args.zen or (bool(args.muse) and not args.opencode) or (bool(args.ox) and not is_openrouter_provider and not args.opencode):
+        base_url = args.base_url or "https://opencode.ai/zen/v1"
+        provider_name = f"OpenCode Zen ({args.model})"
+    elif is_opencode_provider:
+        base_url = args.base_url or "https://opencode.ai/zen/go/v1"
+        provider_name = f"OpenCode Go 訂閱端點 ({args.model})"
+    else:
+        base_url = args.base_url or "https://api.deepseek.com"
+        provider_name = "DeepSeek 官方 API"
+
+    key_pool = load_api_keys(
+        key_file=args.api_key_file,
+        api_key_str=args.api_key,
+        is_opencode=is_opencode_provider,
+        is_free_glm=is_openrouter_provider,
+        is_gemini=is_gemini_provider,
+        is_nvidia=is_nvidia_provider
+    )
+    if not key_pool:
+        logger.error("❌ 找不到 API Key，請建立金鑰檔案或設定環境變數！")
+        return
+
+    init_key = key_pool.get_current_key()
+    logger.info(
+        f"API 提供商: {provider_name} ({base_url}) | 模型: {args.model} | "
+        f"金鑰池: 共載入 {len(key_pool)} 把 Key (初始: {key_pool.mask_key(init_key)})"
+    )
+    client = OpenAI(api_key=init_key, base_url=base_url, timeout=args.timeout)
+    client.key_pool = key_pool
 
     if args.static:
         run_static_review(target_file, client, args.model, logger, report_path, args.rounds)
