@@ -354,7 +354,9 @@ class ResourceManager {
 }
 class FengShuiEngine {
   static analyze(stateManager, builder) {
-    const st = stateManager.current;
+    const srcState = stateManager.current;
+    const inputFingerprint = FengShuiEngine.computeInputFingerprint(stateManager, builder);
+    const st = { ...srcState, sha: [...srcState.sha], special: [...srcState.special], cure: [...srcState.cure], shuifa: [...srcState.shuifa] };
     const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
     if (st.water === 'none' || shaWaterSet.includes(st.water)) {
         st.shuifa = ['none'];
@@ -510,11 +512,11 @@ class FengShuiEngine {
           if (!isCaseBuilding) {
             vFront += effVol;
             if (Math.abs(dxTaiji) < 20 && b.h > 10) frontObstacles++;
+            if (physicalCaseExists && dzTaiji > 55 && dzTaiji < 110 && (Math.abs(dxTaiji) > 5 && Math.abs(dxTaiji) < 22) && b.h > maxHFront * 1.2) peekSha = true;
             if (b.h > maxHFront) maxHFront = b.h;
           }
           if (isCaseBuilding) physicalCaseExists = true;
           if (dzTaiji > 15 && dzTaiji < 45 && Math.abs(dxTaiji) < 8 && b.h > 10) centerBlocker = true;
-          if (physicalCaseExists && dzTaiji > 55 && dzTaiji < 110 && (Math.abs(dxTaiji) > 5 && Math.abs(dxTaiji) < 22) && b.h > maxHFront * 1.2) peekSha = true;
         }
         let noonSun = sunAngles[1];
         let t = dzTaiji / Math.max(0.001, noonSun.z);
@@ -1538,8 +1540,18 @@ class FengShuiEngine {
         shannonEntropy: +(spatialEntropy.toFixed(3)),
         reynoldsNum: reynoldsNum,
         froudeNum: +(froudeNum.toFixed(2)),
-        qFactor: +(qFactor.toFixed(2))
+        qFactor: +(qFactor.toFixed(2)),
+        inputFingerprint: inputFingerprint
     };
+  }
+  static computeInputFingerprint(stateManager, builder) {
+    const blds = builder && Array.isArray(builder.blds) ? builder.blds : [];
+    const bldDigest = blds.map(b => `${b.x},${b.z},${b.w},${b.d},${b.h},${b.y || 0},${b.isWater ? 1 : 0},${b.isSandbox ? 1 : 0},${b.isGlass ? 1 : 0},${b.wx || ''}`).join(';');
+    const mkDigest = (stateManager.markers || []).map(p => `${p.x},${p.z}`).join(';');
+    const fpSrc = JSON.stringify({ c: stateManager.current, h: stateManager.heights, w: stateManager.wind, t: stateManager.trafficSpeed, tx: stateManager.taijiX, tz: stateManager.taijiZ, m: mkDigest, b: bldDigest });
+    let fp = 2166136261;
+    for (let i = 0; i < fpSrc.length; i++) { fp ^= fpSrc.charCodeAt(i); fp = Math.imul(fp, 16777619); }
+    return (fp >>> 0).toString(16);
   }
   static collectSources(stateManager) {
     const A=[], st=stateManager.current;
@@ -1550,7 +1562,7 @@ class FengShuiEngine {
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
     if(st.sha.includes('qingquan'))A.push({x:0,z:34,dx:0,dz:-1,w:16,pw:8,len:28});
-    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:95,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
+    if(st.sha.includes('tantou') && st.front === 'lowcase')A.push({x:13,z:86,dx:0,dz:0,w:14,pw:9,len:0, isTantou:true});
     if(st.sha.includes('glass'))A.push({x:0,z:100,dx:0,dz:-1,w:18,pw:14,len:100});
     if(st.sha.includes('walledge'))A.push({x:-50,z:55,dx:0,dz:-1,w:28,pw:10,len:60});
     if(st.sha.includes('pylon'))A.push({x:0,z:90,dx:0,dz:0,w:15,pw:8,len:0});
@@ -1589,16 +1601,17 @@ class FengShuiEngine {
       if (sc.isTantou) continue; 
       const safePw = Math.max(0.001, sc.pw || 8);
       const safePwSq = safePw * safePw;
+      const srcWindScale = Math.max(0, stateManager.wind) / 5.0;
       if (sc.len > 0) {
         const safeLen = Math.max(0.001, sc.len);
         const rx = x - sc.x, rz = z - sc.z, t = rx * sc.dx + rz * sc.dz;
         if (t > -4 && t < safeLen) { 
             const perp = Math.abs(rx * sc.dz - rz * sc.dx); 
-            v -= sc.w * Math.exp(-(perp * perp) / safePwSq) * (1 - 0.35 * t / safeLen); 
+            v -= sc.w * srcWindScale * Math.exp(-(perp * perp) / safePwSq) * (1 - 0.35 * t / safeLen); 
         }
       } else {
         const d2 = (x - sc.x) * (x - sc.x) + (z - sc.z) * (z - sc.z); 
-        v -= sc.w * Math.exp(-d2 / (safePwSq * 2));
+        v -= sc.w * srcWindScale * Math.exp(-d2 / (safePwSq * 2));
       }
     }
     if (builder && builder.blds) {
@@ -1621,12 +1634,12 @@ class FengShuiEngine {
         const distZ = Math.max(0, dz - b.d / 2);
         const distToEdge = Math.hypot(distX, distZ);
         if (distToEdge < minEdgeDist) minEdgeDist = distToEdge;
-        if (z > b.z + b.d / 2 && z < b.z + b.d / 2 + 18 && insideX) {
-            let p = 1.0 - (z - (b.z + b.d / 2)) / 18;
+        if (z < b.z - b.d / 2 && z > b.z - b.d / 2 - 18 && insideX) {
+            let p = 1.0 - ((b.z - b.d / 2) - z) / 18;
             ramPressure += p * 15; 
         }
-        if (z < b.z - b.d / 2 && z > b.z - b.d / 2 - 45) {
-            let distBehind = (b.z - b.d / 2) - z;
+        if (z > b.z + b.d / 2 && z < b.z + b.d / 2 + 45) {
+            let distBehind = z - (b.z + b.d / 2);
             if (dx < b.w / 2 + distBehind * 0.35) {
                 let wakeStr = 1.0 - (distBehind / 45);
                 wakeEffect += wakeStr * 20; 
@@ -2058,6 +2071,10 @@ class CityBuilder {
           if (b.isWater || b.isGlass || b.h < 5) continue;
           if (Math.abs(x - b.x) < (w + b.w)/2 - 0.5 && Math.abs(z - b.z) < (d + b.d)/2 - 0.5) return true;
         }
+        for (const sb of stateManager.sandboxBlds) {
+          const sbw = (sb.type === 'earth' || sb.type === 'water') ? 24 : 12;
+          if (Math.abs(x - sb.x) < (w + sbw)/2 - 0.5 && Math.abs(z - sb.z) < (w + sbw)/2 - 0.5) return true;
+        }
         return false;
       };
       for(let i=0;i<14;i++){
@@ -2104,6 +2121,8 @@ class CityBuilder {
       const t1=new THREE.Mesh(new THREE.CylinderGeometry(1.6,2.6,56,12),new THREE.MeshLambertMaterial({color:0xc9a53d}));
       t1.position.set(-34,ty+28,92);this.group.add(t1);
       const t2=t1.clone();t2.position.x=34;this.group.add(t2);
+      this.blds.push({x:-34, z:92, w:5, d:5, h:56});
+      this.blds.push({x:34, z:92, w:5, d:5, h:56});
       const top=new THREE.Mesh(new THREE.SphereGeometry(3,16,8),new THREE.MeshBasicMaterial({color:0xd39e00}));
       top.position.set(-34,ty+58,92);this.group.add(top);
       const top2=top.clone();top2.position.x=34;this.group.add(top2);
@@ -2167,8 +2186,7 @@ class CityBuilder {
       for(let i=0;i<=120;i++){
         const t=i/120*Math.PI*2; 
         const cx = taijiCenterX + 19*Math.cos(t), cz = taijiCenterZ + 19*Math.sin(t);
-        const cy = this.terrainYCorrected(cx, cz);
-        c.push(Util.v3(cx,cy,cz));
+        c.push(Util.v3(cx,0,cz));
       }
       this.curves.push({pts:c, len:2*Math.PI*19, bad:false, type:'road'});
       this.group.add(ResourceManager.createLabel('太極環島','#8844cc',8,taijiCenterX,taijiY+9,taijiCenterZ));
@@ -2215,8 +2233,8 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('擎拳煞','#d31515',9,0,ty+26,34));
     }
     if(st.sha.includes('tantou') && st.front === 'lowcase'){
-      this.box(14,28,10,13,95);
-      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,95));
+      this.box(14,28,10,13,86);
+      this.group.add(ResourceManager.createLabel('探頭煞','#d31515',9,13,36,86));
     }
     if(st.sha.includes('glass')){
       const ty = this.terrainYCorrected(0, 100);
@@ -2363,10 +2381,12 @@ class CityBuilder {
        if (sb.type === 'wood') {
            this.box(12, 60, 12, sb.x, sb.z, 0x2a6b3c);
            this.blds[this.blds.length - 1].wx = 'wood'; 
+           this.blds[this.blds.length - 1].isSandbox = true;
        }
        if (sb.type === 'earth') {
            this.box(24, 25, 24, sb.x, sb.z, 0x7c6a4a);
            this.blds[this.blds.length - 1].wx = 'earth'; 
+           this.blds[this.blds.length - 1].isSandbox = true;
        }
        if (sb.type === 'water') {
            this.poolCrescent(sb.x, sb.z, 5, 12, true);
@@ -2380,7 +2400,7 @@ uniform vec2 u_bldsH[32];
 uniform int u_bldCount;
 uniform float u_simTime; uniform float u_tx; uniform float u_hz; uniform float u_tSpeed;
 uniform float u_envWind; 
-uniform bool u_waterJade; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
+uniform bool u_waterJade; uniform bool u_waterNine; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
 uniform bool u_dragonAvenue; uniform bool u_cureFountain; uniform bool u_isWoQian; uniform bool u_specialShuqi;
 uniform bool u_shaTianzhan; uniform int u_terrainType;
 uniform bool u_qingxie; uniform bool u_sunkenFront; 
@@ -2446,11 +2466,12 @@ void main() {
         float ty = getTerrainY(p.x, p.z);
         vec2 grad = vec2(getTerrainY(p.x+1.0, p.z) - getTerrainY(p.x-1.0, p.z), getTerrainY(p.x, p.z+1.0) - getTerrainY(p.x, p.z-1.0)) * 0.5;
         v.x -= grad.x * 25.0 * dt; v.z -= grad.y * 25.0 * dt;
-        if (u_hz > -900.0 && d < 28.0) {
-            v *= max(0.0, 1.0 - 0.35 * dt);
+        if (u_hz > -900.0) {
+            v *= max(0.0, 1.0 - 0.35 * exp(-d * d / 288.0) * dt);
         }
         isWater = false; isWind = false;
         if(u_waterJade && abs(p.z-80.0)<22.0 && abs(p.x)<80.0) { isWater = true; }
+        if(u_waterNine && abs(p.x)<140.0 && abs(p.z - (62.0 + 22.0*sin(p.x*0.045))) < 10.0) isWater = true;
         if(u_shuifaBanyue && abs(p.z-52.0)<15.0 && abs(p.x)<20.0) isWater = true;
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) isWater = true;
         if(hasWind && u_isRushWind && abs(p.x)<20.0 && p.z>25.0) isWind = true;
@@ -2507,7 +2528,7 @@ uniform vec2 u_bldsH[32];
 uniform int u_bldCount;
 uniform float u_simTime; uniform float u_tSpeed;
 uniform float u_envWind; 
-uniform bool u_cureTrees; uniform bool u_cureMirror; uniform bool u_curePool; uniform bool u_cureStone; uniform bool u_cureGourd;
+uniform bool u_cureTrees; uniform bool u_cureMirror; uniform bool u_curePool; uniform bool u_cureFountain; uniform bool u_cureStone; uniform bool u_cureGourd;
 uniform bool u_shaTianzhan;
 uniform int u_terrainType; uniform bool u_qingxie; uniform bool u_sunkenFront; 
 float getTerrainY(float x, float z) {
@@ -2564,6 +2585,7 @@ void main() {
     for(int i=0; i<64; i++) {
         if(i == sIdx && i < u_spawnCount) { 
             p = u_spawns[i] + vec3(rand(vec2(a_id, cycle))-0.5, rand(vec2(cycle, a_id))*2.5, rand(vec2(cycle*2.0, a_id))-0.5) * 8.0;
+            if (length(u_spawnDirs[i]) > 0.5) startVel = normalize(u_spawnDirs[i]) * 3.5;
             break; 
         }
     }
@@ -2581,6 +2603,7 @@ void main() {
         if(u_cureTrees && abs(p.z-22.0)<8.0 && abs(p.x)<30.0) { v *= max(0.0, 1.0 - 2.0*dt); }
         if(u_cureMirror && abs(p.z-20.0)<5.0 && abs(p.x)<12.0) { v.z += max(0.0, u_envWind) * 10.0 * dt; v.y += max(0.0, u_envWind) * 5.0 * dt; }
         if(u_curePool && abs(p.z-24.0)<12.0 && abs(p.x)<15.0) { v *= max(0.0, 1.0 - 4.0 * dt); }
+        if(u_cureFountain && abs(p.z-18.0)<15.0 && abs(p.x)<15.0) { v *= max(0.0, 1.0 - 2.0 * dt); }
         if(u_cureStone && p.z<22.0 && p.z>10.0 && abs(p.x)<15.0) { v.z += max(0.0, u_envWind) * 5.0 * dt; v.y += max(0.0, u_envWind) * 4.0 * dt; }
         if(u_cureGourd && p.z<15.0 && abs(p.x - 8.0)<12.0) {
             v *= max(0.0, 1.0 - 1.5 * dt);
@@ -2655,7 +2678,9 @@ class ParticleSystem {
     this.physicalParams = { isCoanda:false, isHelmholtz:false, isHydraulicJump:false, qFactor:0 };
     this.trafParts = [];
     this.trafGeo = new THREE.BufferGeometry();
-    this.scene.add(new THREE.Points(this.trafGeo,new THREE.PointsMaterial({size:3.0,vertexColors:true,map:ResourceManager.getParticleTex(),transparent:true,opacity:0.9,depthWrite:false})));
+    const trafPts = new THREE.Points(this.trafGeo,new THREE.PointsMaterial({size:3.0,vertexColors:true,map:ResourceManager.getParticleTex(),transparent:true,opacity:0.9,depthWrite:false}));
+    trafPts.frustumCulled = false;
+    this.scene.add(trafPts);
     this.goodGeo = new THREE.BufferGeometry();
     this.badGeo = new THREE.BufferGeometry();
     const goodIds = new Float32Array(this.GMAX), goodSeeds = new Float32Array(this.GMAX), goodLifes = new Float32Array(this.GMAX);
@@ -2674,7 +2699,7 @@ class ParticleSystem {
         u_simTime: { value: 0 }, u_hz: { value: 32 }, u_tSpeed: { value: 1.0 },
         u_tx: { value: 0 }, 
         u_envWind: { value: 1.0 }, 
-        u_waterJade: { value: false }, u_shuifaBanyue: { value: false }, u_curePool: { value: false }, u_isRushWind: { value: false },
+        u_waterJade: { value: false }, u_waterNine: { value: false }, u_shuifaBanyue: { value: false }, u_curePool: { value: false }, u_isRushWind: { value: false },
         u_dragonAvenue: { value: false }, u_cureFountain: { value: false }, u_isWoQian: { value: false }, u_specialShuqi: { value: false },
         u_shaTianzhan: { value: false },
         u_terrainType: { value: 0 },
@@ -2691,8 +2716,12 @@ class ParticleSystem {
     };
     const goodMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: goodVert, fragmentShader: frag, transparent: true, depthWrite: false, defines: { IS_GOOD: 1 } });
     const badMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: badVert, fragmentShader: frag, transparent: true, depthWrite: false });
-    this.scene.add(new THREE.Points(this.goodGeo, goodMat));
-    this.scene.add(new THREE.Points(this.badGeo, badMat));
+    const goodPts = new THREE.Points(this.goodGeo, goodMat);
+    const badPts = new THREE.Points(this.badGeo, badMat);
+    goodPts.frustumCulled = false;
+    badPts.frustumCulled = false;
+    this.scene.add(goodPts);
+    this.scene.add(badPts);
     this.windGroup = new THREE.Group(); this.windGroup.visible = false; this.scene.add(this.windGroup);
     this.windArrows = [];
     for(let x=-120;x<=120;x+=27)for(let z=-126;z<=144;z+=27){
@@ -2765,7 +2794,7 @@ class ParticleSystem {
     const vec4Arr = this.uniforms.u_blds.value;
     const vec2Arr = this.uniforms.u_bldsH.value; 
     let bCount = 0;
-    for (let i = 0; i < builder.blds.length && i < 32; i++) {
+    for (let i = 0; i < builder.blds.length && bCount < 32; i++) {
         const b = builder.blds[i];
         if (b.isWater || b.h < 5) continue; 
         vec4Arr[bCount].set(b.x, b.z, b.w, b.d);
@@ -2789,6 +2818,7 @@ class ParticleSystem {
     this.uniforms.u_dragonAvenue.value = (st.dragon === 'avenue' || st.dragon === 'branch' || st.dragon === 'elevated');
     this.uniforms.u_isWoQian.value = (st.hole === 'wo' || st.hole === 'qian');
     this.uniforms.u_waterJade.value = st.water === 'jade';
+    this.uniforms.u_waterNine.value = st.water === 'nine';
     this.uniforms.u_shuifaBanyue.value = st.shuifa.includes('banyue');
     this.uniforms.u_curePool.value = st.cure.includes('pool');
     this.uniforms.u_isRushWind.value = (st.sha.includes('rush') || st.sha.includes('tianzhan') || st.water==='rush');
@@ -3550,6 +3580,7 @@ class App {
   }
   refreshData() {
     this.state.sources = FengShuiEngine.collectSources(this.state);
+    if (this.particles && this.particles.updateSpawns) this.particles.updateSpawns(this.builder.curves, this.state.sources);
     this.world.drawHeatmap(this.state, this.builder.curves, this.builder);
     const stateCopy = {
       ...this.state,
@@ -3682,6 +3713,10 @@ window.DryRunTool = {
     const ana = app.state.analysis;
     const st = app.state.current;
     const sanityWarnings = []; 
+    const liveFingerprint = FengShuiEngine.computeInputFingerprint(app.state, app.builder);
+    if (ana.inputFingerprint && liveFingerprint !== ana.inputFingerprint) {
+        sanityWarnings.push(`CRITICAL: 報告完整性驗證失敗——分析輸入指紋(${ana.inputFingerprint})與快照當下活體狀態/建築註冊表指紋(${liveFingerprint})不一致，config、手動煞點或建築幾何與物理指標疑似來自不同引擎迭代（拼貼報告），本案例數據不可作為評分審計依據！`);
+    }
     if (opticalAnomalies.length > 0) {
         sanityWarnings.push(...opticalAnomalies);
     }

@@ -142,6 +142,7 @@ def load_api_keys(
     key_file=None,
     api_key_str=None,
     is_opencode=False,
+    is_openrouter=False,
     is_free_glm=False,
     is_gemini=False,
     is_nvidia=False
@@ -164,13 +165,44 @@ def load_api_keys(
     if api_key_str and api_key_str.strip():
         keys.extend(_parse_keys(api_key_str))
 
-    # 環境變數查找映射
+    # 本地金鑰檔案查找映射 (優先讀取檔案中的多把金鑰)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_map = {
+        "gemini": ["gemini_key.txt", "google_key.txt", "gemini_api_key.txt", "api_key.txt"],
+        "nvidia": ["nvidia_key.txt", "nvidia_api_key.txt", "nv_key.txt", "api_key.txt"],
+        "openrouter": ["openrouter_key.txt", "openrouter_api_key.txt", "openrouter.txt", "or_key.txt", "glm_key.txt", "api_key.txt"],
+        "opencode": ["opencode_key.txt", "opencode_api_key.txt", "api_key.txt"],
+        "deepseek": ["api_key.txt", "deepseek_key.txt", "deepseek_api_key.txt", "key.txt"],
+    }
+    category = "gemini" if is_gemini else ("nvidia" if is_nvidia else ("openrouter" if (is_openrouter or is_free_glm) else ("opencode" if is_opencode else "deepseek")))
+    candidate_filenames = file_map[category]
+
+    cwd_dir = os.getcwd()
+    candidate_paths = [key_file] if key_file else []
+    for fname in candidate_filenames:
+        candidate_paths.append(os.path.join(cwd_dir, fname))
+        if base_dir != cwd_dir:
+            candidate_paths.append(os.path.join(base_dir, fname))
+
+    if not keys:
+        for kf in candidate_paths:
+            if kf and os.path.exists(kf):
+                try:
+                    with open(kf, "r", encoding="utf-8") as f:
+                        parsed = _parse_keys(f.read())
+                    if parsed:
+                        keys.extend(parsed)
+                        break
+                except Exception:
+                    pass
+
+    # 環境變數查找映射 (備用)
     if not keys:
         if is_gemini:
             env_candidates = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY"]
         elif is_nvidia:
             env_candidates = ["NVIDIA_API_KEY", "NV_API_KEY", "OPENAI_API_KEY"]
-        elif is_free_glm:
+        elif is_free_glm or is_openrouter:
             env_candidates = ["OPENROUTER_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY"]
         elif is_opencode:
             env_candidates = ["OPENCODE_API_KEY", "OPENAI_API_KEY"]
@@ -185,38 +217,6 @@ def load_api_keys(
                     keys.extend(parsed)
                     break
 
-    # 本地金鑰檔案查找映射
-    if not keys:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        file_map = {
-            "gemini": ["gemini_key.txt", "google_key.txt", "gemini_api_key.txt", "api_key.txt"],
-            "nvidia": ["nvidia_key.txt", "nvidia_api_key.txt", "nv_key.txt", "api_key.txt"],
-            "free_glm": ["openrouter_key.txt", "openrouter_api_key.txt", "glm_key.txt", "api_key.txt"],
-            "opencode": ["opencode_key.txt", "opencode_api_key.txt", "api_key.txt"],
-            "deepseek": ["api_key.txt", "deepseek_key.txt", "deepseek_api_key.txt", "key.txt"],
-        }
-        category = "gemini" if is_gemini else ("nvidia" if is_nvidia else ("free_glm" if is_free_glm else ("opencode" if is_opencode else "deepseek")))
-        candidate_filenames = file_map[category]
-
-        cwd_dir = os.getcwd()
-        candidate_paths = [key_file] if key_file else []
-        # 同時支援當前工作目錄 (cwd) 與腳本所在目錄 (base_dir)
-        for fname in candidate_filenames:
-            candidate_paths.append(os.path.join(cwd_dir, fname))
-            if base_dir != cwd_dir:
-                candidate_paths.append(os.path.join(base_dir, fname))
-
-        for kf in candidate_paths:
-            if kf and os.path.exists(kf):
-                try:
-                    with open(kf, "r", encoding="utf-8") as f:
-                        parsed = _parse_keys(f.read())
-                    if parsed:
-                        keys.extend(parsed)
-                        break
-                except Exception:
-                    pass
-
     if not keys:
         print("❌ 找不到 API 金鑰，請建立對應金鑰檔案或設定環境變數！")
         return None
@@ -229,30 +229,47 @@ def extract_json_from_text(text):
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     if not text:
         return None
-    
+
+    def _parse_candidate(raw_cand):
+        if not raw_cand:
+            return None
+        cand = raw_cand.strip()
+        # 1. 優先嘗試非嚴格解析 (容許字串內有未跳脫的換行符與控制字元)
+        try:
+            return json.loads(cand, strict=False)
+        except Exception:
+            pass
+        # 2. 自動修復常見的尾隨逗號 (Trailing Commas)
+        try:
+            cleaned = re.sub(r',\s*([\]}])', r'\1', cand)
+            return json.loads(cleaned, strict=False)
+        except Exception:
+            pass
+        return None
+
+    # 優先從 Markdown 代碼塊中提取
     match = re.search(r'```(?:json)?\s*([\[{][\s\S]*?[\]}])\s*```', text, re.IGNORECASE)
     if match:
-        try:
-            return json.loads(match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
-            
+        res = _parse_candidate(match.group(1))
+        if res is not None:
+            return res
+
+    # 其次提取最外層大括號 {}
     first_brace = text.find('{')
     last_brace = text.rfind('}')
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        try:
-            return json.loads(text[first_brace : last_brace + 1])
-        except json.JSONDecodeError:
-            pass
-            
+        res = _parse_candidate(text[first_brace : last_brace + 1])
+        if res is not None:
+            return res
+
+    # 最後提取中括號陣列 []
     first_bracket = text.find('[')
     last_bracket = text.rfind(']')
     if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
-        try:
-            return json.loads(text[first_bracket : last_bracket + 1])
-        except json.JSONDecodeError:
-            pass
-            
+        res = _parse_candidate(text[first_bracket : last_bracket + 1])
+        if res is not None:
+            return res
+
     return None
 
 def extract_js_from_html(html_content):
@@ -542,6 +559,10 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
     logger.info(f"🧠 正在請求 AI 模型 ({model}) 進行診斷 (對話歷史深度: {len(conversation_history)})...")
 
     pool = getattr(client, "key_pool", None)
+    if pool and pool.is_all_dead():
+        logger.error("🛑 金鑰池中所有 API Key 皆已失效，無法發送請求！")
+        return None, "ALL_KEYS_DEAD", 0
+
     max_retries = max(len(pool) * 2, 6) if (pool and pool.has_multiple()) else 3
 
     is_third_party_or_free = (
@@ -563,7 +584,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
     elif "muse" in m_lower or "spark" in m_lower:
         max_tokens_val = 256000
     elif "ox" in m_lower or "preview" in m_lower or "alpha" in m_lower:
-        max_tokens_val = 256000
+        max_tokens_val = 131072
     elif "gemini" in m_lower or "googleapis" in str(getattr(client, "base_url", "")).lower():
         max_tokens_val = 65536
     elif is_third_party_or_free:
@@ -594,6 +615,11 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
             "temperature": 1.0,
             "max_tokens": max_tokens_val,
             "reasoning_effort": "high",
+            "extra_body": {
+                "reasoning": {
+                    "effort": "max"
+                }
+            },
         }
 
         is_opencode_responses = "opencode.ai/zen" in str(getattr(client, "base_url", "")).lower() and (
@@ -602,27 +628,55 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
 
         try:
             if is_opencode_responses:
-                # OpenCode Zen / Go 專屬 Responses API 協議轉發
-                resp_data = client.post(
-                    "/responses",
-                    cast_to=object,
-                    body={
-                        "model": model,
-                        "input": conversation_history,
-                        "temperature": 1.0,
-                        "max_output_tokens": min(max_tokens_val, 32768),
-                    }
-                )
-                raw_response = ""
-                if isinstance(resp_data, dict):
-                    raw_response = resp_data.get("output_text", "")
-                    if not raw_response and "output" in resp_data:
-                        for item in resp_data.get("output", []):
-                            if isinstance(item, dict) and "content" in item:
-                                for c in item.get("content", []):
-                                    if isinstance(c, dict) and c.get("text"):
-                                        raw_response += c.get("text")
-                usage = None
+                # OpenCode Zen / Go 專屬 Responses API 協議轉發 (開啟高強度思考)
+                try:
+                    resp_data = client.post(
+                        "responses",
+                        cast_to=object,
+                        body={
+                            "model": model,
+                            "input": conversation_history,
+                            "temperature": 1.0,
+                            "max_output_tokens": min(max_tokens_val, 65536),
+                            "reasoning": {"effort": "max"},
+                            "reasoning_effort": "max",
+                        }
+                    )
+                    raw_response = ""
+                    usage = None
+                    reasoning_text = ""
+                    if isinstance(resp_data, dict):
+                        raw_response = resp_data.get("output_text", "")
+                        usage = resp_data.get("usage")
+                        if "reasoning_content" in resp_data:
+                            reasoning_text = resp_data.get("reasoning_content", "")
+                        if not raw_response and "output" in resp_data:
+                            for item in resp_data.get("output", []):
+                                if isinstance(item, dict):
+                                    item_type = item.get("type", "")
+                                    if item_type in ["reasoning", "thought", "thinking"]:
+                                        for c in item.get("content", []):
+                                            if isinstance(c, dict) and c.get("text"):
+                                                reasoning_text += c.get("text")
+                                    elif "content" in item:
+                                        for c in item.get("content", []):
+                                            if isinstance(c, dict) and c.get("text"):
+                                                raw_response += c.get("text")
+                    elif hasattr(resp_data, "output_text"):
+                        raw_response = getattr(resp_data, "output_text", "")
+                        usage = getattr(resp_data, "usage", None)
+
+                    if reasoning_text and "<think>" not in raw_response:
+                        raw_response = f"<think>\n{reasoning_text.strip()}\n</think>\n\n{raw_response}"
+                except Exception:
+                    # 容錯回退至標準 Chat Completions 端點
+                    response = client.chat.completions.create(**create_kwargs)
+                    usage = getattr(response, "usage", None)
+                    msg_obj = response.choices[0].message
+                    raw_response = msg_obj.content or ""
+                    r_content = getattr(msg_obj, "reasoning_content", None) or getattr(msg_obj, "reasoning", None) or getattr(msg_obj, "thought", None)
+                    if r_content and "<think>" not in raw_response:
+                        raw_response = f"<think>\n{r_content.strip()}\n</think>\n\n{raw_response}"
             else:
                 try:
                     response = client.chat.completions.create(**create_kwargs)
@@ -630,23 +684,50 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                     err_str = str(api_err).lower()
                     if "max_tokens" in err_str or "maximum allowed" in err_str:
                         create_kwargs["max_tokens"] = 8192
+                    if "reasoning_effort" in err_str or "extra" in err_str:
+                        create_kwargs.pop("reasoning_effort", None)
                     if "extra_body" in create_kwargs:
                         create_kwargs.pop("extra_body", None)
                     response = client.chat.completions.create(**create_kwargs)
 
                 usage = getattr(response, "usage", None)
-                raw_response = response.choices[0].message.content or ""
+                msg_obj = response.choices[0].message
+                raw_response = msg_obj.content or ""
+                r_content = getattr(msg_obj, "reasoning_content", None) or getattr(msg_obj, "reasoning", None) or getattr(msg_obj, "thought", None)
+                if r_content and "<think>" not in raw_response:
+                    raw_response = f"<think>\n{r_content.strip()}\n</think>\n\n{raw_response}"
 
             _LAST_API_CALL_TIME = time.time()
 
             if usage:
-                hit_tokens = getattr(usage, "prompt_cache_hit_tokens", 0)
-                miss_tokens = getattr(usage, "prompt_cache_miss_tokens", 0)
-                total_prompt = getattr(usage, "prompt_tokens", 0)
-                completion_tokens = getattr(usage, "completion_tokens", 0)
-                details = getattr(usage, "completion_tokens_details", None)
-                reasoning_tokens = getattr(details, "reasoning_tokens", 0) if details else 0
+                def _get_val(obj, *keys, default=0):
+                    if obj is None:
+                        return default
+                    for k in keys:
+                        if isinstance(obj, dict) and k in obj and obj[k] is not None:
+                            return obj[k]
+                        elif hasattr(obj, k) and getattr(obj, k) is not None:
+                            return getattr(obj, k)
+                    return default
+
+                total_prompt = _get_val(usage, "prompt_tokens", "input_tokens", default=0)
+                completion_tokens = _get_val(usage, "completion_tokens", "output_tokens", default=0)
+                
+                # 提取快取命中
+                hit_tokens = _get_val(usage, "prompt_cache_hit_tokens", "cache_read_input_tokens", default=0)
+                prompt_details = _get_val(usage, "prompt_tokens_details", "input_token_details", default=None)
+                if prompt_details and hit_tokens == 0:
+                    hit_tokens = _get_val(prompt_details, "cached_tokens", "cache_read", default=0)
+                
+                miss_tokens = _get_val(usage, "prompt_cache_miss_tokens", "cache_creation_input_tokens", default=0)
+                if miss_tokens == 0 and total_prompt > hit_tokens:
+                    miss_tokens = total_prompt - hit_tokens
+
+                # 提取思考 Token
+                comp_details = _get_val(usage, "completion_tokens_details", "output_token_details", default=None)
+                reasoning_tokens = _get_val(comp_details, "reasoning_tokens", default=0)
                 reasoning_str = f" (含思考: {reasoning_tokens})" if reasoning_tokens > 0 else ""
+                
                 hit_rate = (hit_tokens / total_prompt * 100) if total_prompt > 0 else 0
                 total_tokens = total_prompt + completion_tokens
                 logger.info(f"  ⚡ Token 消耗: 輸入 {total_prompt} (快取命中: {hit_tokens} / {hit_rate:.1f}%, 未命中: {miss_tokens}) | 輸出 {completion_tokens}{reasoning_str} | 總計 {total_tokens}")
@@ -834,205 +915,114 @@ def rollback_file(html_path, logger):
 # ============================================================
 # 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
-UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器開發者、WebGL/Three.js 幾何專家與湧現物理引擎專家。
+UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發者、WebGL/Three.js 幾何專家與湧現計算流體物理學家。
 我們的對話將維持連續歷史紀錄。你將會收到兩種類型的診斷請求：
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
-2. 【靜態代碼審查】：分析傳入的最新 JS 代碼。
+2. 【靜態代碼審查】：分析傳入的最新 JS 代碼快照。
+
+🔥🔥🔥 【動態數據審查：四大物理死穴審計協議（嚴防判詞假象）】 🔥🔥🔥
+審查 Dry Run JSON 時，【絕對禁止】只看 `verdictRating` 顯示「大凶」就盲目判定系統正常！
+評語大凶可能只是字串比對命中，底層物理引擎可能已完全失控。只要命中以下任一死穴，【強制判定 MODIFIED】並給出修正代碼：
+
+1. 🚨【凶局偽聚氣 / 困滯陷阱 (False Gathering Trap)】：
+   - 【異常病徵】：格局帶有凶煞（如 `ms: 'sunken'`(深坑), `terrain: 'fanpo'`(反坡), `road: 'zhichong'`(槍煞), `w: 'tfork'`(凶水), `ml: 'po'`(破碎)），但數據卻顯示 `gatherAcc > 500` 或 `qiDensity > 15%`！
+   - 【物理病因】：粒子掉入深坑或逆坡減速停滯，被 `isCalmFlow`（低速即結穴）誤判為「太極暈藏風聚氣」！
+   - 【除錯指引】：檢查 `Physics.update` 的 `isCalmFlow`，必須用平滑係數排除深坑陷落 (`ms === 'sunken'`)、反坡逆氣 (`terrain === 'fanpo'`) 或直接撞擊區，嚴禁將困滯死水粒子轉為吉氣 (`pState = 2`)。
+
+2. 🚨【流體死鎖 / 粒子零活躍 (Zero-Activity Stall)】：
+   - 【異常病徵】：`gatherAcc === 0 && scatterAcc === 0`（運行了 6 秒，總活躍粒子數為 0）。
+   - 【物理病因】：平洋龍或特定風力下，粒子出生位置超出邊界、初速方向被地形立即截斷、或未給予穩態推進力。
+   - 【除錯指引】：檢查 `resetParticles` 與龍脈推進力場，確保粒子在平洋龍或各類地形下均能正常釋放並流經穴場。
+
+3. 🚨【猝死死循環 / 數值震盪 (Respawn Thrashing)】：
+   - 【異常病徵】：`scatterAcc > 8000`（6 秒內散氣累積近萬次）。
+   - 【物理病因】：粒子重生點直接落入深水、斷崖或極端煞氣區，剛出生 1 幀立即死亡並重生，陷入死循環。
+   - 【除錯指引】：檢查粒子重生座標與高度生成邏輯，確保粒子在進入場景時有合理的初始緩衝空間。
+
+4. 🚨【防呆容量超載 (Capacity Violation)】：
+   - 【異常病徵】：明堂破敗（如 `mt: false` 或 `ms: 'sunken'`），但 `gatherAcc` 依然累積超過 100。
+   - 【物理病因】：`Rules.getCapacityLimit` 漏掉了防呆截斷，或感測器累加未正確反映明堂容積。
 
 🔥🔥🔥 【數據欄位物理期望與除錯字典 (Metric Benchmarks & Ground Truth)】 🔥🔥🔥
-當你審查 JSON 數據與程式碼時，請嚴格對照以下「物理真相基準」。若發現矛盾，請直接定位對應的函式進行修正：
-
 1. **windSpeed (穴心風速)**：
    - 【期望】：無風設定或吉局時應維持低檔 (< 1.5)。
    - 【除錯】：若異常飆高，代表 `Physics.update` 誤將「粒子自主前進的流速」算成了風煞！請改用 CFD 網格風速 (`windGridX`/`windGridZ`) 作為感測來源。
-
 2. **waterDrag (水力抽吸/伯努利負壓)**：
    - 【期望】：僅在水流湍急或河道深切時才有顯著數值 (> 0.5)。平靜水體應極低。
-   - 【除錯】：感測器必須「客觀測量粒子在水域中的動態合成速度與垂直下切拉力」，絕對禁止使用水域名稱字串黑名單（如 `isBadWaterSensor`）硬編碼造假數據！
-
+   - 【除錯】：感測器必須客觀測量粒子在水域中的動態合成速度與垂直下切拉力，絕對禁止使用水域名稱字串黑名單硬編碼造假數據！
 3. **gatherRatio / scatterAcc (聚氣/散氣率)**：
    - 【期望】：吉局運作 3 秒後，聚氣率應 ≥ 60%，且 `scatterAcc` 極低。大凶局（天斬、地絕）則相反。
-   - 【除錯】：若吉局散氣爆量，代表太極暈/明堂的引力場或阻尼計算失效，請檢查 `Physics.update` 中的邊界與阻尼邏輯。
-
-4. **Capacity / capLimit (明堂極限容量 c)**：
-   - 【期望】：吉局（有廣場/明堂）應 > 100；凶局或明堂破敗（如 sunken, none）應嚴格受限 (< 40 或 < 60)。
-   - 【除錯】：若明堂破敗卻有 150 滿容量，代表 `Rules.getCapacityLimit` 漏掉了防呆保護。
-
-5. **yinYangBalance (陰陽平衡)**：
-   - 【期望】：吉局應落在 -3 ~ +3 之間（平）；曠野氣散(yang_extreme)應 > 4；陰濕逼壓(yin_extreme)應 < -4。
-   - 【除錯】：若完美格局顯示「陽氣過盛」，代表天空可視率 (`skyViewFactor` / `frontOpenness`) 或風速算錯，導致系統誤判為空曠。
-
-6. **Z-Fighting 與 拓撲奇異點 (Tearing/破圖)**：
+4. **yinYangBalance (陰陽平衡)**：
+   - 【期望】：吉局應落在 -3 ~ +3 之間（平）；曠野氣散應 > 4；陰濕逼壓應 < -4。
+5. **Z-Fighting 與 拓撲奇異點 (Tearing/破圖)**：
    - 【期望】：`sanityWarnings` 中不應出現地形撕裂或 Z-Fighting。
-   - 【除錯】：⚠️ 絕對不要去改 Three.js 的 Material、DepthTest 或 Renderer！破圖 100% 是因為 `buildTerrain` 裡面的高度陣列 (`hMap`) 發生數值斷層（如 `Math.max` 與 `Math.min` 邏輯寫反、`riverRefZ` 深度設定高於地表）。請修正高度數學公式。
-
-7. **Mountain (hMap) vs City (blds) 引擎架構區分**：
-   - 山林版 (`3D.html`) 的地形依賴 1D 高度陣列 `hMap[z * size + x]`。
-   - 城市版 (`city.html`) 依賴 AABB 碰撞方塊 `builder.blds` (`b.x, b.z, b.w, b.d`)。
-   - 【除錯】：修改代碼時請認明你正在修改哪個檔案，絕不可混用兩者的碰撞與地形讀取邏輯。
-
-🔥🔥🔥 【特別注意：全能空間、物理與渲染合規性 (兼容雙版本)】 🔥🔥🔥
-動態診斷時，請深入解析 JSON 內的警告與數據：
-
-1. **解讀 11x11 降維微縮地圖與八方雷達 (Topo & Radar)**：
-   - 觀察 `topoMatrix_11x11` 與 `skylineRadar` 是否出現斷崖錯位、或左右極度不對稱（如 W=45, E=15）。
-   - 💡 常見原因：誤用絕對座標 (`z` 而非 `dzLair`) 導致穴星位移時破圖；或是邊界鉗制寫反 (`Math.min` 誤用為 `Math.max`) 導致山脈被強行向內擠壓。
-
-2. **城市建築穿模與重疊 (City Blds Overlap)**：
-   - 若異常陣列中出現【建築穿模警告】，代表 `app.builder.blds` 中生成的方塊幾何 (x, z, w, d) 發生了不合理的重疊。請調整生成坐標或寬度。
-
-3. **系統熵值、高維物理與流體 (Thermodynamics & CFD)**：
-   - ⚡【高維指標合規性】：
-     * **Shannon Entropy (香農熵)**：若熵值過高 (>5.0)，代表氣場渙散未聚。
-     * **Betti-1 Closure (拓撲閉合度 $\beta_1$)**：必須 100% 由 16 方向射線掃描地貌計算，嚴禁在平洋龍中使用字串三元運算子硬編碼偽造 `0.85/0.2`！
-     * **Fractal Dimension (分形維度 $D$)**：純由 CFD 亂流能譜客觀計算，嚴禁使用 `+ (bohuan === 'no' ? 0.3 : 0.0)` 字串直接灌水！
-     * **Reynolds & Froude (無因次量)**：空氣雷諾數 ($Re$) 純由風速與亂流決定，嚴禁將水流速滑桿 (`waterVel`) 混入空氣雷諾數公式中！
-
-4. **防呆狀態悖論 (State Desync)**：
-   - 若出現不可能的組合 (如平洋龍 + 高山懸崖，或城市無水卻有三叉水)，請檢查 `UI` 層的 `rules` 或相關防呆判斷是否遺漏。
+   - 【除錯】：破圖 100% 是因為 `buildTerrain` 裡面的高度陣列 (`hMap`) 發生數值斷層（如 `riverRefZ` 與地表高度差過小或公式寫反）。請修正高度數學公式。
 
 🔥🔥🔥 【湧現物理防作弊十全天條 (ABSOLUTE EMERGENCE & COORDINATE LAWS)】 🔥🔥🔥
-你必須嚴格遵守以下物理與空間幾何原則。若你的修改違反任何一條，將被視為「無效代碼」並遭到退回！
-
 1. **空間座標尺度與二維網格定址鐵律 (Spatial Scale & 2D Grid Index Invariance)**：
    - 全局地圖尺度 `CONFIG.tSize` 為 350（實體坐標範圍為 `-175 ~ +175`）。
-   - ❌ 致命幾何錯位：CFD 網格求解或感測器採樣時寫死 `(gx / 64) * 200 - 100` 或 `(sensX + 100) / 200 * 64`（導致粒子在右側採樣到左側風向）！
-   - ❌ 致命網格索引筆誤：在 2D 轉 1D 網格採樣時把 X 軸寫成 Z 軸（例如 `windGridZ[ngz * 64 + ngz]`，導致採樣到地圖對角線風速！）。
-   - ✅ 正確寫法：
-     * 空間座標：`worldX = (gx / 64) * CONFIG.tSize - CONFIG.tSize / 2;`
-     * 網格定址：`let idx = ngz * 64 + ngx;`（Z 軸乘以寬度加上 X 軸，嚴禁把 X 軸寫成 Z 軸！）。
-
+   - 網格定址必為：`let idx = ngz * 64 + ngx;`（Z 軸乘以寬度加上 X 軸，嚴禁把 X 軸寫成 Z 軸！）。
+   - 穴周邊幾何判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
 2. **三維垂直空間自由度與單向地面約束 (3D Vertical Freedom & Unilateral Ground Support)**：
-   - ❌ 致命 3D 壓扁 Bug：`if (y <= t.y + 15.0) y = t.y + 3.5;`（嚴禁將地面 15 米內的所有粒子強制拍扁在 3.5 米薄片上，這會徹底摧毀垂直熱浮力、上升氣流與山頂越嶺流！）。
-   - ✅ 正確做法：地面約束必須為**單向托舉**：`y = Math.max(y, t.y + 0.8);`（僅在粒子沉入地底時托起，允許粒子在 0.8 米至高空自由產生三維立體渦旋與升降）。
-
+   - 地面約束必須為**單向托舉**：`y = Math.max(y, t.y + 0.8);`（僅在粒子沉入地底時托起，允許粒子自由產生三維立體渦旋與升降，嚴禁拍扁在 3.5 米薄片上）。
 3. **理氣度數圓周跨零度連續性 (Compass Degree & Circular Continuity)**：
-   - 羅盤度數 $0^\circ \sim 360^\circ$ 具備圓周連續性，正北坎宮跨越 $0^\circ$ 兩側（$315^\circ \sim 360^\circ$ 與 $0^\circ \sim 45^\circ$）。
-   - ❌ 致命度數斷裂：在評分中寫死 `if (deg < 45)`，導致 $315^\circ \sim 360^\circ$ 時評語判大吉但評分沒加分！
-   - ✅ 正確寫法：評分與判詞必須 100% 統一使用跨零度判斷：`if (deg < 45 || deg >= 315)`。
-
+   - 羅盤度數 $0^\circ \sim 360^\circ$ 具備圓周連續性，正北坎宮跨越 $0^\circ$ 兩側（$315^\circ \sim 360^\circ$ 與 $0^\circ \sim 45^\circ$）。評分與判詞統一使用跨零度判斷：`if (deg < 45 || deg >= 315)`。
 4. **禁止人工引力黑洞、魔法推力與非受控常數狂風 (No Fake Physics / Unscaled Wind Injections)**：
-   - ❌ 致命作弊與 Bug：
-     * 迴龍顧祖人工黑洞：`if (state.d === 'huilong') suction = 1500.0 / rSq;`
-     * 龍脈推進字串三元運算子：`let pulse = (state.d === 'ji') ? 3.0 : (state.d === 'pingyang' ? 5.0 : 2.8);`（嚴禁依龍勢名稱給予不同推進推力！）
-     * 橫龍山背人工磁吸力：`if (state.d === 'heng') vel.x += Math.sign(-x) * 2.5;`
-     * 龍吐珠/拜台/草蛇/橈棹/蛾眉砂外掛推力：`vel.x += (pearlDx/pearlR) * 2.5;` 或 `pulse += 1.5;` 或 `vel.z += 2.0;`
-     * 大帳/羅城/飛蛾/天馬人工消風消亂流：`if (state.feie) localWindX *= 0.15; localTurbulence *= 0.25;`
-     * 逼壓/抬頭/破碎崖寫死常數狂風：`localWindX += 3.5;`（導致無風設定下依然無中生有颳狂風！）
-     * 天井煞非物理正弦波抽搐：`vel.y += Math.sin(AppState.frames * 0.15) * 8.0;`
-   - ✅ 正確做法：所有山體幾何**早已雕刻於 3D 地形高度圖**中！全域龍脈引導推力必須為**統一常數（`2.5`）**，速度差異完全由地表重力下滑分量（$-t.nz$）自然產生；所有局部風煞**必須乘以環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓）**，嚴禁寫死未受縮放的常數向量！
-
+   - 全域龍脈引導推力必須為**統一常數（`2.5`）**，速度差異完全由地表重力下滑分量（$-t.nz$）自然產生。
+   - 所有局部風煞**必須乘以環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓）**，嚴禁寫死未受縮放的常數向量！
 5. **單向資料流與禁止評分引擎否定感測器 (Unidirectional Data Flow & No Sensor Overriding)**：
-   - 資料流向為唯一單向：【3D地形/CFD網格】 $\rightarrow$ 【粒子流體動力學】 $\rightarrow$ 【物理感測器採樣 (Sensors)】 $\rightarrow$ 【五訣評分引擎 (Rules)】。
-   - ❌ 絕對禁止逆向耦合：`Physics.update` 與感測器內部**絕對不准出現**任何對 `Rules.*`、`mult`、`globalMultCache`、`score` 的調用！
-   - ❌ 絕對禁止評分引擎「否定感測器 / 人工假補償」：
-     * 致命錯誤：`if (state.ao && AppState.sensors.windSpeed < 0.3) emergenceBonus -= 10;`（當物理感測器測得平靜無風時，評分引擎嚴禁用字串比對強行人工多扣 10 分！）。
-     * ✅ 正確原則：評分引擎純粹作為「客觀觀測者」，必須 100% 信任感測器回報的實測物理量，實測無風則風煞懲罰自然為零，實測有風則扣分。
-
+   - 資料流向為唯一單向：【3D地形/CFD網格】 $\rightarrow$ 【粒子動力學】 $\rightarrow$ 【物理感測器採樣 (Sensors)】 $\rightarrow$ 【五訣評分引擎 (Rules)】。
+   - 評分引擎純粹作為「客觀觀測者」，必須 100% 信任感測器回報的實測物理量，嚴禁在評分引擎中手動補償或竄改感測數據。
 6. **全域狀態機唯一收斂鐵律 (Single State-Machine Convergence Law)**：
-   - ❌ 致命作弊：在仰瓦煞、科氏力白虎撞擊、二次流剪切、斷崖抽吸、後靠空虛、水底河床、案山撞擊坡面等局部 `if` 分支中私自寫 `this.pState[i] = 1/2/3;`！
-   - ❌ 嚴禁在任何局部地形或煞氣條件下隨機竄改粒子狀態機！
-   - ❌ 嚴禁感測器透過水域名稱黑名單（`isBadWaterSensor`）偽造水力抽吸數據！`waterDrag` 必須客觀測量水域真實合成速度 $\sqrt{v_x^2+v_z^2} + (-v_y)$。
-   - ✅ 正確做法：力場與地形**只負責提供物理加速度（$\vec{a} = \vec{F}/m$）與速度拖拽**。整份代碼中粒子的狀態轉化，**100% 只能收斂由全域主循環的風速閾值（`speedSq > 0.35` 散氣）、亂流閾值（`localTurbulence > 5.5` 紅煞）以及穴場層流條件（`isCalmFlow` 吉氣）統一判定！**
-
+   - 力場與地形只負責提供物理加速度（$\vec{a} = \vec{F}/m$）與速度拖拽。
+   - 粒子狀態轉化 100% 只能收斂由全域主循環的風速閾值（`speedSq > 0.35` 散氣）、亂流閾值（`localTurbulence > 5.5` 紅煞）以及穴場層流條件（`isCalmFlow` 吉氣）統一判定！嚴禁在局部 `if` 分支中隨機改寫 `pState`！
 7. **絕對移除布林無敵護盾 (Zero Invincible Shields)**：
-   - ❌ 致命作弊：`!(inTaijiShield && state.taiji && !hasDynamicFatalSha)`
-   - ❌ 嚴禁設立任何讓粒子對「風速、亂流、高斯曲率斷裂、地表粗糙度」完全免疫的人工保護罩！
-   - ✅ 正確做法：藏風聚氣的防風能力必須由周圍山體在 CFD 網格中自然把風速擋下；若風速真的很大，粒子就必須如實被吹散。
-
-8. **全系統唯一合法結穴點與禁止先行方框蓋章 (Single Legitimate Qi Convergence Point & No Pre-Entry Box)**：
-   - ❌ 致命作弊：
-     * 水底（`t.y < deepWater`）、案山撞擊坡面（`z > 20 && t.nz < -0.1`）、過峽深谷（`z < -15`）**絕對不准生成吉氣 (`pState = 2`)**（水底結穴嚴重違背「界水則止」）。
-     * **嚴禁設立穴場入口先行強制蓋章方框**：`if (dzTaiji >= -8 && dzTaiji <= 12 && ...) this.pState[i] = 2;`（此寫法會架空客觀物理沉降檢測，讓狂風中的粒子一碰方框邊界就瞬間變吉氣！）。
-   - ✅ 正確做法：全系統**唯一**允許將生氣沉降轉化為吉氣（`pState = 2`）的地方：粒子位於太極暈陸地範圍內，且粒子處於客觀層流沉降狀態（`isCalmFlow: vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y > t.y`）。
-
+   - 嚴禁設立任何讓粒子對風速或亂流完全免疫的人工保護罩，防風能力必須由周圍山體在 CFD 網格中自然把風速擋下。
+8. **全系統唯一合法結穴點與禁止先行方框蓋章 (Single Legitimate Qi Convergence Point)**：
+   - 全系統唯一允許將生氣沉降轉化為吉氣（`pState = 2`）的地方：粒子位於太極暈陸地範圍內，且處於客觀層流沉降狀態（`isCalmFlow`），水底、過峽深谷、案山撞擊坡面絕對不准結穴。
 9. **禁止人工修改粒子壽命與初速 (No Lifetime & Thrust Tampering)**：
-   - ❌ 致命作弊：`this.pLife[i] += 1.5 * dt;`（五色土延壽）或 `let initialThrust = state.zutai ? 6.5 : 3.0;` 或平洋出生賦予 `10.0/8.0` 超速！
-   - ✅ 正確做法：粒子出生與回收時統一賦予自然的穩態初速 `3.5`，土壤與高山的影響必須體現在「摩擦阻尼」、「剛體彈力」或「高山重力勢能自然加速」上，不准手動竄改粒子的 `pLife` 與初速。
-
+   - 粒子出生與回收時統一賦予自然的穩態初速 `3.5`，壽命為 `600`，嚴禁手動依龍勢或土壤竄改 `pLife` 與初速。
 10. **相對座標 vs 絕對座標 (Relative vs Absolute Coordinates)**：
-    - 穴位是可以被玩家「手動點穴」或「高山點穴」移動的！
-    - ❌ 錯誤寫法：`if (z > 20 && z < 50)` (這會導致穴位移動後，物理判定區留在原地，引發狀態矛盾)。
-    - ✅ 正確寫法：使用 `dzTaiji` (Z軸距穴心距離) 或 `dxTaiji`，例如 `if (dzTaiji > 15 && dzTaiji < 45)`。
+    - 穴位是可以移動的，穴位周邊物理與力場判定一律使用 `dzTaiji` 與 `dxTaiji`。
 
 🔥🔥🔥 【圖學與數值穩定性鐵律 (Graphics & Numerical Stability)】 🔥🔥🔥
-1. **光學過曝與通用色彩異常 (Optical & Color Anomalies)**：
-   - 若 JSON 回報 `【光學異常】被單一異常色彩覆蓋` 或 `過曝泛白` 或 `全黑`，代表 WebGL 渲染層發生了災難性錯誤。
-   - 【可能病因與解法】：
-     1. **熱力圖或粒子透明度疊加失控**：調降 `rgba` 中的 Alpha 值、減少自發光倍率 (`totalEmissiveRadiance += heatColor.rgb * 0.4`)。
-     2. **相機掉入地底 / 巨型穿模**：檢查相機的 `safeMinY` 碰撞邏輯，或是地形高度生成是否出現 `NaN` 或無限大。
-     3. **Shader 計算錯誤**：檢查 `terrainMat.onBeforeCompile` 中的 GLSL 代碼是否有除以零、未賦值變數，導致整片材質崩潰成單一顏色。
-     4. **顏色變數寫錯**：檢查 `this.pCol` 初始化是否給予了不合理的顏色，或是 `color.setHex()` 溢出。
+1. **平滑過渡 (Smooth Falloff) 絕對優先**：
+   - 在修改地形高度或力場時，絕對禁止使用階梯式硬切斷（Hard Cutoff），一律使用高斯衰減（Gaussian Falloff）或 Hermite 平滑插值（Smoothstep），防止 3D 網格法線斷裂與破圖。
+2. **除以零防禦與 NaN 防禦 (Zero-Division Safeguard)**：
+   - 任何涉及距離、長度或向量相除的公式，分母必須防禦（如 `Math.max(0.001, dist)`）。
+3. **向量與空間網格能量梯度歸一化 (Gradient Normalization)**：
+   - 讀取空間離散網格能量梯度時，必須進行無因次歸一化：`let qiGradX = (qiRight - qiLeft) / Math.max(1.0, maxQi);`，防止超音速震盪數值暴走。
+4. **單調物理加權與單一入口扣分 (Monotonic Sensor Mapping)**：
+   - 評分懲罰必須與感測器讀數單調正相關（讀數越大、扣分越重），嚴禁逆向倒扣。
 
-2. **平滑過渡 (Smooth Falloff) 絕對優先**：
-   - 在修改地形 `y` 高度或流體速度 `vel` 時，絕對禁止使用「硬切斷 (Hard Cutoff)」。硬切斷會導致 3D 網格法線斷裂與嚴重的 Z-Fighting 破圖。
-   - ❌ 致命錯誤：`if (dist < 15) { y -= 10; }` (邊緣會產生 90 度垂直斷崖)。
-   - ✅ 正確做法：使用高斯衰減 (Gaussian Falloff) 或線性插值。例如 `y -= 10 * Math.exp(-(dist*dist)/50);`，讓地形與力場平滑過渡。
-
-3. **除以零防禦與 NaN 防禦 (Zero-Division & Variable Scope Safeguard)**：
-   - 任何涉及距離 `dist`、長度 `length`、或向量相除的公式，分母絕對不可為 0（使用 `Math.max(0.001, dist)`）。
-   - 在粒子重生或邊界回收時，務必確保所引用的變數（如 `z`、`lz`、`xueZOffset`）在當前函式作用域內已宣告，嚴禁跨函式引用未定義變數（如 `tz`）導致 `NaN` 座標爆炸！
-
-4. **向量與空間網格能量梯度歸一化 (Vector & Grid Gradient Normalization)**：
-   - 任何涉及方向引力、排斥力，或讀取空間離散網格（如 `qiGrid`）的能量梯度時，**必須進行無因次歸一化**！
-   - ❌ 致命數值爆炸：`let qiGradX = qiRight - qiLeft; vel.x += qiGradX * 1.5 * dt;`（當網格能量累積至 100+ 時，未歸一化的差值會產生 135 級別的超音速震盪暴走！）。
-   - ✅ 正確做法：
-     * 空間向量：`vel.x += (dx / Math.max(0.001, dist)) * speed * dt;`
-     * 網格梯度：`let qiGradX = (qiRight - qiLeft) / Math.max(1.0, maxQi); vel.x += qiGradX * 0.35 * dt;`
-
-5. **單調物理加權與單一入口扣分 (Monotonic Sensor Mapping & Single Penalty Entry)**：
-   - 評分懲罰必須與感測器讀數**單調正相關（讀數越大、扣分越重）**，絕對禁止逆向倒扣悖論！
-   - ❌ 致命逆向邏輯：`if (waterDrag > 0.5) dragPenalty += 20; else dragPenalty += 35;`（導致平靜水流反而被重罰 35 分！）。
-   - ❌ 致命雙重扣分：在預熱期既於 `windPenalty` 扣分，又在 `emergenceBonus` 扣分。
-   - ✅ 正確做法：水力懲罰純粹由感測器讀數線性驅動（`if (waterDrag > 0.3) dragPenalty += (waterDrag - 0.3) * 6.0;`）；形煞懲罰維持單一入口，避免多處重複疊加扣分。
-
-6. **禁止理論容量反向截斷物理累加器 (No Cap Clamping)**：
-   - ❌ 致命死鎖：`AppState.gatherAcc += (Math.min(capLimit, frameGather) - AppState.gatherAcc) * 0.05 * dt;`
-   - ✅ 正確做法：物理感測器測到多少粒子就是多少（`AppState.gatherAcc += (frameGather - AppState.gatherAcc) * 0.05 * dt;`）。容量是否超載應由 UI/評分層拿 `gatherAcc / capLimit` 來比對。
-
-🔥🔥🔥【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】🔥🔥🔥
-你必須「嚴格」輸出以下格式的 JSON，絕對不要在 JSON 外輸出任何 markdown 說明文字。
-
-1. **【零註解原則 (Zero-Comment Invariance - 絕對不可添加註解)】**：
-   - ❌ **嚴禁在 `replace` 代碼中添加任何自創註解**（例如禁止寫 `// 修正...`、`// 解決...`、`// 【優化】`、`/* ... */`）。
-   - 代碼必須是 100% 純淨的運行邏輯！除非原始代碼該行本來就存在註解，否則**一律不准新增任何一行註解**。
-
-2. **【嚴格保留原始縮排與換行 (Strict Indentation & Whitespace)】**：
-   - `search` 與 `replace` 中的每一行，開頭縮排（空白/Tab 數量）必須與目標檔案**完全 100% 精確對齊**。
-   - 嚴禁更動縮排層級，嚴禁將代碼頂格或隨意調整空格。
-
+🔥🔥🔥 【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】 🔥🔥🔥
+1. **【零註解原則 (Zero-Comment Invariance)】**：
+   - ❌ `replace` 區塊中**絕對嚴禁添加任何自創註解**（如禁止寫 `// 修正...`、`// 優化`、`/* ... */`）。代碼必須是 100% 純淨邏輯。
+2. **【嚴格保留原始縮排與換行 (Strict Indentation)】**：
+   - `search` 與 `replace` 中的每一行，縮排與換行必須與目標檔案 100% 精確對齊。
 3. **【一字不漏的 Search 區塊與上下文定位】**：
-   - `search` 區塊的內容，必須與原始代碼 **100% 完全一致**（包含縮排、空格、引號類型）。
-   - ❌ 嚴禁在 `search` 或 `replace` 中使用 `// ... (省略)` 或是 `// 原有代碼保持不變`！
-   - `search` 區塊**必須提供 5~10 行的完整上下文**，絕不能只有單行代碼，以確保能精確鎖定修改位置。
+   - `search` 必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)`！
+4. **【審計輸出決策】**：
+   - 只要測試數據中存在【凶局偽聚氣】、【零活躍死鎖】、【猝死循環】或代碼存在邏輯漏洞，【必須回傳 MODIFIED】並提供修復 diff！
+   - 只有當數據與代碼皆通過上述所有嚴格審計，確定「物理動態完全真實合理」時，方可回傳 PERFECT。
 
-4. **Reason 欄位的結構化思考**：
-   - 在 JSON 的 `reason` 欄位中（不可寫在代碼內），請按照以下三步簡述你的思考邏輯：
-     1. [病徵]：JSON 測試數據中哪裡不合理。
-     2. [病因]：定位到哪行代碼的數學邏輯導致此現象。
-     3. [解法]：你修改了什麼參數來解決它。
-
-5. **【精簡思考與果斷判定（禁止無病呻吟）】**：
-   - 審查時請聚焦於「重大語法錯誤、數值崩潰、違背十全天條或幾何異常」。
-   - 若代碼已無致命缺陷且物理數值合理，請直接果斷判定 `PERFECT`。
-
-【輸出範例】
-如果當前測試數據無異常，請回傳：
-{
-  "status": "PERFECT",
-  "reason": "經過嚴格分析，物理引擎運作正常，無任何拓撲/穿模/數值異常，無需修改。"
-}
-
-如果發現問題需要修改代碼，請回傳（注意：replace 中嚴禁添加任何新註解，嚴格保留縮排）：
+【輸出格式】
+若發現問題需修改：
 {
   "status": "MODIFIED",
-  "reason": "[病徵] diwang 局水力抽吸異常高。\n[病因] 淋頭水判定誤用了絕對座標 z > 0。\n[解法] 已將判定改為相對座標 dzTaiji，並加入 isLintou 狀態保護。",
+  "reason": "[病徵] 描述數據異常（如 Case 4 深坑 ms:sunken 產生 gatherAcc:6456 偽聚氣）。\n[病因] 定位代碼邏輯漏洞（如 isCalmFlow 未排除深坑與反坡陷阱）。\n[解法] 說明具體修改方式。",
   "changes": [
     {
-      "search": "                if (isNearWater && isBadWaterSensor && z > waterSenseZStart && z < waterSenseZEnd && Math.abs(x) < 50) {\n                    waterDragCount++;\n                }",
-      "replace": "                if (isNearWater && isBadWaterSensor && dzTaiji > 5 && dzTaiji < 45 && Math.abs(dxTaiji) < 50) {\n                    waterDragCount++;\n                }"
+      "search": "                if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {\n                    this.pState[i] = 2;\n                }",
+      "replace": "                let isTrap = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > 0 && dzTaiji < 40) || (state.terrain === 'fanpo' && dzTaiji > 0 && dzTaiji < 50);\n                if (st === 0 && isCalmFlow && isDryLand && !isTrap && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {\n                    this.pState[i] = 2;\n                }"
     }
   ]
+}
+
+若審計完全無問題：
+{
+  "status": "PERFECT",
+  "reason": "已完成物理數據深度審計，各格局之聚散比率、流體活躍度、CFD 向量與幾何邊界均完全符合物理真實性。"
 }
 """
 
@@ -1040,19 +1030,33 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器開發者、
 # 每輪尾部強制重申的終極十全緊箍咒 (封死所有物理作弊、除零崩潰與變數未定義)
 # ============================================================
 CORE_RULES_REMINDER = r"""
-⚡⚡⚡【全域物理湧現與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
-1. 【空間座標與網格定址】全域尺度 CONFIG.tSize 為 350（-175~+175）；網格定址必為 `idx = ngz * 64 + ngx`（嚴禁把 X 軸寫成 Z 軸）；穴位周邊判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
-2. 【禁止偽物理與人工推力】嚴禁依格局名稱字串給予推進/吸力 (`state.d === '...'`)；嚴禁外掛磁吸力或人工黑洞；局部風煞向量必須乘上環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓），嚴禁寫死常數向量！
-3. 【三維空間自由度】地面約束必須為單向托舉 (`y = Math.max(y, t.y + 0.8)`)，嚴禁將地面 15 米內粒子強制拍扁在 3.5 米薄片上！
-4. 【單向數據流與感測器】流程為 3D地形/CFD -> 粒子動力學 -> Sensors -> Rules；Rules 嚴禁調用或否定感測器；感測器讀數與扣分必須單調正相關，禁止逆向倒扣；禁止使用水域名稱字串黑名單造假 waterDrag。
-5. 【唯一狀態機收斂與結穴】力場只提供加速度；粒子狀態 (`pState`) 100% 只能由全域風速/亂流/層流閾值判定，嚴禁在局部 if 分支隨機改寫；太極暈陸地且層流沉降為唯一合法生氣結穴點 (`pState = 2`)，水底/過峽/案山坡面嚴禁結穴，嚴禁在穴場入口設立方框強制蓋章。
-6. 【禁止竄改初速與壽命】出生初速統一為穩態 3.5，嚴禁依土壤/龍勢手動修改 `pLife` 壽命與超額初速。
-7. 【除以零防禦與平滑過渡】任何涉及向量/距離相除必加防禦分母 (`Math.max(0.001, dist)`)，防止 NaN 污染粒子陣列；地形與力場衰減禁止階梯式硬切斷，一律使用高斯或線性平滑過渡。
-8. 【變數作用域防呆】替換代碼中引用的所有變數（如 `tz`, `lz`, `xueZOffset` 等）必須確保在當前函式/區塊作用域內已正確宣告，嚴禁跨作用域引用未定義變數！
-9. 【零註解與保留縮排】`replace` 區塊絕對嚴禁加入任何新註解（如 `// 修正`、`// 優化`），每一行必須嚴格保留原始檔案的一致縮排！
-10. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、Hex 顏色碼），必須提供 5~10 行完整上下文，嚴禁在 search 或 replace 中使用 `// ... (省略)` 偷懶！
-11. 【嚴格輸出規範】只准輸出合法的 JSON 格式，絕對不要在 JSON 外附帶任何 Markdown 說明文字。
-12. 【果斷判定與禁止無病呻吟】若審查之代碼無語法錯誤、無崩潰、無違背天條且數據符合基準，請『立即回傳 PERFECT』！嚴禁無病呻吟或為了修改而修改！
+⚡⚡⚡【全域物理湧現、數據審計與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
+1. 【數據死穴嚴格審計】審查 Dry Run 數據時嚴防判詞假象！
+   - 🚨 嚴禁放行「凶煞局偽聚氣」：若格局含深坑 (sunken)、反坡 (fanpo)、路沖 (zhichong)、凶水 (tfork) 等，但 gatherAcc > 500 或 qiDensity > 15%，必為 `isCalmFlow` 誤將困滯死水判定為結穴，【強制判定 MODIFIED 並修正代碼】！
+   - 🚨 嚴禁放行「流體零活躍死鎖」：若 gatherAcc 與 scatterAcc 皆為 0，代表平洋或特定風場下粒子卡死或未進場，必須修正推力與邊界！
+   - 🚨 嚴禁放行「猝死死循環」：若 scatterAcc > 8000，代表粒子剛出生立即落入極端煞區死亡，必須調整重生緩衝！
+
+2. 【空間座標與網格定址】全域尺度 CONFIG.tSize 為 350（-175~+175）；網格定址必為 `let idx = ngz * 64 + ngx`（Z 乘寬加 X，嚴禁把 X 寫成 Z）；穴位周邊判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
+
+3. 【三維垂直空間自由度】地面約束必須為單向托舉 (`y = Math.max(y, t.y + 0.8)`)，嚴禁將地面 15 米內粒子強制拍扁在 3.5 米薄片上，確保垂直熱浮力與越嶺流！
+
+4. 【無風則無壓與禁止假推力】全域龍脈推進力統一為穩態常數 `2.5`；局部風煞向量必須乘上環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓），嚴禁寫死未受縮放的常數向量或外掛磁吸力！
+
+5. 【單向數據流與感測器】流程為 3D地形/CFD -> 粒子動力學 -> Sensors -> Rules；Rules 嚴禁調用或否定感測器；感測器讀數與扣分必須單調正相關；禁止使用水域名稱字串黑名單造假 waterDrag。
+
+6. 【唯一狀態機收斂與結穴】力場只提供加速度；粒子狀態 (`pState`) 100% 只能由全域風速/亂流/層流閾值判定，嚴禁在局部 if 分支隨機改寫；太極暈陸地且層流沉降為唯一合法生氣結穴點 (`pState = 2`)，水底/過峽/案山坡面/深坑陷阱嚴禁結穴，嚴禁在穴場入口設立方框強制蓋章。
+
+7. 【禁止竄改初速與壽命】出生初速統一為穩態 3.5，壽命統一為 600，嚴禁手動依土壤/龍勢手動修改 `pLife` 與超額初速。
+
+8. 【除以零防禦與平滑過渡】任何向量/距離相除必加防禦分母 (`Math.max(0.001, dist)`)，防止 NaN 崩潰；地形高度與力場衰減一律使用高斯或平滑漸變，絕對禁止階梯式硬切斷（防止 3D 法線斷裂與破圖）！
+
+9. 【變數作用域防呆】替換代碼中引用的所有變數（如 `tz`, `lz`, `xueZOffset` 等）必須確保在當前函式/區塊作用域內已正確宣告，嚴禁跨作用域引用未定義變數！
+
+10. 【零註解與保留縮排】`replace` 區塊【絕對嚴禁添加任何自創註解】（如 `// 修正`、`// 優化`），每一行代碼必須 100% 精確保留原始縮排！
+
+11. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、空格、引號），必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)` 偷懶！
+
+12. 【審計輸出決策】只准輸出合法 JSON！只要存在上述任何物理數據悖論或邏輯漏洞，【必須回傳 MODIFIED】並給出修復 diff！只有當所有物理數據與幾何均完全真實合規時，方可回傳 PERFECT！
 """
 
 # ============================================================
@@ -1240,7 +1244,8 @@ def main():
     parser.add_argument("--glm", "--glm53", nargs="?", const="glm-5.3", type=str, default=None, help="使用 OpenCode GLM 模型 (預設 glm-5.3，自動啟用 OpenCode Go)")
     parser.add_argument("--kimi", nargs="?", const="kimi-k3", type=str, default=None, help="使用 OpenCode Kimi 模型 (預設 kimi-k3，自動啟用 OpenCode Go)")
     parser.add_argument("--muse", "--spark", nargs="?", const="muse-spark-1.2-contributor-free", type=str, default=None, help="★ 使用 OpenCode Muse Spark 1.2 模型 (預設 muse-spark-1.2-contributor-free)")
-    parser.add_argument("--ox", "--ox-alpha", "--alpha", nargs="?", const="x-preview-f-free", type=str, default=None, help="★ 使用 OpenCode Zen / OpenRouter Ox Alpha Free 免費模型 (預設 x-preview-f-free)")
+    parser.add_argument("--ox", "--ox-opencode", nargs="?", const="x-preview-f-free", type=str, default=None, help="★ 使用 OpenCode Zen / Go Ox Alpha 模型 (預設 x-preview-f-free)")
+    parser.add_argument("--ox-stealth", "--ox-or", "--ox-alpha", "--alpha", nargs="?", const="stealth/ox-alpha", type=str, default=None, help="★ 使用 OpenRouter Stealth Ox-Alpha 模型 (預設 stealth/ox-alpha，端點走 OpenRouter)")
     parser.add_argument("--base-url", type=str, default=None, help="自訂 API Base URL")
     parser.add_argument("--api-key", type=str, default=None, help="直接指定 API Key 字串")
     parser.add_argument("--api-key-file", type=str, default=None, help="指定 API Key 檔案路徑")
@@ -1262,13 +1267,16 @@ def main():
         args.model = args.kimi
     elif args.muse:
         args.model = args.muse
+    elif args.ox_stealth:
+        ox_val = args.ox_stealth.strip()
+        if not ("/" in ox_val):
+            ox_val = f"stealth/{ox_val}"
+        args.model = ox_val
     elif args.ox:
         ox_val = args.ox.strip()
-        if "stealth" in ox_val.lower():
-            if not ("/" in ox_val):
-                ox_val = f"stealth/{ox_val}"
-            args.model = ox_val
-        elif ox_val in ["ox", "ox-alpha", "ox-alpha-free", "alpha"]:
+        if "stealth" in ox_val.lower() or ox_val.lower() in ["or", "openrouter"]:
+            args.model = "stealth/ox-alpha"
+        elif ox_val in ["ox", "ox-alpha", "ox-alpha-free", "alpha", "opencode", "zen"]:
             args.model = "x-preview-f-free"
         else:
             args.model = ox_val
@@ -1293,8 +1301,8 @@ def main():
     # 初始化 API 提供商端點與模型
     is_gemini_provider = args.gemini
     is_nvidia_provider = args.nvidia
-    is_openrouter_provider = bool(args.dots) or args.free_glm or ("stealth" in args.model.lower())
-    is_opencode_provider = args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or (bool(args.ox) and not is_openrouter_provider)
+    is_openrouter_provider = bool(args.dots) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
+    is_opencode_provider = (args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or bool(args.ox)) and not is_openrouter_provider
 
     if args.gemini:
         base_url = args.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -1328,7 +1336,8 @@ def main():
         key_file=args.api_key_file,
         api_key_str=args.api_key,
         is_opencode=is_opencode_provider,
-        is_free_glm=is_openrouter_provider,
+        is_openrouter=is_openrouter_provider,
+        is_free_glm=args.free_glm,
         is_gemini=is_gemini_provider,
         is_nvidia=is_nvidia_provider
     )
@@ -1562,6 +1571,10 @@ def main():
 
         # 共通的 AI 請求與套用邏輯
         ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
+        if client.key_pool and client.key_pool.is_all_dead():
+            logger.critical("🛑 金鑰池已無可用金鑰，流水線立即中止！")
+            break
+
         if prompt_tokens > MAX_TOKEN_THRESHOLD:
             logger.warning(f"⚠️ 當前 Prompt Token ({prompt_tokens}) 已超過閾值 ({MAX_TOKEN_THRESHOLD})，下一輪將自動重置歷史。")
             should_reset_next = True

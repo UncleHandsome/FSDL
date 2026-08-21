@@ -632,8 +632,10 @@ const Rules = {
         let waterLevelActual = (state.d === 'pingyang') ? -3.5 : -12.0;
 
         // 界水則止：若穴位點在水面以下，強制視為落水死穴
-        if (tLairActual.y <= waterLevelActual + 0.3) {
+        let isLairDrowned = (tLairActual.y <= waterLevelActual + 0.3);
+        if (isLairDrowned) {
             X_base = 0;
+            X = 0;
             baseWa = Math.min(baseWa, 10);
         }
 
@@ -734,6 +736,9 @@ const Rules = {
         }
         if (!hasFatalShaFinal && state.xia && state.xue !== 'none' && !isBadDragon) {
             finalX = Math.max(finalX, 5); 
+        }
+        if (isLairDrowned) {
+            finalX = 0;
         }
         return [finalD, finalX, finalS, finalWa, finalXg];
     },
@@ -4667,8 +4672,9 @@ const Physics = {
                 localWindX += Math.sign(dxGeom) * -thermalDraft * 3.0 * falloffAO; 
                 localTurbulence += thermalDraft * 2.0 * falloffAO;
             }
-            if (state.road === 'zhichong' && Math.abs(dxTaiji) < 8 && dzTaiji > 0 && dzTaiji < 110) {
-                let zhichongFalloffX = Math.max(0, 1.0 - Math.abs(dxTaiji) / 8.0);
+            if (state.road === 'zhichong' && dzTaiji > 0 && dzTaiji < 110) {
+                let zhichongHalfWidth = 8.0 + Math.max(0, 24 - dzTaiji) * 0.9;
+                let zhichongFalloffX = Math.max(0, 1.0 - Math.abs(dxTaiji) / zhichongHalfWidth);
                 let zhichongFalloffZ = Math.max(0, Math.min(1.0, dzTaiji / 8.0)) * Math.max(0, Math.min(1.0, (110 - dzTaiji) / 8.0));
                 let zhichongFalloff = Math.min(zhichongFalloffX, zhichongFalloffZ);
                 localWindZ -= thermalDraft * 8.0 * zhichongFalloff; 
@@ -4683,12 +4689,52 @@ const Physics = {
                     localTurbulence += thermalDraft * 6.0 * sickleFalloff;
                 }
             }
-            if (state.w === 'tfork' && Math.abs(dxTaiji) < 15 && dzTaiji > 7 && dzTaiji < 68) {
-                let falloffTF_X = Math.max(0, 1.0 - Math.abs(dxTaiji) / 15.0);
-                let falloffTF_Z = Math.max(0, Math.min(1.0, (dzTaiji - 7) / 6.0)) * Math.max(0, Math.min(1.0, (68 - dzTaiji) / 6.0));
+            if (state.w === 'tfork' && Math.abs(dxTaiji) < 20 && dzTaiji > -20 && dzTaiji < 68) {
+                let falloffTF_X = Math.max(0, 1.0 - Math.abs(dxTaiji) / 20.0);
+                let falloffTF_Z = Math.exp(-Math.pow(dzTaiji - 5, 2) / 800.0);
                 let falloffTF = Math.min(falloffTF_X, falloffTF_Z);
-                localWindZ -= thermalDraft * 8.5 * falloffTF; 
-                localTurbulence += thermalDraft * 5.0 * falloffTF;
+                let tforkDrive = (state.waterVel || 1.0);
+                localWindZ -= tforkDrive * 8.5 * falloffTF; 
+                localTurbulence += tforkDrive * 5.0 * falloffTF;
+            }
+            if (state.w === 'gejiao' && dzTaiji > -6 && dzTaiji < 48 && Math.abs(dxTaiji) < 42) {
+                let falloffGJ_Z = Math.max(0, Math.min(1.0, (dzTaiji + 6) / 10.0)) * Math.max(0, Math.min(1.0, (48 - dzTaiji) / 8.0));
+                let falloffGJ_X = Math.max(0, 1.0 - Math.abs(dxTaiji) / 42.0);
+                let falloffGJ = Math.min(falloffGJ_Z, falloffGJ_X);
+                falloffGJ = falloffGJ * falloffGJ * (3 - 2 * falloffGJ);
+                let gejiaoDrive = (state.waterVel || 1.0);
+                localWindZ += gejiaoDrive * 3.2 * falloffGJ;
+                localTurbulence += gejiaoDrive * 2.8 * falloffGJ;
+            }
+            if (state.w === 'liulei' && dzTaiji > -25 && dzTaiji < 30 && Math.abs(dxTaiji) < 30) {
+                let llFalloff = Math.exp(-(dxTaiji * dxTaiji) / 600.0) * Math.exp(-Math.pow(dzTaiji + 5, 2) / 500.0);
+                let llDrive = (state.waterVel || 1.0);
+                localTurbulence += 7.0 * llDrive * llFalloff;
+                localWindZ -= llDrive * 2.0 * llFalloff;
+            }
+            if (state.w === 'jiaojian' && dzTaiji > -25 && dzTaiji < 45 && Math.abs(dxTaiji) < 35) {
+                let jjFalloff = Math.exp(-(dxTaiji * dxTaiji) / 700.0) * Math.exp(-Math.pow(dzTaiji - 5, 2) / 550.0);
+                let jjDrive = (state.waterVel || 1.0);
+                localTurbulence += 8.0 * jjDrive * jjFalloff;
+                localWindZ += jjDrive * 2.5 * jjFalloff;
+            }
+            if (state.w === 'lintou' && dzTaiji > -30 && dzTaiji < 25 && Math.abs(dxTaiji) < 30) {
+                let ltFalloff = Math.exp(-(dxTaiji * dxTaiji) / 500.0) * Math.exp(-Math.pow(dzTaiji + 8, 2) / 450.0);
+                let ltDrive = (state.waterVel || 1.0);
+                localTurbulence += 9.0 * ltDrive * ltFalloff;
+                localWindZ -= ltDrive * 2.0 * ltFalloff;
+            }
+            if (state.w === 'fan' && dzTaiji > -20 && dzTaiji < 50 && Math.abs(dxTaiji) < 40) {
+                let fnFalloff = Math.exp(-(dxTaiji * dxTaiji) / 900.0) * Math.exp(-Math.pow(dzTaiji - 5, 2) / 1000.0);
+                let fnDrive = (state.waterVel || 1.0);
+                localTurbulence += 5.0 * fnDrive * fnFalloff;
+                localWindZ += fnDrive * 2.0 * fnFalloff;
+            }
+            if (state.w === 'ji' && dzTaiji > -20 && dzTaiji < 60 && Math.abs(dxTaiji) < 35) {
+                let jiFalloff = Math.exp(-(dxTaiji * dxTaiji) / 700.0) * Math.exp(-Math.pow(dzTaiji - 10, 2) / 900.0);
+                let jiDrive = (state.waterVel || 1.0);
+                localTurbulence += 5.0 * jiDrive * jiFalloff;
+                localWindZ += jiDrive * 2.5 * jiFalloff;
             }
             if ((state.road === 'zuocha' && dxTaiji < 0) || (state.road === 'youcha' && dxTaiji > 0)) {
                 let sign = state.road === 'zuocha' ? -1 : 1;
@@ -4724,9 +4770,9 @@ const Physics = {
                 localWindX -= thermalDraft * 3.5 * falloffTAI; 
                 localTurbulence += thermalDraft * 1.5 * falloffTAI;
             }
-            if (state.mr === 'kaikou' && dxGeom > 15 && dxGeom < 40 && dzGeom > 5 && dzGeom < 25) {
-                let falloffBK = Math.exp(-Math.pow(dxGeom - 27.5, 2) / 78.125) * Math.exp(-Math.pow(dzGeom - 15, 2) / 50.0);
-                localWindX += thermalDraft * 8.5 * falloffBK; 
+            if (state.mr === 'kaikou' && dxGeom > -22 && dxGeom < 40 && dzGeom > 0 && dzGeom < 32) {
+                let falloffBK = Math.exp(-Math.pow(Math.max(0, dxGeom - 27.5), 2) / 78.125) * Math.exp(-Math.pow(dzGeom - 15, 2) / 128.0);
+                localWindX -= thermalDraft * 8.5 * falloffBK; 
                 localTurbulence += thermalDraft * 6.0 * falloffBK;
             }
             if (state.terrain === 'fanpo' && Math.abs(dxGeom) < 40 && dzGeom > 15 && dzGeom < 45) {
@@ -4768,11 +4814,12 @@ const Physics = {
                 localWindZ += thermalDraft * windStrength * zSmooth;
                 localTurbulence += thermalDraft * 12.0 * zSmooth * (1.0 - Math.abs(windStrength) / 8.0);
             }
-            if (state.w === 'pubu' && Math.abs(dxTaiji) < 35 && dzTaiji > 13 && dzTaiji < 47) {
-                let falloffPB = Math.exp(-(dxTaiji * dxTaiji) / 500.0) * Math.exp(-Math.pow(dzTaiji - 30, 2) / 180.0);
-                localWindZ += thermalDraft * 4.0 * falloffPB; 
-                vel.y -= 3.5 * thermalDraft * dt * falloffPB; 
-                localTurbulence += thermalDraft * 8.0 * falloffPB; 
+            if (state.w === 'pubu' && Math.abs(dxTaiji) < 35 && dzTaiji > -25 && dzTaiji < 47) {
+                let falloffPB = Math.exp(-(dxTaiji * dxTaiji) / 500.0) * Math.exp(-Math.pow(dzTaiji - 15, 2) / 900.0);
+                let pubuDrive = (state.waterVel || 1.0);
+                localWindZ += pubuDrive * 4.0 * falloffPB; 
+                vel.y -= 3.5 * pubuDrive * dt * falloffPB; 
+                localTurbulence += pubuDrive * 8.0 * falloffPB; 
             }
             if (y > 25.0 && y > t.y + 1.0) {
                 let shearFactor = Math.min(2.0, (y - 25.0) / 25.0);
@@ -4885,7 +4932,7 @@ const Physics = {
                 let waterTable = (state.d === 'pingyang') ? -2.5 : Math.max(-10.0, -z * 0.08 - 4.0);
                 let phreaticDepth = waterTable - t.y; 
                 if (phreaticDepth > -5.0 && phreaticDepth < 2.0) {
-                    vel.y += (2.0 - phreaticDepth) * 1.5 * dt; 
+                    vel.y += Math.min(0.03, (2.0 - phreaticDepth) * 0.01) * dt; 
                     if (st === 0 && Math.random() < 0.05 * dt) framePhreatic++; 
                 } else if (phreaticDepth >= 2.0) {
                     vel.y -= phreaticDepth * 2.0 * dt; 
@@ -4939,8 +4986,9 @@ const Physics = {
                         vel.y -= 0.8 * dt * hejinFalloff; 
                     }
                     if (state.w === 'liulei') {
-                        localTurbulence += 3.5 * thermalDraft;
-                        vel.y -= 1.5 * thermalDraft * dt;
+                        let liuleiDrive = (state.waterVel || 1.0);
+                        localTurbulence += 3.5 * liuleiDrive;
+                        vel.y -= 1.5 * liuleiDrive * dt;
                         vel.multiplyScalar(Math.pow(0.85, dt)); 
                     }
                     if (state.w === 'sishui' && Math.abs(dxTaiji) < 35 && dzTaiji > 5 && dzTaiji < 65) {
@@ -4948,8 +4996,9 @@ const Physics = {
                         sishuiFalloff *= Math.max(0, Math.min(1, (dzTaiji - 5) / 6.0)) * Math.max(0, Math.min(1, (65 - dzTaiji) / 6.0));
                         sishuiFalloff = sishuiFalloff * sishuiFalloff * (3 - 2 * sishuiFalloff);
                         let sishuiDist = Math.sqrt(dxTaiji*dxTaiji + Math.pow(dzTaiji-35, 2));
+                        let sishuiSettle = Math.max(0, Math.min(1, (sishuiDist - 6) / 10.0));
                         if (sishuiDist > 0.001) {
-                            let sishuiSpeed = Math.min(4.5, sishuiDist * 0.12) * wVel * sishuiFalloff;
+                            let sishuiSpeed = Math.min(4.5, sishuiDist * 0.12) * wVel * sishuiFalloff * sishuiSettle;
                             waterFlowX = (-dxTaiji / sishuiDist) * sishuiSpeed; 
                             waterFlowZ = (-(dzTaiji-40) / sishuiDist) * sishuiSpeed;
                         } else {
@@ -4975,7 +5024,7 @@ const Physics = {
                             let swordFalloff = Math.max(0, 1.0 - minSword / 7.0);
                             swordFalloff *= Math.max(0, Math.min(1.0, (dzTaiji - 3) / 4.0)) * Math.max(0, Math.min(1.0, (62 - dzTaiji) / 4.0));
                             swordFalloff = swordFalloff * swordFalloff * (3 - 2 * swordFalloff);
-                            localTurbulence += 12.0 * thermalDraft * (state.waterVel || 1.0) * swordFalloff;
+                            localTurbulence += 12.0 * (state.waterVel || 1.0) * swordFalloff;
                         }
                     }
                     if (state.w === 'hulu') {
@@ -5261,13 +5310,16 @@ const Physics = {
                     vel.multiplyScalar(Math.pow(seepagePermeability, dt)); 
                     vel.y *= Math.pow(0.8, dt * taijiEdge);
                 }
-               let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
-               let escapeDistThreshold = (state.d === 'pingyang') ? 26.88 : 15.21;
-               let escapeVelThreshold = 3.0;
-               let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.5 && vel.lengthSq() > escapeVelThreshold*escapeVelThreshold);
-               if ((st === 1 || st === 3) && isEscaping) {
-                   frameScatter++;
-               }
+                  let distToTaiji = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
+                  let escapeDistThreshold = (state.d === 'pingyang') ? 26.88 : 15.21;
+                  let escapeVelThreshold = 3.0;
+                  let isEscaping = (distToTaiji > escapeDistThreshold && (dxTaiji*vel.x + dzTaiji*vel.z) > 1.5 && vel.lengthSq() > escapeVelThreshold*escapeVelThreshold);
+                  if ((st === 1 || st === 3) && isEscaping) {
+                      frameScatter++;
+                  }
+                  if (st === 3 && !isEscaping && distToTaiji <= escapeDistThreshold && vel.lengthSq() > 0.35) {
+                      frameScatter++;
+                  }
                let touchedWater = (isWater || ((state.w !== 'none' || state.yue) && y < waterLevel - 1.0)) && vel.lengthSq() > 2.0 && (state.waterVel || 1.0) > 1.5;
                if (touchedWater) {
                    frameScatter += 2; 
@@ -5333,10 +5385,11 @@ const Physics = {
                vel.y *= Math.pow(0.8, dt * taijiEdge); 
                let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5);
                let isFrontRiseSlope = (dzTaiji > 20 && t.nz < -0.1);
+               let isTrapZone = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > 5 && dzTaiji < 40) || (state.terrain === 'fanpo' && Math.abs(dxTaiji) < 40 && dzTaiji > 5 && dzTaiji < 50);
                let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;
                // 嚴格禁止水面以下生成吉氣（水底絕不結穴，界水則止）
                let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone && (state.d === 'pingyang' || dzTaiji > -15));
-               if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {
+               if (st === 0 && isCalmFlow && isDryLand && !isTrapZone && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {
                    this.pState[i] = 2;
                    if (state.xing === 'jin') {
                        this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 
@@ -5390,7 +5443,7 @@ const Physics = {
                         z = -35 + (Math.random()-0.5)*10 + xueZOffset;
                         x = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset;
                     }
-                    y = Engine3D.getTerrainY(x, z).y - 2 + Math.random()*4; 
+                    y = Engine3D.getTerrainY(x, z).y + 1.0 + Math.random()*3.0; 
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
                 }
                 if(state.d === 'si') {
