@@ -636,7 +636,7 @@ const Rules = {
         if (isLairDrowned) {
             X_base = 0;
             X = 0;
-            baseWa = Math.min(baseWa, 10);
+            Wa = Math.min(Wa, 10);
         }
 
         // 若手動點穴遠離中心，依現場實際左右砂高程衰減砂手分數
@@ -929,10 +929,11 @@ const Rules = {
         if(state.mr === 'tai') cap -= 15;
         if(state.wugong && !state.longtuzhu) cap -= 25;           
         if(state.bidao) cap -= 20;            
-        if(state.ms === 'sunken') cap -= 25;  
-        if(state.terrain === 'slope' || state.terrain === 'fanpo') cap -= 20; 
-        if(['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road)) cap -= 30; 
+        if(state.ms === 'sunken') cap -= 25;
+        if(state.terrain === 'slope' || state.terrain === 'fanpo') cap -= 20;
+        if(['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road)) cap -= 30;
         if(state.d === 'si' || state.d === 'po' || state.d === 'gufeng') cap = Math.min(cap, 10);
+        if(state.ms === 'sunken') cap = Math.min(cap, 10);
         if(state.tasha || state.mr === 'kaikou' || state.yangwa) cap -= 25; 
         const brokenCountForCap = (state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0);
         const isWugongFatalForCap = state.wugong && !state.longtuzhu;
@@ -1345,15 +1346,17 @@ window.DryRunTool = {
                 if (sy > skyline[d]) skyline[d] = Math.round(sy);
             }
         }
-        let maxSlope = 0, tearingCount = 0, zFightingCount = 0;
-        let waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
-        let riverRefZ = 999;
-        if (st.w === 'you' || st.w === 'jiuqu' || st.w === 'bazi' || st.w === 'tfork' || st.w === 'hulu' || st.w === 'jiaojian') riverRefZ = 70;
-        else if (st.w === 'gejiao') riverRefZ = 30;
-        else if (st.w === 'ji' || st.w === 'fan') riverRefZ = 55;
-        else if (st.w === 'lintou') riverRefZ = -10;
-        else if (['hejin','sishui','jushui'].includes(st.w)) riverRefZ = 35;
-        for (let idx = 0; idx < Engine3D.hMap.length - (CONFIG.tSeg + 1) - 1; idx++) {
+		let maxSlope = 0, tearingCount = 0, zFightingCount = 0;
+		let waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+		let riverRefZ = 999;
+		if (['you','jiuqu','bazi','tfork','hulu','jiaojian','juanlian','pubu','liulei'].includes(st.w)) riverRefZ = 70;
+		else if (st.w === 'gejiao' || st.w === 'fuliu') riverRefZ = 30;
+		else if (st.w === 'ji' || st.w === 'fan') riverRefZ = 55;
+		else if (st.w === 'lintou') riverRefZ = -10;
+		else if (['hejin','sishui','jushui'].includes(st.w)) riverRefZ = 35;
+		let lxAud = st.manualXue ? (st.xueX || 0) : 0;
+		let lzAud = st.manualXue ? st.xueZ : 5.0;
+		for (let idx = 0; idx < Engine3D.hMap.length - (CONFIG.tSeg + 1) - 1; idx++) {
             let h = Engine3D.hMap[idx];
             let slopeX = Math.abs(h - Engine3D.hMap[idx + 1]);
             let slopeZ = Math.abs(h - Engine3D.hMap[idx + (CONFIG.tSeg + 1)]);
@@ -1365,14 +1368,16 @@ window.DryRunTool = {
                 let gz = Math.floor(idx / (CONFIG.tSeg + 1));
                 let wx = (gx / CONFIG.tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
                 let wz = (gz / CONFIG.tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
-                let rS = riverRefZ;
-                if (st.d === 'pingyang' && st.w !== 'none') rS += Math.sin(wx * 0.08) * 20.0 + Math.cos(wx * 0.18) * 8.0;
-                if (st.w === 'jiuqu') { let zCurve = Math.sin(wx * 0.12); rS += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
-                if (st.w === 'you') rS += (1.0 - Math.pow(wx / 90.0, 2)) * 28.0;
-                if (st.w === 'fan') rS -= Math.cos(wx * 0.05) * 15;
-                if (st.w === 'bazi') rS += Math.abs(wx) * 0.5;
-                if (st.w === 'lintou' && wz > 2.0) continue;
-                let dR = (st.w === 'sishui' || st.w === 'jushui') ? Math.sqrt(wx * wx + Math.pow(wz - (st.w === 'sishui' ? 40 : 30), 2)) : Math.abs(wz - rS);
+				let dxA = wx - lxAud;
+				let dzA = wz - lzAud;
+				let rS = riverRefZ;
+				if (st.d === 'pingyang' && st.w !== 'none') rS += Math.sin(dxA * 0.08) * 20.0 + Math.cos(dxA * 0.18) * 8.0;
+				if (st.w === 'jiuqu') { let zCurve = Math.sin(dxA * 0.12); rS += Math.sign(zCurve) * Math.pow(Math.abs(zCurve), 0.5) * 14; }
+				if (st.w === 'you') rS += (1.0 - Math.pow(dxA / 90.0, 2)) * 28.0;
+				if (st.w === 'fan') rS -= Math.cos(dxA * 0.05) * 15;
+				if (st.w === 'bazi') rS += Math.abs(dxA) * 0.5;
+				if (st.w === 'lintou' && dzA > 2.0) continue;
+				let dR = (st.w === 'sishui' || st.w === 'jushui') ? Math.sqrt(dxA * dxA + Math.pow(dzA - (st.w === 'sishui' ? 35 : 25), 2)) : Math.abs(dzA - rS);
                 let checkRadius = (st.w === 'sishui' || st.w === 'jushui') ? 22 : 24;
                 if (dR < checkRadius && Math.abs(h - waterLevel) < 0.02) zFightingCount++;
             }
@@ -2316,6 +2321,7 @@ const Engine3D = {
         shader.uniforms.riverType = { value: 0 };
         shader.uniforms.lairX = { value: 0.0 };
         shader.uniforms.lairZ = { value: 5.0 };
+        shader.uniforms.lakeZ = { value: 35.0 };
             shader.vertexShader = `
                 varying vec2 vWorldXZ;
                 varying vec3 vWorldPosGeo;
@@ -2337,6 +2343,7 @@ const Engine3D = {
         uniform int riverType;
         uniform float lairX;
         uniform float lairZ;
+        uniform float lakeZ;
         varying vec2 vWorldXZ;
         varying vec3 vWorldPosGeo;
         ${shader.fragmentShader}
@@ -2346,8 +2353,9 @@ const Engine3D = {
                 vec2 flowUV = vUv;
                 float rx = vWorldXZ.x - lairX;
                 float shift = 0.0;
-                if (riverType == 1) shift = sin(rx * 0.15) * 8.0; 
-                else if (riverType == 0) shift = cos(rx * 0.05) * 15.0; 
+                float jiuquCurve = sin(rx * 0.12);
+                if (riverType == 1) shift = sign(jiuquCurve) * pow(abs(jiuquCurve), 0.5) * 14.0; 
+                else if (riverType == 0) shift = (1.0 - pow(rx / 90.0, 2.0)) * 28.0; 
                 else if (riverType == 2) shift = -cos(rx * 0.05) * 15.0; 
                 else if (riverType == 3) shift = abs(rx) * 0.5; 
                 vec2 flowUV1 = flowUV;
@@ -2358,15 +2366,33 @@ const Engine3D = {
                 flowUV1.y -= flowSpeedY;
                 flowUV2.x -= flowSpeedX * 0.6;
                 flowUV2.y -= flowSpeedY * 1.3;
-                float rz = vWorldXZ.y - lairZ + 5.0;
-                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6) ? 70.0 : ((riverType == 2) ? 55.0 : ((riverType == 5) ? -10.0 : ((riverType == 7) ? 35.0 : 30.0)));
+                float rz = vWorldXZ.y - lairZ;
+                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6 || riverType == 11 || riverType == 13) ? 70.0 : ((riverType == 2 || riverType == 8) ? 55.0 : ((riverType == 5) ? -10.0 : (((riverType == 7) || (riverType == 9)) ? 35.0 : 30.0)));
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
-                if (riverType == 5 && rz > -3.0) distToShore = 999.0; 
-                if (riverType == 7) distToShore = max(0.0, length(vec2(rx, rz - 35.0)) - 10.0); 
+                if (riverType == 7) distToShore = max(0.0, length(vec2(rx, rz - lakeZ)) - 10.0); 
                 if (riverType == 6) { 
-                    float branchDist = (rz > 20.0 && rz < 75.0) ? abs(rx) : 999.0;
+                    float branchDist = (rz > 7.0 && rz < 68.0) ? abs(rx) : 999.0;
                     distToShore = min(distToShore, branchDist);
+                }
+                if (riverType == 10) { 
+                    float qx = max(abs(rx) - 30.0, 0.0);
+                    float qz = max(max(rz - 95.0, 20.0 - rz), 0.0);
+                    distToShore = min(abs(rz - 70.0), sqrt(qx * qx + qz * qz));
+                }
+                if (riverType == 11) { 
+                    distToShore = max(abs(rz - 70.0), 40.0 - rz);
+                }
+                if (riverType == 12) { 
+                    float huluW = 12.0 + sin(rx * 0.15) * 10.0;
+                    distToShore = min(abs(rz - 60.0) - huluW, abs(rz - 70.0));
+                }
+                if (riverType == 13) { 
+                    float swL = abs(rx - (rz - 15.0) * 1.2);
+                    float swR = abs(rx + (rz - 15.0) * 1.2);
+                    float swordDist = min(swL, swR);
+                    float swordCorridor = max(swordDist - 6.0, max(max(rz - 72.0, 3.0 - rz), 0.0));
+                    distToShore = min(abs(rz - 70.0), swordCorridor);
                 }
                 float depthFactor = clamp(1.0 - (distToShore / 25.0), 0.0, 1.0); 
                 depthFactor = depthFactor * depthFactor * (3.0 - 2.0 * depthFactor); 
@@ -2736,10 +2762,10 @@ const Engine3D = {
                     Physics.pPos[idx*3+1] = p.y + 2 + Math.random()*5;
                     Physics.pPos[idx*3+2] = p.z + (Math.random()-0.5)*5;
                     let smokeAngle = Math.random() * Math.PI * 2;
-                    Physics.pVel[idx].set(Math.cos(smokeAngle)*3.5, Math.random()*1.5, Math.sin(smokeAngle)*3.5);
+                    Physics.pVel[idx].set(Math.cos(smokeAngle)*3.5, 0, Math.sin(smokeAngle)*3.5);
                     Physics.pState[idx] = 0; 
                     Physics.pCol[idx*3] = 0.2; Physics.pCol[idx*3+1] = 1.0; Physics.pCol[idx*3+2] = 0.5; 
-                    Physics.pLife[idx] = 100 + Math.random() * 500;
+                    Physics.pLife[idx] = 600;
                 }
                 this.createShockwave(p.x, p.y, p.z, 0x22ff44);
             }
@@ -3086,11 +3112,11 @@ const Engine3D = {
         this.waterMesh.position.y = (state.d === 'pingyang') ? -3.5 : -12.0;
         const pos = this.terrainGeo.attributes.position.array;
         const cols = [];
-                let wZ = 25;
-                if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) wZ = 65;
-                else if(state.w==='ji'||state.w==='fan') wZ = 50;
-                else if(state.w==='lintou') wZ = -15;
-                else if(['hejin','sishui','jushui'].includes(state.w)) wZ = 30;
+                let wZ = 30;
+                if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) wZ = 70;
+                else if(state.w==='ji'||state.w==='fan') wZ = 55;
+                else if(state.w==='lintou') wZ = -10;
+                else if(['hejin','sishui','jushui'].includes(state.w)) wZ = 35;
                 let lairZRef = (state.manualXue ? (state.xueZ || 0) : 5.0);
         let defaultY = -2;
         let c = new THREE.Color();
@@ -3775,7 +3801,7 @@ const Engine3D = {
                         let blend = Math.pow(1.0 - distToHejin / 4.0, 1.2);
                         let zEdgeBlend = Math.max(0, Math.min(1, (dzLair + 28) / 3.0)) * Math.max(0, Math.min(1, (28 - dzLair) / 3.0));
                         blend *= zEdgeBlend;
-                        y = y * (1 - blend) + (-3.5) * blend;
+                        y = y * (1 - blend) + (-4.5) * blend;
                     }
                     if (dzLair > 15 && dzLair < 30 && Math.abs(dxLair) < 15) {
                         let centerBlend = Math.max(0.0, Math.min(1.0, Math.abs(dxLair) / 15.0));
@@ -3809,7 +3835,7 @@ const Engine3D = {
                         let startFalloff = Math.min(1.0, Math.max(0.0, (dzLair - 3) / 4.0));
                         let endFalloff = Math.min(1.0, Math.max(0.0, (72 - dzLair) / 4.0));
                         depthFactor *= startFalloff * endFalloff;
-                        y = y * (1.0 - depthFactor) + (-12.0) * depthFactor;
+                        y = y * (1.0 - depthFactor) + (-14.0) * depthFactor;
                         dR = 0;
                     }
                 }
@@ -3819,7 +3845,7 @@ const Engine3D = {
                     if (huluDist < huluW) {
                         let edgeFactor = Math.max(0, 1.0 - huluDist / huluW);
                         let depthFactor = Math.pow(edgeFactor, 1.2);
-                        y = y * (1.0 - depthFactor) + (-12.0) * depthFactor;
+                        y = y * (1.0 - depthFactor) + (-14.0) * depthFactor;
                         dR = 0;
                     }
                 }
@@ -3838,7 +3864,7 @@ const Engine3D = {
                     }
                 }
                 if (state.w === 'juanlian' && Math.abs(dxLair) < 45 && dzLair > 12 && dzLair < 73) {
-                    let smoothProgress = Math.min(1.0, (dzLair - 15) / 55.0);
+                    let smoothProgress = Math.max(0.0, Math.min(1.0, (dzLair - 15) / 55.0));
                     let smoothDrop = Math.pow(smoothProgress, 1.5) * 27.0;
                     let endFalloff = Math.min(1.0, Math.max(0.0, (70 - dzLair) / 8.0));
                     let xEdgeBlend = Math.max(0, 1 - Math.abs(dxLair) / 45.0);
@@ -4087,9 +4113,9 @@ const Engine3D = {
                     else if (state.w === 'fan') rS_guard -= Math.cos(dxLairGuard * 0.05) * 15;
                     else if (state.w === 'bazi') rS_guard += Math.abs(dxLairGuard) * 0.5;
             if (state.w === 'lintou' && dzLairGuard > 2.0) rS_guard = 999;
-            let dR_guard = Math.abs(dzLairGuard - rS_guard);
+            let dR_guard = (state.w === 'jushui') ? Math.sqrt(dxLairGuard * dxLairGuard + Math.pow(dzLairGuard - 25, 2)) : Math.abs(dzLairGuard - rS_guard);
             let mtDGuard = Math.sqrt(dxLairGuard * dxLairGuard + dzLairGuard * dzLairGuard);
-            if (dR_guard < 24 && !isKeyMountainGuard && !(state.taiji && mtDGuard < 24) && Math.abs(this.hMap[idx] - waterLevel) < 0.8) {
+            if (dR_guard < ((state.w === 'jushui') ? 27 : 24) && !isKeyMountainGuard && !(state.taiji && mtDGuard < 24) && Math.abs(this.hMap[idx] - waterLevel) < 0.8) {
                 this.hMap[idx] = waterLevel - 0.8;
             }
                 }
@@ -4101,7 +4127,7 @@ const Engine3D = {
                 let lzColor = state.manualXue ? state.xueZ : 5.0;
                 let dxLair = x - lxColor, dzLair = z - lzColor;
                     let gX = Math.round((x+tSize/2)/(tSize/tSeg)), gZ = Math.round((z+tSize/2)/(tSize/tSeg));
-                    y = this.hMap[gZ*(tSeg+1) + gX];
+                    let y = this.hMap[gZ*(tSeg+1) + gX];
             let distToPeak = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+60, 2));
             let tianchiWaterLevel = 33 * (state.zhuScale || 1.0); 
             let isLakeSurface = (state.tianchi && state.zhu && distToPeak < 20 && y < tianchiWaterLevel + 5.0);
@@ -4134,7 +4160,7 @@ const Engine3D = {
                     if (state.w === 'you') rSColor += (1.0 - Math.pow(dxLair / 90.0, 2)) * 28.0;
                     if (state.w === 'fan') rSColor -= Math.cos(dxLair*0.05)*15;
                     if (state.w === 'bazi') rSColor += Math.abs(dxLair)*0.5;
-                    let dRColor = (state.w === 'sishui' || state.w === 'jushui') ? Math.sqrt(dxLair * dxLair + Math.pow(dzLair - (state.w === 'sishui' ? 40 : 30), 2)) : Math.abs(dzLair - rSColor);
+                    let dRColor = (state.w === 'sishui' || state.w === 'jushui') ? Math.sqrt(dxLair * dxLair + Math.pow(dzLair - (state.w === 'sishui' ? 35 : 25), 2)) : Math.abs(dzLair - rSColor);
                     if (state.w === 'tfork' && Math.abs(dxLair) < 12 && dzLair > 20 && dzLair < 75) dRColor = 0; 
                     if (state.w === 'lintou' && dzLair > 2.0) dRColor = 999;
                     if (dRColor < 22.0) isActualRiverChannel = true;
@@ -4166,12 +4192,12 @@ const Engine3D = {
                 }
                 let isRoadSurface = false;
                 if (state.road === 'huanbao') {
-                    let roadCurve = 10 - Math.pow(dxLair / 35, 2) * 12; 
+                    let roadCurve = 5 - Math.pow(dxLair / 35, 2) * 12; 
                     if (Math.abs(dzLair - roadCurve) < 3.0) isRoadSurface = true;
                 } else if (state.road === 'zhichong') {
                     if (Math.abs(dxLair) < 2.5 && dzLair > 5 && dzLair < 145) isRoadSurface = true;
                 } else if (state.road === 'sickle') {
-                    let sickleCurve = 30 - Math.pow(dxLair / 40, 2) * 20; 
+                    let sickleCurve = 25 - Math.pow(dxLair / 40, 2) * 20; 
                     if (Math.abs(dzLair - sickleCurve) < 3.0) isRoadSurface = true;
                 } else if (state.road === 'zuocha' || state.road === 'youcha') {
                     let sign = state.road === 'zuocha' ? -1 : 1;
@@ -4234,9 +4260,9 @@ const Engine3D = {
                     let distToLairTree = Math.sqrt(dxLairTree * dxLairTree + dzLairTree * dzLairTree);
                     let isOnRoad = false;
                     if (state.road === 'zhichong' && Math.abs(dxLairTree) < 4.0 && dzLairTree > 0) isOnRoad = true;
-                    if (state.road === 'huanbao' && Math.abs(dzLairTree - (10 - Math.pow(dxLairTree / 35, 2) * 12)) < 4.5) isOnRoad = true;
+                    if (state.road === 'huanbao' && Math.abs(dzLairTree - (5 - Math.pow(dxLairTree / 35, 2) * 12)) < 4.5) isOnRoad = true;
                     if (state.road === 'sickle') {
-                        let roadCurve = 30 - Math.pow(dxLairTree / 40, 2) * 20;
+                        let roadCurve = 25 - Math.pow(dxLairTree / 40, 2) * 20;
                         if (Math.abs(dzLairTree - roadCurve) < 4.0) isOnRoad = true;
                     }
                     if (state.road === 'zuocha' || state.road === 'youcha') {
@@ -4399,31 +4425,32 @@ const Physics = {
                 let tz, tx, ty;
                 let attempts = 0;
                 do {
-                    tz = -35 - Math.random()*10 + xueZOffset;
-                    tx = (Math.random()-0.5)*20 + xueXOffset;
+                    tz = Math.max(-160, -35 - Math.random()*10 + xueZOffset);
+                    tx = Math.max(-125, Math.min(125, (Math.random()-0.5)*20 + xueXOffset));
                     ty = Engine3D.getTerrainY(tx, tz).y;
                     attempts++;
                 } while(ty < -2.0 && attempts < 30);
                 this.pPos[i*3] = tx;
-                this.pPos[i*3+1] = Math.max(ty + 1.0, ty + 0.8 + Math.random()*2.5); 
+                this.pPos[i*3+1] = Math.max(ty + 3.5, ty + 2.5 + Math.random()*3.0); 
                 this.pPos[i*3+2] = tz;
             } else {
                 let tzStart = state.zutai ? -80 : -60; 
-                let tz = tzStart + Math.random()*20 + xueZOffset;
+                let tz = Math.max(-160, tzStart + Math.random()*20 + xueZOffset);
                 let normT = Math.max(0, Math.min(1.0, (tz + 160) / 120.0));
                 let dragonCurveX = 0;
                 if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;
                 else if(state.d === 'ji') dragonCurveX = Math.sin(normT * Math.PI * 4.0) * 8.0;
                 else if(state.d === 'huan') dragonCurveX = Math.sin(normT * Math.PI * 1.8) * 40.0;
                 else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-tz)*0.02)*50.0;
-                let tx = dragonCurveX + (Math.random()-0.5)*10 + xueXOffset;
+                let tx = Math.max(-125, Math.min(125, dragonCurveX + (Math.random()-0.5)*10 + xueXOffset));
                 if (state.d === 'heng') {
-                    tz = -35 + (Math.random()-0.5)*10 + xueZOffset;
-                    tx = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset;
+                    tz = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
+                    tx = Math.max(-125, Math.min(125, (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset));
                 }
                 let ty = Engine3D.getTerrainY(tx, tz).y;
+                let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
                 this.pPos[i*3] = tx;
-                this.pPos[i*3+1] = ty + 1.0 + Math.random()*3.0; 
+                this.pPos[i*3+1] = Math.max(ty + 5.5 + Math.random()*3.0, waterLevel + 4.5);
                 this.pPos[i*3+2] = tz;
             }
             this.pVel[i].set((Math.random()-0.5)*0.5, 0.2, 3.5);
@@ -4431,6 +4458,7 @@ const Physics = {
                 this.pState[i] = 0;
                 this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40; 
             } else if(state.d === 'po' && Math.random() < 0.35) {
+                this.pState[i] = 0;
                 this.pCol[i*3]=0.2; this.pCol[i*3+1]=0.4; this.pCol[i*3+2]=0.7; 
                 this.pVel[i].set((Math.random()-0.5)*0.5, 0, 3.5);
             } else {
@@ -4455,10 +4483,16 @@ const Physics = {
         else if(['hejin','sishui','jushui'].includes(state.w)) wZ = 35;
         let rType = 4;
         if(state.w === 'you') rType = 0;
-        else if(state.w === 'jiuqu' || state.w === 'juanlian' || state.w === 'pubu' || state.w === 'liulei' || state.w === 'hulu') rType = 1; 
-        else if(state.w === 'fan' || state.w === 'ji') rType = 2; 
-        else if(state.w === 'bazi' || state.w === 'jiaojian') rType = 3;
-        else if(state.w === 'jushui' || state.w === 'sishui' || state.w === 'hejin') rType = 7; 
+        else if(state.w === 'jiuqu') rType = 1; 
+        else if(state.w === 'pubu') rType = 10;
+        else if(state.w === 'liulei' || state.w === 'juanlian') rType = 11;
+        else if(state.w === 'hulu') rType = 12;
+        else if(state.w === 'fan') rType = 2; 
+        else if(state.w === 'ji') rType = 8;
+        else if(state.w === 'bazi') rType = 3;
+        else if(state.w === 'jiaojian') rType = 13;
+        else if(state.w === 'jushui' || state.w === 'sishui') rType = 7; 
+        else if(state.w === 'hejin') rType = 9;
         else if(state.w === 'lintou') rType = 5; 
         else if(state.w === 'tfork') rType = 6;
         if (Engine3D.waterMesh.material.userData.shader) {
@@ -4467,6 +4501,7 @@ const Physics = {
             Engine3D.waterMesh.material.userData.shader.uniforms.riverType.value = rType;
             Engine3D.waterMesh.material.userData.shader.uniforms.lairX.value = state.manualXue ? (state.xueX || 0) : 0.0;
             Engine3D.waterMesh.material.userData.shader.uniforms.lairZ.value = state.manualXue ? (state.xueZ || 0) : 5.0;
+            Engine3D.waterMesh.material.userData.shader.uniforms.lakeZ.value = (state.w === 'jushui') ? 25.0 : 35.0;
         }
         if (Engine3D.treeMesh && Engine3D.treeMesh.material.userData.shader) {
             Engine3D.treeMesh.material.userData.shader.uniforms.time.value = (AppState.frames % 100000) * 0.05;
@@ -4492,8 +4527,8 @@ const Physics = {
                     let t = Engine3D.getTerrainY(worldX, worldZ);
                     let blockingThreshold = (state.d === 'pingyang') ? 999.0 : 5.0;
                     if (t.y > blockingThreshold) { 
-                        this.windGridX[idx] *= 0.5; 
-                        this.windGridZ[idx] *= 0.5;
+                        this.windGridX[idx] *= Math.pow(0.5, dt); 
+                        this.windGridZ[idx] *= Math.pow(0.5, dt);
                     } else { 
                         this.windGridX[idx] += (baseWind - this.windGridX[idx]) * 0.08 * dt;
                         this.windGridZ[idx] += (Math.sin(worldX * 0.05 + AppState.frames * 0.02) * Math.abs(baseWind) * 0.5 - this.windGridZ[idx]) * 0.08 * dt;
@@ -4501,8 +4536,8 @@ const Physics = {
                     let avgX = (this.windGridX[idx-1] + this.windGridX[idx+1] + this.windGridX[idx-64] + this.windGridX[idx+64]) * 0.25;
                     let avgZ = (this.windGridZ[idx-1] + this.windGridZ[idx+1] + this.windGridZ[idx-64] + this.windGridZ[idx+64]) * 0.25;
                     let curl = (this.windGridZ[idx+1] - this.windGridZ[idx-1]) - (this.windGridX[idx+64] - this.windGridX[idx-64]);
-                    this.windGridX_next[idx] = (avgX + curl * 0.05 * dt) * 0.98;
-                    this.windGridZ_next[idx] = (avgZ - curl * 0.05 * dt) * 0.98;
+                    this.windGridX_next[idx] = (avgX + curl * 0.05 * dt) * Math.pow(0.98, dt);
+                    this.windGridZ_next[idx] = (avgZ - curl * 0.05 * dt) * Math.pow(0.98, dt);
                     this.windGridX_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridX_next[idx]));
                     this.windGridZ_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridZ_next[idx]));
                 }
@@ -4557,6 +4592,7 @@ const Physics = {
             Engine3D.hCtx.fillRect(0, 0, 256, 256);
         }
         
+        let hasFatalShaZone = state.tianzhan || state.ao || state.qing || state.qingquan || state.sherui || state.tasha || state.bidao || state.posui || state.tantou || state.yangwa || state.ml === 'fanbei' || state.mr === 'fanbei' || (state.wugong && !state.longtuzhu) || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.mr === 'kaikou' || state.tianjing || (((state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0)) >= 2) || ['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road) || ['fan','bazi','gejiao','ji','lintou','tfork','juanlian','pubu','liulei','jiaojian'].includes(state.w);
         const sunVec = new THREE.Vector3(70, 140, 60).normalize();
         const tempNormal = new THREE.Vector3();
         for(let i=0; i<this.pCount; i++) {
@@ -4594,11 +4630,11 @@ const Physics = {
             }
             let waterSensorLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
             let isNearWater = (state.w !== 'none' || state.yue);
-            let riverRefZ = 25;
-            if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) riverRefZ = 65;
-            else if(state.w==='ji'||state.w==='fan') riverRefZ = 50;
-            else if(state.w==='lintou') riverRefZ = -15;
-            else if(['hejin','sishui','jushui'].includes(state.w)) riverRefZ = 30;
+            let riverRefZ = 30;
+            if(['you','jiuqu','bazi','tfork','juanlian','pubu','liulei','hulu','jiaojian'].includes(state.w)) riverRefZ = 70;
+            else if(state.w==='ji'||state.w==='fan') riverRefZ = 55;
+            else if(state.w==='lintou') riverRefZ = -10;
+            else if(['hejin','sishui','jushui'].includes(state.w)) riverRefZ = 35;
             let waterSenseZStart = riverRefZ - 20;
             let waterSenseZEnd = riverRefZ + 20;
             if (state.yue) {
@@ -5000,7 +5036,7 @@ const Physics = {
                         if (sishuiDist > 0.001) {
                             let sishuiSpeed = Math.min(4.5, sishuiDist * 0.12) * wVel * sishuiFalloff * sishuiSettle;
                             waterFlowX = (-dxTaiji / sishuiDist) * sishuiSpeed; 
-                            waterFlowZ = (-(dzTaiji-40) / sishuiDist) * sishuiSpeed;
+                            waterFlowZ = (-(dzTaiji-35) / sishuiDist) * sishuiSpeed;
                         } else {
                             waterFlowX = 0; waterFlowZ = 0;
                         }
@@ -5049,7 +5085,7 @@ const Physics = {
                         waterSpeed *= 0.3; 
                     }
                     let waterCenterZ = riverRefZ;
-                    if (state.yue) waterCenterZ = 25;
+                    if (state.yue || state.w === 'jushui') waterCenterZ = 25;
                     if (Math.abs(dxGeom) < 32 && y <= waterLevel + 2.0) {
                         let secondaryFalloff = Math.max(0, 1 - Math.abs(dxGeom) / 32.0);
                         secondaryFalloff = secondaryFalloff * secondaryFalloff * (3 - 2 * secondaryFalloff);
@@ -5234,7 +5270,7 @@ const Physics = {
                 let guardStrength = (state.luo ? 0.4 : 0) + (state.hua ? 0.4 : 0) + (state.shixiang ? 0.8 : 0) + (state.qin ? 0.3 : 0) + (state.riyue ? 0.9 : 0);
                 if (state.riyue) {
                     let riyuePressure = -1.5 + (2.5 - (-1.5)) * (0.5 + Math.atan(dxTaiji / 8.0) / Math.PI);
-                    localWindZ += riyuePressure * thermalDraft * guardFalloff * dt;
+                    localWindZ += riyuePressure * thermalDraft * guardFalloff;
                     localTurbulence += 3.0 * thermalDraft * guardFalloff; 
                 }
                 let dxToCenter = -dxTaiji; 
@@ -5248,8 +5284,8 @@ const Physics = {
                 }
             }
             if(st === 1) {
-                vel.x += (Math.random()-0.5)*0.8*thermalDraft;
-                vel.z += (Math.random()-0.5)*0.8*thermalDraft;
+                vel.x += (Math.random()-0.5)*0.8*thermalDraft*dt;
+                vel.z += (Math.random()-0.5)*0.8*thermalDraft*dt;
             }
             let coriolisStrength = 0.08; 
             const oldVelX = vel.x;
@@ -5303,7 +5339,7 @@ const Physics = {
                 } else if (state.soil === 'yuni' && y < 1.0) {
                     frameDarcyDrag++; 
                     let viscousDrag = 0.02; 
-                    vel.x *= viscousDrag; vel.z *= viscousDrag;
+                    vel.x *= Math.pow(viscousDrag, dt); vel.z *= Math.pow(viscousDrag, dt);
                     vel.y -= 2.5 * dt; 
                 } else if (state.soil === 'wuse') {
                     let seepagePermeability = 0.85; 
@@ -5385,11 +5421,11 @@ const Physics = {
                vel.y *= Math.pow(0.8, dt * taijiEdge); 
                let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5);
                let isFrontRiseSlope = (dzTaiji > 20 && t.nz < -0.1);
-               let isTrapZone = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > 5 && dzTaiji < 40) || (state.terrain === 'fanpo' && Math.abs(dxTaiji) < 40 && dzTaiji > 5 && dzTaiji < 50);
+               let isTrapZone = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > -15 && dzTaiji < 45) || (state.terrain === 'fanpo' && Math.abs(dxTaiji) < 40 && dzTaiji > -15 && dzTaiji < 55) || (state.mr === 'kaikou' && Math.abs(dxTaiji) < 28 && dzTaiji > -5 && dzTaiji < 35) || ((state.ml === 'po' || state.mr === 'po' || state.ms === 'po' || state.mn === 'po' || state.ml === 'ya' || state.mr === 'tai' || state.ml === 'fanbei' || state.mr === 'fanbei') && Math.abs(dxTaiji) < 35 && dzTaiji > -10 && dzTaiji < 40) || (['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road) && Math.abs(dxTaiji) < 40 && dzTaiji > -19 && dzTaiji < 60) || (state.posui && Math.abs(dxTaiji) < 40 && dzTaiji > -19 && dzTaiji < 45) || (state.tantou && Math.abs(dxTaiji) < 30 && dzTaiji > -19 && dzTaiji < 60) || (state.yangwa && Math.abs(dxTaiji) < 20 && dzTaiji > -22 && dzTaiji < 6) || (state.tianjing && Math.abs(dxTaiji) < 20 && dzTaiji > -8 && dzTaiji < 28);
                let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;
                // 嚴格禁止水面以下生成吉氣（水底絕不結穴，界水則止）
                let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone && (state.d === 'pingyang' || dzTaiji > -15));
-               if (st === 0 && isCalmFlow && isDryLand && !isTrapZone && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {
+               if (st === 0 && isCalmFlow && isDryLand && !isTrapZone && !hasFatalShaZone && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {
                    this.pState[i] = 2;
                    if (state.xing === 'jin') {
                        this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 
@@ -5416,34 +5452,40 @@ const Physics = {
                 if (vel.y < 0) vel.y *= -0.2; 
             }
             this.pLife[i] -= dt;
-            let isStuck = (vel.lengthSq() < 0.005 && !inTaiji && !isWater);
+            let isStuck = (vel.lengthSq() < 0.005 && !isWater && (!inTaiji || st !== 2));
             let isLifeExpired = (this.pLife[i] <= 0);
             let isOutOfMap = (y < -35 || Math.abs(x) > 130 || z > 160 || z < -165);
-            let isBoundaryExceeded = (isOutOfMap || isStuck || isLifeExpired);
+            let isStagnant = (this.pLife[i] < 300 && st !== 2 && !(state.taiji && state.xia && state.xue !== 'none' && !hasFatalShaZone));
+            let isBoundaryExceeded = (isOutOfMap || isStuck || isLifeExpired || isStagnant);
             if (isBoundaryExceeded) {
                 if (isOutOfMap && (st === 1 || st === 3)) frameScatter += 1;
+                else if (isOutOfMap && st === 0 && z > lairZRef && !(state.taiji && state.xia && state.xue !== 'none' && !hasFatalShaZone)) frameScatter += 1;
+                else if (isStuck && st !== 2 && !(state.taiji && state.xia && state.xue !== 'none' && !hasFatalShaZone)) frameScatter += 1;
+                else if (isStagnant) frameScatter += 1;
                 const xueXOffset = state.manualXue ? (state.xueX || 0) : 0;
                 const xueZOffset = state.manualXue ? state.xueZ : 5.0;
                 if(state.d === 'pingyang') {
-                    z = -35 - Math.random()*10 + xueZOffset; 
-                    x = (Math.random()-0.5)*20 + xueXOffset;
+                    z = Math.max(-160, -35 - Math.random()*10 + xueZOffset);
+                    x = Math.max(-125, Math.min(125, (Math.random()-0.5)*20 + xueXOffset));
                     let spawnGroundY = Engine3D.getTerrainY(x, z).y;
-                    y = Math.max(spawnGroundY + 1.0, spawnGroundY + 0.8 + Math.random()*2.5);
+                    let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                    y = Math.max(spawnGroundY + 3.5, waterLevel + 2.5, spawnGroundY + 2.5 + Math.random()*3.0);
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5); 
                 } else {
-                    z = (state.zutai ? -75 : -55) - Math.random()*10 + xueZOffset;
+                    z = Math.max(-160, (state.zutai ? -75 : -55) - Math.random()*10 + xueZOffset);
                     let normT = Math.max(0, Math.min(1.0, (z + 160) / 120.0));
                     let dragonCurveX = 0;
                     if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;
                     else if(state.d === 'ji') dragonCurveX = Math.sin(normT * Math.PI * 4.0) * 8.0;
                     else if(state.d === 'huan') dragonCurveX = Math.sin(normT * Math.PI * 1.8) * 40.0;
                     else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-z)*0.02)*50.0;
-                    x = dragonCurveX + (Math.random()-0.5)*15.0 + xueXOffset;
+                    x = Math.max(-125, Math.min(125, dragonCurveX + (Math.random()-0.5)*15.0 + xueXOffset));
                     if (state.d === 'heng') {
-                        z = -35 + (Math.random()-0.5)*10 + xueZOffset;
-                        x = (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset;
+                        z = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
+                        x = Math.max(-125, Math.min(125, (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset));
                     }
-                    y = Engine3D.getTerrainY(x, z).y + 1.0 + Math.random()*3.0; 
+                    let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                    y = Math.max(Engine3D.getTerrainY(x, z).y + 5.5 + Math.random()*3.0, waterLevel + 4.5);
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
                 }
                 if(state.d === 'si') {
