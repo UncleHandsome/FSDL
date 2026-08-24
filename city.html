@@ -89,6 +89,9 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button id="bPause">⏸ 暫停</button><button id="b1x" class="on">1x</button><button id="b2x">2x</button>
     <span style="width:10px"></span>
     <button id="bFS">堪輿視角 (C)</button><button id="bDef" class="on">預設視角</button>
+    <span style="width:10px"></span>
+    <a href="index.html" style="display:inline-flex; align-items:center; text-decoration:none; background:var(--btn-bg); border:1px solid var(--bd); color:var(--text); padding:4px 10px; border-radius:5px; font-size:12px; font-weight:bold;">🏠 大廳</a>
+    <a href="3D.html" style="display:inline-flex; align-items:center; text-decoration:none; background:#0077ff; color:#fff; padding:4px 10px; border-radius:5px; font-size:12px; font-weight:bold; box-shadow:0 0 8px rgba(0,119,255,0.4);">⛰️ 山水風水 →</a>
   </div>
 </div>
 <div id="left" class="panel">
@@ -1768,9 +1771,10 @@ class CityBuilder {
       this.dropsGroup.clear();
       this.dropAnimators = [];
       if (!paths || paths.length === 0) return;
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x00aadd, transparent: true, opacity: 0.15 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x00aadd, transparent: true, opacity: 0.35 });
       const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-      const dotGeo = new THREE.SphereGeometry(0.35, 8, 8);
+      // 放大水珠幾何體半徑至 1.2m，確保在鳥瞰視角下依然能清晰看見虛水匯聚路徑
+      const dotGeo = new THREE.SphereGeometry(1.2, 12, 12);
       paths.forEach(p => {
           if (p.length < 2) return;
           const geo = new THREE.BufferGeometry().setFromPoints(p);
@@ -2074,10 +2078,11 @@ class CityBuilder {
     }
     if(st.water==='jade')this.ribbon(Util.curve3([Util.v3(-120,0,26),Util.v3(-85,0,66),Util.v3(0,0,88),Util.v3(85,0,66),Util.v3(120,0,26)]),7,0x12283e,0x0088cc,false,true);
     if(st.water==='nine'){const a=[];for(let x=-135;x<=135;x+=27)a.push(Util.v3(x,0,62+22*Math.sin(x*0.045)));this.ribbon(Util.curve3(a),7,0x12283e,0x0088cc,false,true);}
-    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x12283e,0xcc4422,true,true);
-    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x12283e,0xcc4422,true,true);}
-    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x12283e,0xcc4422,true,true);
-    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x12283e,0xcc4422,true,true);}
+    // 凶煞道路：路面呈現暗紅帶警示紫光 (0x281216)，邊線為醒目火紅光 (0xff2200)
+    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x281216,0xff2200,true,true);
+    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x281216,0xff2200,true,true);}
+    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x281216,0xff2200,true,true);
+    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x281216,0xff2200,true,true);}
     if(st.water==='lintou'){this.elevated([Util.v3(-130,26,20),Util.v3(0,26,20),Util.v3(130,26,20)],true);this.group.add(ResourceManager.createLabel('淋頭壓頂','#d31515',9,0,32,20));}
     if(st.water==='bazi'){this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(-30,0,60),Util.v3(-80,0,130)]),5,0x12283e,0xcc4422,true,true);this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(30,0,60),Util.v3(80,0,130)]),5,0x12283e,0xcc4422,true,true);this.group.add(ResourceManager.createLabel('八字分飛','#d34f00',9,0,8,70));}
     const shuiFaActive = st.water !== 'none' && !Config.SHA_WATER.includes(st.water);
@@ -2821,8 +2826,6 @@ class ParticleSystem {
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
     this.uniforms.u_helmholtz.value = !!(stateManager.analysis && stateManager.analysis.isHelmholtz);
-    this.uniforms.u_qingxie.value = st.special.includes('qingxie');
-    this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_cureTrees.value = st.cure.includes('trees');
     this.uniforms.u_cureMirror.value = st.cure.includes('mirror');
     this.uniforms.u_cureStone.value = st.cure.includes('stone');

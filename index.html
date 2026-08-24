@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>3D 堪輿全息模擬矩陣・雙核心總門戶</title>
+
+<!-- SEO 與社群分享 Open Graph 標籤 -->
+<meta name="description" content="結合傳統巒頭五訣理氣與現代流體力學(CFD)的 3D 全息風水模擬矩陣。">
+<meta name="keywords" content="風水, 堪輿, 3D模擬器, 巒頭, 理氣, 天斬煞, CFD, 流體力學, 形煞">
+<meta property="og:type" content="website">
+<meta property="og:title" content="3D 堪輿全息模擬矩陣・雙核心大一統">
+<meta property="og:description" content="傳統大自然山川龍脈 × 現代都市高樓形煞雙核心 3D 模擬系統。">
+<meta property="og:image" content="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200">
+<meta name="theme-color" content="#12110f">
+
+<!-- 內嵌 SVG Favicon (免外連圖檔) -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>☯️</text></svg>">
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --gold: #d4af37;
+  --gold-glow: rgba(212, 175, 55, 0.4);
+  --cyan: #00e5ff;
+  --cyan-glow: rgba(0, 229, 255, 0.35);
+  --ink-dark: #0f0e0c;
+  --ink-card: rgba(24, 22, 18, 0.75);
+  --paper: #f6f1e7;
+  --border-light: rgba(212, 175, 55, 0.2);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+body {
+  background-color: var(--ink-dark);
+  color: var(--paper);
+  font-family: 'Noto Sans TC', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* 動態氣流畫布 */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* 主容器 */
+.wrapper {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1100px;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto;
+}
+
+/* 標頭設計 */
+.header-box {
+  text-align: center;
+  margin-bottom: 28px;
+  animation: fadeInDown 0.8s ease-out;
+}
+
+.badge-core {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid var(--border-light);
+  padding: 5px 14px;
+  border-radius: 30px;
+  font-size: 11.5px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  margin-bottom: 16px;
+  backdrop-filter: blur(8px);
+}
+
+.badge-core i {
+  width: 7px; height: 7px;
+  background: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+h1 {
+  font-family: 'Noto Serif TC', serif;
+  font-size: clamp(26px, 4.5vw, 38px);
+  color: #fff;
+  letter-spacing: 5px;
+  margin-bottom: 12px;
+  text-shadow: 0 0 25px rgba(212, 175, 55, 0.3);
+}
+
+h1 span {
+  background: linear-gradient(135deg, #fff 20%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+p.subtitle {
+  color: #a8a49c;
+  font-size: clamp(13px, 2vw, 15px);
+  letter-spacing: 2px;
+  max-width: 650px;
+  line-height: 1.6;
+}
+
+/* 雙門戶卡片區 */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 28px;
+  width: 100%;
+  perspective: 1200px;
+  margin-bottom: 35px;
+}
+
+.portal-card {
+  position: relative;
+  background: var(--ink-card);
+  border-radius: 20px;
+  padding: 36px 30px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.35s, box-shadow 0.35s;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.portal-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  opacity: 0.8;
+  transition: 0.3s;
+}
+
+/* 山水卡片色彩 */
+.card-mountain {
+  border-color: rgba(212, 175, 55, 0.25);
+}
+.card-mountain::before {
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+.card-mountain:hover {
+  border-color: var(--gold);
+  box-shadow: 0 20px 45px rgba(212, 175, 55, 0.22);
+  transform: translateY(-8px) scale(1.01);
+}
+
+/* 都市卡片色彩 */
+.card-city {
+  border-color: rgba(0, 229, 255, 0.2);
+}
+.card-city::before {
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+}
+.card-city:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 20px 45px rgba(0, 229, 255, 0.22);
+  transform: translateY(-8px) scale(1.01);
+}
+
+/* 卡片內部內容 */
+.card-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.icon-box {
+  width: 58px; height: 58px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hotkey-tag {
+  font-size: 11px;
+  font-family: monospace;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #bbb;
+}
+
+.card-title {
+  font-family: 'Noto Serif TC', serif;
+  font-size: 22px;
+  color: #fff;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+
+.card-desc {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #a09d95;
+  margin-bottom: 22px;
+}
+
+/* 功能特色標籤列 */
+.feature-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+.tag-item {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d0ccc2;
+}
+
+/* 按鈕設計 */
+.enter-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: 0.25s;
+}
+
+.card-mountain .enter-btn {
+  background: linear-gradient(135deg, var(--gold), #967417);
+  color: #12110f;
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+.card-mountain:hover .enter-btn {
+  background: linear-gradient(135deg, #f0ca52, var(--gold));
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+}
+
+.card-city .enter-btn {
+  background: linear-gradient(135deg, #0077ff, #004fb3);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(0, 119, 255, 0.3);
+}
+.card-city:hover .enter-btn {
+  background: linear-gradient(135deg, var(--cyan), #0077ff);
+  color: #0c1a24;
+  box-shadow: 0 6px 20px rgba(0, 229, 255, 0.45);
+}
+
+/* 底部功能與頁尾 */
+.footer-bar {
+  width: 100%;
+  text-align: center;
+  padding: 15px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #6e6b63;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.footer-bar .hints {
+  display: flex;
+  gap: 16px;
+  color: #8c887f;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .cards-grid { grid-template-columns: 1fr; }
+  .portal-card { padding: 26px 20px; }
+  .footer-bar .hints { flex-direction: column; gap: 4px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="wrapper">
+
+  <!-- 頂部資訊 -->
+  <div class="header-box">
+    <div class="badge-core">
+      <i></i> 雙核心全息物理引擎已就緒 v7.0
+    </div>
+    <h1><span>3D 堪輿全息模擬矩陣</span></h1>
+    <p class="subtitle">傳統巒頭五訣理氣與現代都市形煞流體力學（CFD）大一統模擬系統</p>
+  </div>
+
+  <!-- 雙門戶卡片區 -->
+  <div class="cards-grid">
+
+    <!-- 1. 3D 自然山水 -->
+    <a href="3D.html" class="portal-card card-mountain" id="card-3d">
+      <div>
+        <div class="card-header-flex">
+          <div class="icon-box">⛰️</div>
+          <span class="hotkey-tag">按鍵 [1]</span>
+        </div>
+        <h2 class="card-title">3D 龍・山・水 大一統模擬器</h2>
+        <p class="card-desc">
+          模擬大自然山川龍脈、九星穴形（金木水火土）、四水歸堂與隨龍水夾送。搭載 15,000 顆實時流體真氣粒子與全域吉穴自動探測。
+        </p>
+        <div class="feature-tags">
+          <span class="tag-item">五星穴形・太極暈</span>
+          <span class="tag-item">玉帶九曲・伏流水</span>
+          <span class="tag-item">CFD 真氣流動</span>
+          <span class="tag-item">三元九運零神立向</span>
+          <span class="tag-item">Dry Run AI 診斷</span>
+        </div>
+      </div>
+      <div class="enter-btn">
+        進入山川全息場 →
+      </div>
+    </a>
+
+    <!-- 2. 現代都市風水 -->
+    <a href="city.html" class="portal-card card-city" id="card-city">
+      <div>
+        <div class="card-header-flex">
+          <div class="icon-box">🏙️</div>
+          <span class="hotkey-tag">按鍵 [2]</span>
+        </div>
+        <h2 class="card-title">現代都市建築與形煞模擬器</h2>
+        <p class="card-desc">
+          模擬高樓大廈、天斬煞、玻璃帷幕反光煞光學追蹤、高架橋路沖與地鐵暗脈。支援 72 條射線天空可視率（SVF）與現代制化陣法。
+        </p>
+        <div class="feature-tags">
+          <span class="tag-item">天斬煞・壁刀煞</span>
+          <span class="tag-item">反光煞光學反射</span>
+          <span class="tag-item">SVF 建築逼壓探測</span>
+          <span class="tag-item">赫姆霍茲空腔共振</span>
+          <span class="tag-item">泰山石敢當制化</span>
+        </div>
+      </div>
+      <div class="enter-btn">
+        進入都市形煞場 →
+      </div>
+    </a>
+
+  </div>
+
+  <!-- 底部說明 -->
+  <div class="footer-bar">
+    <div class="hints">
+      <span>💡 支援鍵盤快速鍵：[1] 進入山水 ｜ [2] 進入都市</span>
+      <span>⚡ 純前端原生 WebGL + Canvas 2D 零延遲載入</span>
+    </div>
+    <div>© 3D Feng Shui Holographic Matrix Project. 100% Free & Open Source.</div>
+  </div>
+
+</div>
+
+<script>
+// ==================== 1. 背景動態真氣粒子畫布 ====================
+(function initCanvas() {
+  const cv = document.getElementById('bg-canvas');
+  const ctx = cv.getContext('2d');
+  let w = cv.width = window.innerWidth;
+  let h = cv.height = window.innerHeight;
+
+  window.addEventListener('resize', () => {
+    w = cv.width = window.innerWidth;
+    h = cv.height = window.innerHeight;
+  });
+
+  const pCount = Math.min(65, Math.floor(w / 20));
+  const particles = [];
+
+  for (let i = 0; i < pCount; i++) {
+    particles.push({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: (Math.random() - 0.5) * 0.6 - 0.2, // 輕微向上升騰
+      r: Math.random() * 2.2 + 0.8,
+      color: Math.random() > 0.5 ? 'rgba(212, 175, 55,' : 'rgba(0, 229, 255,',
+      alpha: Math.random() * 0.5 + 0.1,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+  let mouse = { x: -1000, y: -1000 };
+  window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  function render() {
+    ctx.clearRect(0, 0, w, h);
+
+    // 繪製粒子與連結線
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // 邊界回彈
+      if (p.x < 0) p.x = w;
+      if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h;
+      if (p.y > h) p.y = 0;
+
+      // 滑鼠互動斥力
+      const dx = p.x - mouse.x;
+      const dy = p.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 120) {
+        p.x += (dx / dist) * 1.5;
+        p.y += (dy / dist) * 1.5;
+      }
+
+      // 粒子光暈
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color + (p.alpha * (0.6 + 0.4 * Math.sin(Date.now() * 0.002 + p.phase))) + ')';
+      ctx.fill();
+
+      // 粒子間連線
+      for (let j = i + 1; j < particles.length; j++) {
+        const p2 = particles[j];
+        const d2 = Math.hypot(p.x - p2.x, p.y - p2.y);
+        if (d2 < 110) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = `rgba(212, 175, 55, ${0.12 * (1 - d2 / 110)})`;
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(render);
+  }
+  render();
+})();
+
+// ==================== 2. 鍵盤快速鍵支援 ====================
+window.addEventListener('keydown', e => {
+  if (e.key === '1') {
+    document.getElementById('card-3d').click();
+  } else if (e.key === '2') {
+    document.getElementById('card-city').click();
+  }
+});
+</script>
+</body>
+</html>
