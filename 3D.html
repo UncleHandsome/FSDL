@@ -999,6 +999,7 @@ const Rules = {
         } else {
             const dType = ['sheng', 'sheng', 'huilong', 'heng', 'huan', 'ji'][Math.floor(Math.random()*6)];
             const isHuilong = (dType === 'huilong');
+            const auspXueChoice = ['wo', 'qian', 'ru', 'tu', 'ping', 'ya'][Math.floor(Math.random()*6)];
             p = {
                 d: dType,
                 mn: isHuilong ? 'you' : ['you', 'pingfeng', 'you'][Math.floor(Math.random()*3)],
@@ -1007,7 +1008,7 @@ const Rules = {
                 ms: ['you', 'bijia', 'yin'][Math.floor(Math.random()*3)],
                 w: ['you', 'jiuqu', 'hejin', 'jushui', 'sishui', 'hulu', 'fuliu', 'none'][Math.floor(Math.random()*8)],
                 xing: ['jin', 'jin', 'mu', 'shui', 'tu'][Math.floor(Math.random()*5)],
-                xue: ['wo', 'qian', 'ru', 'tu', 'ping', 'ya'][Math.floor(Math.random()*6)],
+                xue: auspXueChoice,
                 degree: [0, 45, 90, 135, 270, 315][Math.floor(Math.random()*6)],
                 face: isHuilong ? '0' : '1',
                 mt: true, xia: true, an: true,
@@ -1051,7 +1052,7 @@ const Rules = {
                 zhuScale: (Math.floor(Math.random() * 7) + 10) / 10.0,
                 mtScale: (Math.floor(Math.random() * 6) + 9) / 10.0,
                 waterVel: 0.8 + Math.random() * 0.4,
-                xueHeight: p.xue === 'ya' ? Math.floor(Math.random() * 10) + 8 : ((dType === 'ji' || dType === 'sheng') ? Math.floor(Math.random() * 12) : Math.floor(Math.random() * 6)),
+                xueHeight: auspXueChoice === 'ya' ? Math.floor(Math.random() * 10) + 8 : ((dType === 'ji' || dType === 'sheng') ? Math.floor(Math.random() * 12) : Math.floor(Math.random() * 6)),
                 manualXue: false, xueX: 0, xueZ: 5
             };
         }
@@ -1186,8 +1187,9 @@ const Rules = {
 };
 window.DryRunTool = {
     executeSingle(simulateSeconds = 4, silent = false, skipRestore = false, analyzePixels = true) {
-        const savedState = JSON.parse(JSON.stringify(AppState.current));
-        const savedRuntime = {
+        const needSnapshot = !skipRestore;
+        const savedState = needSnapshot ? JSON.parse(JSON.stringify(AppState.current)) : {};
+        const savedRuntime = needSnapshot ? {
             gatherAcc: AppState.gatherAcc,
             scatterAcc: AppState.scatterAcc,
             sensors: { ...AppState.sensors },
@@ -1204,7 +1206,7 @@ window.DryRunTool = {
             pState: new Uint8Array(Physics.pState),
             pLife: new Float32Array(Physics.pLife),
             pVel: Physics.pVel.map(v => v.clone())
-        };
+        } : null;
         const st_sanitize = AppState.current;
         if (st_sanitize.d === 'si' || st_sanitize.d === 'po') {
             st_sanitize.xia = false;
@@ -1311,6 +1313,7 @@ window.DryRunTool = {
             }
             sampleCount++;
         }
+        if (sampleCount === 0) opticalAnomalies.push(`【光學異常】像素取樣失敗（繪圖緩衝為空，可能 WebGL context lost 或畫布尺寸為 0），本輪光學偵測無效！`);
         let overRatio = overExposedCount / sampleCount;
         let underRatio = underExposedCount / sampleCount;
         let dominantRatio = maxBinCount / sampleCount;
@@ -1516,8 +1519,21 @@ window.DryRunTool = {
             gatherRatio: totalP > 0 ? Number((intGather / totalP * 100).toFixed(1)) + "%" : "0%",
             particleCount: Physics.pCount
         };
+        const camPos = Engine3D.camera ? Engine3D.camera.position : { x: 0, y: 0, z: 0 };
+        const camGroundY = Engine3D.getTerrainY(camPos.x, camPos.z).y;
+        const camOutOfBounds = (Math.abs(camPos.x) > CONFIG.tSize / 2 || camPos.z > CONFIG.tSize / 2 || camPos.z < -CONFIG.tSize / 2);
+        const renderDiagnostics = {
+            cameraPos: { x: Number(camPos.x.toFixed(1)), y: Number(camPos.y.toFixed(1)), z: Number(camPos.z.toFixed(1)) },
+            controlsTarget: Engine3D.controls ? { x: Number(Engine3D.controls.target.x.toFixed(1)), y: Number(Engine3D.controls.target.y.toFixed(1)), z: Number(Engine3D.controls.target.z.toFixed(1)) } : null,
+            groundUnderCamera: Number(camGroundY.toFixed(1)),
+            cameraOutOfBounds: camOutOfBounds,
+            cameraBelowGround: (!camOutOfBounds && camPos.y < camGroundY + 1.5),
+            rendererStats: Engine3D.renderer ? { renderCalls: Engine3D.renderer.info.render.calls, triangles: Engine3D.renderer.info.render.triangles, points: Engine3D.renderer.info.render.points, geometries: Engine3D.renderer.info.memory.geometries, textures: Engine3D.renderer.info.memory.textures } : null
+        };
         const resultData = {
             presetName: st.presetName || 'current',
+            gatherAcc: Math.round(AppState.gatherAcc),
+            scatterAcc: Math.round(AppState.scatterAcc),
             expectedRating: expectedRating, 
             activeShaList: [...new Set(activeShaList)].concat(st.yangwa && !activeShaList.includes('仰瓦(漏胎煞)') ? ['仰瓦(漏胎煞)'] : []), 
             compassOrientation: {         
@@ -1595,7 +1611,8 @@ window.DryRunTool = {
 				rating: verdict.rating,
 				text: verdict.text
 			},
-			sanityWarnings: sanityWarnings
+			sanityWarnings: sanityWarnings,
+			renderDiagnostics: renderDiagnostics
 		};
         if (!silent) {
             const aiPrompt = `請幫我分析以下 3D 風水模擬器的 Dry Run 測試結果（模擬時長：${simulateSeconds}秒）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(resultData, null, 2)}\n\`\`\``;
@@ -2429,7 +2446,7 @@ const Engine3D = {
                 flowUV2.x -= flowSpeedX * 0.6;
                 flowUV2.y -= flowSpeedY * 1.3;
                 float rz = vWorldXZ.y - lairZ;
-                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6 || riverType == 11 || riverType == 13) ? 70.0 : ((riverType == 2 || riverType == 8) ? 55.0 : ((riverType == 5) ? -10.0 : (((riverType == 7) || (riverType == 9)) ? 35.0 : 30.0)));
+                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6 || riverType == 10 || riverType == 11 || riverType == 13) ? 70.0 : ((riverType == 2 || riverType == 8) ? 55.0 : ((riverType == 5) ? -10.0 : (((riverType == 7) || (riverType == 9)) ? 35.0 : 30.0)));
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
                 if (riverType == 7) distToShore = max(0.0, length(vec2(rx, rz - lakeZ)) - 10.0); 
@@ -4711,8 +4728,9 @@ const Physics = {
         }
         
         let hasFatalShaZone = state.tianzhan || state.ao || state.qing || state.qingquan || state.sherui || state.tasha || state.bidao || state.posui || state.tantou || state.yangwa || state.ml === 'fanbei' || state.mr === 'fanbei' || (state.wugong && !state.longtuzhu) || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.mr === 'kaikou' || state.tianjing || (((state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0)) >= 2) || Rules.BAD_ROADS.includes(state.road) || Rules.BAD_WATERS.includes(state.w);
-        const sunVec = new THREE.Vector3(70, 140, 60).normalize();
-        const tempNormal = new THREE.Vector3();
+        if (!Physics._sunVecScratch) { Physics._sunVecScratch = new THREE.Vector3(70, 140, 60).normalize(); Physics._tempNormalScratch = new THREE.Vector3(); }
+        const sunVec = Physics._sunVecScratch;
+        const tempNormal = Physics._tempNormalScratch;
         for(let i=0; i<this.pCount; i++) {
             let x = this.pPos[i*3], y = this.pPos[i*3+1], z = this.pPos[i*3+2];
             let vel = this.pVel[i]; let st = this.pState[i];
@@ -6000,8 +6018,12 @@ function animate() {
 				Engine3D.controls.update(); 
 			}
 		}
-    let physDt = delta * 60 * parseFloat(AppState.current.time);
-    Physics.update(physDt);
+    let physDt = delta * 60 * (parseFloat(AppState.current.time) || 0);
+    if (!Number.isFinite(physDt)) physDt = 0;
+    const physSubSteps = Math.min(6, Math.max(1, Math.ceil(physDt / 2.0)));
+    for (let sIdx = 0; sIdx < physSubSteps; sIdx++) {
+        Physics.update(Math.min(2.0, physDt / physSubSteps));
+    }
     UI.refreshScores(physDt);
     UI.drawRadar(delta);
     Engine3D.controls.update();

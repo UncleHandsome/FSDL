@@ -236,7 +236,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="sec">理論分析與五行動力學</div>
   <div id="theory"></div>
 </div>
-<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：堪輿視角・R：預設視角・T：Dry Run・G或空白鍵：隨機格局・[ / ]：摺疊左右面板・H：隱藏雙面板</div>
+<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：視角・G或空白鍵：隨機格局・L/R或[/]：摺疊左右面板・H：隱藏雙面板</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -931,7 +931,7 @@ class FengShuiEngine {
     }
     let capacityBase = Math.round(30 + frontOpenness * 90) - vFront * 0.2;
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
-    c = Math.max(20, Math.min(150, Math.round(c + capacityBase - 40 + capacityAdjust)));
+    c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust)));
     if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing') && !mingTangBroken) {
         c = Math.max(c, 40);
     }
@@ -1476,9 +1476,6 @@ class FengShuiEngine {
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
-    if (mingTangBroken) {
-        g = 0;
-    }
     if (emptyFrontWind) {
         c = Math.max(20, c - 25);
     }
@@ -1777,10 +1774,9 @@ class CityBuilder {
       this.dropsGroup.clear();
       this.dropAnimators = [];
       if (!paths || paths.length === 0) return;
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x00aadd, transparent: true, opacity: 0.35 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x00aadd, transparent: true, opacity: 0.15 });
       const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-      // 放大水珠幾何體半徑至 1.2m，確保在鳥瞰視角下依然能清晰看見虛水匯聚路徑
-      const dotGeo = new THREE.SphereGeometry(1.2, 12, 12);
+      const dotGeo = new THREE.SphereGeometry(0.35, 8, 8);
       paths.forEach(p => {
           if (p.length < 2) return;
           const geo = new THREE.BufferGeometry().setFromPoints(p);
@@ -2084,11 +2080,10 @@ class CityBuilder {
     }
     if(st.water==='jade')this.ribbon(Util.curve3([Util.v3(-120,0,26),Util.v3(-85,0,66),Util.v3(0,0,88),Util.v3(85,0,66),Util.v3(120,0,26)]),7,0x12283e,0x0088cc,false,true);
     if(st.water==='nine'){const a=[];for(let x=-135;x<=135;x+=27)a.push(Util.v3(x,0,62+22*Math.sin(x*0.045)));this.ribbon(Util.curve3(a),7,0x12283e,0x0088cc,false,true);}
-    // 凶煞道路：路面呈現暗紅帶警示紫光 (0x281216)，邊線為醒目火紅光 (0xff2200)
-    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x281216,0xff2200,true,true);
-    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x281216,0xff2200,true,true);}
-    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x281216,0xff2200,true,true);
-    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x281216,0xff2200,true,true);}
+    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x12283e,0xcc4422,true,true);
+    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x12283e,0xcc4422,true,true);}
+    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x12283e,0xcc4422,true,true);
+    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x12283e,0xcc4422,true,true);}
     if(st.water==='lintou'){this.elevated([Util.v3(-130,26,20),Util.v3(0,26,20),Util.v3(130,26,20)],true);this.group.add(ResourceManager.createLabel('淋頭壓頂','#d31515',9,0,32,20));}
     if(st.water==='bazi'){this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(-30,0,60),Util.v3(-80,0,130)]),5,0x12283e,0xcc4422,true,true);this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(30,0,60),Util.v3(80,0,130)]),5,0x12283e,0xcc4422,true,true);this.group.add(ResourceManager.createLabel('八字分飛','#d34f00',9,0,8,70));}
     const shuiFaActive = st.water !== 'none' && !Config.SHA_WATER.includes(st.water);
@@ -2832,6 +2827,8 @@ class ParticleSystem {
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
     this.uniforms.u_helmholtz.value = !!(stateManager.analysis && stateManager.analysis.isHelmholtz);
+    this.uniforms.u_qingxie.value = st.special.includes('qingxie');
+    this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_cureTrees.value = st.cure.includes('trees');
     this.uniforms.u_cureMirror.value = st.cure.includes('mirror');
     this.uniforms.u_cureStone.value = st.cure.includes('stone');
@@ -3043,13 +3040,13 @@ class World3D {
     });
     window.addEventListener('keydown', e => { 
         const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','TEXTAREA'].includes(tn)) return;
+        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 1;
     });
     window.addEventListener('keyup', e => { 
         const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','TEXTAREA'].includes(tn)) return;
+        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 0;
     });
@@ -3230,9 +3227,6 @@ class UIManager {
     st.historyIndex = st.history.length - 1;
   }
   bind() {
-    document.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => btn.blur());
-    });
     Object.keys(Config.UI_MAP).forEach(id => {
       const el = Util.$(id);
       if (!el) return; 
@@ -3563,25 +3557,14 @@ class App {
     this.ui.bind();
     this.rebuild();
     window.addEventListener('keydown', e => {
-      if (['INPUT', 'TEXTAREA'].includes((e.target && e.target.tagName) || '')) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes((e.target && e.target.tagName) || '')) return;
       const k = e.key.toLowerCase();
       if(k === 'c'){ this.world.setCamMode(this.world.camMode==='orbit'?'fs':'orbit'); this.ui.syncCamButtons(); }
-      if(k === 'r'){
-        this.world.setCamMode('orbit');
-        this.world.view.theta = 0.65;
-        this.world.view.phi = 1.08;
-        this.world.view.r = 300;
-        this.world.view.tg.set(0, 14, 12);
-        this.ui.syncCamButtons();
-      }
-      if(k === 't'){
-        Util.$('btn-dry-run')?.click();
-      }
       if(k === 'l' || e.key === '['){
         const p = Util.$('left'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
-      if(e.key === ']'){
+      if(k === 'r' || e.key === ']'){
         const p = Util.$('right'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
@@ -3721,7 +3704,6 @@ window.DryRunTool = {
     const originalPaused = app.state.paused;
     app.state.paused = false;
     app.state.timeScale = 1;
-    try {
     const targetFrames = simulateSeconds * 60;
     const dt = 1.0 / 60.0;
     for (let i = 0; i < targetFrames; i++) {
@@ -3730,10 +3712,8 @@ window.DryRunTool = {
       app.particles.step(dt, time, app.state, app.builder);
     }
     app.refreshData();
-    } finally {
     app.state.timeScale = originalTimeScale;
     app.state.paused = originalPaused;
-    }
     app.world.render(); 
     const gl = app.world.renderer.getContext();
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
@@ -3789,15 +3769,12 @@ window.DryRunTool = {
     if (opticalAnomalies.length > 0) {
         sanityWarnings.push(...opticalAnomalies);
     }
-    const nanAuditFields = ['g', 's', 'c', 'yyBalance', 'shannonEntropy', 'betti1Closure', 'reynoldsNum', 'froudeNum', 'qFactor', 'fractalDiff'];
-    const nanHitFields = nanAuditFields.filter(k => typeof ana[k] !== 'number' || !Number.isFinite(ana[k]));
-    if (nanHitFields.length > 0) sanityWarnings.push(`CRITICAL: 數值出現 NaN/非有限計算錯誤 (${nanHitFields.join(', ')})`);
+    if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) sanityWarnings.push("CRITICAL: 數值出現 NaN 計算錯誤");
     if (ana.g < 0 || ana.g > 150) sanityWarnings.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
     if (ana.s < 0 || ana.s > 150) sanityWarnings.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
     if (ana.c < 20 || ana.c > 150) sanityWarnings.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
     if (Math.abs(ana.yyBalance) > 10) sanityWarnings.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
     if (app.builder.blds.length > 32) sanityWarnings.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
-    if (typeof ana.g === 'number' && typeof ana.c === 'number' && Number.isFinite(ana.g) && Number.isFinite(ana.c) && ana.c > 0 && ana.g > ana.c * 1.2) sanityWarnings.push(`NOTICE: 吉氣供給(${ana.g.toFixed(1)})超出明堂容量(${ana.c})達 ${Math.round((ana.g / Math.max(1, ana.c)) * 100)}%，實收端已飽和封頂，屬頂格超載狀態`);
     const preset = st.presetName || 'current';
     const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
     const presetExpectations = {

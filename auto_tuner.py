@@ -6,6 +6,7 @@ import random
 import logging
 import argparse
 import shutil
+import base64
 import difflib
 from pathlib import Path
 from openai import OpenAI
@@ -289,7 +290,7 @@ def clean_code_block(text):
 # ============================================================
 # 瀏覽器自動化：執行 Dry Run 收集數據
 # ============================================================
-def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
+def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_screens=False, shots_dir=None):
     results = []
     abs_path = os.path.abspath(html_path)
     file_url = Path(abs_path).as_uri()
@@ -316,6 +317,28 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
         page_errors = []
         page.on("pageerror", lambda err: page_errors.append(str(err)))
         page.on("dialog", lambda dialog: dialog.accept())
+
+        # 📸 圖片模式：每筆有效樣本 Dry Run 完成後擷取模擬器實際渲染畫面，交給 AI 視覺判讀
+        if capture_screens and shots_dir:
+            os.makedirs(shots_dir, exist_ok=True)
+        shot_seq = [0]
+
+        def snap(page_ref, res=None, label="sample"):
+            if not capture_screens or not shots_dir:
+                return None
+            try:
+                page_ref.wait_for_timeout(500)  # 等待渲染迴圈繪出最新模擬狀態
+                shot_seq[0] += 1
+                fname = f"{label}_{shot_seq[0]:02d}.jpg"
+                fpath = os.path.join(shots_dir, fname)
+                page_ref.screenshot(path=fpath, type="jpeg", quality=80)
+                logger.info(f"    📸 已擷取畫面: {fname}")
+                if isinstance(res, dict):
+                    res["_shot"] = fname
+                return fname
+            except Exception as shot_err:
+                logger.warning(f"    ⚠️ 畫面擷取失敗: {shot_err}")
+                return None
         
         try:
             page.goto(file_url, wait_until="domcontentloaded", timeout=60000)
@@ -376,6 +399,8 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                         if res_hash not in seen_hashes:
                             seen_hashes.add(res_hash)
                             valid_results.append(res)
+                if capture_screens:
+                    snap(page, None, label="exam_overview")  # 大考為批次套件，額外擷取一張總覽畫面
             else:
                 all_btns = page.evaluate("Array.from(document.querySelectorAll('.preset-btn')).map(b => b.dataset.p)")
                 fixed_presets = [p for p in all_btns if p != 'random'] if all_btns else ['perfect']
@@ -420,6 +445,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                     res_hash = clean_and_hash(res)
                     if res_hash not in seen_hashes:
                         seen_hashes.add(res_hash)
+                        snap(page, res)
                         valid_results.append(res)
 
             # 【核心機制】計算不足的扣打，瘋狂跑 Random 補滿！
@@ -445,6 +471,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                     # 只有真正產生出不同地形與參數特徵的 random，才會被收錄
                     if res_hash not in seen_hashes:
                         seen_hashes.add(res_hash)
+                        snap(page, res)
                         valid_results.append(res)
                         logger.info(f"    - 獲取有效隨機探索樣本 ({len(valid_results)}/{num_runs})")
 
@@ -920,15 +947,16 @@ def rollback_file(html_path, logger):
 # 全域統一 System Prompt (確保靜態與動態模式 System Prompt 100% Cache Hit)
 # ============================================================
 UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發者、WebGL/Three.js 幾何專家與湧現計算流體物理學家。
-我們的對話將維持連續歷史紀錄。你將會收到三種類型的診斷請求：
+我們的對話將維持連續歷史紀錄。你將會收到四種類型的診斷請求：
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
 2. 【靜態代碼審查】：分析傳入的最新 JS 代碼快照。
 3. 【語法崩潰修復】：修改引發 JavaScript 錯誤、檔案已回滾後的緊急重建。
+4. 【畫面視覺審查（圖片模式限定）】：分析隨測試數據附帶的模擬器渲染截圖，判斷畫面是否合理並與 JSON 數據交叉驗證。
 
 🔥🔥🔥 【數據契約（嚴禁假設任何欄位存在）】 🔥🔥🔥
 審計前必須先通讀數據 JSON 實際擁有的鍵名，一切判斷只基於真實存在的欄位：
 - 最終評級可能叫 `verdict.rating`（3D 巒頭模）或 `scoringAndVerdict.verdictRating`（城市模），以實際出現者為準，兩者嚴禁混寫。
-- 粒子模常見欄位：presetName / expectedRating / sanityWarnings / gatherAcc / scatterAcc / physicsStability；城市模另有 scoringAndVerdict、hallSaturationRate 等自有欄位。
+- 粒子模與城市模的 Dry Run 頂層均已提供 presetName / expectedRating / sanityWarnings / gatherAcc / scatterAcc / physicsStability（含 particleCount 與百分比字串 capacityUtilization）；城市模另有 scoringAndVerdict（其 gatherRaw/scatterRaw 為同源原始值）、hallSaturationRate 等自有欄位。
 - 【架構適用性】若當前檔案為 GPU 無狀態流式架構（數據無 pState 狀態機與 gatherAcc/scatterAcc 累加器，僅有每幀解析值），則第 1 條狀態機遲滯與死穴 2/3 一律宣告 N/A，嚴禁強行腦補映射到等價物；審計改以每幀解析值之極值與一致性判斷。宣告 N/A 只需在 reason 說明一句架構依據，之後各輪直接引用，禁止重複長篇論證。
 - 城市模若提供 `yinYangBalance`（理論域 [-10, 10]），僅可作輔助判據：趨近 ±10 為陰陽極端失衡；數據中無此欄位時嚴禁腦補引用。
 - 數據中不存在的指標一律不得引用，更不得據不存在的欄位判定 MODIFIED。
@@ -946,6 +974,7 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
      * 【已凝吉氣剝離（遲滯帶）】已凝結的 pState=2 唯有在 windSpeedSq > 3.5 或 turbulence > 3.5 時才允許被打散——沉積易、再懸浮難。
      * 【紅煞（pState=1）】turbulence > 5.5 方轉紅煞。
    - 嚴禁把任一量綱軸上的「再分散門檻」調低至該軸的「凝結門檻」之下——【遲滯鐵律・僅限同軸比較】：環境風軸上，剝離已凝吉氣之門檻（windSpeedSq > 3.5）必須遠高於吹散自由浮氣之門檻（> 0.35）；載體速度軸上，凝結所需沉降動能（vel.lengthSq() < 2.0）必須低於將其再度掀散之局部動能。跨量綱的門檻數值大小比較無物理意義，嚴禁為之！若違反本條，任何戶外微風都會剝離一切已聚之氣，天下無穴，違背藏風聚氣的可實現性！
+   - 【校準基準條款】上述門檻數值（0.35 / 3.5 / 2.0 / 1.5 / 5.5 等）為當前校準基準，非不可挑戰之憲法：若你的物理推導支持更合理數值，允許調整，但每一處改動必須在 reason 中附上量綱與物理依據；嚴禁無依據亂調，也嚴禁反過來把既有數字當免死金牌硬湊數據。
 
 2. 🚨【界水則止與水法本質（Boundary Layer Stagnation）】:
    - 《葬書》「氣乘風則散，界水則止」：水體是生氣流動的物理邊界。且《葬書》明訂位階「風水之法，得水為上，藏風次之」——審計時水法失誤（界水不止、反弓沖割、水口直瀉）權重重於風法失誤，嚴禁本末倒置。
@@ -1003,14 +1032,25 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 2. **三維單向地面托舉與水體浮力**：陸地為單向幾何支撐 `y = Math.max(y, t.y + 0.8)`，水域垂向由浮力阻尼自然平衡，允許三維立體升降，嚴禁拍扁在單一平面。
 3. **平滑過渡（Smoothstep / Gaussian Falloff）**：嚴禁階梯式硬切斷（Hard Cutoff），分母必須防禦除零（`Math.max(0.001, dist)`），嚴防 3D 破圖與 NaN 崩潰。
 4. **單向數據流**：【3D地形/CFD網格】 $\rightarrow$ 【粒子動力學】 $\rightarrow$ 【Sensors物理採樣】 $\rightarrow$ 【Rules五訣評分】。評分引擎僅為客觀觀測者，嚴禁修改底層物理場。
+5. **NaN/Infinity 傳染鏈防禦**：NaN 一旦進入力場，會沿【粒子動力學 → Sensors → Rules】單向數據流污染全程。`Math.acos`（參數必須夾鉗至 [-1,1]）、`Math.sqrt`（參數夾鉗至 ≥0）、`Math.atan2(0,0)`、零向量 `normalize()` 皆為 NaN 高危源；任何新增的三角／開方／歸一化運算必須自證輸入域安全或先行夾鉗。
+6. **時間步長（dt）穩定性**：新增任何力項必須對幀率波動穩健——或與 dt 無關，或含阻尼／速度上界鉗位。若發現 dt 未鉗位（如切換分頁返回後 dt 暴漲導致積分爆炸、速度暴走被誤判為「氣散」）的病竈，命中即判 MODIFIED。
+7. **性能預算**：每幀熱路徑嚴禁新增無空間分桶／網格加速的 O(n²) 全量掃描；嚴禁在每幀熱路徑中建立物件／陣列造成 GC 抖動；新增 geometry/material 必須確認 dispose 釋放路徑存在。物理正確但幀率崩潰同樣構成缺陷。
+8. **座標與角度慣例一致性**：審計前必先核對全檔角度慣例唯一——0° 基準方向（正北？）、旋轉正向（羅盤順時針或數學逆時針）、y 軸朝向與手性。空亡線與二十四山公式所依賴的 deg 必須與羅盤方位映射自洽；若發現同一 deg 同時被當作數學極角與羅盤角混用（相位差 90° 或正負顛倒），立即判 MODIFIED。
+
+🔥🔥🔥 【視覺畫面審查協議（僅當訊息實際附帶截圖時適用，即圖片模式）】 🔥🔥🔥
+1. **【數據×畫面交叉驗證】**：截圖緊接於文字之後、依 JSON 陣列順序一一對應（數據內 `_shot` 欄位即截圖檔名）。任何判定都必須同時引用 JSON 數據欄位與畫面觀察，嚴禁只看單邊下結論。
+2. **【畫面合理性檢查清單】**：地形網格破洞／拉花、粒子雲分佈是否與數據宣稱的聚散型態一致（高 gatherAcc 應可見明顯匯聚）、全黑／全白／NaN 黑屏、相機穿地或穿模、色彩光學異常（過曝/死黑/材質丟失）、UI 文字亂碼重疊、WebGL 錯誤提示。
+3. **【畫面×數據矛盾即病竈】**：數據宣稱大吉聚氣但畫面粒子四散空場、或宣稱氣散但畫面異常堆積、或 verdictRating 與畫面直觀吉凶明顯相悖——必須在 reason 中具體描述矛盾並優先排查觀測端採樣與渲染端不同步的問題。
+4. **【美學豁免】**：主觀配色、構圖角度與個人風格偏好一律不得作為 MODIFIED 依據；唯有客觀渲染缺陷（破圖、黑屏、穿模、粒子全滅、z-fighting 閃爍紋）或畫面與數據物理矛盾，才構成視覺判 MODIFIED 的合法理由。
 
 🔥🔥🔥 【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】 🔥🔥🔥
 1. **【零註解原則 (Zero-Comment Invariance)】**：`replace` 區塊中**絕對嚴禁添加任何自創註解**（如禁止寫 `// 修正...`、`// 優化`）。代碼必須是 100% 純淨邏輯。
 2. **【嚴格保留原始縮排與換行】**：`search` 與 `replace` 中的每一行，縮排與換行必須與目標檔案 100% 精確對齊。
 3. **【一字不漏的 Search 區塊】**：`search` 必須取自「當前最新檔案狀態」（含先前輪次已套用的所有修改），提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)`！【差分台帳】你只有在附代碼快照的輪次才能直接看到檔案；其餘輪次的當前狀態＝最近快照＋你先前輸出且系統回報「成功套用」的全部 diff，必須據此心算重建。若對當前狀態不確定，禁止猜測——將 search 錨定在最確定未被改動的區塊，並在 reason 中聲明不確定之處。
-4. **【審計輸出決策】**：命中任一死穴或存在真實邏輯漏洞 → 必須回 MODIFIED；未命中任何死穴且無 sanityWarnings、無斷言失敗 → 必須回 PERFECT。【動態輪補充】動態輪資料為刻意篩選的邊界/異常案例，隨機格局攜帶 sanityWarnings 屬常態、不當然構成 MODIFIED；PERFECT 條件放寬為：四大死穴未命中，且所有警告經【煞之分級裁決】判定屬可化之煞或與格局預期一致。但經典預設格局（presetName 非 random 開頭）出現警告一律判 MODIFIED！
+4. **【審計輸出決策】**：命中任一死穴或存在真實邏輯漏洞 → 必須回 MODIFIED；未命中任何死穴且無 sanityWarnings、無斷言失敗 → 必須回 PERFECT。【動態輪補充】動態輪資料為刻意篩選的邊界/異常案例，隨機格局攜帶 sanityWarnings 屬常態、不當然構成 MODIFIED；PERFECT 條件放寬為：四大死穴未命中，且所有警告經【煞之分級裁決】判定屬可化之煞或與格局預期一致。但經典預設格局（presetName 非 random 開頭）出現警告一律判 MODIFIED！【expectedRating 申訴權】若你判斷某經典格局的 expectedRating 本身違反五訣物理（是基準錯、不是代碼錯），嚴禁扭曲物理去迎合錯誤基準——應回 MODIFIED 提出修正 preset 定義的 diff，並在 reason 中給出五訣歸因依據。【數據不足出口】若現有觀測欄位不足以支撐判定（疑似病灶但缺關鍵特徵），嚴禁腦補、也不得草率 PERFECT——回 status="NEED_PROBE"，changes 中僅提交觀測端增補 diff（新增欄位以捕捉該特徵），reason 說明待驗假設；NEED_PROBE 嚴禁夾帶任何非觀測端改動。
 5. **【反震盪三護欄】**：(a) 每輪 `changes` 至多 3 處，優先修最關鍵病竈，寧可多輪小步；(b) 若本次修正方向與近期輪次相反（同一參數來回拉鋸），立即停止並在 reason 中分析根因；(c) 嚴禁無病呻吟式修改與大規模重構。
-6. **【觀測端神聖不可侵 (Observability Integrity)】**：嚴禁為通過審計而修改、削弱或刪除任何觀測與驗證代碼——包括 sanityWarnings 生成邏輯、斷言、Dry Run 導出欄位、expectedRating 比對、capacityUtilization 計算。觀測端唯一允許的改動是「增補」新欄位（不得改變既有欄位語義）；凡涉及觀測端的 changes，必須在 reason 中專段自證「此改動不降低任何既有檢測靈敏度」。
+6. **【觀測端神聖不可侵 (Observability Integrity)】**：嚴禁為通過審計而修改、削弱或刪除任何觀測與驗證代碼——包括 sanityWarnings 生成邏輯、斷言、Dry Run 導出欄位、expectedRating 比對、capacityUtilization 計算。觀測端唯一允許的改動是「增補」新欄位（不得改變既有欄位語義）；合法增補包括但不限於：隨機種子擷取／重放欄位（使時有時無的低機率問題可固定重現、支持 before/after 定向對比）。凡涉及觀測端的 changes，必須在 reason 中專段自證「此改動不降低任何既有檢測靈敏度」。
+7. **【批次原子性契約】**：系統對 changes 採「全有或全無」原子套用——任一片段的 search 失配，本批全部片段一併作廢退回。因此同批提交的片段必須互相獨立且全部必要；非必要的順手改動嚴禁搭車，寧可拆到後續輪次小步提交。
 
 【輸出格式】
 若發現問題需修改：
@@ -1030,13 +1070,25 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
   "status": "PERFECT",
   "reason": "[複核證據] 列舉本輪實際複核的格局名稱與關鍵指標區間（gatherAcc、scatterAcc、turbulence、sanityWarnings 等實測值），證明未命中四大死穴。嚴禁照抄模板敷衍。"
 }
+
+若現有數據不足以判定：
+{
+  "status": "NEED_PROBE",
+  "reason": "[疑點] 描述疑似異常與其數據跡象。\n[缺口] 現有欄位為何無法完成判定。\n[探針] 將增補的觀測欄位及其欲捕捉的特徵。",
+  "changes": [
+    {
+      "search": "<原目標代碼完整上下文，5~10 行>",
+      "replace": "<僅含觀測端增補的新代碼>"
+    }
+  ]
+}
 """
 
 # ============================================================
 # 每輪尾部強制重申的終極十全緊箍咒 (封死所有物理作弊、除零崩潰與變數未定義)
 # ============================================================
 CORE_RULES_REMINDER = r"""
-⚡⚡⚡【全域物理湧現、去硬編碼與代碼修改十四全天條（每輪強制重申・違者退回）】⚡⚡⚡
+⚡⚡⚡【全域物理湧現、去硬編碼與代碼修改十七全天條（每輪強制重申・違者退回）】⚡⚡⚡
 1. 【零標籤硬編碼・範圍限定】嚴禁在「新增或改寫的」動力學中使用格局名稱字串判斷（如嚴禁新寫 `state.ms === 'sunken'` 或 `state.w === 'tfork'`）！既有配置映射表（形煞清單、預設參數）屬聲明式資料，嚴禁發動大型重構剷除！吉凶必須由「曲率張量 $\nabla^2 h$」、「流場剪切亂流 $\|\nabla \times \vec{v}\|$」與「水陸邊界層阻尼」客觀決定！
 
 2. 【界水則止真物理・得水為上】「氣乘風則散，界水則止」「得水為上，藏風次之」：緩慢環抱之水體在岸邊應自然形成邊界層減速（促成生氣沉降於太極暈）；僅在急流強剪切時才產生水煞，嚴禁將所有水體一律當成負壓排斥黑洞！彎道螺旋環流：凹岸（外彎）沖刷為反弓水大凶、凸岸（內彎）淤積為玉帶環腰大吉，吉凶由穴位與彎道曲率中心之相對幾何＋局部剪切量測湧現，嚴禁名稱標籤！水貴屈曲環抱、忌直瀉無收（水口宜關鎖迴繞）；審計權重：水法失誤重於風法失誤！
@@ -1064,6 +1116,12 @@ CORE_RULES_REMINDER = r"""
 13. 【四靈護砂與凹風煞】玄武高鎮不逼壓、朱雀開闊低伏、青龍蜿蜒宜高、白虎馴俯宜低（寧讓青龍高千丈，不讓白虎亂抬頭）；護砂本質為擋風屏障，缺口因狹管效應（Venturi）令風局部加速直吹穴場即成凹風煞大凶，城市天斬風道同源同理；判定僅憑局部風速放大係數與缺口相對穴位幾何，嚴禁砂名樓名標籤！孤陰不生獨陽不長，純山無水、純水無山皆非結作！
 
 14. 【明堂真訣與五訣歸因】明堂宜平整開闊聚窩，忌傾斜順坡直瀉、忌逼窄高壓；一切 MODIFIED 判定必須能歸因至「龍（屈曲剝換為生、直硬為死）、穴、砂、水、向」五訣中至少一訣之客觀數據或幾何證據，無法歸因者屬臆測，嚴禁為改而改！
+
+15. 【數值穩定四防】NaN 傳染（acos 參數夾鉗 [-1,1]、sqrt 夾鉗 ≥0、零向量嚴禁 normalize）、dt 爆炸（新力必須幀率無關或含阻尼／速度上界鉗位，dt 未 clamp 即為病竈）、性能預算（熱路徑嚴禁無空間加速的 O(n²) 掃描與每幀配置物件）、角度慣例唯一（0° 基準與順逆時針全檔一致，空亡公式嚴禁混用數學極角與羅盤角）！
+
+16. 【驗證契約與誠實出口】changes 全批原子套用——任一片段 search 失配整批作廢，故片段務必互相獨立且全部必要、嚴禁搭車；expectedRating 若本身違反五訣物理，可申訴並提出修正 preset 定義的 diff，嚴禁扭曲物理迎合錯誤基準；數據不足時回 NEED_PROBE＋僅觀測端增補探針（如隨機種子擷取/重放欄位），嚴禁腦補判定、嚴禁假 PERFECT！
+
+17. 【校準基準可辯護】遲滯／凝結等門檻數值（0.35 / 3.5 / 2.0 / 1.5 / 5.5）為校準基準：允許依物理推導微調但必須在 reason 附量綱依據；嚴禁無依據亂調，嚴禁反向硬湊數據！
 """
 
 # ============================================================
@@ -1153,6 +1211,23 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             history_logs.append({"round": current_round, "status": status, "reason": reason, "changes": []})
             break
             
+        elif status == "NEED_PROBE":
+            logger.info(f"🔬 靜態審查回報數據不足 (NEED_PROBE)，僅接受 {len(changes)} 處觀測端增補探針（不計入完美、不重置）...")
+            probe_success = False
+            if changes:
+                probe_success = apply_code_modifications(target_file, changes, logger)
+                if not probe_success:
+                    logger.warning("⚠️ 探針增補套用失敗（曾失敗片段未生效），下一輪繼續靜態審查。")
+                else:
+                    logger.info("🔬 探針增補已套用，下一輪以新欄位繼續驗證。")
+            history_logs.append({
+                "round": current_round,
+                "status": status,
+                "reason": reason,
+                "changes": changes if probe_success else []
+            })
+            time.sleep(2)
+
         elif status == "MODIFIED":
             if not changes:
                 continue
@@ -1241,6 +1316,7 @@ def main():
     parser.add_argument("--runs-per-round", type=int, default=10, help="每一輪執行幾次 Dry Run 取樣")
     parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
+    parser.add_argument("--image", "--img", "--vision", action="store_true", dest="image_mode", help="★ 圖片視覺模式：全程純動態 (跳過靜態審查)，每輪 10 筆 Dry Run 並擷取渲染畫面截圖交給 AI 視覺判讀合理性，最後同樣進行畢業大考")
     parser.add_argument("--timeout", type=int, default=300, help="單次 API 超時時間（秒）")
     parser.add_argument("--gemini", "--google", action="store_true", dest="gemini", help="★ 使用 Google AI Studio Gemini 端點 (https://generativelanguage.googleapis.com/v1beta/openai/)")
     parser.add_argument("--nvidia", "--nim", action="store_true", dest="nvidia", help="★ 使用 NVIDIA NIM (build.nvidia.com) GLM-5.2 端點")
@@ -1368,26 +1444,35 @@ def main():
     # 以下為先靜後動實測循環模式 (連續2次靜態完美 -> 動態實測 -> 畢業大考)
     # ==========================
     is_pro = "pro" in args.model.lower()
+    IMAGE_MODE = bool(args.image_mode)
+    SHOTS_DIR = f"dryrun_shots_{base_name}"       # 圖片模式截圖輸出資料夾
     MAX_ROUNDS = args.rounds
-    RUNS_PER_ROUND = max(args.runs_per_round, 20) # 提高平時取樣基數，加快暴露出問題
+    if IMAGE_MODE:
+        RUNS_PER_ROUND = max(args.runs_per_round, 10) # 圖片模式：一次 10 筆 (含畫面截圖，兼顧 Token 成本與視覺判讀品質)
+    else:
+        RUNS_PER_ROUND = max(args.runs_per_round, 20) # 提高平時取樣基數，加快暴露出問題
     EXAM_RUNS = 100 if is_pro else 60             # 大幅提升大考壓測量，確保抓出 1% 低機率的 Bug
     
     # ⚡ [省錢調校] 靜態審查縮短為 2 輪，避免反覆罰坐 5 輪燃燒昂貴的思考鏈 (Reasoning Tokens)
-    STATIC_TARGET = 2                             # 靜態審查通過門檻 (2 輪即達標)
+    STATIC_TARGET = 2                             # 靜態審查通過門檻 (2 輪即達標)；圖片模式自動跳過靜態
+    BASE_PROGRESS = STATIC_TARGET if IMAGE_MODE else 0  # 圖片模式起始進度直接視為靜態已通過 (全程純動態)
     SUCCESS_TARGET = STATIC_TARGET + 3            # 總通關目標：2 輪靜態 + 2 輪動態 + 1 輪畢業大考 = 5 關
     
     MAX_TOKEN_THRESHOLD = 900000  # 統一拉高門檻以最大化利用 Prompt Cache 省錢
     should_reset_next = False
     
-    consecutive_perfects = 0
+    consecutive_perfects = BASE_PROGRESS
     history_logs = []
     syntax_error_retries = 0
 
     conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
     needs_full_snapshot = True 
 
+    mode_desc = f"圖片視覺模式：純動態 {RUNS_PER_ROUND} 筆/輪 + 畫面截圖判讀 -> 畢業大考" if IMAGE_MODE else f"{STATIC_TARGET}次靜態 -> 動態實測高快取模式"
     logger.info("="*60)
-    logger.info(f"🚀 開始多輪對話自動化調校任務 ({STATIC_TARGET}次靜態 -> 動態實測高快取模式) (目標檔案: {target_file} | 模型: {args.model})")
+    logger.info(f"🚀 開始多輪對話自動化調校任務 ({mode_desc}) (目標檔案: {target_file} | 模型: {args.model})")
+    if IMAGE_MODE:
+        logger.info("🖼️ 圖片模式已啟用：Dry Run 後將擷取模擬器畫面交給 AI 視覺判讀。")
     logger.info("="*60)
 
     # 封裝修改套用與重試邏輯，供主循環與大考共用
@@ -1429,7 +1514,7 @@ def main():
 
     for current_round in range(1, MAX_ROUNDS + 1):
         # ⚡ [策略優化] 連續通過 STATIC_TARGET 輪靜態審查後直接進入動態實測；最後一關為畢業大考
-        is_static = (consecutive_perfects < STATIC_TARGET)
+        is_static = (not IMAGE_MODE) and (consecutive_perfects < STATIC_TARGET)
         is_exam = (not is_static) and (consecutive_perfects >= (SUCCESS_TARGET - 1))
         
         mode_name = "靜態審查" if is_static else ("動態大考" if is_exam else "動態實測")
@@ -1467,7 +1552,10 @@ def main():
             if is_exam:
                 logger.info(f"🎓 進入【畢業大考階段】！正在啟動 {EXAM_RUNS} 次高強度高壓測試 (涵蓋所有預設案例與極端組合)...")
                 
-            run_results = run_browser_simulations(target_file, runs, logger, is_exam)
+            run_results = run_browser_simulations(
+                target_file, runs, logger, is_exam,
+                capture_screens=IMAGE_MODE, shots_dir=SHOTS_DIR
+            )
             
             if isinstance(run_results, tuple) and run_results[0] == "JS_ERROR":
                 js_err_msg = run_results[1]
@@ -1505,7 +1593,7 @@ def main():
                 else:
                     logger.error("AI 未能提供有效的語法修復方案。")
                     
-                consecutive_perfects = 0
+                consecutive_perfects = BASE_PROGRESS
                 time.sleep(2)
                 continue
             else:
@@ -1514,7 +1602,7 @@ def main():
             # 接收 Tuple (Status, unique_results, passed_core_count)
             if not run_results or (isinstance(run_results, tuple) and run_results[0] != "SUCCESS"):
                 logger.error("無法收集到 Dry Run 數據，跳過此輪。")
-                consecutive_perfects = 0
+                consecutive_perfects = BASE_PROGRESS
                 time.sleep(2)
                 continue
 
@@ -1574,7 +1662,40 @@ def main():
                     f"{CORE_RULES_REMINDER}"
                 )
             
-            conversation_history.append({"role": "user", "content": user_msg})
+            if IMAGE_MODE:
+                # 📸 圖片模式：文字請求 + 依序附加每筆樣本的渲染畫面截圖 (OpenAI Vision 多模態格式)
+                shot_note = (
+                    "\n【畫面截圖】緊接於本文字之後，依序附上本輪各筆樣本 Dry Run 完成後的模擬器實際渲染畫面"
+                    "（張數順序與上方 JSON 陣列一致，檔名對應各筆數據的 _shot 欄位）。"
+                    "請依【視覺畫面審查協議】逐張檢查渲染合理性，並與對應 JSON 數據交叉驗證。"
+                )
+                if CORE_RULES_REMINDER in user_msg:
+                    text_out = user_msg.replace(CORE_RULES_REMINDER, shot_note + "\n" + CORE_RULES_REMINDER)
+                else:
+                    text_out = user_msg + shot_note
+                content_parts = [{"type": "text", "text": text_out}]
+                img_attached = 0
+                for res in unique_results:
+                    shot_name = res.get("_shot") if isinstance(res, dict) else None
+                    if not shot_name:
+                        continue
+                    shot_file = os.path.join(SHOTS_DIR, shot_name)
+                    if not os.path.exists(shot_file):
+                        continue
+                    try:
+                        with open(shot_file, "rb") as imf:
+                            b64_img = base64.b64encode(imf.read()).decode("utf-8")
+                        content_parts.append({
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{b64_img}"}
+                        })
+                        img_attached += 1
+                    except Exception as img_err:
+                        logger.warning(f"  ⚠️ 截圖編碼失敗 ({shot_name}): {img_err}")
+                logger.info(f"  🖼️ 已附上 {img_attached}/{len(unique_results)} 張畫面截圖供 AI 視覺判讀。")
+                conversation_history.append({"role": "user", "content": content_parts})
+            else:
+                conversation_history.append({"role": "user", "content": user_msg})
 
         # 共通的 AI 請求與套用邏輯
         ai_json, raw_text, prompt_tokens = get_ai_correction_multiturn(client, args.model, conversation_history, logger)
@@ -1590,7 +1711,7 @@ def main():
             logger.error("解析 AI 回覆失敗，準備硬重置對話。")
             conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
             needs_full_snapshot = True
-            consecutive_perfects = 0
+            consecutive_perfects = BASE_PROGRESS
             time.sleep(3)
             continue
             
@@ -1618,17 +1739,35 @@ def main():
             consecutive_perfects += 1
             
             if consecutive_perfects == SUCCESS_TARGET:
-                logger.info(f"🎉 通過全部 {SUCCESS_TARGET} 階段考驗 ({STATIC_TARGET}輪靜態 + {SUCCESS_TARGET - STATIC_TARGET}輪動態)！系統已達完美穩定狀態！任務正式結束。")
+                stage_desc = f"{SUCCESS_TARGET - STATIC_TARGET}輪動態(含畫面判讀) + 1輪畢業大考" if IMAGE_MODE else f"{STATIC_TARGET}輪靜態 + {SUCCESS_TARGET - STATIC_TARGET - 1}輪動態 + 1輪畢業大考"
+                logger.info(f"🎉 通過全部 {SUCCESS_TARGET} 階段考驗 ({stage_desc})！系統已達完美穩定狀態！任務正式結束。")
                 history_logs.append({"round": current_round, "status": "PERFECT", "reason": f"通過 {SUCCESS_TARGET} 階段最終大考", "changes": []})
                 break
             else:
-                next_is_static = (consecutive_perfects < STATIC_TARGET)
+                next_is_static = (not IMAGE_MODE) and (consecutive_perfects < STATIC_TARGET)
                 next_mode = "靜態審查" if next_is_static else ("畢業大考" if consecutive_perfects >= (SUCCESS_TARGET - 1) else "動態實測")
                 logger.info(f"✅ 本輪判定通過 (已連續成功 {consecutive_perfects}/{SUCCESS_TARGET} 次)，準備進入第 {consecutive_perfects + 1} 階段: 【{next_mode}】...")
                 time.sleep(1)
                 
+        elif status == "NEED_PROBE":
+            logger.info(f"🔬 AI 回報數據不足 (NEED_PROBE)，僅接受 {len(changes)} 處觀測端增補探針（連續完美計數凍結：{consecutive_perfects}/{SUCCESS_TARGET}）...")
+            probe_success = False
+            if changes:
+                probe_success, _ = try_apply_with_retries(target_file, changes, conversation_history, client, args.model, logger)
+                if probe_success:
+                    logger.info("🔬 探針增補已套用，下一輪以新欄位重新取樣驗證。")
+                else:
+                    logger.warning("⚠️ 探針增補套用失敗（曾失敗片段未生效），下一輪繼續。")
+            history_logs.append({
+                "round": current_round,
+                "status": status,
+                "reason": reason,
+                "changes": changes if probe_success else []
+            })
+            time.sleep(2)
+
         elif status == "MODIFIED":
-            consecutive_perfects = 0
+            consecutive_perfects = BASE_PROGRESS
             if changes:
                 logger.info(f"🛠️ AI 提供了 {len(changes)} 處代碼修改建議，正在嘗試套用...")
                 success, final_changes = try_apply_with_retries(target_file, changes, conversation_history, client, args.model, logger)
@@ -1644,7 +1783,7 @@ def main():
                     needs_full_snapshot = True 
                     time.sleep(2)
         else:
-            consecutive_perfects = 0
+            consecutive_perfects = BASE_PROGRESS
 
         history_logs.append({
             "round": current_round,
@@ -1654,9 +1793,13 @@ def main():
         })
 
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write(f"# 3D 風水模擬器 多輪先靜後動調校報告 (Static then Dynamic Run)\n\n")
+        report_title = "多輪圖片視覺模式調校報告 (Vision Dynamic Run)" if IMAGE_MODE else "多輪先靜後動調校報告 (Static then Dynamic Run)"
+        f.write(f"# 3D 風水模擬器 {report_title}\n\n")
         f.write(f"- **目標檔案**：`{target_file}`\n")
         f.write(f"- **調校模型**：`{args.model}`\n")
+        if IMAGE_MODE:
+            f.write(f"- **運行模式**：圖片視覺模式 (純動態，每輪 {RUNS_PER_ROUND} 筆 + 畫面截圖判讀)\n")
+            f.write(f"- **畫面截圖目錄**：`{SHOTS_DIR}`\n")
         f.write(f"- **總測試輪數**：{len(history_logs)}\n")
         f.write(f"- **最終狀態**：{'🎉 已達完美穩定狀態 (通過 ' + str(SUCCESS_TARGET) + ' 階段考驗)' if consecutive_perfects >= SUCCESS_TARGET else '⚠️ 中途終止或達到最大輪數'}\n\n")
         f.write(f"## 歷程明細\n\n")
