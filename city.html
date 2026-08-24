@@ -1187,7 +1187,8 @@ class FengShuiEngine {
     if (st.special.includes('taiji') && !fengShuiContextBroken && !waterBroken) {
         observerText.push(`陣法｜太極環島：引導氣流進行陰陽回旋`);
     }
-    let yyBalance = Util.clamp(yang - yin, -10, 10);
+    const rawYYBalance = yang - yin;
+    let yyBalance = Util.clamp(rawYYBalance, -10, 10);
     let yyText = "平 (空間開闊度與氣波動能適中)";
     const absYY = Math.abs(yyBalance);
     const yyPenalty = Math.min(12, (absYY - 4) * 2);
@@ -1473,6 +1474,7 @@ class FengShuiEngine {
     if (mingTangBroken) {
         c = Math.min(c, 40);
     }
+    const rawSBeforeClamp = Math.round(s), rawGBeforeClamp = Math.round(g), rawCBeforeClamp = Math.round(c);
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
@@ -1511,6 +1513,10 @@ class FengShuiEngine {
         g: Math.round(g),
         s: Math.round(s),
         c: Math.round(c),
+        rawG: rawGBeforeClamp,
+        rawS: rawSBeforeClamp,
+        rawC: rawCBeforeClamp,
+        rawYY: rawYYBalance,
         cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths,
         skyViewFactor: +(skyViewFactor.toFixed(2)),
         frontOpenness: +(frontOpenness.toFixed(2)),
@@ -2709,8 +2715,8 @@ class ParticleSystem {
         u_qingxie: { value: false }, u_sunkenFront: { value: false },
         u_helmholtz: { value: false },
         u_cureTrees: { value: false }, u_cureMirror: { value: false }, u_cureStone: { value: false }, u_cureGourd: { value: false },
-        u_spawns: { value: Array.from({length:this.spawnMax}, () => new THREE.Vector3()) },
-        u_spawnDirs: { value: Array.from({length:this.spawnMax}, () => new THREE.Vector3()) },
+        u_spawns: { value: Array.from({length:64}, () => new THREE.Vector3()) },
+        u_spawnDirs: { value: Array.from({length:64}, () => new THREE.Vector3()) },
         u_spawnCount: { value: 0 }, map: { value: ResourceManager.getParticleTex() },
         u_blds: { value: Array.from({length:32}, () => new THREE.Vector4()) },
         u_bldsH: { value: Array.from({length:32}, () => new THREE.Vector2()) }, 
@@ -2750,28 +2756,29 @@ class ParticleSystem {
     this.trafGeo.setDrawRange(0,n);
   }
   updateSpawns(curves, sources) {
-      const spawns = [], dirs = [];
+      const spawns = this.uniforms.u_spawns.value, dirs = this.uniforms.u_spawnDirs.value;
       const validSources = sources.filter(s => !s.isTantou);
       const validCurves = curves.filter(c => c && Array.isArray(c.pts) && c.pts.length > 0);
       const hasCurves = validCurves.length > 0;
       const hasUsableSources = validSources.length > 0;
-      for(let i=0; i<this.spawnMax; i++) {
+      const spawnCap = Math.min(this.spawnMax, spawns.length);
+      for(let i=0; i<spawnCap; i++) {
           if(hasCurves && (i%2===0 || !hasUsableSources)) {
               const c = validCurves[Math.random()*validCurves.length|0];
               const q = c.pts[Math.random()*c.pts.length|0] || {x:0, y:1, z:0};
-              spawns.push(Util.v3(q.x, 1, q.z)); dirs.push(Util.v3(0,0,0));
+              spawns[i].set(q.x, 1, q.z); dirs[i].set(0,0,0);
           } else if(hasUsableSources) {
               const s0 = validSources[Math.random()*validSources.length|0];
-              spawns.push(Util.v3(s0.x+Util.R(-4,4), Util.R(0.5,3), s0.z+Util.R(-4,4)));
+              spawns[i].set(s0.x+Util.R(-4,4), Util.R(0.5,3), s0.z+Util.R(-4,4));
               let dx=s0.dx,dz=s0.dz;
               if(!dx&&!dz){const L=Math.hypot(s0.x,s0.z);if(L>2){dx=s0.x/L;dz=s0.z/L;}else{dx=Util.R(-1,1);dz=Util.R(-1,1);}}
-              dirs.push(Util.v3(dx, 0, dz));
+              dirs[i].set(dx, 0, dz);
           } else {
-              spawns.push(Util.v3(Util.R(-60,60), 1, Util.R(-60,60))); dirs.push(Util.v3(Util.R(-1,1), 0, Util.R(-1,1)).normalize());
+              spawns[i].set(Util.R(-60,60), 1, Util.R(-60,60)); dirs[i].set(Util.R(-1,1), 0, Util.R(-1,1)).normalize();
           }
       }
-      this.uniforms.u_spawns.value = spawns; this.uniforms.u_spawnDirs.value = dirs;
-      this.uniforms.u_spawnCount.value = spawns.length;
+      for(let padIdx = spawnCap; padIdx < spawns.length; padIdx++) { spawns[padIdx].set(0, -999, 0); dirs[padIdx].set(0, 0, 0); }
+      this.uniforms.u_spawnCount.value = spawnCap;
   }
   step(dt, time, stateManager, builder) {
     const s = stateManager.paused ? 0 : stateManager.timeScale;
@@ -3464,7 +3471,7 @@ class UIManager {
 			if (!hardText) return; 
 			let parts = hardText.split('｜');
 			let keyword = parts[1] ? parts[1].split('＝')[0] : shaKey;
-			let isExplainedByPhysics = ana.physicsText && ana.physicsText.some(t => t.includes(keyword) || (shaKey === 'sedan' && t.includes('穿心/退氣')));
+			let isExplainedByPhysics = ana.physicsText && ana.physicsText.some(t => t.includes(keyword) || (shaKey === 'sedan' && (t.includes('抬轎懸空') || t.includes('擎拳/穿心煞'))));
 			if (!isExplainedByPhysics) {
 				unhandledSha.push(hardText);
 			}
@@ -3770,10 +3777,10 @@ window.DryRunTool = {
         sanityWarnings.push(...opticalAnomalies);
     }
     if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) sanityWarnings.push("CRITICAL: 數值出現 NaN 計算錯誤");
-    if (ana.g < 0 || ana.g > 150) sanityWarnings.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
-    if (ana.s < 0 || ana.s > 150) sanityWarnings.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
-    if (ana.c < 20 || ana.c > 150) sanityWarnings.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
-    if (Math.abs(ana.yyBalance) > 10) sanityWarnings.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
+    if (ana.rawG !== undefined && (ana.rawG < 0 || ana.rawG > 150)) sanityWarnings.push(`WARNING: 吉氣引擎原始輸出越界遭鉗位 (raw=${ana.rawG} -> ${ana.g})`);
+    if (ana.rawS !== undefined && (ana.rawS < 0 || ana.rawS > 150)) sanityWarnings.push(`WARNING: 散煞氣原始輸出越界遭鉗位 (raw=${ana.rawS} -> ${ana.s})`);
+    if (ana.rawC !== undefined && (ana.rawC < 20 || ana.rawC > 150)) sanityWarnings.push(`WARNING: 明堂容量原始輸出越界遭鉗位 (raw=${ana.rawC} -> ${ana.c})`);
+    if (ana.rawYY !== undefined && Math.abs(ana.rawYY) > 10) sanityWarnings.push(`WARNING: 陰陽平衡原始輸出極端化遭鉗位 (raw=${typeof ana.rawYY === 'number' ? ana.rawYY.toFixed(1) : ana.rawYY} -> ${ana.yyBalance})`);
     if (app.builder.blds.length > 32) sanityWarnings.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
     const preset = st.presetName || 'current';
     const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
@@ -3895,6 +3902,19 @@ window.DryRunTool = {
     const realG = Math.min(ana.g, ana.c);
     const hasHeavySha = ana.isHeavySha;
 	return {
+	  gatherAcc: ana.g,
+	  scatterAcc: ana.s,
+	  physicsStability: {
+		particleCount: app.particles ? (app.particles.goodDrawCount + app.particles.badDrawCount) : 0,
+		capacityLimit: ana.c,
+		capacityUtilization: `${Math.min(100, Math.round((realG / Math.max(1, ana.c)) * 100))}%`,
+		capacityRawRatio: Number((ana.g / Math.max(1, ana.c)).toFixed(1))
+	  },
+	  lairInfo: {
+		spatialProfile: {
+			geometryAnomalies: intersectingBlds > 0 ? [`發現 ${intersectingBlds} 處建築物重疊穿模`] : []
+		}
+	  },
       presetName: st.presetName || 'current', 
       expectedRating: expectedRating,         
       sanityWarnings: sanityWarnings,         

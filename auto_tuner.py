@@ -360,9 +360,9 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
             dry_run_script = """
             (() => {
                 if (typeof DryRunTool !== 'undefined' && DryRunTool.executeSingle) {
-                    return DryRunTool.executeSingle(6, true);
+                    return DryRunTool.executeSingle(20, true, true);
                 } else if (window.DryRunTool && window.DryRunTool.executeSingle) {
-                    return window.DryRunTool.executeSingle(6, true);
+                    return window.DryRunTool.executeSingle(20, true, true);
                 }
                 return null;
             })()
@@ -373,9 +373,9 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
                 exam_script = """
                 (() => {
                     if (typeof DryRunTool !== 'undefined' && DryRunTool.executeSuite) {
-                        return DryRunTool.executeSuite(6);
+                        return DryRunTool.executeSuite(15);
                     } else if (window.DryRunTool && window.DryRunTool.executeSuite) {
-                        return window.DryRunTool.executeSuite(6);
+                        return window.DryRunTool.executeSuite(15);
                     }
                     return null;
                 })()
@@ -389,9 +389,17 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
                         has_warnings = len(res.get("sanityWarnings", [])) > 0
                         expected = res.get("expectedRating", "動態判定")
                         actual = res.get("scoringAndVerdict", {}).get("verdictRating", "") or res.get("verdict", {}).get("rating", "") or res.get("verdict", "")
-                        rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
+                        
+                        if "上吉" in expected:
+                            rating_matches = ("上吉" in actual)
+                        else:
+                            rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
 
-                        if is_fixed and not has_warnings and rating_matches:
+                        gather_val = res.get("gatherAcc", 0)
+                        is_auspicious = preset_name in ['perfect', 'diwang', 'shixiang', 'zuozhang', 'huilong', 'bendi']
+                        is_gather_dead = is_auspicious and (gather_val < 15)
+
+                        if is_fixed and not has_warnings and rating_matches and not is_gather_dead:
                             passed_core_count += 1
                             continue
 
@@ -425,7 +433,7 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
                         res = page.evaluate(f"""
                             Promise.race([
                                 Promise.resolve().then(() => ({dry_run_script})),
-                                new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 15000))
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 60000))
                             ])
                         """)
                     except Exception as eval_err:
@@ -436,9 +444,18 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
                     has_warnings = len(res.get("sanityWarnings", [])) > 0
                     expected = res.get("expectedRating", "動態判定")
                     actual = res.get("scoringAndVerdict", {}).get("verdictRating", "") or res.get("verdict", {}).get("rating", "") or res.get("verdict", "")
-                    rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
+                    
+                    # 嚴格斷言：若期望為頂級大吉格局，實際評級不可退化至中平，且聚氣量不得衰減至枯竭
+                    if "上吉" in expected:
+                        rating_matches = ("上吉" in actual)
+                    else:
+                        rating_matches = (expected == "動態判定") or any(exp in actual for exp in expected.split("/"))
 
-                    if not has_warnings and rating_matches:
+                    gather_val = res.get("gatherAcc", 0)
+                    is_auspicious_preset = preset in ['perfect', 'diwang', 'shixiang', 'zuozhang', 'huilong', 'bendi']
+                    is_gather_dead = is_auspicious_preset and (gather_val < 15)
+
+                    if not has_warnings and rating_matches and not is_gather_dead:
                         passed_core_count += 1
                         continue
 
@@ -969,12 +986,12 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 1. 🚨【粒子狀態機雙門檻遲滯（Deposition–Entrainment Hysteresis）】:
    - 《葬書》「氣乘風則散，界水則止；聚之使不散，行之使有止」——氣必須能微行（非微風即散），又必須能駐留（非強煞不破）。狀態機必須是雙門檻遲滯結構：「再分散門檻」必須高於「凝結門檻」，這是真實風沙/沉積體系的 Shields 迴滯律！
    - 【量綱鐵律】環境風速平方（windSpeedSq = wx*wx + wz*wz）與載體粒子速度平方（vel.lengthSq()）是兩個不同物理量，對應不同門檻，嚴禁混用同一變數敘述：
-     * 【凝結（pState=2）】載體 vel.lengthSq() < 2.0 且局部亂流 turbulence < 1.5 且處於近地層（地形高 + 0.8 ≤ y ≤ 地形高 + 1.2，緊貼單向托舉面上方），且位於乾燥陸地、非陷阱區、無致命煞場。
-     * 【自由氣吹散（pState=0/3）】環境 windSpeedSq > 0.35 即足以剝離未凝之氣（微風可散浮氣）。
+     * 【凝結（pState=2）】載體 vel.lengthSq() < 2.0 且局部亂流 turbulence < 1.5 且處於近地懸浮層（地形高 + 0.5 ≤ y ≤ 地形高 + 3.0，立體雙螺旋盤旋），且位於乾燥陸地、非陷阱區、無致命煞場。
+     * 【自由氣吹散（pState=0/3）】環境強風（windSpeedSq > 2.0~2.5 或遭遇地形強剪切）才在行度中剝離未凝之氣；正常山脊微風與重力導引不應將龍脈生氣中途全數扼殺。
      * 【已凝吉氣剝離（遲滯帶）】已凝結的 pState=2 唯有在 windSpeedSq > 3.5 或 turbulence > 3.5 時才允許被打散——沉積易、再懸浮難。
      * 【紅煞（pState=1）】turbulence > 5.5 方轉紅煞。
-   - 嚴禁把任一量綱軸上的「再分散門檻」調低至該軸的「凝結門檻」之下——【遲滯鐵律・僅限同軸比較】：環境風軸上，剝離已凝吉氣之門檻（windSpeedSq > 3.5）必須遠高於吹散自由浮氣之門檻（> 0.35）；載體速度軸上，凝結所需沉降動能（vel.lengthSq() < 2.0）必須低於將其再度掀散之局部動能。跨量綱的門檻數值大小比較無物理意義，嚴禁為之！若違反本條，任何戶外微風都會剝離一切已聚之氣，天下無穴，違背藏風聚氣的可實現性！
-   - 【校準基準條款】上述門檻數值（0.35 / 3.5 / 2.0 / 1.5 / 5.5 等）為當前校準基準，非不可挑戰之憲法：若你的物理推導支持更合理數值，允許調整，但每一處改動必須在 reason 中附上量綱與物理依據；嚴禁無依據亂調，也嚴禁反過來把既有數字當免死金牌硬湊數據。
+   - 嚴禁把任一量綱軸上的「再分散門檻」調低至該軸的「凝結門檻」之下——【遲滯鐵律・僅限同軸比較】：環境風軸上，剝離已凝吉氣之門檻（windSpeedSq > 3.5）必須遠高於吹散自由浮氣之門檻；載體速度軸上，凝結所需沉降動能（vel.lengthSq() < 2.0）必須低於將其再度掀散之局部動能。跨量綱的門檻數值大小比較無物理意義，嚴禁為之！若違反本條，任何戶外微風都會剝離一切已聚之氣，天下無穴，違背藏風聚氣的可實現性！
+   - 【時間演化穩定性】物理狀態必須在長時間（15~30 秒以上）運行下維持熱力學動態平衡，嚴禁出現隨時間推移生氣單調衰竭、粒子全滅歸零之時序崩潰。
 
 2. 🚨【界水則止與水法本質（Boundary Layer Stagnation）】:
    - 《葬書》「氣乘風則散，界水則止」：水體是生氣流動的物理邊界。且《葬書》明訂位階「風水之法，得水為上，藏風次之」——審計時水法失誤（界水不止、反弓沖割、水口直瀉）權重重於風法失誤，嚴禁本末倒置。
@@ -999,12 +1016,15 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 5. 🚨【理氣全周天連續性與空亡線（Circular Continuous Li Qi）】:
    - 羅盤 $0^\circ \sim 360^\circ$ 為連續圓周流形。八宮（45°/宮）與二十四山（15°/山）判定嚴禁新寫離散 `if-else` 分支。
    - 坐向與方位計算一律使用三角諧波或模運算（`let deg = (rawDeg % 360 + 360) % 360`）。
-   - 出卦與空亡線判定（正統理氣三級制，嚴禁只驗一級）：令 d_edge_shan = |(deg % 15 + 15) % 15 - 7.5|，此為「距最近山脈分界線之角距離」（山心 d_edge_shan = 7.5 最穩、騎線 d_edge_shan = 0 空亡）；另令 d_edge_gua = |(deg % 45 + 45) % 45 - 22.5|，為「距最近八宮卦界之角距離」。
-     * 【正針】山心兩側 ±4.5° 內（中央 9° 帶）為正山正氣，最吉。
-     * 【兼向（縫針）】山心兩側 4.5°～7.5° 之 3° 帶為兼向，氣帶雜煞，凶度隨 d_edge_shan 遞減連續衰減（漸離漸穩）。
-     * 【小空亡】騎二十四山界線（d_edge_shan → 0），陰陽差錯，凶。
-     * 【大空亡】騎八宮卦界線（d_edge_gua → 0，即 45° 宮界），出卦無氣可乘，為最凶——其凶度基底權重必須顯著高於小空亡，兩層凶度連續場疊加取最大。
-   - 嚴禁把公式寫成到山心的距離（相位反轉會把吉凶整個顛倒）！亦嚴禁大小空亡不分、一律同權。
+   - 出卦與空亡線判定（正統理氣三級制，嚴禁相位顛倒）：
+     * 令到山心角距 `d_center_shan = |(deg % 15 + 15) % 15 - 7.5|`（山心為 0°，邊界為 7.5°）；
+     * 則到山脈分界線距離 `d_to_bound_shan = 7.5 - d_center_shan`（山心為 7.5° 最穩、騎線界線為 0° 空亡）；
+     * 令到八宮卦界距離 `d_to_bound_gua = 22.5 - |(deg % 45 + 45) % 45 - 22.5|`（卦心為 22.5° 最吉、卦界邊界為 0° 出卦大空亡）。
+     * 【正針】山心兩側 ±4.5° 內（`d_center_shan <= 4.5`，即 `d_to_bound_shan >= 3.0`）為正山正氣，最吉。
+     * 【兼向（縫針）】山心兩側 4.5°～7.5°（`d_to_bound_shan` 介於 0°~3°）為兼向，氣帶雜煞，凶度隨接近界線連續遞增。
+     * 【小空亡】騎二十四山界線（`d_to_bound_shan -> 0`），陰陽差錯，凶。
+     * 【大空亡】騎八宮卦界線（`d_to_bound_gua -> 0`），出卦無氣可乘，為最凶——其凶度基底權重必須顯著高於小空亡，兩層連續場疊加取最大。
+   - 嚴禁把「到山心距離」誤當成「到界線距離」而導致吉凶相位顛倒！
 
 6. 🚨【四靈護砂與凹風煞（Wind Shadow & Gap Venturi）】:
    - 形家砂法：後玄武（主山）宜高峻垂頭靜鎮而不逼壓；前朱雀（案朝）宜開闊、低伏、端秀有應；左青龍宜蜿蜒高起，右白虎宜馴俯低伏——「寧讓青龍高千丈，不讓白虎亂抬頭」，白虎高於青龍為凶。四勢環抱方為藏風，任一缺角即為缺衛。
@@ -1019,12 +1039,13 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
    - 正統風水以「龍、穴、砂、水、向」五訣為綱。龍：來脈宜起伏頓跌、屈曲剝換（生龍），忌直硬死蠢（死龍）——幾何上對應山脊線曲率變化豐富 vs 一瀉直線無節制。穴：太極暈層流沉降聚氣。砂：四靈環抱無缺。水：屈曲環抱有情。向：全周天連續、不出卦、不空亡。
    - 【審計鐵則】：任何 MODIFIED 判定必須能明確歸因至五訣中至少一訣的客觀數據或幾何證據；無法歸因者屬臆測，嚴禁為改而改。
 
-🔥🔥🔥 【動態數據審查：四大物理死穴審計協議】 🔥🔥🔥
+🔥🔥🔥 【動態數據審查：五大物理死穴審計協議】 🔥🔥🔥
 審查 Dry Run JSON 時，【絕對禁止】只看最終評級（`verdict.rating` 或 `scoringAndVerdict.verdictRating`，依數據實際欄位為準）就判定正常；同樣【絕對禁止】在未命中任何死穴時憑感覺挑毛病。逐條核對，命中任一條才准判 MODIFIED：
 1. 🚨【凶煞偽聚氣 (False Gathering)】：在數據自陳的高亂流、反坡逆風或封閉死坑幾何處出現高 `gatherAcc`，且伴隨矛盾信號（如 qiDensity 極低但 gatherAcc 極高、或 sanityWarnings 含幾何/物理警告）——層流條件誤判滯留死水為結穴。（城市模若含 `yinYangBalance < -4` 可作佐證。）
 2. 🚨【流體死鎖 (Zero-Activity Stall)】：`gatherAcc === 0 && scatterAcc === 0`（全域推力或平洋龍未正確給予背景場，粒子未進場）。
 3. 🚨【猝死震盪 (Respawn Thrashing)】：`scatterAcc` 異常必須以相對規模判斷——scatterAcc 超過數據內粒子總數（physicsStability.particleCount）之約 25%，且伴隨至少一項輔證（maxSpeedSq 暴走、geometryAnomalies 非空、出生點鄰近擊殺邊界）方算命中。單純高 scatterAcc 而無輔證者屬「合法氣散」（大凶局本應全數渙散），嚴禁判 MODIFIED！
 4. 🚨【防呆容量超載 (Capacity Violation)】：注意 capacityUtilization 為百分比「字串」且已被鉗位於 100%——超載的可觀測特徵是：明堂截斷或無護砂格局下 capacityUtilization 達 100%（飽和頂格）且 gatherAcc 持續增長。若懷疑真超載，唯一合法修法是增補未鉗位的原始比值欄位（見觀測端完整性條款），嚴禁直接放寬容量上限！
+5. 🚨【時序衰竭崩潰 (Temporal Decay Collapse)】：大吉/經典格局在 20 秒以上長時間模擬中出現聚氣量隨時間單調雪崩（gatherAcc 衰退至 15 以下或散氣 scatterAcc 壓倒性超標導致評級退化為大凶）——此為粒子狀態機單向耗散或邊界誤殺之典型病竈，命中必判 MODIFIED！
 【煞之分級裁決】判定死穴前必須先做空間歸因：剪切亂流源若遠離穴位、或受案山／水口／護砂阻隔衰減，屬「可化之煞」，不得僅因全域存在高亂流就判 MODIFIED；唯有直逼穴位、無遮攔的強剪切或上述死穴數據特徵才構成違規。
 
 🔥🔥🔥 【圖學、幾何與數值穩定性鐵律】 🔥🔥🔥
@@ -1038,7 +1059,7 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 8. **座標與角度慣例一致性**：審計前必先核對全檔角度慣例唯一——0° 基準方向（正北？）、旋轉正向（羅盤順時針或數學逆時針）、y 軸朝向與手性。空亡線與二十四山公式所依賴的 deg 必須與羅盤方位映射自洽；若發現同一 deg 同時被當作數學極角與羅盤角混用（相位差 90° 或正負顛倒），立即判 MODIFIED。
 
 🔥🔥🔥 【視覺畫面審查協議（僅當訊息實際附帶截圖時適用，即圖片模式）】 🔥🔥🔥
-1. **【數據×畫面交叉驗證】**：截圖緊接於文字之後、依 JSON 陣列順序一一對應（數據內 `_shot` 欄位即截圖檔名）。任何判定都必須同時引用 JSON 數據欄位與畫面觀察，嚴禁只看單邊下結論。
+1. **【數據×畫面交叉驗證】**：截圖緊接於文字之後、依 JSON 陣列順序一一對應（數據內 `_shot` 欄位即截圖檔名）。在圖片模式下，判定應結合 JSON 數據與畫面；在純文字/未附圖模式下，本協議自動豁免，100% 依據客觀物理 JSON 數據進行判定。
 2. **【畫面合理性檢查清單】**：地形網格破洞／拉花、粒子雲分佈是否與數據宣稱的聚散型態一致（高 gatherAcc 應可見明顯匯聚）、全黑／全白／NaN 黑屏、相機穿地或穿模、色彩光學異常（過曝/死黑/材質丟失）、UI 文字亂碼重疊、WebGL 錯誤提示。
 3. **【畫面×數據矛盾即病竈】**：數據宣稱大吉聚氣但畫面粒子四散空場、或宣稱氣散但畫面異常堆積、或 verdictRating 與畫面直觀吉凶明顯相悖——必須在 reason 中具體描述矛盾並優先排查觀測端採樣與渲染端不同步的問題。
 4. **【美學豁免】**：主觀配色、構圖角度與個人風格偏好一律不得作為 MODIFIED 依據；唯有客觀渲染缺陷（破圖、黑屏、穿模、粒子全滅、z-fighting 閃爍紋）或畫面與數據物理矛盾，才構成視覺判 MODIFIED 的合法理由。
@@ -1047,9 +1068,9 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 1. **【零註解原則 (Zero-Comment Invariance)】**：`replace` 區塊中**絕對嚴禁添加任何自創註解**（如禁止寫 `// 修正...`、`// 優化`）。代碼必須是 100% 純淨邏輯。
 2. **【嚴格保留原始縮排與換行】**：`search` 與 `replace` 中的每一行，縮排與換行必須與目標檔案 100% 精確對齊。
 3. **【一字不漏的 Search 區塊】**：`search` 必須取自「當前最新檔案狀態」（含先前輪次已套用的所有修改），提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)`！【差分台帳】你只有在附代碼快照的輪次才能直接看到檔案；其餘輪次的當前狀態＝最近快照＋你先前輸出且系統回報「成功套用」的全部 diff，必須據此心算重建。若對當前狀態不確定，禁止猜測——將 search 錨定在最確定未被改動的區塊，並在 reason 中聲明不確定之處。
-4. **【審計輸出決策】**：命中任一死穴或存在真實邏輯漏洞 → 必須回 MODIFIED；未命中任何死穴且無 sanityWarnings、無斷言失敗 → 必須回 PERFECT。【動態輪補充】動態輪資料為刻意篩選的邊界/異常案例，隨機格局攜帶 sanityWarnings 屬常態、不當然構成 MODIFIED；PERFECT 條件放寬為：四大死穴未命中，且所有警告經【煞之分級裁決】判定屬可化之煞或與格局預期一致。但經典預設格局（presetName 非 random 開頭）出現警告一律判 MODIFIED！【expectedRating 申訴權】若你判斷某經典格局的 expectedRating 本身違反五訣物理（是基準錯、不是代碼錯），嚴禁扭曲物理去迎合錯誤基準——應回 MODIFIED 提出修正 preset 定義的 diff，並在 reason 中給出五訣歸因依據。【數據不足出口】若現有觀測欄位不足以支撐判定（疑似病灶但缺關鍵特徵），嚴禁腦補、也不得草率 PERFECT——回 status="NEED_PROBE"，changes 中僅提交觀測端增補 diff（新增欄位以捕捉該特徵），reason 說明待驗假設；NEED_PROBE 嚴禁夾帶任何非觀測端改動。
-5. **【反震盪三護欄】**：(a) 每輪 `changes` 至多 3 處，優先修最關鍵病竈，寧可多輪小步；(b) 若本次修正方向與近期輪次相反（同一參數來回拉鋸），立即停止並在 reason 中分析根因；(c) 嚴禁無病呻吟式修改與大規模重構。
-6. **【觀測端神聖不可侵 (Observability Integrity)】**：嚴禁為通過審計而修改、削弱或刪除任何觀測與驗證代碼——包括 sanityWarnings 生成邏輯、斷言、Dry Run 導出欄位、expectedRating 比對、capacityUtilization 計算。觀測端唯一允許的改動是「增補」新欄位（不得改變既有欄位語義）；合法增補包括但不限於：隨機種子擷取／重放欄位（使時有時無的低機率問題可固定重現、支持 before/after 定向對比）。凡涉及觀測端的 changes，必須在 reason 中專段自證「此改動不降低任何既有檢測靈敏度」。
+4. **【審計輸出決策】**：命中任一死穴或存在真實邏輯漏洞 → 必須回 MODIFIED；未命中任何死穴且無 sanityWarnings、無斷言失敗 → 必須回 PERFECT。【動態輪補充】動態輪資料為刻意篩選的邊界/異常案例，隨機格局攜帶 sanityWarnings 屬常態、不當然構成 MODIFIED；PERFECT 條件放寬為：五大死穴未命中，且所有警告經【煞之分級裁決】判定屬可化之煞或與格局預期一致。但經典預設格局（presetName 非 random 開頭）出現警告一律判 MODIFIED！【expectedRating 申訴權】若某經典格局的 expectedRating 聲明字串本身與正統五訣相悖（例如大凶局被錯標為上吉），允許提出修正 presetExpectations 的 diff，並在 reason 中詳述風水物理依據。【數據不足出口】若現有觀測欄位不足以支撐判定，嚴禁腦補——回 status="NEED_PROBE" 並提交觀測端增補 diff。
+5. **【反震盪三護欄】**：(a) 每輪 changes 集中修復最關鍵病竈（建議 1~3 處，至多不超過 4 處原子關聯修改）；(b) 若本次修正方向與近期輪次相反，立即停止並在 reason 分析根因；(c) 嚴禁無病呻吟式修改與破壞性重構。
+6. **【觀測端神聖不可侵 (Observability Integrity)】**：嚴禁為通過審計而削弱檢測靈敏度（如嚴禁註解掉警告判斷、嚴禁刪除斷言比對邏輯、嚴禁偽造綠燈數據）。觀測端改動僅限於：(1) 修復申訴成立的預期評級聲明字串；(2) 增補新觀測欄位；(3) 修復觀測端本身的計算錯誤（如修正指標採樣公式）。
 7. **【批次原子性契約】**：系統對 changes 採「全有或全無」原子套用——任一片段的 search 失配，本批全部片段一併作廢退回。因此同批提交的片段必須互相獨立且全部必要；非必要的順手改動嚴禁搭車，寧可拆到後續輪次小步提交。
 
 【輸出格式】
@@ -1099,9 +1120,9 @@ CORE_RULES_REMINDER = r"""
 
 5. 【三維立體自由度】陸地單向托舉（`y = Math.max(y, t.y + 0.8)`），水域由浮力自然平衡，嚴禁拍扁在固定高度二維薄片上！
 
-6. 【理氣全周天連續性與空亡三級制】方位與二十四山一律使用模運算與三角諧波連續計算（`let deg = (rawDeg % 360 + 360) % 360`），嚴禁離散多分支硬特判正北坎宮！空亡分三級：正針（山心 ±4.5° 內）最吉；兼向縫針（山心 4.5°～7.5°）帶煞、凶度隨離界角距連續衰減；小空亡騎 15° 山界（d_edge_shan = |(deg%15+15)%15 - 7.5| → 0）凶；大空亡騎 45° 卦界（d_edge_gua = |(deg%45+45)%45 - 22.5| → 0）出卦無氣最凶，權重必高於小空亡，兩層連續場疊加取最大，嚴禁相位寫反或大小不分！
+6. 【理氣全周天連續性與空亡三級制】方位與二十四山一律使用模運算連續計算（`let deg = (rawDeg % 360 + 360) % 360`）！空亡分三級：令到山界角距 d_to_bound_shan = 7.5 - |(deg%15+15)%15 - 7.5|；令到卦界角距 d_to_bound_gua = 22.5 - |(deg%45+45)%45 - 22.5|。正針（d_to_bound_shan >= 3.0，即山心 ±4.5° 內）最吉；兼向縫針（d_to_bound_shan 介於 0°~3°）帶煞；小空亡騎 15° 山界（d_to_bound_shan -> 0）凶；大空亡騎 45° 卦界（d_to_bound_gua -> 0）出卦無氣最凶且權重最高，兩層連續場疊加取最大，嚴禁相位寫反（山心為 7.5° 最吉、界線為 0° 空亡）！
 
-7. 【狀態機雙門檻遲滯・量綱分離】環境風速平方 windSpeedSq 與載體粒子速度平方 vel.lengthSq() 是兩個物理量，嚴禁混用，門檻比較僅限同軸！凝結(pState=2)：vel.lengthSq() < 2.0 且 turbulence < 1.5 且近地層；自由氣(pState=0/3)吹散：windSpeedSq > 0.35；已凝吉氣剝離遲滯：須 windSpeedSq > 3.5 或 turbulence > 3.5；紅煞(pState=1)：turbulence > 5.5。Shields 迴滯律：沉積易、再懸浮難，嚴禁倒置！窩鉗乳突四大正穴皆屬合法結穴，唯須滿足開闊微凹、層流沉降、淨流入為正之客觀條件！
+7. 【狀態機雙門檻遲滯・量綱分離】環境風速平方 windSpeedSq 與載體粒子速度平方 vel.lengthSq() 是兩個物理量，嚴禁混用，門檻比較僅限同軸！凝結(pState=2)：vel.lengthSq() < 2.0 且 turbulence < 1.5 且近地層；自由氣(pState=0/3)吹散須區分微風導引與強風吹散(windSpeedSq > 2.0~2.5)；已凝吉氣剝離遲滯：須 windSpeedSq > 3.5 或 turbulence > 3.5；紅煞(pState=1)：turbulence > 5.5。Shields 迴滯律：沉積易、再懸浮難，嚴禁倒置！窩鉗乳突四大正穴皆屬合法結穴，唯須滿足開闊微凹、層流沉降、淨流入為正之客觀條件！
 
 8. 【平滑過渡與除零防禦】向量與距離相除必加防禦分母 (`Math.max(0.001, dist)`)，力場與地形衰減一律使用高斯或 Smoothstep，嚴禁階梯式硬切斷！
 
@@ -1109,7 +1130,7 @@ CORE_RULES_REMINDER = r"""
 
 10. 【代碼 Search 100% 精確匹配】`search` 區塊必須取自「當前最新檔案狀態」，與目標檔案 100% 一字不漏精確匹配（包含縮排、空格、引號），必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)` 偷懶！
 
-11. 【審計輸出決策與觀測端神聖】只准輸出合法 JSON！命中死穴或真實漏洞 → MODIFIED＋diff；動態輪隨機格局攜帶 sanityWarnings 屬常態，經【煞之分級裁決】判定為可化之煞者不構成 MODIFIED；未命中任何死穴 → PERFECT＋reason 列舉實際複核數據；嚴禁為改而改！嚴禁修改 sanityWarnings／斷言／Dry Run 導出等觀測驗證代碼讓數據變綠——觀測端只可增補欄位、不可削弱既有檢測！
+11. 【審計輸出決策與觀測端神聖】只准輸出合法 JSON！命中死穴或真實漏洞 → MODIFIED＋diff；動態輪隨機格局經【煞之分級裁決】判定屬可化之煞者不構成 MODIFIED；未命中任何死穴 → PERFECT＋reason 列舉實際複核數據！嚴禁為了過關而削弱、註解掉 sanityWarnings 或斷言邏輯；觀測端改動僅限於增補探針欄位、修復明確的聲明基準錯漏或修正觀測指標計算公式！
 
 12. 【反震盪三護欄】每輪 changes 至多 3 處（優先最關鍵病竈）；禁止 cosmetic 重構與無病呻吟；修正方向與近期輪次拉鋸時必須停手並在 reason 分析根因！
 
@@ -1121,7 +1142,7 @@ CORE_RULES_REMINDER = r"""
 
 16. 【驗證契約與誠實出口】changes 全批原子套用——任一片段 search 失配整批作廢，故片段務必互相獨立且全部必要、嚴禁搭車；expectedRating 若本身違反五訣物理，可申訴並提出修正 preset 定義的 diff，嚴禁扭曲物理迎合錯誤基準；數據不足時回 NEED_PROBE＋僅觀測端增補探針（如隨機種子擷取/重放欄位），嚴禁腦補判定、嚴禁假 PERFECT！
 
-17. 【校準基準可辯護】遲滯／凝結等門檻數值（0.35 / 3.5 / 2.0 / 1.5 / 5.5）為校準基準：允許依物理推導微調但必須在 reason 附量綱依據；嚴禁無依據亂調，嚴禁反向硬湊數據！
+17. 【時間演化穩定性與校準可辯護】各物理門檻允許依流體力學推導合理微調；系統必須在 20 秒以上長時間模擬中保持氣場穩定，嚴禁隨時間推移生氣自發衰減潰散！
 """
 
 # ============================================================
