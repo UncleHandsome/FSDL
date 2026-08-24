@@ -4956,13 +4956,17 @@ const Physics = {
             vel.z += localWindZ * dt;
             vel.y += (localTurbulence * (Math.random() - 0.5)) * dt; 
             let speedSq = localWindX*localWindX + localWindZ*localWindZ;
-            if (speedSq > 0.35 && (st === 0 || st === 2) && Math.random() < (speedSq - 0.2) * 1.2 * dt) {
+            // 沉積-再懸浮遲滯（Shields 律）：自由氣(0/3)微風即散，已凝吉氣(2)須強風才剝離
+            const windStripGate = (st === 2) ? 3.5 : 0.35;
+            if ((st === 0 || st === 2) && speedSq > windStripGate && Math.random() < (speedSq - (windStripGate - 0.15)) * 1.2 * dt) {
                 this.pState[i] = 3; 
                 frameScatter++;
                 this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
             }
             if ((st === 1 || st === 3) && AppState.frames % 4 === 0 && (dxTaiji*dxTaiji + dzTaiji*dzTaiji >= (state.d === 'pingyang' ? 1000 : 320))) frameScatter++;
-            if (localTurbulence > 2.0 && st !== 1 && st !== 3) {
+            // 亂流剝離同步分級：已凝吉氣容忍至 3.5，> 5.5 仍轉紅煞
+            const turbStripGate = (st === 2) ? 3.5 : 2.0;
+            if (localTurbulence > turbStripGate && st !== 1 && st !== 3) {
                 if (localTurbulence > 5.5 && Math.random() < localTurbulence * 0.1 * dt) {
                     this.pState[i] = 1; 
                     frameScatter++;
