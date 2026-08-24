@@ -652,6 +652,14 @@ const Rules = {
         if (isZhaoGodWater && !isBadWaterZero) zeroGodBonus += 10; 
         if (isDirectGodWaterClash) zeroGodBonus -= 25; 
         if (state.face === '0' && state.d === 'pingyang' && !isBadWaterZero) zeroGodBonus += 10; 
+        let dEdgeShanLiQi = Math.abs((((deg % 15) + 15) % 15) - 7.5);
+        let dEdgeGuaLiQi = Math.abs((((deg % 45) + 45) % 45) - 22.5);
+        let shanKongRaw = Math.max(0, 1.0 - dEdgeShanLiQi / 3.0);
+        shanKongRaw = shanKongRaw * shanKongRaw * (3.0 - 2.0 * shanKongRaw);
+        let guaKongRaw = Math.max(0, 1.0 - dEdgeGuaLiQi / 2.25);
+        guaKongRaw = guaKongRaw * guaKongRaw * (3.0 - 2.0 * guaKongRaw);
+        let kongwangField = Math.max(shanKongRaw * 18.0, guaKongRaw * 42.0);
+        if (dEdgeShanLiQi >= 3.0) zeroGodBonus += Math.min(1.0, (dEdgeShanLiQi - 3.0) / 1.5) * 6.0;
 
         // 現場真實地形校驗 (In-situ Topographic Verification)
         let lx_in_situ = state.manualXue ? (state.xueX || 0) : 0;
@@ -679,8 +687,8 @@ const Rules = {
 
         let huilongWaterBonus = (state.d === 'huilong' && (state.w === 'you' || state.w === 'jiuqu')) ? 20 : 0;
         let Xg = state.face === '1'
-            ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus + zeroGodBonus)
-            : Math.min(100, Xg_base + (state.d === 'pingyang' && state.w !== 'none' ? (waterBonus + 15) : 0) + huilongWaterBonus + (state.an ? 8 : 0) + zeroGodBonus);
+            ? Math.min(100, Xg_base + waterBonus + anshanBonus + guanBonus + zeroGodBonus - kongwangField)
+            : Math.min(100, Xg_base + (state.d === 'pingyang' && state.w !== 'none' ? (waterBonus + 15) : 0) + huilongWaterBonus + (state.an ? 8 : 0) + zeroGodBonus - kongwangField);
         if(!state.xia) Xg *= 0.35;
         if (isBadDragon) {
             Xg = Math.min(Xg, 40);
@@ -854,10 +862,14 @@ const Rules = {
         const deg = state.degree !== undefined ? ((state.degree % 360) + 360) % 360 : 0;
         const isBadWaterText = Rules.BAD_WATERS.includes(state.w);
         let facingName;
-        if (deg >= 45 && deg < 135) facingName = isBadWaterText ? "朝東 (震宮-照神位逢凶水)" : "朝東 (震宮-照神催官)";
-        else if (deg >= 135 && deg < 225) facingName = "朝南 (離宮-正神下水)";
-        else if (deg >= 225 && deg < 315) facingName = "朝西 (兌宮-平常)";
-        else facingName = isBadWaterText ? "朝北 (坎宮-零神位逢凶水)" : "朝北 (坎宮-零神催財)";
+        if (state.face === '0' && state.d !== 'huilong' && state.d !== 'pingyang') {
+            facingName = "背水坐空 (正神下水・陰陽顛倒)";
+        } else {
+            if (deg >= 45 && deg < 135) facingName = isBadWaterText ? "朝東 (震宮-照神位逢凶水)" : "朝東 (震宮-照神催官)";
+            else if (deg >= 135 && deg < 225) facingName = "朝南 (離宮-正神下水)";
+            else if (deg >= 225 && deg < 315) facingName = "朝西 (兌宮-平常)";
+            else facingName = isBadWaterText ? "朝北 (坎宮-零神位逢凶水)" : "朝北 (坎宮-零神催財)";
+        }
         let compassStr = state.w !== 'none' ? `🧭【理氣立向】：${facingName}\n` : `🧭【理氣立向】：${facingName.split(' ')[0]}\n`;
         let multStr = mult < 1 ? `【總加權 ×${mult.toFixed(2)}】\n` : '';
         let advice = [];
@@ -1030,7 +1042,7 @@ const Rules = {
                 zhuScale: (Math.floor(Math.random() * 7) + 10) / 10.0,
                 mtScale: (Math.floor(Math.random() * 6) + 9) / 10.0,
                 waterVel: 0.8 + Math.random() * 0.4,
-                xueHeight: (dType === 'ji' || dType === 'sheng') ? Math.floor(Math.random() * 12) : Math.floor(Math.random() * 6),
+                xueHeight: p.xue === 'ya' ? Math.floor(Math.random() * 10) + 8 : ((dType === 'ji' || dType === 'sheng') ? Math.floor(Math.random() * 12) : Math.floor(Math.random() * 6)),
                 manualXue: false, xueX: 0, xueZ: 5
             };
         }
@@ -1120,6 +1132,11 @@ const Rules = {
             p.tianzhan = false;
             p.zutai = false; 
             p.soil = (Math.random() < 0.5 ? 'wanshi' : 'yuni'); 
+        }
+        if (p.d === 'gufeng') {
+            p.taiji = false;
+            p.manualXue = false;
+            p.tianchi = false;
         }
         if (!p.xia) { p.xue = 'none'; p.taiji = false; p.tianzhan = false; p.xueHeight = 0; }
         if (p.xue === 'none') { p.taiji = false; p.xueHeight = 0; }
@@ -1307,10 +1324,13 @@ window.DryRunTool = {
         const verdict = Rules.getVerdictText(rawScore);
         const st = AppState.current;
         const isMtReal = st.xia && st.xue !== 'none';
+        const validWingLeft = ['you', 'xiasha', 'jiaoya'].includes(st.ml);
+        const validWingRight = ['you', 'xiasha', 'jiaoya'].includes(st.mr);
+        const hasLip = (st.xue === 'ru' || st.xue === 'wo' || st.xue === 'tu') || (st.xue === 'ya' && st.baitai);
         const microTopo = {
-            hasBackPillow: isMtReal && st.mn === 'you',                     
-            hasVelvetLip: isMtReal && (st.xue === 'ru' || st.xue === 'wo' || st.xue === 'tu'), 
-            hasCicadaWings: isMtReal && st.ml !== 'none' && st.mr !== 'none', 
+            hasBackPillow: isMtReal && (st.mn === 'you' || st.mn === 'pingfeng'),                     
+            hasVelvetLip: isMtReal && hasLip, 
+            hasCicadaWings: isMtReal && validWingLeft && validWingRight, 
             hasCrabEyes: isMtReal && st.shu                                  
         };
         const sanityWarnings = [];
@@ -1432,6 +1452,9 @@ window.DryRunTool = {
 		const anY = Engine3D.getTerrainY(0, 75).y;
 		const riverY = Engine3D.getTerrainY(0, 30).y;
         const activeShaList = [];
+        if (st.d === 'gufeng') activeShaList.push('孤峰獨聳(風吹氣散)');
+        if (st.d === 'si') activeShaList.push('死龍枯槁');
+        if (st.d === 'po') activeShaList.push('破龍崩瀉');
         if (st.ml === 'po') activeShaList.push('青龍破碎');
         if (st.mr === 'po') activeShaList.push('白虎破碎');
         if (st.ms === 'po') activeShaList.push('朱雀破碎');
@@ -1480,6 +1503,7 @@ window.DryRunTool = {
         const physicsStability = {
             capacityLimit: Math.round(capLimit),
             capacityUtilization: capLimit > 0 ? Number(Math.min(100, intGather / capLimit * 100).toFixed(1)) + "%" : "0%",
+            capacityRawRatio: capLimit > 0 ? Number((intGather / capLimit).toFixed(1)) : null,
             gatherRatio: totalP > 0 ? Number((intGather / totalP * 100).toFixed(1)) + "%" : "0%",
             particleCount: Physics.pCount
         };
@@ -2105,7 +2129,7 @@ const UI = {
         }
         const cap = Rules.getCapacityLimit();
         const mult = Rules.getGlobalMultiplier();
-        document.getElementById('cap-num').innerText = `${cap} (×${mult.toFixed(2)})`;
+        document.getElementById('cap-num').innerText = `${Math.round(cap)} (×${mult.toFixed(2)})`;
         this.syncDOM();
     },
     syncDOM() {
@@ -2213,6 +2237,7 @@ const UI = {
         rCtx.strokeStyle = '#b98a2e';
         rCtx.lineWidth = 2;
         rCtx.stroke();
+        rCtx.restore();
     },
     refreshScores(dt) {
         if (!(dt > 0) && !AppState.scoresDirty) return;
@@ -2383,7 +2408,7 @@ const Engine3D = {
                 float shift = 0.0;
                 float jiuquCurve = sin(rx * 0.12);
                 if (riverType == 1) shift = sign(jiuquCurve) * pow(abs(jiuquCurve), 0.5) * 14.0; 
-                else if (riverType == 0) shift = (1.0 - pow(rx / 90.0, 2.0)) * 28.0; 
+                else if (riverType == 0) shift = (1.0 - (rx * rx) / 8100.0) * 28.0;
                 else if (riverType == 2) shift = -cos(rx * 0.05) * 15.0; 
                 else if (riverType == 3) shift = abs(rx) * 0.5; 
                 vec2 flowUV1 = flowUV;
@@ -2438,10 +2463,23 @@ const Engine3D = {
                     vec4 tex1 = texture2D(map, flowUV1);
                     vec4 tex2 = texture2D(map, flowUV2);
                     float foam = (tex1.r + tex2.r) * smoothstep(0.15, 0.0, depthFactor);
+                    // 根據凶水 / 伏流 / 吉水 動態切換水色與浪花
                     vec3 deepColor = vec3(0.02, 0.35, 0.45);
                     vec3 shallowColor = vec3(0.2, 0.75, 0.65);
+                    float foamIntensity = 0.9;
+                    
+                    if (riverType == 8 || riverType == 13 || riverType == 0) { // 割腳水/凶水 (渾濁泥漿急流)
+                        deepColor = vec3(0.42, 0.28, 0.15);
+                        shallowColor = vec3(0.65, 0.48, 0.28);
+                        foamIntensity = 2.2; // 劇烈衝刷浪花
+                    } else if (riverType == 4) { // 伏流水 (暗伏清淺，透出底下地質)
+                        deepColor = vec3(0.05, 0.18, 0.22);
+                        shallowColor = vec3(0.12, 0.35, 0.38);
+                        foamIntensity = 0.1; // 無浪無聲
+                    }
+                    
                     vec3 baseWaterColor = mix(shallowColor, deepColor, depthFactor);
-                    diffuseColor.rgb = baseWaterColor + (tex1.rgb + tex2.rgb) * 0.15 + vec3(foam * 0.9) + (fresnel * 0.4);
+                    diffuseColor.rgb = baseWaterColor + (tex1.rgb + tex2.rgb) * 0.15 + vec3(foam * foamIntensity) + (fresnel * 0.4);
                     diffuseColor.a *= mix(0.0, 1.0, smoothstep(0.0, 0.2, depthFactor));
                 #endif
                 `
@@ -3767,7 +3805,9 @@ const Engine3D = {
                 y = y * (1.0 - mtInfluence) + tY * mtInfluence;
             }
             if(state.taiji && mtD < 24) {
-                let taijiFloor = -2.5 + (state.d === 'pingyang' ? 0 : xueH * 0.8);
+                let isHollowXue = (state.xue === 'wo' || state.xue === 'qian');
+                // 若為窩穴/鉗穴，太極暈順應凹陷，不強制頂起底部，保留聚氣金盆邊緣
+                let taijiFloor = (isHollowXue ? -6.5 : -2.5) + (state.d === 'pingyang' ? 0 : xueH * 0.8);
                 let taijiBlend = Math.max(0, 1 - mtD / 24);
                 taijiBlend = taijiBlend * taijiBlend * (3 - 2 * taijiBlend);
                 let floorBoost = Math.max(0, taijiFloor - y);
@@ -4013,9 +4053,14 @@ const Engine3D = {
                     let gateEdge = Math.max(0, Math.min(1, (dzLair - 53) / 4.0)) * Math.max(0, Math.min(1, (77 - dzLair) / 4.0));
                     gateEdge = gateEdge * gateEdge * (3 - 2 * gateEdge);
                     let bankDist = Math.abs(Math.abs(dxLair) - 52); 
-                    if (bankDist < 16) {
-                        let gateH = (state.shixiang ? 28.0 : 22.0) * Math.exp(-bankDist*bankDist / 80) * Math.exp(-Math.pow(dzLair-65, 2)/100) * gateEdge;
-                        y = Math.max(y, gateH);
+                    if (state.hua && bankDist < 10) {
+                        // 華表：高拔如柱、頂部平齊的石筍立柱 (柱狀陡峭)
+                        let pillarH = 38.0 * Math.exp(-Math.pow(bankDist / 4.0, 4)) * Math.exp(-Math.pow((dzLair-65) / 4.0, 4)) * gateEdge;
+                        y = Math.max(y, pillarH);
+                    } else if (state.shixiang && bankDist < 20) {
+                        // 獅象捍門：兩側厚重蹲踞、前低後高的雄峙雙獸形
+                        let beastShape = (32.0 + Math.sin(dxLair * 0.3) * 6.0) * Math.exp(-bankDist*bankDist / 120) * Math.exp(-Math.pow(dzLair-65, 2)/80) * gateEdge;
+                        y = Math.max(y, beastShape);
                     }
                 }
                 if(state.qin && dzLair > 36 && dzLair < 60) {
@@ -4229,17 +4274,22 @@ const Engine3D = {
                 }
                 let dynTaijiZ_visual = lzColor;
                 let inTaijiVisual = (state.xia && Math.abs(x - lxColor) < 20 && z > (dynTaijiZ_visual - 10) && z < (dynTaijiZ_visual + 13));
-                if (inTaijiVisual && slope < 1.0 && y > -2) {
-                    let soilCenterFactor = Math.exp(-(Math.pow(x - lxColor, 2) + Math.pow(z - dynTaijiZ_visual, 2))/100);
+                let waterLvlCheck = (state.d === 'pingyang') ? -3.4 : -11.0;
+                if (inTaijiVisual && slope < 1.8 && y > waterLvlCheck) {
+                    let soilCenterFactor = Math.exp(-(Math.pow(x - lxColor, 2) + Math.pow(z - dynTaijiZ_visual, 2))/80);
                     if (state.soil === 'wuse') {
-                        tempSoilColor.setHSL(0.08 + colorNoise * 0.4, 0.65, 0.45); 
-                        c.lerp(tempSoilColor, soilCenterFactor * 0.85);
+                        // 五色土：呈現金紅黃紫微帶玉色的溫潤五彩暈
+                        let hueShift = 0.08 + Math.sin(x * 0.5 + z * 0.5) * 0.08;
+                        tempSoilColor.setHSL(hueShift, 0.85, 0.52); 
+                        c.lerp(tempSoilColor, soilCenterFactor * 0.92);
                     } else if (state.soil === 'yuni') {
-                        tempSoilColor.setHSL(0.0, 0.0, 0.15);
-                        c.lerp(tempSoilColor, soilCenterFactor * 0.95);
+                        // 陰濕淤泥：呈現漆黑帶深綠的黏滯爛泥色
+                        tempSoilColor.setRGB(0.06, 0.08, 0.06);
+                        c.lerp(tempSoilColor, soilCenterFactor * 0.96);
                     } else if (state.soil === 'wanshi') {
-                        tempSoilColor.setHSL(0.1, 0.05, 0.65);
-                        c.lerp(tempSoilColor, soilCenterFactor * 0.95);
+                        // 死硬頑石：呈現斑駁蒼白的碎裂白堊岩石色
+                        tempSoilColor.setRGB(0.75, 0.73, 0.70);
+                        c.lerp(tempSoilColor, soilCenterFactor * 0.96);
                     }
                 }
             }
@@ -5302,7 +5352,7 @@ const Physics = {
                         let widthLeft = Engine3D.getTerrainY(x - 12, z).y;
                         let widthRight = Engine3D.getTerrainY(x + 12, z).y;
                         if (widthLeft > t.y + 5 && widthRight > t.y + 5) {
-                            vel.x += (0 - x) * 0.8 * thermalDraft * dt * passFalloff; 
+                            vel.x += (lx - x) * 0.8 * thermalDraft * dt * passFalloff; 
                         if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
                             if (thermalDraft > 0.01) frameVenturi++; 
                             vel.z += 3.5 * thermalDraft * dt * passFalloff; 
@@ -5468,7 +5518,7 @@ const Physics = {
                    vel.z += qiGradZ * 0.35 * dt;
                }
                vel.y *= Math.pow(0.8, dt * taijiEdge); 
-               let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5);
+               let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5 && y <= t.y + 2.5);
                let isFrontRiseSlope = (dzTaiji > 20 && t.nz < -0.1);
                let isTrapZone = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > -15 && dzTaiji < 45) || (state.terrain === 'fanpo' && Math.abs(dxTaiji) < 40 && dzTaiji > -15 && dzTaiji < 55) || (state.mr === 'kaikou' && Math.abs(dxTaiji) < 28 && dzTaiji > -5 && dzTaiji < 35) || ((state.ml === 'po' || state.mr === 'po' || state.ms === 'po' || state.mn === 'po' || state.ml === 'ya' || state.mr === 'tai' || state.ml === 'fanbei' || state.mr === 'fanbei') && Math.abs(dxTaiji) < 35 && dzTaiji > -10 && dzTaiji < 40) || (['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road) && Math.abs(dxTaiji) < 40 && dzTaiji > -19 && dzTaiji < 60) || (state.posui && Math.abs(dxTaiji) < 40 && dzTaiji > -19 && dzTaiji < 45) || (state.tantou && Math.abs(dxTaiji) < 30 && dzTaiji > -19 && dzTaiji < 60) || (state.yangwa && Math.abs(dxTaiji) < 20 && dzTaiji > -22 && dzTaiji < 6) || (state.tianjing && Math.abs(dxTaiji) < 20 && dzTaiji > -8 && dzTaiji < 28);
                let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;

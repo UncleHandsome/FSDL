@@ -922,7 +922,7 @@ class FengShuiEngine {
     }
     let capacityBase = Math.round(30 + frontOpenness * 90) - vFront * 0.2;
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
-    c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust)));
+    c = Math.max(20, Math.min(150, Math.round(c + capacityBase - 40 + capacityAdjust)));
     if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing') && !mingTangBroken) {
         c = Math.max(c, 40);
     }
@@ -3698,6 +3698,7 @@ window.DryRunTool = {
     const originalPaused = app.state.paused;
     app.state.paused = false;
     app.state.timeScale = 1;
+    try {
     const targetFrames = simulateSeconds * 60;
     const dt = 1.0 / 60.0;
     for (let i = 0; i < targetFrames; i++) {
@@ -3706,8 +3707,10 @@ window.DryRunTool = {
       app.particles.step(dt, time, app.state, app.builder);
     }
     app.refreshData();
+    } finally {
     app.state.timeScale = originalTimeScale;
     app.state.paused = originalPaused;
+    }
     app.world.render(); 
     const gl = app.world.renderer.getContext();
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
@@ -3763,12 +3766,15 @@ window.DryRunTool = {
     if (opticalAnomalies.length > 0) {
         sanityWarnings.push(...opticalAnomalies);
     }
-    if (isNaN(ana.g) || isNaN(ana.s) || isNaN(ana.c)) sanityWarnings.push("CRITICAL: 數值出現 NaN 計算錯誤");
+    const nanAuditFields = ['g', 's', 'c', 'yyBalance', 'shannonEntropy', 'betti1Closure', 'reynoldsNum', 'froudeNum', 'qFactor', 'fractalDiff'];
+    const nanHitFields = nanAuditFields.filter(k => typeof ana[k] !== 'number' || !Number.isFinite(ana[k]));
+    if (nanHitFields.length > 0) sanityWarnings.push(`CRITICAL: 數值出現 NaN/非有限計算錯誤 (${nanHitFields.join(', ')})`);
     if (ana.g < 0 || ana.g > 150) sanityWarnings.push(`WARNING: 湧現吉氣值溢位或過低 (g=${ana.g})`);
     if (ana.s < 0 || ana.s > 150) sanityWarnings.push(`WARNING: 散煞氣值溢位或過低 (s=${ana.s})`);
     if (ana.c < 20 || ana.c > 150) sanityWarnings.push(`WARNING: 明堂容量超出正常範圍 (c=${ana.c})`);
     if (Math.abs(ana.yyBalance) > 10) sanityWarnings.push(`WARNING: 陰陽平衡數值極端化 (yy=${ana.yyBalance})`);
     if (app.builder.blds.length > 32) sanityWarnings.push(`NOTICE: 建築數量(${app.builder.blds.length})超出 GPU 物理阻擋緩衝區上限(32)，多餘建築不參與粒子風阻阻擋`);
+    if (typeof ana.g === 'number' && typeof ana.c === 'number' && Number.isFinite(ana.g) && Number.isFinite(ana.c) && ana.c > 0 && ana.g > ana.c * 1.2) sanityWarnings.push(`NOTICE: 吉氣供給(${ana.g.toFixed(1)})超出明堂容量(${ana.c})達 ${Math.round((ana.g / Math.max(1, ana.c)) * 100)}%，實收端已飽和封頂，屬頂格超載狀態`);
     const preset = st.presetName || 'current';
     const verdictText = (Util.$('verdict') && Util.$('verdict').textContent) || '';
     const presetExpectations = {
