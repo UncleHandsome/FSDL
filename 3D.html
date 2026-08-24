@@ -114,12 +114,12 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
 </head>
 <body>
-<!-- 頂部快速導航列 -->
-<div style="position:fixed; top:12px; right:60px; z-index:9999; display:flex; gap:8px;">
-    <a href="index.html" style="display:flex; align-items:center; gap:4px; background:rgba(246,241,231,0.9); border:1px solid #b98a2e; color:#22201c; text-decoration:none; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.15); backdrop-filter:blur(4px); transition:0.2s;">
+<!-- 頂部正中央快速導航膠囊（完美避開左右兩側所有面板與標題） -->
+<div style="position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; gap:10px; pointer-events:auto;">
+    <a href="index.html" style="display:flex; align-items:center; gap:5px; background:rgba(246,241,231,0.92); border:1px solid #b98a2e; color:#22201c; text-decoration:none; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 4px 15px rgba(0,0,0,0.15); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:0.2s;">
         🏠 返回大廳
     </a>
-    <a href="city.html" style="display:flex; align-items:center; gap:4px; background:var(--gold); color:#fff; text-decoration:none; padding:5px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 4px 12px rgba(185,138,46,0.3); transition:0.2s;">
+    <a href="city.html" style="display:flex; align-items:center; gap:5px; background:#b98a2e; color:#ffffff; text-decoration:none; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 4px 15px rgba(185,138,46,0.35); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); transition:0.2s;">
         🏙️ 切換都市風水 →
     </a>
 </div>

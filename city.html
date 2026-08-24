@@ -89,10 +89,16 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button id="bPause">⏸ 暫停</button><button id="b1x" class="on">1x</button><button id="b2x">2x</button>
     <span style="width:10px"></span>
     <button id="bFS">堪輿視角 (C)</button><button id="bDef" class="on">預設視角</button>
-    <span style="width:10px"></span>
-    <a href="index.html" style="display:inline-flex; align-items:center; text-decoration:none; background:var(--btn-bg); border:1px solid var(--bd); color:var(--text); padding:4px 10px; border-radius:5px; font-size:12px; font-weight:bold;">🏠 大廳</a>
-    <a href="3D.html" style="display:inline-flex; align-items:center; text-decoration:none; background:#0077ff; color:#fff; padding:4px 10px; border-radius:5px; font-size:12px; font-weight:bold; box-shadow:0 0 8px rgba(0,119,255,0.4);">⛰️ 山水風水 →</a>
   </div>
+</div>
+<!-- 頂部正中央快速導航膠囊（與 3D 版風格統一、居中平衡） -->
+<div style="position:fixed; top:8px; left:50%; transform:translateX(-50%); z-index:20; display:flex; gap:8px; pointer-events:auto;">
+  <a href="index.html" style="display:flex; align-items:center; gap:4px; background:rgba(255,255,255,0.92); border:1px solid var(--bd); color:var(--text); text-decoration:none; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.08); backdrop-filter:blur(4px); transition:0.2s;">
+    🏠 返回大廳
+  </a>
+  <a href="3D.html" style="display:flex; align-items:center; gap:4px; background:#0077ff; color:#fff; text-decoration:none; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 2px 10px rgba(0,119,255,0.3); backdrop-filter:blur(4px); transition:0.2s;">
+    ⛰️ 切換山水風水 →
+  </a>
 </div>
 <div id="left" class="panel">
   <div class="panel-header" onclick="this.parentElement.classList.toggle('collapsed'); this.querySelector('.panel-toggle-btn').textContent = this.parentElement.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';">
@@ -230,7 +236,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="sec">理論分析與五行動力學</div>
   <div id="theory"></div>
 </div>
-<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：視角・G或空白鍵：隨機格局・L/R或[/]：摺疊左右面板・H：隱藏雙面板</div>
+<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：堪輿視角・R：預設視角・T：Dry Run・G或空白鍵：隨機格局・[ / ]：摺疊左右面板・H：隱藏雙面板</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -3037,13 +3043,13 @@ class World3D {
     });
     window.addEventListener('keydown', e => { 
         const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
+        if (['INPUT','TEXTAREA'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 1;
     });
     window.addEventListener('keyup', e => { 
         const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
+        if (['INPUT','TEXTAREA'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 0;
     });
@@ -3224,6 +3230,9 @@ class UIManager {
     st.historyIndex = st.history.length - 1;
   }
   bind() {
+    document.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => btn.blur());
+    });
     Object.keys(Config.UI_MAP).forEach(id => {
       const el = Util.$(id);
       if (!el) return; 
@@ -3554,14 +3563,25 @@ class App {
     this.ui.bind();
     this.rebuild();
     window.addEventListener('keydown', e => {
-      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes((e.target && e.target.tagName) || '')) return;
+      if (['INPUT', 'TEXTAREA'].includes((e.target && e.target.tagName) || '')) return;
       const k = e.key.toLowerCase();
       if(k === 'c'){ this.world.setCamMode(this.world.camMode==='orbit'?'fs':'orbit'); this.ui.syncCamButtons(); }
+      if(k === 'r'){
+        this.world.setCamMode('orbit');
+        this.world.view.theta = 0.65;
+        this.world.view.phi = 1.08;
+        this.world.view.r = 300;
+        this.world.view.tg.set(0, 14, 12);
+        this.ui.syncCamButtons();
+      }
+      if(k === 't'){
+        Util.$('btn-dry-run')?.click();
+      }
       if(k === 'l' || e.key === '['){
         const p = Util.$('left'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
-      if(k === 'r' || e.key === ']'){
+      if(e.key === ']'){
         const p = Util.$('right'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
