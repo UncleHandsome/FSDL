@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>3D 城市龍山水・終極全息模擬器（專業大師擴充版）</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+if (!window.THREE) document.write('<script src="https://unpkg.com/three@0.128.0/build/three.min.js"><\/script>');
+</script>
 <style>
 :root {
   --cy: #0077ff; --gd: #d39e00; --bd: #b0c4de;
@@ -25,7 +28,7 @@ button:hover { border-color:var(--cy); color:#000; background:var(--btn-hover); 
 button.on { background:var(--btn-on); border-color:var(--cy); color:#fff; box-shadow:0 0 8px rgba(0,119,255,.4); }
 button.warn { border-color:#d32f2f; color:#d32f2f; width:100%; margin-top:4px; }
 button.warn:hover { background:#fdeaea; color:#d32f2f; }
-.panel { position:fixed; top:52px; bottom:34px; background:var(--panel-bg); border:1px solid var(--bd); border-radius:8px; padding:6px 8px; overflow-y:auto; z-index:9; backdrop-filter:blur(4px); box-shadow:0 4px 16px rgba(0,0,0,0.06); }
+.panel { position:fixed; top:52px; bottom:34px; background:var(--panel-bg); border:1px solid var(--bd); border-radius:8px; padding:6px 8px; overflow-y:auto; z-index:9; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); box-shadow:0 4px 16px rgba(0,0,0,0.06); }
 .panel::-webkit-scrollbar { width:5px; } .panel::-webkit-scrollbar-thumb { background:#b0c4de; border-radius:3px; }
 .panel.collapsed { height: auto !important; bottom: auto !important; overflow: hidden !important; padding-bottom: 6px; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 2px; margin-bottom: 2px; border-bottom: 1px solid var(--sec-line); font-size: 11.5px; font-weight: bold; color: #886600; cursor: pointer; user-select: none; }
@@ -64,6 +67,18 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
 #eff { font-size:11px; color:var(--text-light); text-align:center; margin-bottom:6px; }
 #theory { font-size:11px; line-height:1.7; color:var(--text-light); }
 #hint { position:fixed; bottom:0; left:0; right:0; text-align:center; font-size:11px; color:var(--text); background:rgba(244,247,249,.85); padding:7px; z-index:10; box-shadow:0 -2px 10px rgba(0,0,0,0.05); pointer-events:none; }
+#toast { position:fixed; left:50%; bottom:56px; transform:translateX(-50%) translateY(16px); opacity:0; transition:.3s ease; background:rgba(20,24,32,.9); color:#fff; padding:9px 18px; border-radius:6px; z-index:99; font-size:12.5px; pointer-events:none; max-width:min(86vw, 560px); text-align:center; box-shadow:0 4px 14px rgba(0,0,0,.25); }
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+@media (max-width: 900px) {
+  #left { width: min(360px, 52vw); }
+  #right { width: min(262px, 42vw); }
+  .ttl { font-size:13px; }
+  .ttl span { display:none; }
+}
+@media (max-width: 640px) {
+  #left, #right { top:auto; height:38vh; bottom:34px; }
+  #hint { font-size:10px; }
+}
 </style>
 </head>
 <body>
@@ -212,13 +227,23 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="sec">理論分析與五行動力學</div>
   <div id="theory"></div>
 </div>
-<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・鍵盤WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪：縮放/前進・C：視角・L/R或[/]：摺疊左右面板・H：隱藏雙面板</div>
+<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：視角・G或空白鍵：隨機格局・L/R或[/]：摺疊左右面板・H：隱藏雙面板</div>
+<div id="toast"></div>
 <script>
 'use strict';
+function showToast(msg, ms = 2600) {
+  const t = document.getElementById('toast');
+  if (!t) { console.log('[toast]', msg); return; }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
 const Util = {
   $: id => document.getElementById(id),
   clamp: (v, a, b) => Math.max(a, Math.min(b, v)),
   R: (a, b) => a + Math.random() * (b - a),
+  debounce: (fn, ms) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); }; },
   v3: (x, y, z) => new THREE.Vector3(x, y, z),
   curve3: a => new THREE.CatmullRomCurve3(a),
   brighten: hex => {
@@ -226,7 +251,7 @@ const Util = {
     const c = new THREE.Color(hex);
     const hsl = {h:0, s:0, l:0}; c.getHSL(hsl);
     if(hsl.l > 0.6) return hex;
-    return c.setHSL(hsl.h, Math.max(0, hsl.s - 0.15), hsl.l + 0.45).getHex();
+    return c.setHSL(hsl.h, Math.max(0, hsl.s - 0.15), Math.min(1, hsl.l + 0.35)).getHex();
   },
   terrainY: (x, z, type) => {
     if (type === 'backhigh') return Math.max(0, -z * 0.15); 
@@ -267,6 +292,36 @@ const Config = {
     liqi: { face:'理氣｜向水立向，納堂前旺氣', back:'理氣｜背水坐空＝當旺之氣盡洩' },
     sha: { tianzhan:'形煞｜天斬煞＝兩樓夾縫風刀直劈，主破敗', rush:'形煞｜路沖煞＝長街直搗穴心', bow:'形煞｜反弓煞＝高架弧背如弓反張', sickle:'形煞｜鐮刀煞＝高架彎如鐮刀割腰', pierce:'形煞｜穿心煞＝高架穿堂而過，龍氣被截', windshaft:'形煞｜凹風煞＝樓縫凹風射穴，氣散不聚', qingquan:'形煞｜擎拳煞＝拳樓當胸，主爭鬥相向', tantou:'形煞｜探頭煞＝樓後探頭，主招盜賊小人', glass:'形煞｜反光煞＝對面大樓玻璃反射強光，主血光心煩', pylon:'形煞｜蜈蚣煞＝高壓電塔或錯綜電線，主口舌病痛', walledge:'形煞｜壁刀煞＝對面建築直角如刀切來，主意外開刀', sedan:'形煞｜抬轎煞/穿心＝主樓底部懸空，地氣掏空，主破敗' },
     cure: { trees: '制化｜茂密木氣擋風緩煞，氣流得緩', pool: '制化｜明堂水池界水化煞，煞氣轉為聚財之局', mirror: '制化｜八卦陣強效反射直衝煞氣，守護明堂', stone: '制化｜泰山石敢當＝強效實體鎮壓，強力反彈沖煞與壁刀', gourd: '制化｜化煞葫蘆＝吸納地底與周遭煞氣，化煞為己用', fountain: '催旺｜風水噴泉＝動水催財，加速明堂吉氣湧現與盤旋' }
+  },
+  SHA_WATER: ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'],
+  BROKEN_FRONT: ['none', 'sunken', 'rubble'],
+  DRAGON_ONLY_SPECIAL: ['shuqi', 'fengyao', 'hulong', 'guiyao'],
+  PHYS: { NARROW_GAP: 8, INSIDE_HEAT: -25, YIN_MASS: 3000, FRONT_SHA_CAP: 59, SOUND_SPEED: 343 },
+  sanitize(cur) {
+    const st = { ...cur, sha: [...(cur.sha || ['none'])], special: [...(cur.special || ['none'])], cure: [...(cur.cure || ['none'])], shuifa: [...(cur.shuifa || ['none'])] };
+    const purgeNone = arr => {
+      if (arr.includes('none') && arr.some(v => v !== 'none')) arr = arr.filter(v => v !== 'none');
+      return arr.length ? arr : ['none'];
+    };
+    // 無水或煞水 → 水口法無效
+    if (st.water === 'none' || this.SHA_WATER.includes(st.water)) st.shuifa = ['none'];
+    // 明堂破敗 → 水口法無效
+    if (this.BROKEN_FRONT.includes(st.front)) st.shuifa = ['none'];
+    st.sha = purgeNone(st.sha);
+    st.special = purgeNone(st.special);
+    st.cure = purgeNone(st.cure);
+    st.shuifa = purgeNone(st.shuifa);
+    // 探頭煞僅在低案樓成立
+    if (st.front !== 'lowcase' && st.sha.includes('tantou')) {
+      st.sha = st.sha.filter(v => v !== 'tantou');
+      if (!st.sha.length) st.sha = ['none'];
+    }
+    // 無龍脈時，依龍的特殊格局失效
+    if (st.dragon === 'none') {
+      const filtered = st.special.filter(v => !this.DRAGON_ONLY_SPECIAL.includes(v));
+      if (filtered.length !== st.special.length) st.special = filtered.length ? filtered : ['none'];
+    }
+    return st;
   }
 };
 class StateManager {
@@ -296,17 +351,26 @@ class ResourceManager {
     c.strokeStyle='#cbd5e1'; c.lineWidth=2; c.strokeRect(0,0,64,64); 
     this.gTex = new THREE.CanvasTexture(cv);
     this.gTex.wrapS = this.gTex.wrapT = THREE.RepeatWrapping;
-    this.gTex.repeat.set(38, 38); 
+    this.gTex.repeat.set(76, 76);
     return this.gTex;
   }
-  static getWindowTex() {
-    if(this.winTex) return this.winTex;
-    const cv=document.createElement('canvas'); cv.width=64; cv.height=128; const c=cv.getContext('2d');
-    c.fillStyle='#d1d9e0'; c.fillRect(0,0,64,128);
-    for(let y=4;y<124;y+=8) for(let x=4;x<60;x+=10) if(Math.random()<0.5){
-      c.fillStyle=Math.random()<0.25?'#ffffff':'#a0b4c8'; c.globalAlpha=Util.R(.5,.9); c.fillRect(x,y,5,4); c.globalAlpha=1;
+  static getWindowTex(rx, ry) {
+    rx = Math.max(1, Math.round(rx || 1)); ry = Math.max(1, Math.round(ry || 1));
+    this._wtexCache = this._wtexCache || {};
+    const key = rx + 'x' + ry;
+    if(this._wtexCache[key]) return this._wtexCache[key];
+    if(!this.winTexBase){
+      const cv=document.createElement('canvas'); cv.width=64; cv.height=128; const c=cv.getContext('2d');
+      c.fillStyle='#d1d9e0'; c.fillRect(0,0,64,128);
+      for(let y=4;y<124;y+=8) for(let x=4;x<60;x+=10) if(Math.random()<0.5){
+        c.fillStyle=Math.random()<0.25?'#ffffff':'#a0b4c8'; c.globalAlpha=Util.R(.5,.9); c.fillRect(x,y,5,4); c.globalAlpha=1;
+      }
+      this.winTexBase = new THREE.CanvasTexture(cv);
     }
-    this.winTex = new THREE.CanvasTexture(cv); return this.winTex;
+    const t = this.winTexBase.clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    this._wtexCache[key] = t;
+    return t;
   }
   static getParticleTex() {
     if(this.pTex) return this.pTex;
@@ -334,9 +398,8 @@ class ResourceManager {
       }
       this.luoTex = new THREE.CanvasTexture(cv); 
     }
-    const t = this.luoTex.clone();
-    t.needsUpdate = true;
-    return t;
+    if(!this.luoTexClone){ this.luoTexClone = this.luoTex.clone(); this.luoTexClone.needsUpdate = true; }
+    return this.luoTexClone;
   }
   static createLabel(txt, color, size, x, y, z) {
     const cv=document.createElement('canvas'); cv.width=384; cv.height=144;
@@ -356,44 +419,7 @@ class FengShuiEngine {
   static analyze(stateManager, builder) {
     const srcState = stateManager.current;
     const inputFingerprint = FengShuiEngine.computeInputFingerprint(stateManager, builder);
-    const st = { ...srcState, sha: [...srcState.sha], special: [...srcState.special], cure: [...srcState.cure], shuifa: [...srcState.shuifa] };
-    const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
-    if (st.water === 'none' || shaWaterSet.includes(st.water)) {
-        st.shuifa = ['none'];
-    }
-    if (['none', 'sunken', 'rubble'].includes(st.front)) {
-        st.shuifa = ['none'];
-    }
-    if (shaWaterSet.includes(st.water)) {
-        st.shuifa = ['none'];
-    }
-    if (st.front !== 'lowcase' && Array.isArray(st.sha) && st.sha.includes('tantou')) {
-        st.sha = st.sha.filter(v => v !== 'tantou');
-        if (st.sha.length === 0) st.sha = ['none'];
-    }
-    if (Array.isArray(st.sha) && st.sha.includes('none') && st.sha.some(v => v !== 'none')) {
-        st.sha = st.sha.filter(v => v !== 'none');
-        if (st.sha.length === 0) st.sha = ['none'];
-    }
-    if (Array.isArray(st.special) && st.special.includes('none') && st.special.some(v => v !== 'none')) {
-        st.special = st.special.filter(v => v !== 'none');
-        if (st.special.length === 0) st.special = ['none'];
-    }
-    if (Array.isArray(st.cure) && st.cure.includes('none') && st.cure.some(v => v !== 'none')) {
-        st.cure = st.cure.filter(v => v !== 'none');
-        if (st.cure.length === 0) st.cure = ['none'];
-    }
-    if (Array.isArray(st.shuifa) && st.shuifa.includes('none') && st.shuifa.some(v => v !== 'none')) {
-        st.shuifa = st.shuifa.filter(v => v !== 'none');
-        if (st.shuifa.length === 0) st.shuifa = ['none'];
-    }
-    if (st.dragon === 'none' && Array.isArray(st.special)) {
-        const dependentSpecial = ['shuqi','fengyao','hulong','guiyao'];
-        const filteredSpecial = st.special.filter(v => !dependentSpecial.includes(v));
-        if (filteredSpecial.length !== st.special.length) {
-            st.special = filteredSpecial.length ? filteredSpecial : ['none'];
-        }
-    }
+    const st = Config.sanitize(srcState);
     let g = 0, s = 0, c = 40;
     const extWindSpeed = stateManager.wind; 
     const terrainYCorrected = (px, pz) => {
@@ -419,7 +445,6 @@ class FengShuiEngine {
     let saddlePointTriggered = false;
     let standingWaveTriggered = false;
     let waterBroken = false; 
-    let localField = { metal: 0, wood: 0, water: 0, fire: 0, earth: 0 };
     let sandboxField = { metal: 0, wood: 0, water: 0, fire: 0, earth: 0 }; 
     let wuXingText = "";
     let skyViewFactor = 1.0; 
@@ -429,9 +454,7 @@ class FengShuiEngine {
     let reynoldsNum = Math.round(extWindSpeed * 500); 
     let froudeNum = extWindSpeed / Math.sqrt(9.8 * 10.0); 
     let qFactor = 0;         
-    const elMap = { metal:'金', wood:'木', water:'水', fire:'火', earth:'土', east:'wood', south:'fire', west:'metal', north:'water', center:'earth' };
-	const isShaWater = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
-    localField[elMap[st.sector]] += 10;
+	const isShaWater = Config.SHA_WATER.includes(st.water);
     let vLeft = 0, vRight = 0, vBack = 0, vFront = 0;
     let maxHFront = 0, hMain = Math.max(20, stateManager.heights.main);
     let sunBlocked = false;
@@ -472,11 +495,9 @@ class FengShuiEngine {
         if (b.isWater || b.wx) {
             const intensity = Math.max(0, 1 - (dist / 150));
         if (b.isWater) {
-            localField.water += 15 * intensity;
             if (b.isSandbox) sandboxField.water += 15 * intensity; 
             vortexQi += 8 * intensity;
         } else if (b.wx) {
-                localField[b.wx] += 20 * intensity;
                 sandboxField[b.wx] += 20 * intensity; 
             }
             if (b.isWater) continue; 
@@ -500,8 +521,8 @@ class FengShuiEngine {
             if (curvature > 2.0) coandaDeflection += curvature * (30 - dzTaiji);
         }
         const effVol = b.h >= 5 ? volume : 0;
-        if (dxTaiji < -5) { vLeft += effVol * (b.h / hMain); leftBuildings.push(b); }
-        if (dxTaiji > 5)  { vRight += effVol * (b.h / hMain); rightBuildings.push(b); }
+        if (dxTaiji > 5)  { vLeft += effVol * (b.h / hMain); leftBuildings.push(b); }
+        if (dxTaiji < -5) { vRight += effVol * (b.h / hMain); rightBuildings.push(b); }
         if (dzTaiji < -15) {
             vBack += effVol * (b.h / hMain);
             if (b.h >= hMain * 0.7) { hasBackSupport = true; backHighBuildingCount++; }
@@ -610,12 +631,12 @@ class FengShuiEngine {
       }
       reynoldsNum = Math.round(stateManager.wind * 500);
       froudeNum = stateManager.wind / Math.sqrt(9.8 * 10.0); 
-      let leftWalls = leftBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) > -20 && b.h > hMain);
-      let rightWalls = rightBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) < 20 && b.h > hMain);
+      let leftWalls = leftBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) < 20 && b.h > hMain);
+      let rightWalls = rightBuildings.filter(b => (b.z - (stateManager.taijiZ || 0)) > 10 && (b.z - (stateManager.taijiZ || 0)) < 80 && (b.x - (stateManager.taijiX || 0)) > -20 && b.h > hMain);
       for (let lw of leftWalls) {
           for (let rw of rightWalls) {
               const gap = Math.abs(lw.x - rw.x) - (lw.w + rw.w) * 0.5; 
-              if (gap < 8 && Math.abs(lw.z - rw.z) < (lw.d + rw.d) * 0.5) { 
+              if (gap < Config.PHYS.NARROW_GAP && Math.abs(lw.z - rw.z) < (lw.d + rw.d) * 0.5) { 
 					narrowGapDetected = true; 
 					cavityOpening = Math.max(1, gap);
 					cavityVolume = cavityOpening * Math.max(lw.d, rw.d) * Math.min(lw.h, rw.h);
@@ -624,7 +645,7 @@ class FengShuiEngine {
           }
           if (narrowGapDetected) break;
       }
-    const isShaWaterForBarrier = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    const isShaWaterForBarrier = Config.SHA_WATER.includes(st.water);
     const waterBrokenByWind = st.water !== 'none' && !isShaWaterForBarrier && !['none', 'sunken', 'rubble'].includes(st.front) && extWindSpeed >= 8 && !st.cure.includes('pool') && !st.cure.includes('fountain') && (['jade', 'nine'].includes(st.water) || st.shuifa.includes('banyue'));
     waterBroken = waterBrokenByWind; 
     if (isShaWaterForBarrier) waterBroken = false; 
@@ -706,11 +727,13 @@ class FengShuiEngine {
         kineticSha += venturiSha;
         observerText.push(`流體｜文丘里效應！氣流穿過前方狹縫加速直劈 (狹縫風刀)`);
         if (cavityVolume > 0 && extWindSpeed > 3) {
-            let f0 = (extWindSpeed / (2 * Math.PI)) * Math.sqrt(cavityOpening / cavityVolume);
-            if (f0 > 0.01 && f0 < 0.5) {
+            const A = cavityOpening, V = cavityVolume;
+            const neckLen = Math.max(0.5, Math.sqrt(A));
+            const f0 = (Config.PHYS.SOUND_SPEED / (2 * Math.PI)) * Math.sqrt(A / (V * neckLen));
+            if (f0 >= 0.8 && f0 <= 12) { // 人體可感知的低頻氣壓脈動帶（次聲~低頻可聽聲）
                 kineticSha += extWindSpeed * 4.0;
                 helmholtzTriggered = true;
-                observerText.push(`聲學/流體｜赫姆霍茲共振！強風激發狹縫低頻氣壓脈動 (凹風共振)`);
+                observerText.push(`聲學/流體｜赫姆霍茲共振！強風激發狹縫低頻氣壓脈動 (${f0.toFixed(1)}Hz) (凹風共振)`);
             }
         }
     }
@@ -815,77 +838,42 @@ class FengShuiEngine {
             if (Math.abs(relPx) < 30 && relPz > -10 && relPz < 60) gatheredDrops++;
             else escapedDrops++;
         }
-        let totalDrops = gatheredDrops + escapedDrops;
-        if (totalDrops > 0) {
-            let gatherPercent = gatheredDrops / totalDrops * 100;
-            if (gatherPercent > 100) gatherPercent = 100;
-            gatheredDrops = Math.round(gatherPercent * 50 / 100);
+    } else {
+        gatheredDrops = 0;
+        escapedDrops = 0;
+    }
+    const slopedTerrain = st.terrain === 'slope' || st.special.includes('qingxie');
+    if (st.water !== 'none' && !isShaWater && waterTestRan) {
+        if (waterBroken) {
+            gatheredDrops = Math.floor(gatheredDrops * 0.5);
             escapedDrops = 50 - gatheredDrops;
+            if (slopedTerrain) { gatheredDrops = 0; escapedDrops = 0; }
         } else {
-            gatheredDrops = 0;
-            escapedDrops = 0;
-        }
-    } else {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    if (st.water === 'none' || isShaWater) {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    if (waterBroken) {
-        gatheredDrops = Math.floor(gatheredDrops * 0.5);
-        escapedDrops = 50 - gatheredDrops;
-    } else if (!waterTestRan) {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    if ((st.water === 'none' || isShaWater || waterBroken) && (st.terrain === 'slope' || st.special.includes('qingxie'))) {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    if (st.water === 'none' || isShaWater) {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    let waterLock = 0;
-    if (st.water === 'none' || isShaWater || waterBroken || !waterTestRan) {
-        waterLock = 0;
-    } else {
-        waterLock = 0;
-        if (builder && builder.blds) {
-            for (let b of builder.blds) {
-                if ((b.z - (stateManager.taijiZ || 0)) > 50 && b.h > 5) {
-                    let hits = dropPaths.filter(path => path.some(pt => Math.abs(pt.x - b.x) < b.w * 0.5 && Math.abs(pt.z - b.z) < b.d * 0.5)).length;
-                    waterLock += hits;
+            // 水口攔截：羅星/華表等實體障礙鎖住外洩虛水
+            let waterLock = 0;
+            if (builder && builder.blds) {
+                for (let b of builder.blds) {
+                    if ((b.z - (stateManager.taijiZ || 0)) > 50 && b.h > 5) {
+                        let hits = dropPaths.filter(path => path.some(pt => Math.abs(pt.x - b.x) < b.w * 0.5 && Math.abs(pt.z - b.z) < b.d * 0.5)).length;
+                        waterLock += hits;
+                    }
                 }
             }
+            waterLock = Math.min(waterLock, escapedDrops);
+            if (slopedTerrain) waterLock = Math.floor(waterLock * 0.5);
+            if (escapedDrops > 0 && waterLock > 0) {
+                let saved = Math.min(escapedDrops, waterLock);
+                escapedDrops -= saved;
+                gatheredDrops += saved;
+                observerText.push(`地形｜水法啟動：水口實體障礙(羅星/華表等)成功攔截 ${Math.round(saved/50*100)}% 原本將外洩的虛水，鎖住財氣`);
+            }
+            if (gatheredDrops + escapedDrops > 50) {
+                let overflow = gatheredDrops + escapedDrops - 50;
+                if (gatheredDrops > escapedDrops) gatheredDrops -= overflow;
+                else escapedDrops -= overflow;
+            }
         }
-    }
-    waterLock = Math.min(waterLock, escapedDrops);
-    if (st.terrain === 'slope' || st.special.includes('qingxie')) {
-        waterLock = Math.floor(waterLock * 0.5);
-    }
-    if (st.water === 'none' || isShaWater) {
-        waterLock = 0;
-    }
-    if (!isShaWater && waterTestRan && st.water !== 'none' && !waterBroken && escapedDrops > 0 && waterLock > 0) {
-        let saved = Math.min(escapedDrops, waterLock);
-        escapedDrops -= saved;
-        gatheredDrops += saved;
-        let gatherPercent = Math.min(100, Math.round(gatheredDrops/50*100));
-        observerText.push(`地形｜水法啟動：水口實體障礙(羅星/華表等)成功攔截 ${Math.round(saved/50*100)}% 原本將外洩的虛水，鎖住財氣`);
-    }
-    if (gatheredDrops + escapedDrops > 50) {
-        let overflow = gatheredDrops + escapedDrops - 50;
-        if (gatheredDrops > escapedDrops) gatheredDrops -= overflow;
-        else escapedDrops -= overflow;
-    }
-    if (st.water === 'none' || isShaWater) {
-        gatheredDrops = 0;
-        escapedDrops = 0;
-    }
-    if (st.water === 'none' || isShaWater) {
+    } else {
         gatheredDrops = 0;
         escapedDrops = 0;
     }
@@ -955,7 +943,7 @@ class FengShuiEngine {
     if (mingTangBroken) {
         c = Math.min(c, 40);
     }
-        const isShaWaterForLiqi = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+        const isShaWaterForLiqi = Config.SHA_WATER.includes(st.water);
         if (!waterBroken && st.water !== 'none' && !isShaWaterForLiqi) {
             const waterEscaped = waterTestRan && escapedDrops > 25;
             if (mingTangBroken) {
@@ -1060,9 +1048,6 @@ class FengShuiEngine {
         } else {
             observerText.push(`流體｜明堂破敗或地形特殊，虛水測試未執行，無法判斷界水聚氣 (湧現抑制: 界水未測)`);
         }
-    } else if (isShaWaterForFluid && (st.cure.includes('pool') || st.cure.includes('fountain'))) {
-        const mitigationSource = '化煞水池';
-        observerText.push(`流體｜主水為煞水，但${mitigationSource}提供部分化解，煞氣稍減 (自然湧現: 煞水被部分制化)`);
     } else if (waterTestRan && st.water !== 'none' && (st.special.includes('qingxie') || st.terrain === 'slope') && (st.water === 'jade' || st.water === 'nine' || (st.cure.includes('pool') || st.cure.includes('fountain')))) {
         if (gatherPercent <= 25) {
             observerText.push(`流體｜地勢傾斜，水流順坡急洩，無法駐留聚氣 (自然湧現: 傾瀉散氣)`);
@@ -1080,17 +1065,14 @@ class FengShuiEngine {
             observerText.push(`流體｜主樓底部騰空形成穿堂風，地氣隨底部氣流加速流失 (抬轎懸空)`);
         }
     }
-    const shaBaseline = s + kineticSha;
     s += kineticSha;
     if (shaWaterMitigation > 0) s = Math.max(0, s - shaWaterMitigation);
     if (s === 0 && extWindSpeed > 3) {
         s += Math.max(0, (extWindSpeed - 3) * 0.5);
     }
-    s = Math.min(s, 150);
-    s = Math.max(0, s);
+    s = Math.max(0, Math.min(150, s));
     g = Math.max(0, g);
-    s = Math.min(s, 150);
-    const hasBowSource = (st.sha.includes('bow') || st.water === 'bow') && stateManager.sources.some(s => s.len === 40 || s.len === 36);
+    const hasBowSource = (st.sha.includes('bow') || st.water === 'bow') && stateManager.sources.some(src => src.kind === 'bow');
     if (kineticSha > 10) {
         if (st.sha.includes('rush') || st.water === 'rush') {
             observerText.push(`流體｜氣流循筆直通道高速直搗穴心，產生破壞性風壓 (自然湧現: 路沖煞)`);
@@ -1125,13 +1107,12 @@ class FengShuiEngine {
         observerText.push(`空間｜SVF 射線探測：明堂開闊度僅 ${Math.round(frontOpenness*100)}%，明堂受阻 (自然湧現: 堂氣難伸)`);
     }
     if (!directSunlight) yin += 3; 
-    if (vLeft > 3000 || vRight > 3000) yin += 2;
-    if (vLeft > 3000 && vRight > 3000) yin += 2;
+    if (vLeft > Config.PHYS.YIN_MASS || vRight > Config.PHYS.YIN_MASS) yin += 2;
+    if (vLeft > Config.PHYS.YIN_MASS && vRight > Config.PHYS.YIN_MASS) yin += 2;
     if (stateManager.wind >= 8) yang += 2;
     else if (stateManager.wind >= 5) yang += 1; 
     if (stateManager.wind <= 3) yin += 2;
     if (stateManager.trafficSpeed >= 8) yang += 1;
-    else if (stateManager.trafficSpeed >= 5) yang += 0;
     if (envHumidity > 60) yin += 1;
     if (extWindSpeed > 8) yang += 1;
     if (st.hole === 'wo' || st.hole === 'qian') {
@@ -1254,9 +1235,6 @@ class FengShuiEngine {
     }
     if (st.cure.includes('stone') || st.cure.includes('mirror')) { rigidReflection += 30; thermalMass += 20; cureText += "制化｜剛體陣法啟動 (提供高反彈力+高質量壁壘)；"; }
     if (st.cure.includes('gourd')) cureText += "制化｜化煞葫蘆 (吸收局部亂流)；";
-    }
-    if (st.water === 'none') {
-        cureText = cureText.replace(/制化｜水體陣法啟動[^；]*；/g, '制化｜水體陣法佈置，但現場無水，效果受限；');
     }
     if (st.sha.includes('pylon') || st.sha.includes('glass') || colEl === 'fire') envTemp += 15; 
     if (kineticSha > 20 || st.sha.some(x => ['tianzhan', 'walledge', 'sickle'].includes(x))) rigidReflection += 25; 
@@ -1428,15 +1406,10 @@ class FengShuiEngine {
         s = 100 + 30 * Math.tanh((s - 100) / 60);
     }
     s = Math.max(0, Math.min(150, s));
-    const hasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 80);
+    const hasHardSha = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (Config.SHA_WATER.includes(st.water) && s >= 80);
     const hasMitigatingCure = st.cure.some(c => ['trees','pool','stone','mirror','gourd','fountain'].includes(c));
     const heavyShaThreshold = 60; 
     const heavyShaForErosion = (hasHardSha && !hasMitigatingCure && s >= heavyShaThreshold) || (st.sha.includes('tantou') && peekSha && s >= 80 && !hasMitigatingCure) || waterBroken || (st.left === 'oppress' && !hasMitigatingCure && s >= heavyShaThreshold) || ((st.right === 'raise' && vRight > vLeft * 1.2 && vRight > 20) && !hasMitigatingCure && s >= heavyShaThreshold) || ((st.right !== 'raise' && st.right !== 'broken' && vRight > vLeft * 1.5 && vRight > 30) && !hasMitigatingCure && s >= heavyShaThreshold) || (!hasMitigatingCure && s >= 95);
-    const erosionRatio = heavyShaForErosion ? 0.35 : 0.2;
-    const capacityErosionRatio = heavyShaForErosion ? 0.25 : 0.15;
-    if (st.water === 'none' || isShaWater) {
-        c = Math.max(c, 40);
-    }
     if (vortexQi > 10 && !environmentDisordered) physicsText.push(`動力學｜氣流遇阻降速，形成緩慢迴風渦流，物理吉氣值 +${Math.round(vortexQi)}`);
     wuXingText = wuXingText.replace(/^｜/, '');
     const entropyPenalty = (hasBuildingsForAnalysis && spatialEntropy > (hasGoodSupport ? 5.8 : 5.0)) ? Math.round((spatialEntropy - (hasGoodSupport ? 5.8 : 5.0)) * 30) : 0;
@@ -1470,14 +1443,19 @@ class FengShuiEngine {
             physicsText.push(`流體力學｜弗勞德數(${froudeNum.toFixed(2)})過高，超臨界流難以聚氣，吉氣減損 ${fluidTurbulencePenalty} 點`);
         }
     }
-    g += Math.max(0, vortexQi);
-    const finalHasHardShaForErosion = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (['bow','rush','tfork','lintou','cut','bazi'].includes(st.water) && s >= 60);
+    if (!mingTangBroken) {
+        g += Math.max(0, vortexQi);
+    }
+    const finalHasHardShaForErosion = ['bow','sickle','tianzhan','rush','pierce','walledge','sedan','windshaft'].some(x => st.sha.includes(x)) || (Config.SHA_WATER.includes(st.water) && s >= 60);
     const finalHeavyShaForErosion = heavyShaForErosion || (finalHasHardShaForErosion && !hasMitigatingCure && s >= 60) || (s >= 95);
     const finalErosionRatio = finalHeavyShaForErosion ? 0.35 : 0.2;
     const finalCapacityErosionRatio = finalHeavyShaForErosion ? 0.25 : 0.15;
     if (s > 0) {
-        g = Math.max(0, g - Math.round(g * finalErosionRatio));
-        c = Math.max(20, c - Math.round(c * finalCapacityErosionRatio));
+        const gate = finalHeavyShaForErosion ? 1.0 : Util.clamp((s - 10) / 50, 0, 1);
+        if (gate > 0) {
+            g = Math.max(0, g - Math.round(g * finalErosionRatio * gate));
+            c = Math.max(20, c - Math.round(c * finalCapacityErosionRatio * gate));
+        }
     }
     if ((st.water === 'none' || isShaWater) && !mingTangBroken) {
         c = Math.max(40, c);
@@ -1489,10 +1467,13 @@ class FengShuiEngine {
     s = Math.max(0, Math.min(150, s));
     g = Math.max(0, Math.min(150, g));
     c = Math.max(20, Math.min(150, c));
+    if (mingTangBroken) {
+        g = 0;
+    }
     if (emptyFrontWind) {
         c = Math.max(20, c - 25);
     }
-    if (s > 60 || (s > 30 && s > g)) c = Math.min(c, 59);
+    if (s > 60 || (s > 30 && s > g)) c = Math.min(c, Config.PHYS.FRONT_SHA_CAP);
     if (g > 0) {
         const finalEntropyFactor = Math.max(0.0, 1.0 - spatialEntropy / 6.5);
         qFactor = (g / (s + 1)) * finalEntropyFactor * 10.0;
@@ -1559,7 +1540,7 @@ class FengShuiEngine {
     const A=[], st=stateManager.current;
     if(st.sha.includes('tianzhan'))A.push({x:0,z:58,dx:0,dz:-1,w:26,pw:8,len:52});
     if(st.sha.includes('rush'))A.push({x:0,z:60,dx:0,dz:-1,w:24,pw:8,len:50});
-    if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:14,len:40});
+    if(st.sha.includes('bow'))A.push({x:0,z:44,dx:0,dz:-1,w:20,pw:14,len:40,kind:'bow'});
     if(st.sha.includes('sickle'))A.push({x:48,z:34,dx:-0.5,dz:-0.85,w:12,pw:15,len:46});
     if(st.sha.includes('pierce'))A.push({x:0,z:26,dx:0,dz:-1,w:22,pw:9,len:26});
     if(st.sha.includes('windshaft'))A.push({x:0,z:56,dx:0,dz:-1,w:20,pw:10,len:46});
@@ -1570,11 +1551,11 @@ class FengShuiEngine {
     if(st.sha.includes('pylon'))A.push({x:0,z:90,dx:0,dz:0,w:15,pw:8,len:0});
     if(st.water==='rush'&&!st.sha.includes('rush'))A.push({x:0,z:56,dx:0,dz:-1,w:22,pw:8,len:46});
     if(st.water==='tfork')A.push({x:0,z:52,dx:0,dz:-1,w:20,pw:8,len:40});
-    if(st.water==='bow'&&!st.sha.includes('bow'))A.push({x:0,z:42,dx:0,dz:-1,w:18,pw:14,len:36});
+    if(st.water==='bow'&&!st.sha.includes('bow'))A.push({x:0,z:42,dx:0,dz:-1,w:18,pw:14,len:36,kind:'bow'});
     if(st.water==='cut')A.push({x:-135,z:13,dx:1,dz:0,w:14,pw:8,len:270});
     if(st.water==='lintou')A.push({x:-130,z:20,dx:1,dz:0,w:16,pw:11,len:260});
     if(st.water==='bazi'){A.push({x:-10,z:34,dx:0,dz:0,w:12,pw:5,len:0});A.push({x:10,z:34,dx:0,dz:0,w:12,pw:5,len:0});}
-    stateManager.markers.forEach(m=>A.push({x:m.x,z:m.z,dx:0,dz:0,w:22,pw:9,len:0}));
+    if(st.sha.includes('manual')) stateManager.markers.forEach(m=>A.push({x:m.x,z:m.z,dx:0,dz:0,w:22,pw:9,len:0}));
     return A;
   }
   static distCurve(x, z, curves, y = 0) {
@@ -1649,7 +1630,7 @@ class FengShuiEngine {
       }
       const windScale = Math.max(0, stateManager.wind) / 5.0;
       if (isInsideBuilding) {
-          return -25; 
+          return Config.PHYS.INSIDE_HEAT;
       } 
       v += 12 * Math.exp(-(minEdgeDist * minEdgeDist) / 12) * windScale;
       v -= ramPressure * windScale; 
@@ -1906,9 +1887,9 @@ class CityBuilder {
   box(w, h, d, x, z, col, em) {
     h = Math.max(1, h);
     const ty = this.terrainYCorrected(x, z);
-    const t = ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
-    t.repeat.set(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
+    const t = ResourceManager.getWindowTex(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
     const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({map:t,color:Util.brighten(col),emissive:em?Util.brighten(em):0,emissiveIntensity:.2}));
+    m.castShadow = true;
     m.position.set(x, ty + h/2, z); this.group.add(m);
     const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x99aacc,transparent:true,opacity:.6}));
     e.position.copy(m.position); this.group.add(e);
@@ -1916,8 +1897,7 @@ class CityBuilder {
   }
   decoBox(w, h, d, x, z, col) {
     const ty = this.terrainYCorrected(x, z);
-    const t = ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping;
-    t.repeat.set(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
+    const t = ResourceManager.getWindowTex(Math.max(1,Math.round(w/7)),Math.max(1,Math.round(h/7)));
     const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({map:t,color:Util.brighten(col)}));
     m.position.set(x, ty + h/2, z); this.group.add(m);
   }
@@ -1944,7 +1924,7 @@ class CityBuilder {
   }
   ribbon(c, w, mat, edge, bad, isWater = false) {
     const N=160, pts=c.getPoints(N), left=[], right=[];
-    const waterTrail = isWater || (mat === 0x12283e);
+    const waterTrail = !!isWater;
     for(let i=0;i<=N;i++){
       const p=pts[i], q=pts[Math.min(i+1,N)], o=pts[Math.max(i-1,0)];
       let tx=q.x-o.x, tz=q.z-o.z; const L=Math.hypot(tx,tz)||1; tx/=L; tz/=L;
@@ -2012,6 +1992,7 @@ class CityBuilder {
     const h = stateManager.heights;
     this.currentState = st;
     this.currentTerrain = st.terrain;
+    this.buildBackgroundCity();
     if(st.dragon!=='none'){
       const bh=st.dragon==='avenue'?h.tort:st.dragon==='elevated'?h.tort-6:st.dragon==='metro'?h.tort-4:h.tort-18;
       this.box(30,bh,12,0,-42,0x182c48);
@@ -2027,16 +2008,17 @@ class CityBuilder {
         });
         const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:0x009977,dashSize:5,gapSize:3,transparent:true,opacity:.9}));
         l.computeLineDistances(); this.group.add(l);
+        this.curves.push({pts:c.getPoints(240),len:c.getLength(),bad:false,type:'metro'});
         this.box(16,5,10,-55,-5,0x14403c,0x0d5a4e);
         this.group.add(ResourceManager.createLabel('地鐵站・氣口','#00a388',9,-55,10,-5));
       }
     }
-    if(st.left==='qinglong'){this.box(16,h.drag,20,-36,-6,0x16304e);this.box(12,h.drag-16,14,-52,10,0x14283f);this.group.add(ResourceManager.createLabel('青龍','#0d8a43',8,-36,h.drag+6,-6));}
-    if(st.left==='oppress'){this.box(20,86,22,-26,-4,0x1d2c44);this.group.add(ResourceManager.createLabel('青龍逼壓','#d34f00',8,-26,92,-4));}
-    if(st.left==='broken')this.brokenBld(-36,-6,16,26);
-    if(st.right==='baihu'){this.box(16,h.tig,20,36,-6,0x16304e);this.box(12,h.tig-14,14,52,8,0x14283f);this.group.add(ResourceManager.createLabel('白虎','#b87a00',8,36,h.tig+6,-6));}
-    if(st.right==='raise'){this.box(18,92,20,34,-6,0x242244);this.group.add(ResourceManager.createLabel('白虎抬頭','#d31515',8,34,98,-6));}
-    if(st.right==='broken')this.brokenBld(36,-6,16,22);
+    if(st.left==='qinglong'){this.box(16,h.drag,20,36,-6,0x16304e);this.box(12,h.drag-16,14,52,10,0x14283f);this.group.add(ResourceManager.createLabel('青龍','#0d8a43',8,36,h.drag+6,-6));}
+    if(st.left==='oppress'){this.box(20,86,22,26,-4,0x1d2c44);this.group.add(ResourceManager.createLabel('青龍逼壓','#d34f00',8,26,92,-4));}
+    if(st.left==='broken')this.brokenBld(36,-6,16,26);
+    if(st.right==='baihu'){this.box(16,h.tig,20,-36,-6,0x16304e);this.box(12,h.tig-14,14,-52,8,0x14283f);this.group.add(ResourceManager.createLabel('白虎','#b87a00',8,-36,h.tig+6,-6));}
+    if(st.right==='raise'){this.box(18,92,20,-34,-6,0x242244);this.group.add(ResourceManager.createLabel('白虎抬頭','#d31515',8,-34,98,-6));}
+    if(st.right==='broken')this.brokenBld(-36,-6,16,22);
     if(st.front==='plaza'){
       const tyCenter = this.terrainYCorrected(0, 32);
       const pl=new THREE.Mesh(new THREE.CircleGeometry(36,48),new THREE.MeshLambertMaterial({color:Util.brighten(0x13293f)}));
@@ -2090,19 +2072,19 @@ class CityBuilder {
         this.blds.push({x, z, w:s, d:s, h, y:0});
       }
     }
-    if(st.water==='jade')this.ribbon(Util.curve3([Util.v3(-120,0,26),Util.v3(-85,0,66),Util.v3(0,0,88),Util.v3(85,0,66),Util.v3(120,0,26)]),7,0x12283e,0x0088cc);
-    if(st.water==='nine'){const a=[];for(let x=-135;x<=135;x+=27)a.push(Util.v3(x,0,62+22*Math.sin(x*0.045)));this.ribbon(Util.curve3(a),7,0x12283e,0x0088cc);}
-    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x12283e,0xcc4422,true);
-    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x12283e,0xcc4422,true);}
-    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x12283e,0xcc4422,true);
-    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x12283e,0xcc4422,true);}
+    if(st.water==='jade')this.ribbon(Util.curve3([Util.v3(-120,0,26),Util.v3(-85,0,66),Util.v3(0,0,88),Util.v3(85,0,66),Util.v3(120,0,26)]),7,0x12283e,0x0088cc,false,true);
+    if(st.water==='nine'){const a=[];for(let x=-135;x<=135;x+=27)a.push(Util.v3(x,0,62+22*Math.sin(x*0.045)));this.ribbon(Util.curve3(a),7,0x12283e,0x0088cc,false,true);}
+    if(st.water==='cut')this.ribbon(Util.curve3([Util.v3(-135,0,15),Util.v3(0,0,12),Util.v3(135,0,15)]),6,0x12283e,0xcc4422,true,true);
+    if(st.water==='rush'){this.ribbon(Util.curve3([Util.v3(-135,0,30),Util.v3(135,0,30)]),6);this.ribbon(Util.curve3([Util.v3(0,0,150),Util.v3(0,0,90),Util.v3(0,0,16)]),6,0x12283e,0xcc4422,true,true);}
+    if(st.water==='bow')this.ribbon(Util.curve3([Util.v3(-120,0,96),Util.v3(0,0,34),Util.v3(120,0,96)]),7,0x12283e,0xcc4422,true,true);
+    if(st.water==='tfork'){this.ribbon(Util.curve3([Util.v3(-135,0,110),Util.v3(135,0,110)]),6);this.ribbon(Util.curve3([Util.v3(0,0,110),Util.v3(0,0,60),Util.v3(0,0,18)]),6,0x12283e,0xcc4422,true,true);}
     if(st.water==='lintou'){this.elevated([Util.v3(-130,26,20),Util.v3(0,26,20),Util.v3(130,26,20)],true);this.group.add(ResourceManager.createLabel('淋頭壓頂','#d31515',9,0,32,20));}
-    if(st.water==='bazi'){this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(-30,0,60),Util.v3(-80,0,130)]),5,0x12283e,0xcc4422,true);this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(30,0,60),Util.v3(80,0,130)]),5,0x12283e,0xcc4422,true);this.group.add(ResourceManager.createLabel('八字分飛','#d34f00',9,0,8,70));}
-    const shuiFaActive = st.water !== 'none' && !['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'].includes(st.water);
+    if(st.water==='bazi'){this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(-30,0,60),Util.v3(-80,0,130)]),5,0x12283e,0xcc4422,true,true);this.ribbon(Util.curve3([Util.v3(0,0,18),Util.v3(30,0,60),Util.v3(80,0,130)]),5,0x12283e,0xcc4422,true,true);this.group.add(ResourceManager.createLabel('八字分飛','#d34f00',9,0,8,70));}
+    const shuiFaActive = st.water !== 'none' && !Config.SHA_WATER.includes(st.water);
     if(shuiFaActive && st.shuifa.includes('san cha')){
-      this.ribbon(Util.curve3([Util.v3(-90,0,120),Util.v3(-30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
-      this.ribbon(Util.curve3([Util.v3(0,0,140),Util.v3(0,0,90),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
-      this.ribbon(Util.curve3([Util.v3(90,0,120),Util.v3(30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc);
+      this.ribbon(Util.curve3([Util.v3(-90,0,120),Util.v3(-30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc,false,true);
+      this.ribbon(Util.curve3([Util.v3(0,0,140),Util.v3(0,0,90),Util.v3(0,0,58)]),5,0x12283e,0x0088cc,false,true);
+      this.ribbon(Util.curve3([Util.v3(90,0,120),Util.v3(30,0,80),Util.v3(0,0,58)]),5,0x12283e,0x0088cc,false,true);
       const ty = this.terrainYCorrected(0, 58);
       const node=new THREE.Mesh(new THREE.CircleGeometry(7,24),new THREE.MeshBasicMaterial({color:0x0088cc,transparent:true,opacity:.35}));
       node.rotation.x=-Math.PI/2;node.position.set(0,ty+0.12,58);this.group.add(node);
@@ -2111,8 +2093,8 @@ class CityBuilder {
     if(shuiFaActive && st.shuifa.includes('banyue')){this.poolCrescent(0,52,16,30);this.group.add(ResourceManager.createLabel('半月池','#0077ff',9,0,8,52));}
     if(shuiFaActive && st.shuifa.includes('luoxing')){
       this.box(10,18,10,0,112,0x1a3352);
-      this.ribbon(Util.curve3([Util.v3(-40,0,60),Util.v3(-30,0,112),Util.v3(-24,0,140)]),4,0x12283e,0x0088cc);
-      this.ribbon(Util.curve3([Util.v3(40,0,60),Util.v3(30,0,112),Util.v3(24,0,140)]),4,0x12283e,0x0088cc);
+      this.ribbon(Util.curve3([Util.v3(-40,0,60),Util.v3(-30,0,112),Util.v3(-24,0,140)]),4,0x12283e,0x0088cc,false,true);
+      this.ribbon(Util.curve3([Util.v3(40,0,60),Util.v3(30,0,112),Util.v3(24,0,140)]),4,0x12283e,0x0088cc,false,true);
       this.group.add(ResourceManager.createLabel('羅星塞水口','#0077ff',8,0,24,112));
     }
     if(shuiFaActive && st.shuifa.includes('huabiao')){
@@ -2263,7 +2245,7 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('蜈蚣煞','#d31515',9,0,ty+45,90));
 	  this.blds.push({x:0, z:90, w:8, d:4, h:40});
     }
-    stateManager.markers.forEach(m=>this.addSpike(m));
+    if(st.sha.includes('manual')) stateManager.markers.forEach(m=>this.addSpike(m));
     if(st.cure.includes('trees')){
       for(let i=-26; i<=26; i+=6.5){
        const tx = i+Util.R(-1,1), tz = 22+Util.R(-1,1);
@@ -2305,7 +2287,7 @@ class CityBuilder {
       this.group.add(ResourceManager.createLabel('動水催財噴泉','#0077ff',7,0,10,18));
     }
     const H = Math.max(20, h.main);
-    const t=ResourceManager.getWindowTex().clone(); t.needsUpdate=true; t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(3,8);
+    const t=ResourceManager.getWindowTex(3,8);
     const colorElem = st.color === 'default' ? st.star : st.color;
     let baseHex, emHex;
     if(colorElem==='metal'){ baseHex=0xdddddd; emHex=0x555555; } 
@@ -2340,9 +2322,11 @@ class CityBuilder {
       }
       this.group.add(ResourceManager.createLabel('抬轎懸空','#d31515',9,0,tyCore + 7,0));
     }
+    const starFoot = { metal: [16, 16], wood: [11, 11], water: [14, 12], fire: [13, 13], earth: [18, 16] };
+    const [coreW, coreD] = starFoot[st.star] || [16, 16];
     this.mainCore = core;
     this.baseEmHex = emHex;
-    this.group.add(core); this.blds.unshift({x:0,z:0,w:16,d:16,h:H, y:elevY});
+    this.group.add(core); this.blds.unshift({x:0,z:0,w:coreW,d:coreD,h:H, y:elevY});
     const tyCore = this.terrainYCorrected(0, 0);
     this.beacon=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,120,12,1,true),
       new THREE.MeshBasicMaterial({color:0xffaa00,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false}));
@@ -2397,18 +2381,16 @@ const goodVert = `
 uniform vec4 u_blds[32]; 
 uniform vec2 u_bldsH[32]; 
 uniform int u_bldCount;
-uniform float u_simTime; uniform float u_tx; uniform float u_hz; uniform float u_tSpeed;
+uniform float u_simTime; uniform float u_tx; uniform float u_hz;
 uniform float u_envWind; 
 uniform bool u_waterJade; uniform bool u_waterNine; uniform bool u_shuifaBanyue; uniform bool u_curePool; uniform bool u_isRushWind;
-uniform bool u_dragonAvenue; uniform bool u_cureFountain; uniform bool u_isWoQian; uniform bool u_specialShuqi;
+uniform bool u_cureFountain;
 uniform bool u_shaTianzhan; uniform int u_terrainType;
 uniform bool u_qingxie; uniform bool u_sunkenFront; 
-uniform bool u_coanda; uniform bool u_hydraulicJump; uniform float u_qFactor;
 uniform vec3 u_spawns[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife; varying float vIsWater; varying float vIsWind;
 varying vec2 vDir; varying float vSpeed; 
-varying float vIsTunneling; 
 float rand(vec2 co){ return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453); }
 vec3 hash3(vec3 p) {
     p = vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)));
@@ -2456,10 +2438,10 @@ void main() {
     vec3 p = u_spawns[0];
     for(int i=0; i<64; i++) { if(i < u_spawnCount && i == sIdx) { p = u_spawns[i]; break; } }
     if(u_spawnCount == 0) p = vec3((rand(vec2(a_id, cycle))-0.5)*120.0, 1.0, (rand(vec2(cycle, a_id))-0.5)*120.0);
-    vec3 v = vec3(0.0, 0.0, 3.5); float dt = 0.05; int steps = int(age / dt);
-    bool isWater = false; bool isWind = false; float isTunneling = 0.0;
+    vec3 v = vec3(0.0, 0.0, 3.5); float dt = 0.0625; int steps = int(age / dt);
+    bool isWater = false; bool isWind = false;
     bool hasWind = u_envWind > 0.1;
-    for(int i=0;i<200;i++) {
+    for(int i=0;i<160;i++) {
         if(i >= steps) break;
         float dx = u_tx - p.x; float dz = u_hz - p.z; float d = length(vec2(dx, dz)) + 0.001;
         float ty = getTerrainY(p.x, p.z);
@@ -2496,7 +2478,7 @@ void main() {
             v += curlNoise(p * 0.08 + u_simTime * 0.5) * max(0.0, u_envWind) * 8.0 * dt;
         } else { 
             v *= max(0.0, 1.0 - 0.6*dt); 
-            v += curlNoise(p * 0.15) * max(0.0, u_envWind) * 3.0 * dt; 
+            if (mod(float(i), 2.0) < 1.0) v += curlNoise(p * 0.15) * max(0.0, u_envWind) * 6.0 * dt; 
         }
         if(!isWater) p.y = max(p.y, ty + 0.8);
         bool hitObstacle = false;
@@ -2520,14 +2502,14 @@ void main() {
     }
     vLife = 1.0 - (age / a_life);
     if(p.y < -900.0) vLife = 0.0;
-    vIsWater = isWater ? 1.0 : 0.0; vIsWind = isWind ? 1.0 : 0.0; vIsTunneling = isTunneling;
+    vIsWater = isWater ? 1.0 : 0.0; vIsWind = isWind ? 1.0 : 0.0;
     vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
     vec4 mvNext = modelViewMatrix * vec4(p + v * 0.1, 1.0); 
     vec2 sVel = mvNext.xy - mvPosition.xy; 
     vSpeed = length(v);
     vDir = length(sVel) > 0.001 ? normalize(sVel) : vec2(1.0, 0.0);
     float stretch = clamp(1.0 + vSpeed * 0.12, 1.0, 4.0);
-    gl_PointSize = 4.5 * (300.0 / max(0.1, -mvPosition.z)) * stretch;
+    gl_PointSize = min(4.5 * (300.0 / max(0.1, -mvPosition.z)) * stretch, 240.0);
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
@@ -2535,7 +2517,7 @@ const badVert = `
 uniform vec4 u_blds[32]; 
 uniform vec2 u_bldsH[32]; 
 uniform int u_bldCount;
-uniform float u_simTime; uniform float u_tSpeed;
+uniform float u_simTime;
 uniform float u_envWind; 
 uniform bool u_cureTrees; uniform bool u_cureMirror; uniform bool u_curePool; uniform bool u_cureFountain; uniform bool u_cureStone; uniform bool u_cureGourd;
 uniform bool u_shaTianzhan;
@@ -2598,8 +2580,8 @@ void main() {
             break; 
         }
     }
-    vec3 v = startVel; float dt = 0.05; int steps = int(age / dt);
-    for(int i=0;i<200;i++) {
+    vec3 v = startVel; float dt = 0.0625; int steps = int(age / dt);
+    for(int i=0;i<160;i++) {
         if(i >= steps) break;
         float tianFx2 = exp(-pow(p.x / 4.0, 2.0)); float tianFz2 = exp(-pow((p.z - 55.0) / 25.0, 2.0)); float tianW2 = tianFx2 * tianFz2;
         if(u_shaTianzhan && tianW2 > 0.37) {
@@ -2618,8 +2600,10 @@ void main() {
         float wGourd = exp(-pow((p.z - 7.5) / 7.5, 2.0) - pow((p.x - 8.0) / 12.0, 2.0)); if(u_cureGourd && wGourd > 0.37) {
             v *= max(0.0, 1.0 - 1.5 * wGourd * dt);
         }
-        vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (max(0.0, u_envWind) * 10.0 + length(v) * 0.4);
-        v += turbulence * dt;
+        if (mod(float(i), 2.0) < 1.0) {
+            vec3 turbulence = curlNoise(p * 0.12 + u_simTime * 1.5) * (max(0.0, u_envWind) * 10.0 + length(v) * 0.4);
+            v += turbulence * dt;
+        }
         p.y = max(p.y, getTerrainY(p.x, p.z) + 0.8);
         bool hitObstacle = false;
         for(int j = 0; j < 32; j++) {
@@ -2648,7 +2632,7 @@ void main() {
     vSpeed = length(v);
     vDir = length(sVel) > 0.001 ? normalize(sVel) : vec2(1.0, 0.0);
     float stretch = clamp(1.0 + vSpeed * 0.12, 1.0, 5.0);
-    gl_PointSize = 5.0 * (300.0 / max(0.1, -mvPosition.z)) * stretch;
+    gl_PointSize = min(5.0 * (300.0 / max(0.1, -mvPosition.z)) * stretch, 240.0);
     gl_Position = projectionMatrix * mvPosition;
 }
 `;
@@ -2656,7 +2640,7 @@ const frag = `
 uniform sampler2D map; varying float vLife;
 varying vec2 vDir; varying float vSpeed; 
 #ifdef IS_GOOD
-varying float vIsWater; varying float vIsWind; varying float vIsTunneling;
+varying float vIsWater; varying float vIsWind;
 #endif
 void main() {
     if(vLife <= 0.0) discard;
@@ -2671,8 +2655,7 @@ void main() {
     if(tex.a < 0.1) discard;
     vec3 col = vec3(0.9, 0.6, 0.0);
 #ifdef IS_GOOD
-    if(vIsTunneling > 0.5) col = vec3(1.0, 1.0, 1.0); 
-    else if(vIsWater > 0.5) col = vec3(0.6 * vLife, 0.9 * vLife, 0.2 * vLife);
+    if(vIsWater > 0.5) col = vec3(0.6 * vLife, 0.9 * vLife, 0.2 * vLife);
     else if(vIsWind > 0.5) col = vec3(0.9 * vLife, 0.2 * vLife, 0.0);
     else col = vec3(0.9 * vLife, 0.6 * vLife, 0.0);
 #else
@@ -2682,12 +2665,14 @@ void main() {
 }
 `;
 class ParticleSystem {
-  constructor(scene) {
+  constructor(scene, renderer) {
     this.scene = scene;
     this.TMAX = 1400; this.GMAX = 2000; this.BMAX = 2000;
     this.goodDrawCount = 0;
     this.badDrawCount = 0;
-    this.physicalParams = { isCoanda:false, isHelmholtz:false, isHydraulicJump:false, qFactor:0 };
+    const maxU = (renderer && renderer.capabilities && renderer.capabilities.maxVertexUniforms) || 128;
+    this.spawnMax = maxU >= 220 ? 64 : 16;
+    if (this.spawnMax < 64) console.warn(`[ParticleSystem] maxVertexUniforms=${maxU} 偏低，spawn 陣列降級為 ${this.spawnMax}`);
     this.trafParts = [];
     this.trafGeo = new THREE.BufferGeometry();
     const trafPts = new THREE.Points(this.trafGeo,new THREE.PointsMaterial({size:3.0,vertexColors:true,map:ResourceManager.getParticleTex(),transparent:true,opacity:0.9,depthWrite:false}));
@@ -2708,19 +2693,18 @@ class ParticleSystem {
     this.badGeo.setAttribute('a_seed', new THREE.BufferAttribute(badSeeds, 1));
     this.badGeo.setAttribute('a_life', new THREE.BufferAttribute(badLifes, 1));
     this.uniforms = {
-        u_simTime: { value: 0 }, u_hz: { value: 32 }, u_tSpeed: { value: 1.0 },
+        u_simTime: { value: 0 }, u_hz: { value: 32 },
         u_tx: { value: 0 }, 
         u_envWind: { value: 1.0 }, 
         u_waterJade: { value: false }, u_waterNine: { value: false }, u_shuifaBanyue: { value: false }, u_curePool: { value: false }, u_isRushWind: { value: false },
-        u_dragonAvenue: { value: false }, u_cureFountain: { value: false }, u_isWoQian: { value: false }, u_specialShuqi: { value: false },
+        u_cureFountain: { value: false },
         u_shaTianzhan: { value: false },
         u_terrainType: { value: 0 },
         u_qingxie: { value: false }, u_sunkenFront: { value: false },
-        u_coanda: { value: false }, u_helmholtz: { value: false }, u_hydraulicJump: { value: false },
-        u_qFactor: { value: 0 }, 
+        u_helmholtz: { value: false },
         u_cureTrees: { value: false }, u_cureMirror: { value: false }, u_cureStone: { value: false }, u_cureGourd: { value: false },
-        u_spawns: { value: Array.from({length:64}, () => new THREE.Vector3()) },
-        u_spawnDirs: { value: Array.from({length:64}, () => new THREE.Vector3()) },
+        u_spawns: { value: Array.from({length:this.spawnMax}, () => new THREE.Vector3()) },
+        u_spawnDirs: { value: Array.from({length:this.spawnMax}, () => new THREE.Vector3()) },
         u_spawnCount: { value: 0 }, map: { value: ResourceManager.getParticleTex() },
         u_blds: { value: Array.from({length:32}, () => new THREE.Vector4()) },
         u_bldsH: { value: Array.from({length:32}, () => new THREE.Vector2()) }, 
@@ -2742,15 +2726,16 @@ class ParticleSystem {
     }
   }
   buildTraffic(curves) {
+    ['position','color'].forEach(k => { const a = this.trafGeo.attributes[k]; if (a && a.dispose) a.dispose(); });
     this.trafParts = [];
     const pos=new Float32Array(this.TMAX*3), col=new Float32Array(this.TMAX*3);
     let n=0;
     for(const c of curves){
-      if (c.type === 'water') continue;
+      const isMetro = c.type === 'metro';
       const k=Util.clamp(Math.round(c.len/5),8,160);
-      const cr=c.bad?0.9:0.1, cg=c.bad?0.1:0.5, cb=c.bad?0.1:0.8;
+      const cr=c.bad?0.9:(isMetro?0.0:0.1), cg=c.bad?0.1:(isMetro?0.72:0.5), cb=c.bad?0.1:(isMetro?0.55:0.8);
       for(let i=0;i<k && n<this.TMAX; i++,n++){
-        this.trafParts.push({c,t:Math.random(),sp:Util.R(9,24)*(c.bad?1.4:1)});
+        this.trafParts.push({c,t:Math.random(),sp:Util.R(isMetro?5:9,isMetro?11:24)*(c.bad?1.4:1)});
         col[n*3]=cr*Util.R(.6,1); col[n*3+1]=cg*Util.R(.6,1); col[n*3+2]=cb*Util.R(.6,1);
       }
     }
@@ -2764,7 +2749,7 @@ class ParticleSystem {
       const validCurves = curves.filter(c => c && Array.isArray(c.pts) && c.pts.length > 0);
       const hasCurves = validCurves.length > 0;
       const hasUsableSources = validSources.length > 0;
-      for(let i=0; i<64; i++) {
+      for(let i=0; i<this.spawnMax; i++) {
           if(hasCurves && (i%2===0 || !hasUsableSources)) {
               const c = validCurves[Math.random()*validCurves.length|0];
               const q = c.pts[Math.random()*c.pts.length|0] || {x:0, y:1, z:0};
@@ -2794,14 +2779,13 @@ class ParticleSystem {
       if(p.t>=1) p.t-=1;
       const maxPtIdx = Math.max(0, p.c.pts.length - 1);
       const q = p.c.pts[Math.min(maxPtIdx, Math.floor(p.t * maxPtIdx))] || {x:0, y:0, z:0};
-      const ty = (p.c.type === 'road') ? builder.terrainYCorrected(q.x, q.z) : 0;
+      const ty = builder.terrainYCorrected(q.x, q.z);
       arr[i*3]=q.x; arr[i*3+1]=q.y+ty+0.8; arr[i*3+2]=q.z;
     }
     this.trafGeo.attributes.position.needsUpdate = true;
     this.uniforms.u_simTime.value += dt * s;
     this.uniforms.u_tx.value = stateManager.taijiX || 0;
     this.uniforms.u_hz.value = st.special.includes('taiji') ? ((stateManager.taijiZ || 0) + 40) : -999;
-    this.uniforms.u_tSpeed.value = tSpeed;
     this.uniforms.u_envWind.value = stateManager.wind; 
     const vec4Arr = this.uniforms.u_blds.value;
     const vec2Arr = this.uniforms.u_bldsH.value; 
@@ -2827,22 +2811,18 @@ class ParticleSystem {
         bCount++;
     }
     this.uniforms.u_bldCount.value = bCount;
-    this.uniforms.u_dragonAvenue.value = (st.dragon === 'avenue' || st.dragon === 'branch' || st.dragon === 'elevated');
-    this.uniforms.u_isWoQian.value = (st.hole === 'wo' || st.hole === 'qian');
     this.uniforms.u_waterJade.value = st.water === 'jade';
     this.uniforms.u_waterNine.value = st.water === 'nine';
     this.uniforms.u_shuifaBanyue.value = st.shuifa.includes('banyue');
     this.uniforms.u_curePool.value = st.cure.includes('pool');
     this.uniforms.u_isRushWind.value = (st.sha.includes('rush') || st.sha.includes('tianzhan') || st.water==='rush');
     this.uniforms.u_cureFountain.value = st.cure.includes('fountain');
-    this.uniforms.u_specialShuqi.value = st.special.includes('shuqi');
     this.uniforms.u_qingxie.value = st.special.includes('qingxie');
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
-    this.uniforms.u_coanda.value = this.physicalParams.isCoanda || false;
-    this.uniforms.u_helmholtz.value = this.physicalParams.isHelmholtz || false;
-    this.uniforms.u_hydraulicJump.value = this.physicalParams.isHydraulicJump || false;
-    this.uniforms.u_qFactor.value = this.physicalParams.qFactor || 0;
+    this.uniforms.u_helmholtz.value = !!(stateManager.analysis && stateManager.analysis.isHelmholtz);
+    this.uniforms.u_qingxie.value = st.special.includes('qingxie');
+    this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_cureTrees.value = st.cure.includes('trees');
     this.uniforms.u_cureMirror.value = st.cure.includes('mirror');
     this.uniforms.u_cureStone.value = st.cure.includes('stone');
@@ -2906,7 +2886,7 @@ class World3D {
     dl.shadow.mapSize.height = 2048;
     dl.shadow.bias = -0.001;
     this.scene.add(dl);
-    this.gndMesh = new THREE.Mesh(new THREE.PlaneGeometry(380,380,64,64), new THREE.MeshLambertMaterial({map:ResourceManager.getGridTex()}));
+    this.gndMesh = new THREE.Mesh(new THREE.PlaneGeometry(760,760,96,96), new THREE.MeshLambertMaterial({map:ResourceManager.getGridTex()}));
     this.gndMesh.receiveShadow = true;
     this.gndMesh.rotation.x = -Math.PI/2; this.scene.add(this.gndMesh);
     this.lblNorth = ResourceManager.createLabel('北 N','#0077ff',14,0,6,-172);
@@ -2917,7 +2897,8 @@ class World3D {
     this.heatCtx.canvas.width = this.heatCtx.canvas.height = 220;
     this.heatTex = new THREE.CanvasTexture(this.heatCtx.canvas);
     this.heatMesh = new THREE.Mesh(new THREE.PlaneGeometry(360,360,64,64), new THREE.MeshBasicMaterial({map:this.heatTex, transparent:true, depthWrite:false}));
-    this.heatMesh.rotation.x = -Math.PI/2; this.heatMesh.position.y = 0.15; this.scene.add(this.heatMesh);
+    this.heatMesh.rotation.x = -Math.PI/2; this.heatMesh.position.y = 0.09; this.scene.add(this.heatMesh);
+    this.renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); showToast('⚠️ WebGL context 遺失，請重新整理頁面', 8000); });
     this.view = { theta:0.65, phi:1.08, r:300, tg:Util.v3(0,14,12) };
     this.fpv = { yaw:0, pitch:0.05, pos:Util.v3(0, 4.5, 30) };
     this.camMode = 'orbit';
@@ -2927,9 +2908,29 @@ class World3D {
   }
   bindInput() {
     const cv = this.renderer.domElement;
+    cv.style.touchAction = 'none';
+    this.pointers = new Map();
+    this.pinchD = 0;
+    const pinchDist = () => {
+      const a = [...this.pointers.values()];
+      return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1;
+    };
     cv.addEventListener('contextmenu', e => e.preventDefault());
-    cv.addEventListener('pointerdown', e => { this.drag = {x:e.clientX, y:e.clientY, moved:0, btn:e.button}; });
+    cv.addEventListener('pointerdown', e => { 
+      this.pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+      if (this.pointers.size === 2) { this.pinchD = pinchDist(); this.drag = null; }
+      else if (this.pointers.size === 1) this.drag = {x:e.clientX, y:e.clientY, moved:0, btn:e.button};
+    });
     window.addEventListener('pointermove', e => {
+      if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+      if (this.pointers.size >= 2 && this.pinchD > 0) {
+        const nd = pinchDist();
+        const k = nd / this.pinchD;
+        if (this.camMode === 'orbit') this.view.r = Util.clamp(this.view.r / k, 60, 700);
+        else { const mv = (nd - this.pinchD) * 0.12; this.fpv.pos.x += Math.sin(this.fpv.yaw) * mv; this.fpv.pos.z += Math.cos(this.fpv.yaw) * mv; }
+        this.pinchD = nd;
+        return;
+      }
       if (!this.drag && this.app.state.tool) {
           const rc = new THREE.Raycaster();
           rc.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1, -(e.clientY/innerHeight)*2+1), this.camera);
@@ -2966,6 +2967,8 @@ class World3D {
       }
     });
     window.addEventListener('pointerup', e => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinchD = 0;
       if(e.target !== this.renderer.domElement) { this.drag = null; return; }
       if(this.drag && this.drag.moved<6 && this.drag.btn === 0 && !e.shiftKey && this.camMode==='orbit'){
         const rc = new THREE.Raycaster();
@@ -2977,7 +2980,7 @@ class World3D {
                 const snapX = Math.round(pt.x / 12) * 12;
                 const snapZ = Math.round(pt.z / 12) * 12;
                 if (Math.abs(snapX) < 15 && Math.abs(snapZ) < 15) {
-                    alert("此處為穴場核心，無法蓋樓！");
+                    showToast('此處為穴場核心，無法蓋樓！');
                     return;
                 }
                 const toolW = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
@@ -2988,7 +2991,7 @@ class World3D {
                            Math.abs(snapZ - b.z) < (toolD + b.d) / 2 - 0.5;
                 });
                 if (overlap) {
-                    alert("此位置與現有建築重疊，無法放置！");
+                    showToast('此位置與現有建築重疊，無法放置！');
                     return;
                 }
                 const overlapSandbox = st.sandboxBlds.some(sb => {
@@ -2998,7 +3001,7 @@ class World3D {
                            Math.abs(snapZ - sb.z) < (toolD + d) / 2 - 0.5;
                 });
                 if (overlapSandbox) {
-                    alert("此位置與已放置的沙盒建築重疊，無法放置！");
+                    showToast('此位置與已放置的沙盒建築重疊，無法放置！');
                     return;
                 }
                 st.sandboxBlds.push({ x: snapX, z: snapZ, type: st.tool });
@@ -3008,6 +3011,11 @@ class World3D {
             }
         }
       }
+      this.drag = null;
+    });
+    window.addEventListener('pointercancel', e => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size < 2) this.pinchD = 0;
       this.drag = null;
     });
     cv.addEventListener('wheel', e => { 
@@ -3025,10 +3033,14 @@ class World3D {
       this.renderer.setSize(window.innerWidth, window.innerHeight); 
     });
     window.addEventListener('keydown', e => { 
+        const tn = (e.target && (e.target.tagName || '')) || '';
+        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 1;
     });
     window.addEventListener('keyup', e => { 
+        const tn = (e.target && (e.target.tagName || '')) || '';
+        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 0;
     });
@@ -3136,7 +3148,7 @@ class World3D {
             a = Math.min(180, 20+t*160);
         } 
         else if(v < -1) { 
-            if (v === -25) { 
+            if (v === Config.PHYS.INSIDE_HEAT) { 
                 r = 15; g = 25; b = 45; a = 180;
             } else { 
                 const t = Math.min(1, -v/55);
@@ -3157,6 +3169,56 @@ class UIManager {
   constructor(app) {
     this.app = app;
     this.disp = { g:0, s:0, c:40 };
+    this._lastCommitSig = '';
+  }
+  static trafficLabel(v) { return v < 4 ? '慢 (聚財)' : (v > 7 ? '極快 (風煞)' : '中'); }
+  applyStateSanitize() {
+    this.app.state.current = Config.sanitize(this.app.state.current);
+    this.syncControls();
+  }
+  applyPresetSlidersOnly() {
+    const st = this.app.state;
+    Util.$('rHMain').value = st.heights.main;
+    Util.$('rHDrag').value = st.heights.drag;
+    Util.$('rHTig').value = st.heights.tig;
+    Util.$('rHTort').value = st.heights.tort;
+    Util.$('rHBird').value = st.heights.bird;
+    Util.$('rWind').value = st.wind; Util.$('windVal').textContent = '+' + st.wind;
+    Util.$('rTraffic').value = st.trafficSpeed; 
+    Util.$('trafVal').textContent = UIManager.trafficLabel(st.trafficSpeed);
+  }
+  syncControls() {
+    const st = this.app.state.current;
+    for(const id in Config.UI_MAP) {
+      const el = Util.$(id);
+      if (!el) continue;
+      const val = st[Config.UI_MAP[id]];
+      if (el.dataset.multi) {
+        Array.from(el.querySelectorAll('input')).forEach(cb => {
+          cb.checked = val.includes(cb.value);
+        });
+      } else if (el.tagName === 'SELECT') {
+        el.value = val;
+      }
+    }
+  }
+  commitHistoryIfChanged() {
+    const st = this.app.state;
+    if (st._applyingPreset) return;
+    const curSig = Object.assign({}, st.current);
+    delete curSig.presetName;
+    const sig = JSON.stringify([curSig, st.heights, st.wind, st.trafficSpeed]);
+    if (sig === this._lastCommitSig) return;
+    this._lastCommitSig = sig;
+    st.current.presetName = 'custom';
+    st.history.push({
+      current: JSON.parse(JSON.stringify(st.current)),
+      heights: JSON.parse(JSON.stringify(st.heights)),
+      wind: st.wind,
+      trafficSpeed: st.trafficSpeed
+    });
+    if (st.history.length > 60) st.history = st.history.slice(-60);
+    st.historyIndex = st.history.length - 1;
   }
   bind() {
     Object.keys(Config.UI_MAP).forEach(id => {
@@ -3165,36 +3227,7 @@ class UIManager {
       if (el.tagName === 'SELECT' && !el.multiple) {
         el.addEventListener('change', e => {
           this.app.state.current[Config.UI_MAP[id]] = e.target.value;
-          if (id === 'sWater') {
-            const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
-            if (e.target.value === 'none' || shaWaterSet.includes(e.target.value)) {
-              this.app.state.current.shuifa = ['none'];
-              const sfBoxes = Util.$('sShuiFa').querySelectorAll('input');
-              sfBoxes.forEach(cb => cb.checked = (cb.value === 'none'));
-            }
-          }
-            if (id === 'sFront' && e.target.value !== 'lowcase') {
-              const shaArr = this.app.state.current.sha || [];
-              if (shaArr.includes('tantou')) {
-                const newSha = shaArr.filter(v => v !== 'tantou');
-                this.app.state.current.sha = newSha.length ? newSha : ['none'];
-                const shaBoxes = Util.$('sSha').querySelectorAll('input');
-                shaBoxes.forEach(cb => cb.checked = this.app.state.current.sha.includes(cb.value));
-              }
-            }
-            if (id === 'sFront' && ['none', 'sunken', 'rubble'].includes(e.target.value)) {
-              this.app.state.current.shuifa = ['none'];
-              const sfBoxes = Util.$('sShuiFa').querySelectorAll('input');
-              sfBoxes.forEach(cb => cb.checked = (cb.value === 'none'));
-            }
-          if (id === 'sDragon' && e.target.value === 'none') {
-            const dependentSpecial = ['shuqi','fengyao','hulong','guiyao'];
-            const spArr = this.app.state.current.special || [];
-            const newSp = spArr.filter(v => !dependentSpecial.includes(v));
-            this.app.state.current.special = newSp.length ? newSp : ['none'];
-            const spBoxes = Util.$('sSpecial').querySelectorAll('input');
-            spBoxes.forEach(cb => cb.checked = this.app.state.current.special.includes(cb.value));
-          }
+          this.applyStateSanitize();
           this.app.rebuild();
         });
       } else if (el.dataset.multi) {
@@ -3212,50 +3245,42 @@ class UIManager {
               vals = vals.filter(v => v !== 'none');
               el.querySelector('input[value="none"]').checked = false;
             }
-            if (id === 'sShuiFa') {
-              const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
-              if (this.app.state.current.water === 'none' || shaWaterSet.includes(this.app.state.current.water)) {
-                vals = ['none'];
-                Array.from(el.querySelectorAll('input')).forEach(cb => cb.checked = (cb.value === 'none'));
-              }
-            }
-            if (id === 'sSha' && vals.includes('tantou') && this.app.state.current.front !== 'lowcase') {
-              vals = vals.filter(v => v !== 'tantou');
-              const tantouBox = el.querySelector('input[value="tantou"]');
-              if (tantouBox) tantouBox.checked = false;
-              if (vals.length === 0) {
-                vals = ['none'];
-                const noneBox = el.querySelector('input[value="none"]');
-                if (noneBox) noneBox.checked = true;
-              }
-            }
             this.app.state.current[Config.UI_MAP[id]] = vals;
+            this.applyStateSanitize();
             this.app.rebuild();
           }
         });
       }
     });
+    const debouncedHeightRebuild = Util.debounce(() => { this.app.rebuild(); this.commitHistoryIfChanged(); }, 90);
     const bindH = (id, key) => {
         const el = Util.$(id);
-        if (el) el.oninput = e => { this.app.state.heights[key] = +e.target.value; this.app.rebuild(); };
+        if (el) {
+          el.oninput = e => { this.app.state.heights[key] = +e.target.value; debouncedHeightRebuild(); };
+          el.onchange = () => { this.app.rebuild(); this.commitHistoryIfChanged(); };
+        }
     };
     bindH('rHMain', 'main'); bindH('rHDrag', 'drag'); bindH('rHTig', 'tig'); bindH('rHTort', 'tort'); bindH('rHBird', 'bird');
+    const debouncedEnvRefresh = Util.debounce(() => { this.app.refreshData(); this.commitHistoryIfChanged(); }, 80);
     Util.$('rWind').oninput = e => {
       this.app.state.current.presetName = 'custom'; 
-      this.app.state.wind = +e.target.value; Util.$('windVal').textContent = '+' + this.app.state.wind; this.app.refreshData();
+      this.app.state.wind = +e.target.value; Util.$('windVal').textContent = '+' + this.app.state.wind;
+      debouncedEnvRefresh();
     };
+    Util.$('rWind').onchange = () => this.commitHistoryIfChanged();
     Util.$('rTraffic').oninput = e => { 
       const v = +e.target.value;
       this.app.state.current.presetName = 'custom'; 
       this.app.state.trafficSpeed = v; 
-      Util.$('trafVal').textContent = v < 4 ? '慢 (聚財)' : (v > 7 ? '極快 (風煞)' : '中'); 
-      this.app.refreshData(); 
+      Util.$('trafVal').textContent = UIManager.trafficLabel(v); 
+      debouncedEnvRefresh(); 
     };
+    Util.$('rTraffic').onchange = () => this.commitHistoryIfChanged();
     Util.$('ckHeat').onchange = e => this.app.world.heatMesh.visible = e.target.checked;
     Util.$('ckWind').onchange = e => this.app.particles.windGroup.visible = e.target.checked;
     Util.$('bFS').onclick = () => { this.app.world.setCamMode('fs'); this.syncCamButtons(); };
     Util.$('bDef').onclick = () => { this.app.world.setCamMode('orbit'); this.syncCamButtons(); };
-    Util.$('bPause').onclick = () => { this.app.state.paused = true; this.syncTime(); };
+    Util.$('bPause').onclick = () => { this.app.state.paused = !this.app.state.paused; this.syncTime(); };
     Util.$('b1x').onclick = () => { this.app.state.paused = false; this.app.state.timeScale = 1; this.syncTime(); };
     Util.$('b2x').onclick = () => { this.app.state.paused = false; this.app.state.timeScale = 2; this.syncTime(); };
     document.querySelectorAll('.tool-btn').forEach(b => {
@@ -3305,6 +3330,7 @@ class UIManager {
   syncTime() {
     const st = this.app.state;
     Util.$('bPause').classList.toggle('on', st.paused);
+    Util.$('bPause').textContent = st.paused ? '▶ 繼續' : '⏸ 暫停';
     Util.$('b1x').classList.toggle('on', !st.paused && st.timeScale===1);
     Util.$('b2x').classList.toggle('on', !st.paused && st.timeScale===2);
   }
@@ -3337,14 +3363,7 @@ class UIManager {
       st.current.left = pick(['qinglong','oppress','broken','none']);
       st.current.right = pick(['baihu','raise','broken','none']);
       st.current.front = pick(['plaza','lowcase','sunken','rubble','none']);
-      const shaWaterSet = ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'];
-      st.current.shuifa = (st.current.water === 'none' || shaWaterSet.includes(st.current.water)) ? ['none'] : pickMulti(['none','san cha','banyue','luoxing','huabiao','shixiang','qinxing']);
-      if (['none', 'sunken', 'rubble'].includes(st.current.front)) {
-          st.current.shuifa = ['none'];
-      }
-      if (st.current.water === 'none' || shaWaterSet.includes(st.current.water)) {
-          st.current.shuifa = ['none'];
-      }
+      st.current.shuifa = (st.current.water === 'none' || Config.SHA_WATER.includes(st.current.water)) ? ['none'] : pickMulti(['san cha','banyue','luoxing','huabiao','shixiang','qinxing']);
       st.current.star = pick(['metal','wood','water','fire','earth']);
       st.current.hole = pick(['none','wo','qian','ru','tu']);
       let shaChoices = ['tianzhan','rush','bow','sickle','pierce','windshaft','qingquan','tantou','glass','pylon','walledge','sedan'];
@@ -3358,14 +3377,7 @@ class UIManager {
       }
       validSha.unshift('none'); 
       st.current.sha = pickMulti(validSha, 2); 
-      if (st.current.front !== 'lowcase' && st.current.sha.includes('tantou')) {
-          st.current.sha = st.current.sha.filter(v => v !== 'tantou');
-          if (st.current.sha.length === 0) st.current.sha = ['none'];
-      }
       let spChoices = ['taiji','qingxie','guanxing','chaoshan','shuqi','fengyao','hulong','guiyao'];
-      if (st.current.dragon === 'none') {
-        spChoices = spChoices.filter(x => !['shuqi','fengyao','hulong','guiyao'].includes(x));
-      }
       spChoices.unshift('none');
       st.current.special = pickMulti(spChoices, 2);
       st.current.liqi = pick(['face','back']);
@@ -3375,8 +3387,8 @@ class UIManager {
       st.heights.tig = 20 + (Math.random()*50|0);
       st.heights.tort = 30 + (Math.random()*50|0);
       st.heights.bird = 5 + (Math.random()*25|0);
-      st.wind = Math.random()*10|0;
-      st.trafficSpeed = Math.random()*10|0;
+      st.wind = Math.round(Math.random()*10);
+      st.trafficSpeed = 1 + (Math.random()*10|0);
     } else {
       const prs = Config.PRESETS[k];
       if (prs) {
@@ -3390,6 +3402,7 @@ class UIManager {
       st.heights = { main: 44, drag: 50, tig: 42, tort: 60, bird: 12 };
     }
     }
+    st.current = Config.sanitize(st.current);
     if (!isHistoryLoad) {
       if (st.historyIndex < st.history.length - 1) {
         st.history = st.history.slice(0, st.historyIndex + 1);
@@ -3400,6 +3413,7 @@ class UIManager {
         wind: st.wind,
         trafficSpeed: st.trafficSpeed
       });
+      if (st.history.length > 60) st.history = st.history.slice(-60);
       st.historyIndex = st.history.length - 1;
     }
     Util.$('rHMain').value = st.heights.main;
@@ -3409,18 +3423,11 @@ class UIManager {
     Util.$('rHBird').value = st.heights.bird;
     Util.$('rWind').value = st.wind; Util.$('windVal').textContent = '+' + st.wind;
     Util.$('rTraffic').value = st.trafficSpeed; 
-    Util.$('trafVal').textContent = st.trafficSpeed < 4 ? '慢 (聚)' : (st.trafficSpeed > 7 ? '極快 (煞)' : '中');
-    for(const id in Config.UI_MAP) {
-      const el = Util.$(id);
-      const val = st.current[Config.UI_MAP[id]];
-      if (el.dataset.multi) {
-        Array.from(el.querySelectorAll('input')).forEach(cb => {
-          cb.checked = val.includes(cb.value);
-        });
-      } else if (el.tagName === 'SELECT') {
-        el.value = val;
-      }
-    }
+    Util.$('trafVal').textContent = UIManager.trafficLabel(st.trafficSpeed);
+    this.syncControls();
+    const curSig = Object.assign({}, this.app.state.current);
+    delete curSig.presetName;
+    this._lastCommitSig = JSON.stringify([curSig, this.app.state.heights, this.app.state.wind, this.app.state.trafficSpeed]);
     this.app.state._applyingPreset = true;
     this.app.rebuild();
     this.app.state._applyingPreset = false;
@@ -3509,10 +3516,10 @@ class UIManager {
     vd.textContent = vt; vd.className = 'vd ' + vc;
     Util.$('eff').innerHTML = `實收吉氣 ${realG} ｜ 沖煞損耗 ${realS} ｜ 明堂飽和度 ${Math.round((realG/ana.c)*100)}%
         <div style="margin-top:6px; padding-top:6px; border-bottom:1px dashed #b0c4de; border-top:1px dashed #b0c4de; color:#556677; font-size:10.5px; text-align:left; line-height:1.6;">
-            <b style="color:#22201c; font-size:11px;">[進階 PDE 與非線性地質遙測]</b><br>
-            雷諾數 (Re): ${ana.reynoldsNum} ${ana.reynoldsNum > 4000 ? '<span style="color:#cc4f14;">(湍流煞)</span>' : '<span style="color:#0d8a43;">(層流吉)</span>'} | 弗勞德數 (Fr): ${ana.froudeNum.toFixed(2)}<br>
-            香農資訊熵: ${ana.shannonEntropy.toFixed(3)} Bits | 拓撲閉合度 (β₁): ${(ana.betti1Closure*100).toFixed(1)}%<br>
-            耗散駐波共振 (Resonant Q): ${ana.qFactor.toFixed(1)} | 拓撲分形維度 (D): ${ana.fractalDiff}<br>
+            <b style="color:#22201c; font-size:11px;">[進階 PDE 與非線性地質遙測（* 為啟發式映射指標）]</b><br>
+            湍流指數 Re*: ${ana.reynoldsNum} ${ana.reynoldsNum > 4000 ? '<span style="color:#cc4f14;">(湍流煞)</span>' : '<span style="color:#0d8a43;">(層流吉)</span>'} | 急流度 Fr*: ${ana.froudeNum.toFixed(2)}<br>
+            香農資訊熵: ${ana.shannonEntropy.toFixed(3)} Bits | 射線閉合率 β₁*: ${(ana.betti1Closure*100).toFixed(1)}%<br>
+            共振品質 Q*: ${ana.qFactor.toFixed(1)} | 分形維度差 D*: ${ana.fractalDiff}<br>
         </div>`;
   }
   updateBars(time, ana) {
@@ -3535,15 +3542,16 @@ class App {
     this.ui = new UIManager(this);
     this.world = new World3D('c', this);
     this.builder = new CityBuilder(this.world.scene);
-    this.particles = new ParticleSystem(this.world.scene);
+    this.particles = new ParticleSystem(this.world.scene, this.world.renderer);
     this.lastTime = performance.now();
+    this.simTime = 0;
     this.animate = this.animate.bind(this);
   }
   init() {
     this.ui.bind();
     this.rebuild();
     window.addEventListener('keydown', e => {
-      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target && e.target.tagName) || '')) return;
+      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes((e.target && e.target.tagName) || '')) return;
       const k = e.key.toLowerCase();
       if(k === 'c'){ this.world.setCamMode(this.world.camMode==='orbit'?'fs':'orbit'); this.ui.syncCamButtons(); }
       if(k === 'l' || e.key === '['){
@@ -3555,9 +3563,11 @@ class App {
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
       if(k === 'h'){
-        ['left', 'right'].forEach(id => {
-          const p = Util.$(id); p.classList.toggle('collapsed');
-          const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
+        const ids = ['left', 'right'];
+        const anyOpen = ids.some(id => !Util.$(id).classList.contains('collapsed'));
+        ids.forEach(id => {
+          const p = Util.$(id); p.classList.toggle('collapsed', anyOpen);
+          const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = anyOpen ? '➕ 展開' : '➖ 摺疊';
         });
       }
       if(k === 'g' || e.code === 'Space'){ 
@@ -3607,14 +3617,6 @@ class App {
     };
     this.state.analysis = FengShuiEngine.analyze(stateCopy, this.builder);
     this.builder.drawWaterTopology(this.state.analysis.dropPaths);
-    if (this.particles) {
-        this.particles.physicalParams = {
-            isCoanda: this.state.analysis.isCoanda || false,
-            isHelmholtz: this.state.analysis.isHelmholtz || false,
-            isHydraulicJump: this.state.analysis.isHydraulicJump || false,
-            qFactor: this.state.analysis.qFactor || 0
-        };
-    }
     this.ui.refreshPanels(this.state);
   }
   addMarker(pt) {
@@ -3622,16 +3624,13 @@ class App {
     this.builder.addSpike(pt);
     this.refreshData();
   }
-  clearMarkers() {
-    this.state.markers = [];
-    this.rebuild();
-  }
   animate() {
     requestAnimationFrame(this.animate);
     const now = performance.now();
     const dt = Math.min((now - this.lastTime) / 1000, 0.05);
     this.lastTime = now;
-    const time = now / 1000;
+    if (!this.state.paused) this.simTime += dt * this.state.timeScale;
+    const time = this.simTime;
     this.world.updateCamera();
     this.builder.update(time, this.state.analysis); 
     this.particles.goodDrawCount = Util.clamp(this.state.analysis.g * 8, 0, this.particles.GMAX);
@@ -3642,28 +3641,56 @@ class App {
   }
 }
 window.DryRunTool = {
-  executeSuite(simulateSecondsPerPreset = 3) {
+  async executeSuite(simulateSecondsPerPreset = 3) {
     console.log("[Dry Run Full Suite] 啟動全格局覆蓋率測試...");
+    const snap = {
+      current: JSON.parse(JSON.stringify(app.state.current)),
+      heights: JSON.parse(JSON.stringify(app.state.heights)),
+      wind: app.state.wind,
+      trafficSpeed: app.state.trafficSpeed
+    };
+    const histLenBefore = app.state.history.length;
+    const histIdxBefore = app.state.historyIndex;
+    const yieldToUI = () => new Promise(r => setTimeout(r, 0));
     const suiteResults = [];
     const presetsToTest = ['perfect', 'cure_combo', 'huilong', 'tianzhan', 'bow', 'yang_extreme', 'yin_extreme', 'wuxing_sheng', 'luchong', 'gejiao', 'chuanxin', 'test_water', 'test_sha', 'test_physics', 'test_quantum'];
-    presetsToTest.forEach(pName => {
+    const totalCases = presetsToTest.length + 5;
+    let done = 0;
+    for (const pName of presetsToTest) {
         app.ui.applyPreset(pName);
         app.state.current.presetName = pName;
+        await yieldToUI();
         const report = this.runSingleTest(simulateSecondsPerPreset);
         suiteResults.push(report);
-    });
+        done++;
+        console.log(`[Dry Run Suite] ${done}/${totalCases} 完成：${pName}（健康:${report.healthAndAnomalies ? report.healthAndAnomalies.healthStatus : '?' }）`);
+        showToast(`Dry Run 進度 ${done}/${totalCases}：${pName}`, 1200);
+    }
     for (let i = 1; i <= 5; i++) {
         app.ui.applyPreset('random');
         app.state.current.presetName = `random_${i}`;
+        await yieldToUI();
         const report = this.runSingleTest(simulateSecondsPerPreset);
         suiteResults.push(report);
+        done++;
+        console.log(`[Dry Run Suite] ${done}/${totalCases} 完成：random_${i}（健康:${report.healthAndAnomalies ? report.healthAndAnomalies.healthStatus : '?' }）`);
+        showToast(`Dry Run 進度 ${done}/${totalCases}：random_${i}`, 1200);
     }
+    app.state.current = JSON.parse(JSON.stringify(snap.current));
+    app.state.heights = JSON.parse(JSON.stringify(snap.heights));
+    app.state.wind = snap.wind;
+    app.state.trafficSpeed = snap.trafficSpeed;
+    app.state.history = app.state.history.slice(0, histLenBefore);
+    app.state.historyIndex = Math.min(histIdxBefore, Math.max(0, app.state.history.length - 1));
+    app.ui.applyPresetSlidersOnly();
+    app.ui.syncControls();
+    app.state._applyingPreset = true;
+    app.rebuild();
+    app.state._applyingPreset = false;
     const totalWarnings = suiteResults.reduce((acc, r) => acc + (r.sanityWarnings ? r.sanityWarnings.length : 0), 0);
     const suitePrompt = `請幫我分析以下【全格局 Dry Run 全套覆蓋測試報告】（包含 perfect, cure_combo, huilong, tianzhan, bow 與 5 組隨機格局）。共發現 ${totalWarnings} 項警示：\n\n\`\`\`json\n${JSON.stringify(suiteResults, null, 2)}\n\`\`\``;
-    console.clear();
     console.log(suitePrompt);
-    alert(`全套 Dry Run 測試完成！共測試 ${suiteResults.length} 種不同格局組合。\n請按 F12 打開 Console，複製 JSON 報告貼給 AI 分析！`);
-    return suiteResults; 
+    showToast(`✅ 全套 Dry Run 測試完成！共 ${suiteResults.length} 種格局、${totalWarnings} 項警示。請按 F12 複製 Console 的 JSON 報告。`, 8000);    return suiteResults; 
   },
   executeSingle(simulateSeconds = 3, silent = false) { return this.runSingleTest(simulateSeconds); },
   runSingleTest(simulateSeconds = 3) {
@@ -3717,9 +3744,13 @@ window.DryRunTool = {
     const opticalAnomalies = [];
     let distToSky = Math.abs(dominantColor.r - 244) + Math.abs(dominantColor.g - 247) + Math.abs(dominantColor.b - 249);
     const isSkyBackground = distToSky < 25; 
+    const maxC = Math.max(dominantColor.r, dominantColor.g, dominantColor.b);
+    const minC = Math.min(dominantColor.r, dominantColor.g, dominantColor.b);
+    const luma = 0.299 * dominantColor.r + 0.587 * dominantColor.g + 0.114 * dominantColor.b;
+    const isNeutralGroundTone = (maxC - minC) < 30 && luma > 90 && luma < 210;
     if (overRatio > 0.35 && !isSkyBackground) opticalAnomalies.push(`【光學異常】畫面發生嚴重過曝泛白 (高光佔比 ${(overRatio*100).toFixed(1)}%)，可能發生 NaN 幾何爆炸或 Shader 發光疊加失控！`);
     if (underRatio > 0.85) opticalAnomalies.push(`【光學異常】畫面極度昏暗或全黑 (黑像素佔比 ${(underRatio*100).toFixed(1)}%)，可能是燈光失效或相機掉入地底穿模！`);
-    if (dominantRatio > 0.60 && distToSky > 40) {
+    if (dominantRatio > 0.60 && !isSkyBackground && !isNeutralGroundTone) {
         opticalAnomalies.push(`【光學異常】畫面被單一異常色彩 rgb(${dominantColor.r},${dominantColor.g},${dominantColor.b}) 嚴重覆蓋 (佔比 ${(dominantRatio*100).toFixed(1)}%)，可能發生 Shader 材質崩潰、熱力圖透明度疊加失控或巨型物體遮擋相機！`);
     }
     const ana = app.state.analysis;
@@ -3923,18 +3954,23 @@ window.DryRunTool = {
 	  }
 	};
   },
-  execute(simulateSeconds = 3) {
+  async execute(simulateSeconds = 3) {
     console.log(`[Dry Run] 啟動單次模式，背景加速模擬 ${simulateSeconds} 秒...`);
+    await new Promise(r => setTimeout(r, 0));
     const report = this.runSingleTest(simulateSeconds);
     const aiPrompt = `請幫我分析以下 3D 城市風水模擬器的 Dry Run 測試結果（單一場景測試）。請檢查「物理觀測數據」與「最終分數」是否符合風水邏輯，並指出需要修改的程式碼段落：\n\n\`\`\`json\n${JSON.stringify(report, null, 2)}\n\`\`\``;
-    console.clear();
     console.log(aiPrompt);
-    alert(`Dry Run 完成！健康狀態：${report.healthStatus}。\n請按 F12 打開 Console 複製 JSON 貼給 AI 進行分析。`);
+    showToast(`✅ Dry Run 完成！健康狀態：${(report.healthAndAnomalies && report.healthAndAnomalies.healthStatus) || '?'}。請按 F12 打開 Console 複製 JSON 貼給 AI 分析。`, 8000);
     return report;
   }
 };
+if (typeof THREE === 'undefined') {
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#334455;font-size:15px;">⚠️ Three.js 載入失敗（可能為離線狀態），請檢查網路後重新整理。</div>';
+  throw new Error('THREE failed to load');
+}
 const app = new App();
 app.init();
+window.app = app;
 </script>
 </body>
 </html>

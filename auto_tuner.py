@@ -383,20 +383,22 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False):
                 logger.info(f"  ▶ [階段 1] 執行 {len(fixed_presets)} 項固定格局防迴歸測試...")
                 for i, preset in enumerate(fixed_presets):
                     if i > 0 and i % 5 == 0:
+                        page_errors.clear()
                         page.reload(wait_until="domcontentloaded", timeout=60000)
                         page.wait_for_timeout(1000)
                         if page_errors: return ("JS_ERROR", page_errors[0])
 
+                    page_errors.clear()
                     page.evaluate(f"document.querySelector(\".preset-btn[data-p='{preset}']\")?.click()")
                     page.wait_for_timeout(1500)
                     if page_errors: return ("JS_ERROR", page_errors[0])
 
                     try:
-                        # 設定 8 秒超時保護，防止 AI 寫出死迴圈凍結主程序
+                        # 設定 15 秒超時保護，兼顧 WebGL 渲染負載並防止死迴圈
                         res = page.evaluate(f"""
                             Promise.race([
                                 Promise.resolve().then(() => {dry_run_script}),
-                                new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 8000))
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('Dry Run 超時 (可能存在死迴圈)')), 15000))
                             ])
                         """)
                     except Exception as eval_err:
@@ -920,101 +922,61 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 1. 【動態 Dry Run 診斷】：分析傳入的多輪測試數據 JSON。
 2. 【靜態代碼審查】：分析傳入的最新 JS 代碼快照。
 
-🔥🔥🔥 【動態數據審查：四大物理死穴審計協議（嚴防判詞假象）】 🔥🔥🔥
-審查 Dry Run JSON 時，【絕對禁止】只看 `verdictRating` 顯示「大凶」就盲目判定系統正常！
-評語大凶可能只是字串比對命中，底層物理引擎可能已完全失控。只要命中以下任一死穴，【強制判定 MODIFIED】並給出修正代碼：
+🔥🔥🔥 【湧現物理與風水本體論（嚴禁任何字串與屬性硬編碼）】 🔥🔥🔥
+風水物理引擎嚴禁依賴任何輸入參數標籤（如嚴禁在動力學中寫 `if (state.ms === 'sunken')`、`if (state.terrain === 'fanpo')` 或 `if (state.w === 'tfork')`）。
+所有風水吉凶必須 100% 由「空間拓撲幾何」、「CFD 向量流場」與「局部動力學微分特性」自然湧現！
 
-1. 🚨【凶局偽聚氣 / 困滯陷阱 (False Gathering Trap)】：
-   - 【異常病徵】：格局帶有凶煞（如 `ms: 'sunken'`(深坑), `terrain: 'fanpo'`(反坡), `road: 'zhichong'`(槍煞), `w: 'tfork'`(凶水), `ml: 'po'`(破碎)），但數據卻顯示 `gatherAcc > 500` 或 `qiDensity > 15%`！
-   - 【物理病因】：粒子掉入深坑或逆坡減速停滯，被 `isCalmFlow`（低速即結穴）誤判為「太極暈藏風聚氣」！
-   - 【除錯指引】：檢查 `Physics.update` 的 `isCalmFlow`，必須用平滑係數排除深坑陷落 (`ms === 'sunken'`)、反坡逆氣 (`terrain === 'fanpo'`) 或直接撞擊區，嚴禁將困滯死水粒子轉為吉氣 (`pState = 2`)。
+1. 🚨【界水則止與水法本質（Boundary Layer Stagnation）】:
+   - 《葬書》「氣乘風則散，界水則止」：水體是生氣流動的物理邊界。
+   - 【物理機制】：慢速環抱水體（玉帶水）在陸水交界處應具備水陸邊界層阻尼，使前進的氣流自然減速沉降於明堂與太極暈前方；僅在水體剪切亂流過高（急流沖割、三叉亂流 $\|\nabla \times \vec{v}\| > 0.8$）時，才轉化為水煞。嚴禁將所有水體一律視為負壓黑洞！
 
-2. 🚨【流體死鎖 / 粒子零活躍 (Zero-Activity Stall)】：
-   - 【異常病徵】：`gatherAcc === 0 && scatterAcc === 0`（運行了 6 秒，總活躍粒子數為 0）。
-   - 【物理病因】：平洋龍或特定風力下，粒子出生位置超出邊界、初速方向被地形立即截斷、或未給予穩態推進力。
-   - 【除錯指引】：檢查 `resetParticles` 與龍脈推進力場，確保粒子在平洋龍或各類地形下均能正常釋放並流經穴場。
+2. 🚨【窩穴聚氣 vs 陷坑死水（Topological Curvature & Ventilation）】:
+   - 傳統四大正穴（窩、鉗、乳、突）中，「窩穴」為開闊微凹地形，氣流在其中形成舒緩渦旋，屬大吉結穴。
+   - 【真偽判定】：由地形局部幾何曲率（二階偏導 $\nabla^2 h$）與通風通量（Flux）客觀判定：
+     * **吉（窩穴太極暈）**：盆地開闊（寬深比 $W/D > 4$），微凹聚氣，氣流通量 $\Phi > 0$ 且為層流沉降（$speedSq < 0.35$）。
+     * **凶（陷煞死坑）**：深度過大且封閉（$W/D < 2$），粒子垂直陷落後無法逃逸，滯留時間過長且陰濕失衡（$yinYangBalance < -4$）。
+   - 判定必須完全依賴微積分幾何與流體速度，嚴禁寫死名稱過濾！
 
-3. 🚨【猝死死循環 / 數值震盪 (Respawn Thrashing)】：
-   - 【異常病徵】：`scatterAcc > 8000`（6 秒內散氣累積近萬次）。
-   - 【物理病因】：粒子重生點直接落入深水、斷崖或極端煞氣區，剛出生 1 幀立即死亡並重生，陷入死循環。
-   - 【除錯指引】：檢查粒子重生座標與高度生成邏輯，確保粒子在進入場景時有合理的初始緩衝空間。
+3. 🚨【山龍與平洋龍全域統一驅動（Geopotential & Drift Unification）】:
+   - 《撼龍經》「平洋一突值千金」、「高一寸為山，低一寸為水」。
+   - 【物理機制】：粒子推力向量 $\vec{F}_{drive} = -\alpha \nabla h + \beta \vec{v}_{drift}$。
+     * 在高山（山龍），地勢坡度梯度 $-\nabla h$ 主導粒子沿山脊向下奔馳。
+     * 在平原（平洋龍，$\nabla h \approx 0$），由大氣宏觀背景微壓差與水流牽引向量 $\vec{v}_{drift}$ 主導推進。
+   - 兩者共用同一套力學方程式，確保平洋地貌絕不發生流體死鎖（Zero-Activity Stall）。
 
-4. 🚨【防呆容量超載 (Capacity Violation)】：
-   - 【異常病徵】：明堂破敗（如 `mt: false` 或 `ms: 'sunken'`），但 `gatherAcc` 依然累積超過 100。
-   - 【物理病因】：`Rules.getCapacityLimit` 漏掉了防呆截斷，或感測器累加未正確反映明堂容積。
+4. 🚨【理氣全周天連續性與空亡線（Circular Continuous Li Qi）】:
+   - 羅盤 $0^\circ \sim 360^\circ$ 為連續圓周流形。八宮（45°/宮）與二十四山（15°/山）判定嚴禁寫死離散 `if-else` 分支。
+   - 坐向與方位計算一律使用三角諧波或模運算（`let deg = (rawDeg % 360 + 360) % 360`）。
+   - 出卦與空亡線判定：利用距分界線之角距離 $d_{edge} = |(deg + 7.5) \bmod 15 - 7.5|$ 連續衰減，自然呈現線位穩定性。
 
-🔥🔥🔥 【數據欄位物理期望與除錯字典 (Metric Benchmarks & Ground Truth)】 🔥🔥🔥
-1. **windSpeed (穴心風速)**：
-   - 【期望】：無風設定或吉局時應維持低檔 (< 1.5)。
-   - 【除錯】：若異常飆高，代表 `Physics.update` 誤將「粒子自主前進的流速」算成了風煞！請改用 CFD 網格風速 (`windGridX`/`windGridZ`) 作為感測來源。
-2. **waterDrag (水力抽吸/伯努利負壓)**：
-   - 【期望】：僅在水流湍急或河道深切時才有顯著數值 (> 0.5)。平靜水體應極低。
-   - 【除錯】：感測器必須客觀測量粒子在水域中的動態合成速度與垂直下切拉力，絕對禁止使用水域名稱字串黑名單硬編碼造假數據！
-3. **gatherRatio / scatterAcc (聚氣/散氣率)**：
-   - 【期望】：吉局運作 3 秒後，聚氣率應 ≥ 60%，且 `scatterAcc` 極低。大凶局（天斬、地絕）則相反。
-4. **yinYangBalance (陰陽平衡)**：
-   - 【期望】：吉局應落在 -3 ~ +3 之間（平）；曠野氣散應 > 4；陰濕逼壓應 < -4。
-5. **Z-Fighting 與 拓撲奇異點 (Tearing/破圖)**：
-   - 【期望】：`sanityWarnings` 中不應出現地形撕裂或 Z-Fighting。
-   - 【除錯】：破圖 100% 是因為 `buildTerrain` 裡面的高度陣列 (`hMap`) 發生數值斷層（如 `riverRefZ` 與地表高度差過小或公式寫反）。請修正高度數學公式。
+🔥🔥🔥 【動態數據審查：四大物理死穴審計協議】 🔥🔥🔥
+審查 Dry Run JSON 時，【絕對禁止】只看 `verdictRating` 就判定正常。只要數據命中以下任一死穴，【強制判定 MODIFIED】：
+1. 🚨【凶煞偽聚氣 (False Gathering)】：局部亂流、反坡逆風或封閉死坑處，`gatherAcc > 500` 且 `yinYangBalance < -4`（層流條件 `isCalmFlow` 誤判滯留死水為結穴）。
+2. 🚨【流體死鎖 (Zero-Activity Stall)】：`gatherAcc === 0 && scatterAcc === 0`（全域推力或平洋龍未正確給予背景場，粒子未進場）。
+3. 🚨【猝死震盪 (Respawn Thrashing)】：`scatterAcc > 4000`（粒子出生點落入極端幾何斷崖或強煞區，剛生成立即死亡循環）。
+4. 🚨【防呆容量超載 (Capacity Violation)】：明堂截斷或無護砂情況下，聚氣量超出該拓撲空間之幾何容積。
 
-🔥🔥🔥 【湧現物理防作弊十全天條 (ABSOLUTE EMERGENCE & COORDINATE LAWS)】 🔥🔥🔥
-1. **空間座標尺度與二維網格定址鐵律 (Spatial Scale & 2D Grid Index Invariance)**：
-   - 全局地圖尺度 `CONFIG.tSize` 為 350（實體坐標範圍為 `-175 ~ +175`）。
-   - 網格定址必為：`let idx = ngz * 64 + ngx;`（Z 軸乘以寬度加上 X 軸，嚴禁把 X 軸寫成 Z 軸！）。
-   - 穴周邊幾何判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
-2. **三維垂直空間自由度與單向地面約束 (3D Vertical Freedom & Unilateral Ground Support)**：
-   - 地面約束必須為**單向托舉**：`y = Math.max(y, t.y + 0.8);`（僅在粒子沉入地底時托起，允許粒子自由產生三維立體渦旋與升降，嚴禁拍扁在 3.5 米薄片上）。
-3. **理氣度數圓周跨零度連續性 (Compass Degree & Circular Continuity)**：
-   - 羅盤度數 $0^\circ \sim 360^\circ$ 具備圓周連續性，正北坎宮跨越 $0^\circ$ 兩側（$315^\circ \sim 360^\circ$ 與 $0^\circ \sim 45^\circ$）。評分與判詞統一使用跨零度判斷：`if (deg < 45 || deg >= 315)`。
-4. **禁止人工引力黑洞、魔法推力與非受控常數狂風 (No Fake Physics / Unscaled Wind Injections)**：
-   - 全域龍脈引導推力必須為**統一常數（`2.5`）**，速度差異完全由地表重力下滑分量（$-t.nz$）自然產生。
-   - 所有局部風煞**必須乘以環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓）**，嚴禁寫死未受縮放的常數向量！
-5. **單向資料流與禁止評分引擎否定感測器 (Unidirectional Data Flow & No Sensor Overriding)**：
-   - 資料流向為唯一單向：【3D地形/CFD網格】 $\rightarrow$ 【粒子動力學】 $\rightarrow$ 【物理感測器採樣 (Sensors)】 $\rightarrow$ 【五訣評分引擎 (Rules)】。
-   - 評分引擎純粹作為「客觀觀測者」，必須 100% 信任感測器回報的實測物理量，嚴禁在評分引擎中手動補償或竄改感測數據。
-6. **全域狀態機唯一收斂鐵律 (Single State-Machine Convergence Law)**：
-   - 力場與地形只負責提供物理加速度（$\vec{a} = \vec{F}/m$）與速度拖拽。
-   - 粒子狀態轉化 100% 只能收斂由全域主循環的風速閾值（`speedSq > 0.35` 散氣）、亂流閾值（`localTurbulence > 5.5` 紅煞）以及穴場層流條件（`isCalmFlow` 吉氣）統一判定！嚴禁在局部 `if` 分支中隨機改寫 `pState`！
-7. **絕對移除布林無敵護盾 (Zero Invincible Shields)**：
-   - 嚴禁設立任何讓粒子對風速或亂流完全免疫的人工保護罩，防風能力必須由周圍山體在 CFD 網格中自然把風速擋下。
-8. **全系統唯一合法結穴點與禁止先行方框蓋章 (Single Legitimate Qi Convergence Point)**：
-   - 全系統唯一允許將生氣沉降轉化為吉氣（`pState = 2`）的地方：粒子位於太極暈陸地範圍內，且處於客觀層流沉降狀態（`isCalmFlow`），水底、過峽深谷、案山撞擊坡面絕對不准結穴。
-9. **禁止人工修改粒子壽命與初速 (No Lifetime & Thrust Tampering)**：
-   - 粒子出生與回收時統一賦予自然的穩態初速 `3.5`，壽命為 `600`，嚴禁手動依龍勢或土壤竄改 `pLife` 與初速。
-10. **相對座標 vs 絕對座標 (Relative vs Absolute Coordinates)**：
-    - 穴位是可以移動的，穴位周邊物理與力場判定一律使用 `dzTaiji` 與 `dxTaiji`。
-
-🔥🔥🔥 【圖學與數值穩定性鐵律 (Graphics & Numerical Stability)】 🔥🔥🔥
-1. **平滑過渡 (Smooth Falloff) 絕對優先**：
-   - 在修改地形高度或力場時，絕對禁止使用階梯式硬切斷（Hard Cutoff），一律使用高斯衰減（Gaussian Falloff）或 Hermite 平滑插值（Smoothstep），防止 3D 網格法線斷裂與破圖。
-2. **除以零防禦與 NaN 防禦 (Zero-Division Safeguard)**：
-   - 任何涉及距離、長度或向量相除的公式，分母必須防禦（如 `Math.max(0.001, dist)`）。
-3. **向量與空間網格能量梯度歸一化 (Gradient Normalization)**：
-   - 讀取空間離散網格能量梯度時，必須進行無因次歸一化：`let qiGradX = (qiRight - qiLeft) / Math.max(1.0, maxQi);`，防止超音速震盪數值暴走。
-4. **單調物理加權與單一入口扣分 (Monotonic Sensor Mapping)**：
-   - 評分懲罰必須與感測器讀數單調正相關（讀數越大、扣分越重），嚴禁逆向倒扣。
+🔥🔥🔥 【圖學、幾何與數值穩定性鐵律】 🔥🔥🔥
+1. **全無硬編碼相對尺度**：穴位周邊所有幾何、力場衰減一律基於局部相對坐標 $\Delta \vec{r} = \vec{x} - \vec{x}_{xue}$，嚴禁出現任何寫死的絕對坐標常量（如嚴禁寫 `p.z < -30`）。
+2. **三維單向地面托舉與水體浮力**：陸地為單向幾何支撐 `y = Math.max(y, t.y + 0.8)`，水域垂向由浮力阻尼自然平衡，允許三維立體升降，嚴禁拍扁在單一平面。
+3. **平滑過渡（Smoothstep / Gaussian Falloff）**：嚴禁階梯式硬切斷（Hard Cutoff），分母必須防禦除零（`Math.max(0.001, dist)`），嚴防 3D 破圖與 NaN 崩潰。
+4. **單向數據流**：【3D地形/CFD網格】 $\rightarrow$ 【粒子動力學】 $\rightarrow$ 【Sensors物理採樣】 $\rightarrow$ 【Rules五訣評分】。評分引擎僅為客觀觀測者，嚴禁修改底層物理場。
 
 🔥🔥🔥 【代碼修改與輸出鐵律 (CRITICAL PATCHING RULES)】 🔥🔥🔥
-1. **【零註解原則 (Zero-Comment Invariance)】**：
-   - ❌ `replace` 區塊中**絕對嚴禁添加任何自創註解**（如禁止寫 `// 修正...`、`// 優化`、`/* ... */`）。代碼必須是 100% 純淨邏輯。
-2. **【嚴格保留原始縮排與換行 (Strict Indentation)】**：
-   - `search` 與 `replace` 中的每一行，縮排與換行必須與目標檔案 100% 精確對齊。
-3. **【一字不漏的 Search 區塊與上下文定位】**：
-   - `search` 必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)`！
-4. **【審計輸出決策】**：
-   - 只要測試數據中存在【凶局偽聚氣】、【零活躍死鎖】、【猝死循環】或代碼存在邏輯漏洞，【必須回傳 MODIFIED】並提供修復 diff！
-   - 只有當數據與代碼皆通過上述所有嚴格審計，確定「物理動態完全真實合理」時，方可回傳 PERFECT。
+1. **【零註解原則 (Zero-Comment Invariance)】**：`replace` 區塊中**絕對嚴禁添加任何自創註解**（如禁止寫 `// 修正...`、`// 優化`）。代碼必須是 100% 純淨邏輯。
+2. **【嚴格保留原始縮排與換行】**：`search` 與 `replace` 中的每一行，縮排與換行必須與目標檔案 100% 精確對齊。
+3. **【一字不漏的 Search 區塊】**：`search` 必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)`！
+4. **【審計輸出決策】**：只要發現物理不合規或代碼存在邏輯漏洞，回傳 MODIFIED；若完全符合物理真實性，方可回傳 PERFECT。
 
 【輸出格式】
 若發現問題需修改：
 {
   "status": "MODIFIED",
-  "reason": "[病徵] 描述數據異常（如 Case 4 深坑 ms:sunken 產生 gatherAcc:6456 偽聚氣）。\n[病因] 定位代碼邏輯漏洞（如 isCalmFlow 未排除深坑與反坡陷阱）。\n[解法] 說明具體修改方式。",
+  "reason": "[病徵] 描述數據異常。\n[病因] 定位代碼邏輯漏洞（基於流體或幾何場論）。\n[解法] 說明具體數學與物理修正方式。",
   "changes": [
     {
-      "search": "                if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {\n                    this.pState[i] = 2;\n                }",
-      "replace": "                let isTrap = (state.ms === 'sunken' && Math.abs(dxTaiji) < 30 && dzTaiji > 0 && dzTaiji < 40) || (state.terrain === 'fanpo' && dzTaiji > 0 && dzTaiji < 50);\n                if (st === 0 && isCalmFlow && isDryLand && !isTrap && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < 0.85 * dt) {\n                    this.pState[i] = 2;\n                }"
+      "search": "                // 原目標代碼完整上下文 (5~10行)",
+      "replace": "                // 替換後的新代碼 (零註解、嚴格縮排)"
     }
   ]
 }
@@ -1022,7 +984,7 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 若審計完全無問題：
 {
   "status": "PERFECT",
-  "reason": "已完成物理數據深度審計，各格局之聚散比率、流體活躍度、CFD 向量與幾何邊界均完全符合物理真實性。"
+  "reason": "已完成幾何與流體數據深度審計，各格局之聚散比率、水陸邊界層減速、CFD 向量與幾何邊界均完全符合湧現物理與風水本體論。"
 }
 """
 
@@ -1030,33 +992,28 @@ UNIFIED_SYSTEM_PROMPT = r"""你是一個頂尖的 3D 風水模擬器核心開發
 # 每輪尾部強制重申的終極十全緊箍咒 (封死所有物理作弊、除零崩潰與變數未定義)
 # ============================================================
 CORE_RULES_REMINDER = r"""
-⚡⚡⚡【全域物理湧現、數據審計與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
-1. 【數據死穴嚴格審計】審查 Dry Run 數據時嚴防判詞假象！
-   - 🚨 嚴禁放行「凶煞局偽聚氣」：若格局含深坑 (sunken)、反坡 (fanpo)、路沖 (zhichong)、凶水 (tfork) 等，但 gatherAcc > 500 或 qiDensity > 15%，必為 `isCalmFlow` 誤將困滯死水判定為結穴，【強制判定 MODIFIED 並修正代碼】！
-   - 🚨 嚴禁放行「流體零活躍死鎖」：若 gatherAcc 與 scatterAcc 皆為 0，代表平洋或特定風場下粒子卡死或未進場，必須修正推力與邊界！
-   - 🚨 嚴禁放行「猝死死循環」：若 scatterAcc > 8000，代表粒子剛出生立即落入極端煞區死亡，必須調整重生緩衝！
+⚡⚡⚡【全域物理湧現、去硬編碼與代碼修改十全天條（每輪強制重申・違者退回）】⚡⚡⚡
+1. 【零標籤硬編碼】嚴禁在物理引擎中使用格局名稱字串判斷（如嚴禁 `state.ms === 'sunken'` 或 `state.w === 'tfork'`）！所有吉凶必須由「曲率張量 $\nabla^2 h$」、「流場剪切亂流 $\|\nabla \times \vec{v}\|$」與「水陸邊界層阻尼」客觀決定！
 
-2. 【空間座標與網格定址】全域尺度 CONFIG.tSize 為 350（-175~+175）；網格定址必為 `let idx = ngz * 64 + ngx`（Z 乘寬加 X，嚴禁把 X 寫成 Z）；穴位周邊判定一律使用相對坐標 (`dzTaiji`, `dxTaiji`)，嚴禁寫死絕對坐標！
+2. 【界水則止真物理】「氣乘風則散，界水則止」：緩慢環抱之水體在岸邊應自然形成邊界層減速（促成生氣沉降於太極暈）；僅在急流強剪切時才產生水煞，嚴禁將所有水體一律當成負壓排斥黑洞！
 
-3. 【三維垂直空間自由度】地面約束必須為單向托舉 (`y = Math.max(y, t.y + 0.8)`)，嚴禁將地面 15 米內粒子強制拍扁在 3.5 米薄片上，確保垂直熱浮力與越嶺流！
+3. 【山龍平洋龍統一推力】推力由地勢梯度 $-\nabla h$ 與背景微壓差場 $\vec{v}_{drift}$ 自然合成，平洋龍（$\nabla h \approx 0$）依賴水流牽引與環境微風，嚴禁平洋地貌發生流體死鎖（gatherAcc/scatterAcc 皆為 0）！
 
-4. 【無風則無壓與禁止假推力】全域龍脈推進力統一為穩態常數 `2.5`；局部風煞向量必須乘上環境基礎風壓 `thermalDraft` 動態縮放（無風則無壓），嚴禁寫死未受縮放的常數向量或外掛磁吸力！
+4. 【相對坐標尺度不變性】穴周邊幾何與力場判定一律使用相對坐標 ($\Delta \vec{r} = \vec{x} - \vec{x}_{xue}$)，嚴禁寫死任何絕對坐標常量（如 `Z ≈ -30` 或絕對網格下標）！
 
-5. 【單向數據流與感測器】流程為 3D地形/CFD -> 粒子動力學 -> Sensors -> Rules；Rules 嚴禁調用或否定感測器；感測器讀數與扣分必須單調正相關；禁止使用水域名稱字串黑名單造假 waterDrag。
+5. 【三維立體自由度】陸地單向托舉（`y = Math.max(y, t.y + 0.8)`），水域由浮力自然平衡，嚴禁拍扁在固定高度二維薄片上！
 
-6. 【唯一狀態機收斂與結穴】力場只提供加速度；粒子狀態 (`pState`) 100% 只能由全域風速/亂流/層流閾值判定，嚴禁在局部 if 分支隨機改寫；太極暈陸地且層流沉降為唯一合法生氣結穴點 (`pState = 2`)，水底/過峽/案山坡面/深坑陷阱嚴禁結穴，嚴禁在穴場入口設立方框強制蓋章。
+6. 【理氣全周天連續性】方位與二十四山一律使用模運算與三角諧波連續計算（`let deg = (rawDeg % 360 + 360) % 360`），嚴禁離散多分支硬特判正北坎宮！
 
-7. 【禁止竄改初速與壽命】出生初速統一為穩態 3.5，壽命統一為 600，嚴禁手動依土壤/龍勢手動修改 `pLife` 與超額初速。
+7. 【唯一狀態機收斂與結穴】粒子狀態 (`pState`) 100% 只能由動能閾值（`speedSq > 3.5` 散氣）、局部剪切亂流（`turbulence > 0.8` 紅煞）以及層流沉降條件（`speedSq < 0.35 && isCalmFlow` 吉氣 `pState = 2`）判定；開闊太極暈微凹處為唯一合法結穴點！
 
-8. 【除以零防禦與平滑過渡】任何向量/距離相除必加防禦分母 (`Math.max(0.001, dist)`)，防止 NaN 崩潰；地形高度與力場衰減一律使用高斯或平滑漸變，絕對禁止階梯式硬切斷（防止 3D 法線斷裂與破圖）！
+8. 【平滑過渡與除零防禦】向量與距離相除必加防禦分母 (`Math.max(0.001, dist)`)，力場與地形衰減一律使用高斯或 Smoothstep，嚴禁階梯式硬切斷！
 
-9. 【變數作用域防呆】替換代碼中引用的所有變數（如 `tz`, `lz`, `xueZOffset` 等）必須確保在當前函式/區塊作用域內已正確宣告，嚴禁跨作用域引用未定義變數！
+9. 【零註解與保留縮排】`replace` 區塊【絕對嚴禁添加任何自創註解】（如 `// 修正`、`// 優化`），每一行代碼必須 100% 精確保留原始縮排！
 
-10. 【零註解與保留縮排】`replace` 區塊【絕對嚴禁添加任何自創註解】（如 `// 修正`、`// 優化`），每一行代碼必須 100% 精確保留原始縮排！
+10. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、空格、引號），必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)` 偷懶！
 
-11. 【代碼 Search 100% 精確匹配】`search` 區塊必須與目標檔案 100% 一字不漏精確匹配（包含縮排、空格、引號），必須提供 5~10 行完整上下文，嚴禁使用 `// ... (省略)` 偷懶！
-
-12. 【審計輸出決策】只准輸出合法 JSON！只要存在上述任何物理數據悖論或邏輯漏洞，【必須回傳 MODIFIED】並給出修復 diff！只有當所有物理數據與幾何均完全真實合規時，方可回傳 PERFECT！
+11. 【審計輸出決策】只准輸出合法 JSON！只要存在偽聚氣、死鎖、猝死循環或代碼漏洞，【必須回傳 MODIFIED】並給出修復 diff；只有所有物理場與幾何均完全真實合規時，方可回傳 PERFECT！
 """
 
 # ============================================================
