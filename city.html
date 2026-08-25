@@ -194,7 +194,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button class="preset-btn" data-p="perfect">完美巒頭</button><button class="preset-btn" data-p="huilong">迴龍顧祖</button><button class="preset-btn" data-p="cure_combo">界水化煞局</button>
   </div>
   <div class="prow">
-    <button class="preset-btn" data-p="tianzhan">天斬傾瀉</button><button class="preset-btn" data-p="bow">反弓背主</button><button class="preset-btn" data-p="random">隨機生成</button>
+    <button class="preset-btn" data-p="tianzhan">天斬傾瀉</button><button class="preset-btn" data-p="bow">反弓背主</button><button class="preset-btn" data-p="random">隨機生成</button><button class="preset-btn" data-p="random_auspicious" style="border-color:#b98a2e; color:#b87a00; font-weight:bold;">隨機平吉</button>
     <button id="btn-prev-preset" title="上一筆設定 (PageUp)" style="flex:0.25; background:#8899aa; color:#fff; border:none; border-radius:4px;">◀</button>
     <button id="btn-next-preset" title="下一筆設定 (PageDown)" style="flex:0.25; background:#8899aa; color:#fff; border:none; border-radius:4px;">▶</button>
   </div>
@@ -236,7 +236,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="sec">理論分析與五行動力學</div>
   <div id="theory"></div>
 </div>
-<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・右鍵平移・滾輪/雙指捏合：縮放/前進・C：視角・G或空白鍵：隨機格局・L/R或[/]：摺疊左右面板・H：隱藏雙面板</div>
+<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・1/2/3：沙盒工具・Esc：取消・C：視角・R：預設・X：置煞・T：Dry Run・G或空白鍵：隨機 (Shift+G 平吉)・PageUp/Down：歷史・L/H或[/]：面板</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -3051,16 +3051,23 @@ class World3D {
       this.renderer.setSize(window.innerWidth, window.innerHeight); 
     });
     window.addEventListener('keydown', e => { 
-        const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
+        if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && !['range','checkbox','radio','button'].includes(e.target.type)))) return;
         const k = e.key.toLowerCase();
-        if(this.keys.hasOwnProperty(k)) this.keys[k] = 1;
+        if (e.target && (e.target.tagName === 'SELECT' || (e.target.tagName === 'INPUT' && e.target.type === 'range'))) {
+            if (k.startsWith('arrow')) return;
+        }
+        if(this.keys.hasOwnProperty(k)) {
+            this.keys[k] = 1;
+            if(k.startsWith('arrow') || k === ' ') e.preventDefault();
+        }
     });
     window.addEventListener('keyup', e => { 
-        const tn = (e.target && (e.target.tagName || '')) || '';
-        if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes(tn)) return;
+        if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && !['range','checkbox','radio','button'].includes(e.target.type)))) return;
         const k = e.key.toLowerCase();
         if(this.keys.hasOwnProperty(k)) this.keys[k] = 0;
+    });
+    window.addEventListener('blur', () => {
+        for (let k in this.keys) this.keys[k] = 0;
     });
   }
   setCamMode(mode) {
@@ -3247,6 +3254,7 @@ class UIManager {
           this.app.state.current[Config.UI_MAP[id]] = e.target.value;
           this.applyStateSanitize();
           this.app.rebuild();
+          e.target.blur();
         });
       } else if (el.dataset.multi) {
         el.addEventListener('change', e => {
@@ -3285,7 +3293,7 @@ class UIManager {
       this.app.state.wind = +e.target.value; Util.$('windVal').textContent = '+' + this.app.state.wind;
       debouncedEnvRefresh();
     };
-    Util.$('rWind').onchange = () => this.commitHistoryIfChanged();
+    Util.$('rWind').onchange = (e) => { e.target.blur(); this.commitHistoryIfChanged(); };
     Util.$('rTraffic').oninput = e => { 
       const v = +e.target.value;
       this.app.state.current.presetName = 'custom'; 
@@ -3293,16 +3301,17 @@ class UIManager {
       Util.$('trafVal').textContent = UIManager.trafficLabel(v); 
       debouncedEnvRefresh(); 
     };
-    Util.$('rTraffic').onchange = () => this.commitHistoryIfChanged();
-    Util.$('ckHeat').onchange = e => this.app.world.heatMesh.visible = e.target.checked;
-    Util.$('ckWind').onchange = e => this.app.particles.windGroup.visible = e.target.checked;
-    Util.$('bFS').onclick = () => { this.app.world.setCamMode('fs'); this.syncCamButtons(); };
-    Util.$('bDef').onclick = () => { this.app.world.setCamMode('orbit'); this.syncCamButtons(); };
-    Util.$('bPause').onclick = () => { this.app.state.paused = !this.app.state.paused; this.syncTime(); };
-    Util.$('b1x').onclick = () => { this.app.state.paused = false; this.app.state.timeScale = 1; this.syncTime(); };
-    Util.$('b2x').onclick = () => { this.app.state.paused = false; this.app.state.timeScale = 2; this.syncTime(); };
+    Util.$('rTraffic').onchange = (e) => { e.target.blur(); this.commitHistoryIfChanged(); };
+    Util.$('ckHeat').onchange = e => { e.target.blur(); this.app.world.heatMesh.visible = e.target.checked; };
+    Util.$('ckWind').onchange = e => { e.target.blur(); this.app.particles.windGroup.visible = e.target.checked; };
+    Util.$('bFS').onclick = (e) => { e.target.blur(); this.app.world.setCamMode('fs'); this.syncCamButtons(); };
+    Util.$('bDef').onclick = (e) => { e.target.blur(); this.app.world.setCamMode('orbit'); this.syncCamButtons(); };
+    Util.$('bPause').onclick = (e) => { e.target.blur(); this.app.state.paused = !this.app.state.paused; this.syncTime(); };
+    Util.$('b1x').onclick = (e) => { e.target.blur(); this.app.state.paused = false; this.app.state.timeScale = 1; this.syncTime(); };
+    Util.$('b2x').onclick = (e) => { e.target.blur(); this.app.state.paused = false; this.app.state.timeScale = 2; this.syncTime(); };
     document.querySelectorAll('.tool-btn').forEach(b => {
-      b.onclick = () => {
+      b.onclick = (e) => {
+        b.blur();
         const t = b.dataset.tool;
         this.app.state.tool = (this.app.state.tool === t) ? null : t; 
         document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('on'));
@@ -3315,18 +3324,21 @@ class UIManager {
         this.app.rebuild(); 
     };
     document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => this.applyPreset(b.dataset.p));
-    Util.$('btn-prev-preset').onclick = () => {
+    document.querySelectorAll('.preset-btn').forEach(b => b.onclick = () => { this.applyPreset(b.dataset.p); b.blur(); });
+    Util.$('btn-prev-preset').onclick = (e) => {
+        e.target.blur();
         if (this.app.state.historyIndex > 0) {
             this.app.state.historyIndex--;
             this.applyPreset(null, true);
         }
     };
-    Util.$('btn-next-preset').onclick = () => {
+    Util.$('btn-next-preset').onclick = (e) => {
+        e.target.blur();
         if (this.app.state.historyIndex < this.app.state.history.length - 1) {
             this.app.state.historyIndex++;
             this.applyPreset(null, true);
         } else {
-            this.applyPreset('random');
+            this.applyPreset(e && e.shiftKey ? 'random_auspicious' : 'random');
         }
     };
     if (Util.$('btn-dry-run')) {
@@ -3362,7 +3374,39 @@ class UIManager {
       st.trafficSpeed = hist.trafficSpeed;
     } else {
       st.current.presetName = k; 
-      if(k === 'random'){
+    if(k === 'random_auspicious'){
+      const pick = a => a[Math.random()*a.length|0];
+      const pickMulti = (a, max = 2) => {
+        const choices = a.filter(x => x !== 'none');
+        if (choices.length === 0) return ['none'];
+        const num = 1 + Math.floor(Math.random() * Math.min(max, choices.length));
+        choices.sort(() => 0.5 - Math.random());
+        return choices.slice(0, num);
+      };
+      st.current.sector = pick(['center','east','south','west','north']);
+      st.current.color = pick(['default','metal','wood','water','earth']);
+      st.current.terrain = pick(['flat','backhigh','basin']);
+      st.current.waterDir = pick(['wang','reverse']);
+      st.current.dragon = pick(['avenue','metro','branch']);
+      st.current.water = pick(['jade','nine']);
+      st.current.left = 'qinglong';
+      st.current.right = 'baihu';
+      st.current.front = pick(['plaza','lowcase']);
+      st.current.shuifa = pickMulti(['san cha','banyue','luoxing','huabiao','shixiang','qinxing'], 2);
+      st.current.star = pick(['metal','wood','earth']);
+      st.current.hole = pick(['wo','qian','ru','tu']);
+      st.current.sha = ['none'];
+      st.current.special = pickMulti(['taiji','guanxing','chaoshan','shuqi','fengyao','hulong','guiyao'], 2);
+      st.current.liqi = 'face';
+      st.current.cure = pickMulti(['none','pool','trees','fountain'], 2);
+      st.heights.main = 35 + (Math.random()*20|0);
+      st.heights.drag = st.heights.main + 5 + (Math.random()*15|0);
+      st.heights.tig = st.heights.main - 2 + (Math.random()*10|0);
+      st.heights.tort = st.heights.main + 10 + (Math.random()*25|0);
+      st.heights.bird = 8 + (Math.random()*12|0);
+      st.wind = 2 + (Math.random()*3|0);
+      st.trafficSpeed = 2 + (Math.random()*4|0);
+    } else if(k === 'random'){
       const pick = a => a[Math.random()*a.length|0];
       const pickMulti = (a, max = 3) => {
         if(Math.random() < 0.25) return ['none']; 
@@ -3569,14 +3613,21 @@ class App {
     this.ui.bind();
     this.rebuild();
     window.addEventListener('keydown', e => {
-      if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes((e.target && e.target.tagName) || '')) return;
+      if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && !['range','checkbox','radio','button'].includes(e.target.type)))) return;
       const k = e.key.toLowerCase();
+      if(k === 'p'){ this.state.paused = !this.state.paused; this.ui.syncTime(); }
       if(k === 'c'){ this.world.setCamMode(this.world.camMode==='orbit'?'fs':'orbit'); this.ui.syncCamButtons(); }
+      if(k === 'r'){ 
+        this.world.setCamMode('orbit'); 
+        this.world.view.theta = 0.65; this.world.view.phi = 1.08; this.world.view.r = 300; 
+        this.world.view.tg.set(0, 14, 12);
+        this.ui.syncCamButtons();
+      }
       if(k === 'l' || e.key === '['){
         const p = Util.$('left'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
-      if(k === 'r' || e.key === ']'){
+      if(e.key === ']'){
         const p = Util.$('right'); p.classList.toggle('collapsed');
         const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = p.classList.contains('collapsed') ? '➕ 展開' : '➖ 摺疊';
       }
@@ -3588,9 +3639,45 @@ class App {
           const b = p.querySelector('.panel-toggle-btn'); if(b) b.textContent = anyOpen ? '➕ 展開' : '➖ 摺疊';
         });
       }
-      if(k === 'g' || e.code === 'Space'){ 
-        if(e.code === 'Space') e.preventDefault(); 
-        this.ui.applyPreset('random');
+      if(k === 'g' || e.code === 'Space' || k === ' '){ 
+        e.preventDefault();
+        this.ui.applyPreset(e.shiftKey ? 'random_auspicious' : 'random');
+      }
+      if(k === 't'){
+        if (window.DryRunTool) {
+          if (e.shiftKey) window.DryRunTool.executeSuite(3);
+          else window.DryRunTool.execute(3);
+        }
+      }
+      if(k === 'x'){
+        const cb = document.querySelector('#sSha input[value="manual"]');
+        if (cb) {
+          cb.checked = !cb.checked;
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+          showToast(cb.checked ? '已開啟手動置煞模式（點擊地面可佈煞）' : '已關閉手動置煞模式');
+        }
+      }
+      if(k === 'escape'){
+        this.state.tool = null;
+        document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('on'));
+        if (this.builder.ghostMesh) this.builder.ghostMesh.visible = false;
+        const cb = document.querySelector('#sSha input[value="manual"]');
+        if (cb && cb.checked) {
+          cb.checked = false;
+          cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        showToast('已取消選取工具與置煞模式');
+      }
+      if(k === '1' || k === '2' || k === '3'){
+        const toolMap = { '1':'wood', '2':'earth', '3':'water' };
+        const toolName = { '1':'木形(高樓)', '2':'土形(方樓)', '3':'水(真水池)' };
+        const t = toolMap[k];
+        this.state.tool = (this.state.tool === t) ? null : t;
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          btn.classList.toggle('on', btn.dataset.tool === this.state.tool);
+        });
+        if (this.state.tool) showToast(`已選取建造工具：${toolName[k]}（點擊地面建造）`);
+        else showToast('已取消建造工具');
       }
       if(k === 'pageup'){
         if (this.state.historyIndex > 0) {
@@ -3603,7 +3690,7 @@ class App {
           this.state.historyIndex++;
           this.ui.applyPreset(null, true);
         } else {
-          this.ui.applyPreset('random');
+          this.ui.applyPreset(e.shiftKey ? 'random_auspicious' : 'random');
         }
       }
     });

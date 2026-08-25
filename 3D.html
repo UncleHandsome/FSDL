@@ -211,7 +211,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
     </div>
 </div>
 <div id="inspect-hud"></div>
-<div id="controls-hint">🖱 左鍵或方向鍵(↑↓←→)：旋轉視角・鍵盤WASD：移動 (QE升降 / Shift加速)・C：堪輿視角・R：預設視角・P：全域探測・I：隨處探針・M：手動點穴・X：置煞模式・T：Dry Run・G：隨機 (Shift+G 隨機平吉)・[ / ]：折疊面板</div>
+<div id="controls-hint">🖱 左鍵或方向鍵(↑↓←→)：旋轉・WASD：移動 (QE升降/Shift加速)・P：全域探測・I：探針・M：點穴・X：置煞・Esc：退出工具・C：堪輿・R：預設・T：Dry Run・G或空白鍵：隨機 (Shift+G 平吉)・PageUp/Down：歷史・L/H或[/]：面板</div>
 <script>
 window.addEventListener('error', (e) => {
     let bar = document.getElementById('fatal-error-bar');
@@ -358,12 +358,12 @@ const AppState = {
             this.resetTo(null, true);
         }
     },
-    nextHistory() {
+    nextHistory(isShift = false) {
         if (this.historyIndex < this.history.length - 1) {
             this.historyIndex++;
             this.resetTo(null, true);
         } else {
-            this.resetTo('random');
+            this.resetTo(isShift ? 'random_auspicious' : 'random');
         }
     }
 };
@@ -1830,6 +1830,7 @@ const UI = {
         });
         document.querySelectorAll('.tog').forEach(b => {
             b.addEventListener('click', e => {
+                b.blur();
                 if(b.disabled) return;
                 AppState.current.presetName = 'custom';
                 AppState.current[b.dataset.k] = !AppState.current[b.dataset.k];
@@ -1892,7 +1893,8 @@ const UI = {
             document.getElementById('xueh-val').innerText = labels[Math.floor(val / 5)] || `${val}`;
             this.scheduleUpdate(true);
         });
-        document.getElementById('btn-cam-cave')?.addEventListener('click', () => {
+        document.getElementById('btn-cam-cave')?.addEventListener('click', (e) => {
+            e.target.blur();
             let xueH = AppState.current.xueHeight || 0;
             let lx = AppState.current.xueX || 0;
             let lz = AppState.current.manualXue ? AppState.current.xueZ : 5.0;
@@ -1905,7 +1907,8 @@ const UI = {
             Engine3D.targetFov = 95;
             Engine3D.isTransitioning = true;
         });
-        document.getElementById('btn-cam-reset')?.addEventListener('click', () => {
+        document.getElementById('btn-cam-reset')?.addEventListener('click', (e) => {
+            e.target.blur();
             Engine3D.controls.minDistance = 2;
             Engine3D.targetCamPos = new THREE.Vector3(0, 150, 190);
             Engine3D.targetLookAt = new THREE.Vector3(0, -5, 20);
@@ -1913,18 +1916,22 @@ const UI = {
             Engine3D.isTransitioning = true;
         });
         document.querySelectorAll('.preset-btn').forEach(b => {
-            b.addEventListener('click', () => {
+            b.addEventListener('click', (e) => {
+                b.blur();
                 AppState.resetTo(b.dataset.p);
             });
         });
-        document.getElementById('btn-auto-spot')?.addEventListener('click', () => {
+        document.getElementById('btn-auto-spot')?.addEventListener('click', (e) => {
+            e.target.blur();
             Engine3D.autoFindBestLair();
         });
-        document.getElementById('btn-prev-preset')?.addEventListener('click', () => {
+        document.getElementById('btn-prev-preset')?.addEventListener('click', (e) => {
+            e.target.blur();
             AppState.prevHistory();
         });
-        document.getElementById('btn-next-preset')?.addEventListener('click', () => {
-            AppState.nextHistory();
+        document.getElementById('btn-next-preset')?.addEventListener('click', (e) => {
+            e.target.blur();
+            AppState.nextHistory(e && e.shiftKey);
         });
         const btnDryRun = document.getElementById('btn-dry-run');
         if (btnDryRun) {
@@ -2895,7 +2902,7 @@ const Engine3D = {
             }
         });
         window.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type !== 'range'))) return;
             const k = e.key.toLowerCase();
             if (k === 'c') {
 				let xueH = AppState.current.xueHeight || 0;
@@ -2924,18 +2931,38 @@ const Engine3D = {
                 document.getElementById('btn-manualXue')?.click();
             } else if (k === 'x') {  
                 document.getElementById('btn-shaMode')?.click();
+            } else if (k === 'escape') {
+                AppState.current.shaMode = false;
+                AppState.current.manualXue = false;
+                AppState.current.vInspect = false;
+                document.getElementById('btn-shaMode')?.classList.remove('on');
+                document.getElementById('btn-manualXue')?.classList.remove('on');
+                document.querySelector('[data-k="vInspect"]')?.classList.remove('on');
+                if (Engine3D.inspectMarker) Engine3D.inspectMarker.material.opacity = 0.0;
+                const hudEl = document.getElementById('inspect-hud');
+                if (hudEl) hudEl.style.display = 'none';
+                document.body.style.cursor = 'default';
+                Engine3D.showToast('已退出所有選取與探測工具', 1500);
             } else if (k === 't') {  
-                document.getElementById('btn-dry-run')?.click();
-            } else if (k === '[') {  
+                if (e.shiftKey) DryRunTool.executeSuite(3);
+                else DryRunTool.execute(4);
+            } else if (k === 'l' || k === '[') {  
                 document.getElementById('fold-left-btn')?.click();
             } else if (k === ']') {  
                 document.getElementById('fold-right-btn')?.click();
-            } else if (k === 'g') {  
+            } else if (k === 'h') {
+                const leftP = document.getElementById('panel-left');
+                const rightP = document.getElementById('panel-right');
+                const anyOpen = (leftP && !leftP.classList.contains('collapsed')) || (rightP && !rightP.classList.contains('collapsed'));
+                if (leftP && leftP.classList.contains('collapsed') === anyOpen) document.getElementById('fold-left-btn')?.click();
+                if (rightP && rightP.classList.contains('collapsed') === anyOpen) document.getElementById('fold-right-btn')?.click();
+            } else if (k === 'g' || e.code === 'Space' || k === ' ') {  
+                e.preventDefault();
                 AppState.resetTo(e.shiftKey ? 'random_auspicious' : 'random');
             } else if (k === 'pageup') { 
                 AppState.prevHistory();
             } else if (k === 'pagedown') { 
-                AppState.nextHistory();
+                AppState.nextHistory(e.shiftKey);
             }
         });
         this.buildTerrain();
@@ -5939,15 +5966,16 @@ const Input = {
     keys: { w:false, a:false, s:false, d:false, q:false, e:false, shift:false, arrowup:false, arrowdown:false, arrowleft:false, arrowright:false },
     init() {
         window.addEventListener('keydown', e => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type !== 'range'))) return;
             const k = e.key.toLowerCase();
+            if (e.target && e.target.tagName === 'INPUT' && e.target.type === 'range' && k.startsWith('arrow')) return;
             if (this.keys.hasOwnProperty(k)) {
                 this.keys[k] = true;
                 if (k.startsWith('arrow')) e.preventDefault(); 
             }
         });
         window.addEventListener('keyup', e => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type !== 'range'))) return;
             const k = e.key.toLowerCase();
             if (this.keys.hasOwnProperty(k)) this.keys[k] = false;
             if ((k === 'shift' || k === 'alt') && Engine3D.brushCursor) {
