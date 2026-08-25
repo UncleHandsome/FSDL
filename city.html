@@ -39,6 +39,8 @@ button.warn:hover { background:#fdeaea; color:#d32f2f; }
 .sec { font-size:10.5px; color:#886600; margin:1px 0 1px; letter-spacing:0.3px; border-bottom:1px solid var(--sec-line); padding-bottom:1px; font-weight:bold; }
 .sec-title { font-size:10.5px; color:#886600; font-weight:bold; white-space:nowrap; flex:0 0 auto; margin-right:2px; }
 .grid-select .sec { margin-top:1px; }
+select option.warn-red { color:#c62828; font-weight:bold; }
+select option.warn-amber { color:#b3541e; }
 select { width:100%; background:#fff; color:var(--text); border:1px solid var(--bd); border-radius:4px; padding:1px; margin-bottom:0; font-size:10px; height:19px; cursor:pointer; }
 .multi-tags { display:flex; flex-wrap:wrap; gap:2px; margin-bottom: 1px; align-items:center; }
 .multi-tags label { display:inline-flex; flex: 1 1 0px; min-width: max-content; max-width: 82px; align-items:center; cursor:pointer; font-size: 10px; margin: 0; }
@@ -106,18 +108,20 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button class="panel-toggle-btn">➖ 摺疊</button>
   </div>
   <div class="grid-select">
-    <div><div class="sec">地段・方位</div><select id="sSector"><option value="center" selected>中宮/西南 (土)</option><option value="east">正東/東南 (木)</option><option value="south">正南 (火)</option><option value="west">正西/西北 (金)</option><option value="north">正北 (水)</option></select></div>
+    <div><div class="sec">地段・方位</div><select id="sSector"><option value="center" selected>中宮・皇極 (立極點)</option><option value="ne">東北・艮 (土)</option><option value="east">正東・震 (木)</option><option value="se">東南・巽 (木)</option><option value="south">正南・離 (火)</option><option value="sw">西南・坤 (土)</option><option value="west">正西・兌 (金)</option><option value="nw">西北・乾 (金)</option><option value="north">正北・坎 (水)</option></select></div>
     <div><div class="sec">色彩・五行</div><select id="sColor"><option value="default" selected>原色 (依形狀)</option><option value="metal">白色/金屬 (金)</option><option value="wood">青綠/植栽 (木)</option><option value="water">黑藍/玻璃 (水)</option><option value="fire">紅紫/磚紅 (火)</option><option value="earth">黃褐/石材 (土)</option></select></div>
     <div><div class="sec">地形・起伏</div><select id="sTerrain"><option value="flat" selected>平坦（平洋）</option><option value="backhigh">後高前低（靠山）</option><option value="slope">整體傾斜（坡地）</option><option value="basin">盆地（聚穴）</option></select></div>
     <div><div class="sec">理氣・水向</div><select id="sWaterDir"><option value="wang" selected>旺來・衰去</option><option value="shuai">衰來・旺去</option><option value="reverse">逆水朝迎</option></select></div>
-    <div><div class="sec">龍勢・來脈</div><select id="sDragon"><option value="avenue" selected>主幹大道</option><option value="elevated">高架快速路</option><option value="metro">地鐵脈</option><option value="branch">支路（緩龍）</option><option value="none">無脈</option></select></div>
-    <div><div class="sec">水勢・虛水</div><select id="sWater"><option value="jade" selected>玉帶環腰</option><option value="nine">九曲有情</option><option value="cut">割腳煞</option><option value="rush">直沖煞</option><option value="bow">反弓煞</option><option value="tfork">丁字沖</option><option value="lintou">淋頭壓頂</option><option value="bazi">八字分飛</option><option value="none">無水</option></select></div>
+    <div><div class="sec" title="城市風水原旨：以連續樓群／山脊線為龍，道路僅為載氣虛水">龍勢・來龍 (樓群脊線)</div><select id="sDragon"><option value="avenue" selected>主幹大道</option><option value="elevated" class="warn-amber">高架快速路（急龍帶煞）</option><option value="metro">地鐵脈</option><option value="branch">支路（緩龍）</option><option value="none">無脈</option></select></div>
+    <div><div class="sec">水勢・虛水</div><select id="sWater"><optgroup label="── 吉水形態 ──"><option value="jade" selected>玉帶環腰</option><option value="nine">九曲有情</option></optgroup><optgroup label="── 凶水・水煞 ──"><option value="cut">割腳煞</option><option value="rush">直沖煞</option><option value="bow">反弓煞</option><option value="tfork">丁字沖</option><option value="lintou">淋頭壓頂</option><option value="bazi">八字分飛</option></optgroup><optgroup label="── 其他 ──"><option value="none">無水</option></optgroup></select></div>
     <div><div class="sec">左砂・青龍</div><select id="sLeft"><option value="qinglong" selected>青龍有情</option><option value="oppress">逼壓高樓</option><option value="broken">破碎</option><option value="none">無砂</option></select></div>
     <div><div class="sec">右砂・白虎</div><select id="sRight"><option value="baihu" selected>白虎有情</option><option value="raise">抬頭煞</option><option value="broken">破碎</option><option value="none">無砂</option></select></div>
     <div><div class="sec">前朱雀・明堂</div><select id="sFront"><option value="plaza" selected>廣場明堂</option><option value="lowcase">低案樓</option><option value="sunken">低陷下沉</option><option value="rubble">破碎雜亂</option><option value="none">空白明堂</option></select></div>
+    <div><div class="sec">後玄武・靠山</div><select id="sBack"><option value="xuanwu" selected>端莊有靠</option><option value="broken">破碎</option><option value="low">低陷無力</option><option value="oppress">逼壓主樓</option><option value="none" class="warn-red">無靠（坐空）⚠</option></select></div>
     <div><div class="sec">穴形・結作</div><select id="sHole"><option value="none" selected>無</option><option value="wo">窩 (凹堂)</option><option value="qian">鉗 (雙臂)</option><option value="ru">乳 (吐乳)</option><option value="tu">突 (高台)</option></select></div>
     <div><div class="sec">星體・主樓</div><select id="sStar"><option value="metal">金形（圓頂）</option><option value="wood" selected>木形（高直）</option><option value="water">水形（波動）</option><option value="fire">火形（尖角）</option><option value="earth">土形（方正）</option></select></div>
-    <div><div class="sec">理氣・立向</div><select id="sLiqi"><option value="face" selected>向水納氣</option><option value="back">背水坐空</option></select></div>
+    <div><div class="sec">理氣・立向</div><select id="sLiqi"><option value="face" selected>向水納氣</option><option value="back" class="warn-red">背水坐空 ⚠ 大凶之向</option></select></div>
+    <div><div class="sec">元運・天時</div><select id="sYun"><option value="y1">一運・坎水 (1864-1883)</option><option value="y2">二運・坤土 (1884-1903)</option><option value="y3">三運・震木 (1904-1923)</option><option value="y4">四運・巽木 (1924-1943)</option><option value="y5">五運・皇極 (1944-1963)</option><option value="y6">六運・乾金 (1964-1983)</option><option value="y7">七運・兌金 (1984-2003)</option><option value="y8">八運・艮土 (2004-2023)</option><option value="y9" selected>九運・離火 (2024-2043) 當令</option></select></div>
   </div>
   <div class="sec">水法・水口布置</div>
   <div class="multi-tags" id="sShuiFa" data-multi="1">
@@ -152,8 +156,10 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <label><input type="checkbox" value="windshaft"><span>凹風煞</span></label>
     <label><input type="checkbox" value="qingquan"><span>擎拳煞</span></label>
     <label><input type="checkbox" value="tantou"><span>探頭煞</span></label>
+    <label><input type="checkbox" value="gufeng"><span>孤峰煞</span></label>
+    <label><input type="checkbox" value="noise"><span>聲煞</span></label>
     <label><input type="checkbox" value="glass"><span>反光煞</span></label>
-    <label><input type="checkbox" value="pylon"><span>蜈蚣煞</span></label>
+    <label><input type="checkbox" value="pylon"><span>電磁煞</span></label>
     <label><input type="checkbox" value="walledge"><span>壁刀煞</span></label>
     <label><input type="checkbox" value="sedan"><span>抬轎懸空</span></label>
     <label><input type="checkbox" value="manual"><span>手動置煞</span></label>
@@ -163,7 +169,7 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <label><input type="checkbox" value="none" checked><span>順其自然</span></label>
     <label><input type="checkbox" value="trees"><span>茂密植栽</span></label>
     <label><input type="checkbox" value="pool"><span>化煞水池</span></label>
-    <label><input type="checkbox" value="mirror"><span>八卦牆</span></label>
+    <label><input type="checkbox" value="mirror"><span>八卦鏡</span></label>
     <label><input type="checkbox" value="stone"><span>石敢當</span></label>
     <label><input type="checkbox" value="gourd"><span>化煞葫蘆</span></label>
     <label><input type="checkbox" value="fountain"><span>風水噴泉</span></label>
@@ -178,16 +184,24 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   </div>
   <div style="display:flex; justify-content:space-between;" class="sec">
     <span>車流/水速 <span id="trafVal">中</span></span>
-    <span>陰陽平衡 <span id="yyVal" style="color:#0d8a43">平</span></span>
+    <span>陰陽平衡・自動偵測 <span id="yyVal" style="color:#0d8a43">平</span></span>
   </div>
   <div style="display:flex; gap:8px; align-items:center; margin: 4px 0;">
     <input type="range" id="rTraffic" min="1" max="10" value="5" style="flex:1;">
   </div>
-  <div class="sec">外局風場強度 <span id="windVal">+5</span></div>
+  <div class="sec">外局風場強度（強則散氣） <span id="windVal">+5</span></div>
   <div style="display:flex; gap:8px; align-items:center; margin: 4px 0;">
     <input type="range" id="rWind" min="0" max="10" value="5" style="flex:1;">
     <label><input type="checkbox" id="ckHeat" checked> 熱力圖</label>
     <label><input type="checkbox" id="ckWind"> 風場陣</label>
+  </div>
+  <div style="display:flex; justify-content:space-between;" class="sec">
+    <span>朝案距離 <span id="caseVal">中</span></span>
+    <span>手動煞點強度 <span id="shaPowVal">5</span></span>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; margin: 4px 0;">
+    <input type="range" id="rCase" min="15" max="130" value="60" style="flex:1;" title="朝山/案山與穴場距離：過遠(>90)則迎而不聚">
+    <input type="range" id="rShaPow" min="1" max="10" value="5" style="flex:1;" title="X 鍵手動置煞的煞點強度">
   </div>
   <div class="sec">大師預設案例</div>
   <div class="prow">
@@ -205,7 +219,10 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button class="preset-btn" data-p="luchong">路沖破局</button><button class="preset-btn" data-p="gejiao">割腳無情</button><button class="preset-btn" data-p="chuanxin">抬轎穿心</button>
   </div>
   <div class="prow">
-    <button class="preset-btn" data-p="test_water">測試:水局</button><button class="preset-btn" data-p="test_sha">測試:群煞</button><button class="preset-btn" data-p="test_physics">測試:物理</button><button class="preset-btn" data-p="test_quantum">測試:量子</button>
+    <button class="preset-btn" data-p="test_water">測試:水局</button><button class="preset-btn" data-p="test_sha">測試:群煞</button><button class="preset-btn" data-p="test_physics">測試:物理</button><button class="preset-btn" data-p="test_geo">測試:地磁</button>
+  </div>
+  <div class="prow">
+    <button class="preset-btn" data-p="yun_shift">運替局轉</button>
   </div>
   <div class="prow" style="margin-top:4px;">
     <button id="btn-dry-run" style="background:#22201c; color:#f6f1e7; font-weight:bold; width:100%; padding:6px; border-radius:5px;">啟動 Dry Run (輸出給 AI)</button>
@@ -215,6 +232,10 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
     <button id="bToolWood" class="tool-btn" data-tool="wood">木形(高樓)</button>
     <button id="bToolEarth" class="tool-btn" data-tool="earth">土形(方樓)</button>
     <button id="bToolWater" class="tool-btn" data-tool="water">水(真水池)</button>
+  </div>
+  <div class="prow">
+    <button id="bToolMetal" class="tool-btn" data-tool="metal">金形(圓頂)</button>
+    <button id="bToolFire" class="tool-btn" data-tool="fire">火形(尖塔)</button>
   </div>
   <button id="bClearSandbox" class="warn">清空沙盒與手動煞</button>
   <div class="legend">
@@ -230,13 +251,13 @@ label { display:inline-flex; align-items:center; font-size:10px; margin:0; curso
   <div class="sec">五訣理氣・城市版分析</div>
   <div class="met"><span>湧現聚氣量 Gather</span><b id="mG">0</b><div class="bar"><i id="bG"></i></div></div>
   <div class="met"><span>湧現散煞氣 Scatter</span><b id="mS">0</b><div class="bar s"><i id="bS"></i></div></div>
-  <div class="met"><span>明堂極限容量 Capacity</span><b id="mC">0</b><div class="bar c"><i id="bC"></i></div></div>
+  <div class="met"><span>明堂聚氣指數 Convergence</span><b id="mC">0</b><div class="bar c"><i id="bC"></i></div></div>
   <div id="verdict" class="vd good">觀測中…</div>
   <div id="eff"></div>
   <div class="sec">理論分析與五行動力學</div>
   <div id="theory"></div>
 </div>
-<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・1/2/3：沙盒工具・Esc：取消・C：視角・R：預設・X：置煞・T：Dry Run・G或空白鍵：隨機 (Shift+G 平吉)・PageUp/Down：歷史・L/H或[/]：面板</div>
+<div id="hint">🖱 左鍵拖曳/方向鍵：旋轉・WASD：移動 (QE升降/Shift加速)・1-5：沙盒工具・Esc：取消・C：視角・R：預設・X：置煞・T：Dry Run・G或空白鍵：隨機 (Shift+G 平吉)・PageUp/Down：歷史・L/H或[/]：面板</div>
 <div id="toast"></div>
 <script>
 'use strict';
@@ -270,7 +291,7 @@ const Util = {
   }
 };
 const Config = {
-  UI_MAP: { sSector:'sector', sColor:'color', sTerrain:'terrain', sWaterDir:'waterDir', sDragon:'dragon', sLeft:'left', sRight:'right', sFront:'front', sWater:'water', sShuiFa:'shuifa', sStar:'star', sHole:'hole', sSha:'sha', sSpecial:'special', sLiqi:'liqi', sCure:'cure' },
+  UI_MAP: { sSector:'sector', sColor:'color', sTerrain:'terrain', sWaterDir:'waterDir', sDragon:'dragon', sLeft:'left', sRight:'right', sFront:'front', sWater:'water', sShuiFa:'shuifa', sStar:'star', sHole:'hole', sSha:'sha', sSpecial:'special', sLiqi:'liqi', sYun:'yun', sBack:'back', sCure:'cure' },
   PRESETS: {
     perfect: {sector:'center',color:'default',terrain:'basin',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['luoxing'],star:'earth',hole:'ru',sha:['none'],special:['taiji'],liqi:'face',cure:['none'],wind:3, traffic:4},
     cure_combo: {sector:'west',color:'water',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'rush',shuifa:['none'],star:'wood',hole:'wo',sha:['walledge'],special:['none'],liqi:'face',cure:['stone', 'pool'],wind:6, traffic:6},
@@ -286,10 +307,14 @@ const Config = {
     test_water: {sector:'north',color:'water',terrain:'basin',waterDir:'wang',dragon:'branch',left:'qinglong',right:'baihu',front:'plaza',water:'nine',shuifa:['san cha','banyue'],star:'water',hole:'wo',sha:['none'],special:['none'],liqi:'face',cure:['none'],wind:2, traffic:2},
     test_sha: {sector:'south',color:'fire',terrain:'flat',waterDir:'shuai',dragon:'elevated',left:'oppress',right:'raise',front:'rubble',water:'rush',shuifa:['none'],star:'metal',hole:'none',sha:['tianzhan','rush','walledge','glass','pylon'],special:['none'],liqi:'back',cure:['none'],wind:8, traffic:8},
     test_physics: {sector:'west',color:'metal',terrain:'slope',waterDir:'shuai',dragon:'avenue',left:'broken',right:'broken',front:'sunken',water:'none',shuifa:['none'],star:'fire',hole:'none',sha:['windshaft'],special:['qingxie'],liqi:'face',cure:['none'],wind:10, traffic:10},
-    test_quantum: {sector:'center',color:'earth',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['none'],star:'earth',hole:'none',sha:['none'],special:['shuqi','fengyao','taiji'],liqi:'face',cure:['none'],wind:3, traffic:3}
+    test_geo: {sector:'center',color:'earth',terrain:'flat',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['none'],star:'earth',hole:'none',sha:['none'],special:['shuqi','fengyao','taiji'],liqi:'face',cure:['none'],wind:3, traffic:3},
+    yun_shift: {sector:'south',color:'fire',terrain:'basin',waterDir:'wang',dragon:'avenue',left:'qinglong',right:'baihu',front:'plaza',water:'jade',shuifa:['luoxing'],star:'fire',hole:'ru',sha:['none'],special:['taiji'],liqi:'face',cure:['none'],wind:3, traffic:3, yun:'y1'}
   },
   TX: {
-    dragon: { avenue:'龍勢｜主幹大道＝行龍大脈，氣厚而長', elevated:'龍勢｜高架快速路＝急龍，氣猛帶煞', metro:'龍勢｜地鐵暗脈，站口人氣湧現', branch:'龍勢｜支路＝緩龍弱脈，氣薄力輕', none:'龍勢｜無脈可倚，城市孤點' },
+    dragon: { avenue:'龍勢｜幹道兩旁連續樓群＝行龍大脈（道路僅為載氣虛水），氣厚而長', elevated:'龍勢｜高架兩側樓帶＝急龍帶煞，虛水湍急，氣猛難聚', metro:'龍勢｜地下暗脈＝地鐵以站口為氣口（伏流水法），隧道本身非龍', branch:'龍勢｜街廓支樓＝緩龍弱脈，氣薄力輕', none:'龍勢｜樓群無脊線可循，城市孤點無脈' },
+    sector: { center:'方位｜中宮・皇極立極點，八方之樞（觀測原點，非八方之一）', ne:'方位｜東北・艮(土)，八白左輔當運財星之所', east:'方位｜正東・震(木)，長男振動之位', se:'方位｜東南・巽(木)，文昌秀氣之位', south:'方位｜正南・離(火)，文明光明之位', sw:'方位｜西南・坤(土)，老母厚載之位', west:'方位｜正西・兌(金)，少女悅澤之位', nw:'方位｜西北・乾(金)，老父天門之位', north:'方位｜正北・坎(水)，中男藏聚之位' },
+    yun: { y1:'元運｜一運・坎水當令 (1864-1883)', y2:'元運｜二運・坤土當令 (1884-1903)', y3:'元運｜三運・震木當令 (1904-1923)', y4:'元運｜四運・巽木當令 (1924-1943)', y5:'元運｜五運・皇極寄中 (1944-1963)，五黃宜靜不宜動', y6:'元運｜六運・乾金當令 (1964-1983)', y7:'元運｜七運・兌金當令 (1984-2003)', y8:'元運｜八運・艮土當令 (2004-2023)', y9:'元運｜九運・離火當令 (2024-2043)，離明文明、火炎向上' },
+    back: { xuanwu:'玄武｜端莊有靠，後方穩如泰山', broken:'玄武｜破碎，靠山殘缺根基不穩', low:'玄武｜低陷無力，護佑薄弱', oppress:'玄武｜高聳逼近，過猶不及防逼壓', none:'玄武｜無靠坐空，四象缺一之大忌' },
     water: { jade:'水勢｜玉帶環腰＝有情之水，主聚財貴顯', nine:'水勢｜九曲來朝＝迂迴有情，氣緩而聚', cut:'水勢｜割腳煞＝路貼穴腳，氣散財退', rush:'水勢｜直沖煞＝箭穿明堂，主破財傷丁', bow:'水勢｜反弓煞＝弧背向穴，主背叛耗散', tfork:'水勢｜丁字沖＝直路撞堂，氣急而散', lintou:'水勢｜淋頭壓頂＝高架罩下，主神昏運滯', bazi:'水勢｜八字分飛＝岔路離心，財氣外洩不歸', none:'水勢｜堂前無路，虛水不生' },
     left: { qinglong:'左砂｜青龍有情＝東側護樓環抱，貴人得力', oppress:'左砂｜青龍逼壓＝高樓迫穴，主壓抑受制', broken:'左砂｜青龍破碎＝拆建殘局，貴人帶病', none:'左砂｜無青龍，左翼空虛' },
     right: { baihu:'右砂｜白虎有情＝西側護樓馴伏，守財聚氣', raise:'右砂｜白虎抬頭＝西樓高於主，主是非官非', broken:'右砂｜白虎破碎，守御無力', none:'右砂｜無白虎，右翼空虛' },
@@ -299,12 +324,17 @@ const Config = {
     star: { metal:'星體｜金形圓頂，主權威穩固', wood:'星體｜木形高直，主文昌進取', water:'星體｜水形波動，主流通活潑', fire:'星體｜火形尖角，主躁動帶煞', earth:'星體｜土形方正，厚德載物，容量最豐' },
     special: { none:'佈局｜未設特殊格局', taiji:'佈局｜太極環島＝陰陽回旋，氣自相抱', qingxie:'佈局｜傾瀉洩氣＝地勢斜落，堂氣隨坡而散', guanxing:'佈局｜官星現前＝案外有官，主貴顯', chaoshan:'佈局｜朝樓遠迎＝遠朝有情，格局宏大', shuqi:'佈局｜束氣峽＝來氣收束，力量凝聚', fengyao:'佈局｜蜂腰過脈＝龍脈細渡，生氣不斷', hulong:'佈局｜護龍夾送＝左右護從，龍勢有衛', guiyao:'佈局｜鬼曜撐背＝穴後有靠，餘氣為證' },
     liqi: { face:'理氣｜向水立向，納堂前旺氣', back:'理氣｜背水坐空＝當旺之氣盡洩' },
-    sha: { tianzhan:'形煞｜天斬煞＝兩樓夾縫風刀直劈，主破敗', rush:'形煞｜路沖煞＝長街直搗穴心', bow:'形煞｜反弓煞＝高架弧背如弓反張', sickle:'形煞｜鐮刀煞＝高架彎如鐮刀割腰', pierce:'形煞｜穿心煞＝高架穿堂而過，龍氣被截', windshaft:'形煞｜凹風煞＝樓縫凹風射穴，氣散不聚', qingquan:'形煞｜擎拳煞＝拳樓當胸，主爭鬥相向', tantou:'形煞｜探頭煞＝樓後探頭，主招盜賊小人', glass:'形煞｜反光煞＝對面大樓玻璃反射強光，主血光心煩', pylon:'形煞｜蜈蚣煞＝高壓電塔或錯綜電線，主口舌病痛', walledge:'形煞｜壁刀煞＝對面建築直角如刀切來，主意外開刀', sedan:'形煞｜抬轎煞/穿心＝主樓底部懸空，地氣掏空，主破敗' },
-    cure: { trees: '制化｜茂密木氣擋風緩煞，氣流得緩', pool: '制化｜明堂水池界水化煞，煞氣轉為聚財之局', mirror: '制化｜八卦陣強效反射直衝煞氣，守護明堂', stone: '制化｜泰山石敢當＝強效實體鎮壓，強力反彈沖煞與壁刀', gourd: '制化｜化煞葫蘆＝吸納地底與周遭煞氣，化煞為己用', fountain: '催旺｜風水噴泉＝動水催財，加速明堂吉氣湧現與盤旋' }
+    sha: { tianzhan:'形煞｜天斬煞＝兩樓夾縫風刀直劈，主破敗', rush:'形煞｜路沖煞＝長街直搗穴心', bow:'形煞｜反弓煞＝高架弧背如弓反張', sickle:'形煞｜鐮刀煞＝高架彎如鐮刀割腰', pierce:'形煞｜穿心煞＝高架穿堂而過，龍氣被截', windshaft:'形煞｜凹風煞＝樓縫凹風射穴，氣散不聚', qingquan:'形煞｜擎拳煞＝拳樓當胸，主爭鬥相向', tantou:'形煞｜探頭煞＝樓後探頭，主招盜賊小人', glass:'形煞｜反光煞＝對面大樓玻璃反射強光，主血光心煩', pylon:'形煞｜電磁煞＝高壓電塔/變電所電磁輻射擾亂磁場，主心神不寧', walledge:'形煞｜壁刀煞＝對面建築直角如刀切來，主意外開刀', sedan:'形煞｜抬轎煞/穿心＝主樓底部懸空，地氣掏空，主破敗', gufeng:'形煞｜孤峰煞＝四面無靠的獨立高樓，孤高無援，主孤克勞碌', noise:'形煞｜聲煞＝高架/鐵路低頻噪浪，主心神不寧、睡眠失調' },
+    cure: { trees: '制化｜茂密木氣擋風緩煞，氣流得緩', pool: '制化｜明堂水池界水化煞，煞氣轉為聚財之局', mirror: '制化｜凸面八卦鏡反射直衝煞氣（遮・鬥之法），守護明堂', stone: '制化｜泰山石敢當＝強效實體鎮壓，強力反彈沖煞與壁刀', gourd: '制化｜化煞葫蘆＝吸納地底與周遭煞氣，化煞為己用', fountain: '催旺｜風水噴泉＝動水催財，加速明堂吉氣湧現與盤旋' }
   },
   SHA_WATER: ['cut', 'rush', 'bow', 'tfork', 'lintou', 'bazi'],
   BROKEN_FRONT: ['none', 'sunken', 'rubble'],
   DRAGON_ONLY_SPECIAL: ['shuqi', 'fengyao', 'hulong', 'guiyao'],
+  SECTOR_EL: { center:null, ne:'earth', east:'wood', se:'wood', south:'fire', sw:'earth', west:'metal', nw:'metal', north:'water' },
+  YUN_EL: { y1:'water', y2:'earth', y3:'wood', y4:'wood', y5:'earth', y6:'metal', y7:'metal', y8:'earth', y9:'fire' },
+  SHENG: { wood:'fire', fire:'earth', earth:'metal', metal:'water', water:'wood' },
+  KE: { wood:'earth', earth:'water', water:'fire', fire:'metal', metal:'wood' },
+  BACK_SET: ['xuanwu','broken','low','oppress','none'],
   PHYS: { NARROW_GAP: 8, INSIDE_HEAT: -25, YIN_MASS: 3000, FRONT_SHA_CAP: 59, SOUND_SPEED: 343 },
   sanitize(cur) {
     const st = { ...cur, sha: [...(cur.sha || ['none'])], special: [...(cur.special || ['none'])], cure: [...(cur.cure || ['none'])], shuifa: [...(cur.shuifa || ['none'])] };
@@ -330,17 +360,28 @@ const Config = {
       const filtered = st.special.filter(v => !this.DRAGON_ONLY_SPECIAL.includes(v));
       if (filtered.length !== st.special.length) st.special = filtered.length ? filtered : ['none'];
     }
+    // 新欄位防禦性預設（相容舊歷史紀錄/舊預設檔）
+    if (!(st.sector in this.SECTOR_EL)) st.sector = 'center';
+    if (!this.BACK_SET.includes(st.back)) st.back = 'xuanwu';
+    if (!(st.yun in this.YUN_EL)) st.yun = 'y9';
+    st.caseDist = Math.max(15, Math.min(130, Math.round(+st.caseDist || 60)));
+    // 主水已含直沖/反弓時，形煞同名項去重（避免報告雙重敘述）
+    if (st.water === 'rush' || st.water === 'bow') {
+      const dedup = st.sha.filter(v => v !== st.water);
+      if (dedup.length !== st.sha.length) st.sha = dedup.length ? dedup : ['none'];
+    }
     return st;
   }
 };
 class StateManager {
   constructor() {
-    this.current = { sector:'center', color:'default', terrain:'flat', waterDir:'wang', dragon:'avenue', left:'qinglong', right:'baihu', front:'plaza', water:'jade', shuifa:['none'], star:'wood', hole:'none', sha:['none'], special:['none'], liqi:'face', cure:['none'] };
+    this.current = { sector:'center', color:'default', terrain:'flat', waterDir:'wang', dragon:'avenue', left:'qinglong', right:'baihu', front:'plaza', back:'xuanwu', water:'jade', shuifa:['none'], star:'wood', hole:'none', sha:['none'], special:['none'], liqi:'face', yun:'y9', caseDist:60, cure:['none'] };
     this.history = [];      
     this.historyIndex = -1; 
     this.heights = { main: 44, drag: 50, tig: 42, tort: 60, bird: 12 };
     this.wind = 5;
     this.trafficSpeed = 5;
+    this.shaPower = 5;
     this.timeScale = 1;
     this.paused = false;
     this.markers = [];
@@ -511,6 +552,7 @@ class FengShuiEngine {
             }
             if (b.isWater) continue; 
         }
+        if (b.isShaProp) continue;
         const mass = b.w * b.h * b.d; 
         const volume = mass * weight;
         const distSq = dxTaiji * dxTaiji + dzTaiji * dzTaiji + 1;
@@ -595,7 +637,7 @@ class FengShuiEngine {
       let obsY = terrainYCorrected(obsX, obsZ) + 1.6; 
       if (builder && builder.blds) {
           for (const b of builder.blds) {
-              if ((b.x === 0 && b.z === 0) || b.isWater) continue; 
+              if ((b.x === 0 && b.z === 0) || b.isWater || b.isShaProp) continue; 
               let dx = b.x - obsX, dz = b.z - obsZ;
               let dist = Math.hypot(dx, dz);
               if (dist < 1) continue;
@@ -703,6 +745,14 @@ class FengShuiEngine {
         if (vLeft < 5 && vRight < 5) {
             observerText.push("空間｜左右側翼空虛，氣場無護 (四象空虛)");
         }
+        if (st.sha.includes('gufeng') && vLeft < 8 && vRight < 8) {
+            s += 12; g = Math.max(0, g - 5);
+            observerText.push('空間｜孤峰煞：獨立高樓四面無靠，孤高無援，風急氣散 (孤峰不藏風)');
+        }
+        if (st.sha.includes('noise') && stateManager.trafficSpeed >= 7) {
+            s += 8;
+            observerText.push(`聲學｜聲煞：車流速度 ${stateManager.trafficSpeed}/10，低頻噪浪直逼穴場，久居耗神 (聲煞加劇)`);
+        }
         if (vLeft > 20 && vLeft > vRight * 1.5 && st.left !== 'broken' && (st.left === 'oppress' || stateManager.heights.drag > hMain)) {
             s += 35; g = Math.max(0, g - 10); c = Math.max(20, c - 5);
             observerText.push("空間｜左側實體高大逼壓主樓 (青龍逼壓)"); wuXingText += "｜青龍逼壓；";
@@ -715,13 +765,16 @@ class FengShuiEngine {
         observerText.push("空間｜右側實體過於高大逼壓主樓，白虎雖選但物理上已成抬頭之勢 (湧現: 白虎抬頭)");
         wuXingText += "｜白虎逼壓；";
     }
-    if (st.dragon !== 'none' && backBuildingCount > 0 && vBack > (vLeft+vRight)*0.5 && vBack > 0 && hasBackSupport && backImpedance > 2.0) {
-        if (fengShuiContextBroken) {
-            observerText.push(`空間｜後方固有屏障，但${brokenContextDesc}，玄武靠之吉氣無法凝聚 (湧現抑制: 玄武有靠失效)`);
-        } else {
-            g += 15; xuanwuOk = true;
-            observerText.push("空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)");
-        }
+    const backMorph = st.back || 'xuanwu';
+    if (backMorph === 'none') { s += 18; observerText.push('空間｜後玄武設定為無靠（坐空）：四象缺其一大忌，貴人遠而小人近 (玄武無靠)'); }
+    else if (backMorph === 'broken') { s += 15; g = Math.max(0, g - 5); observerText.push('空間｜後玄武形態破碎：靠山殘缺不穩，根基受損 (玄武破碎)'); }
+    else if (backMorph === 'low') { s += 8; observerText.push('空間｜後玄武低陷無力：靠山過低，護佑薄弱 (玄武低陷)'); }
+    else if (backMorph === 'oppress') {
+        if (stateManager.heights.tort > hMain * 1.35) { s += 25; g = Math.max(0, g - 10); observerText.push(`空間｜後玄武逼壓主樓（高度比 ${(stateManager.heights.tort / hMain).toFixed(2)}），壓穴不吉 (玄武逼壓)`); }
+        else { g += 8; xuanwuOk = true; observerText.push('空間｜後玄武名義逼壓但實際高度溫和，反成厚實之靠 (玄武有情)'); }
+    } else if (st.dragon !== 'none' && backBuildingCount > 0 && vBack > (vLeft+vRight)*0.5 && vBack > 0 && hasBackSupport && backImpedance > 2.0) {
+        if (fengShuiContextBroken) { observerText.push(`空間｜後方固有屏障，但${brokenContextDesc}，玄武靠之吉氣無法凝聚 (湧現抑制: 玄武有靠失效)`); }
+        else { g += 15; xuanwuOk = true; observerText.push('空間｜後方屏障完美阻擋冷風 (湧現: 玄武有靠)'); }
     }
     if (!directSunlight) { 
         s += Math.round(15 + (1.0 - skyViewFactor) * 15); 
@@ -990,6 +1043,23 @@ class FengShuiEngine {
     if(st.liqi==='back' && st.water !== 'none' && !isShaWaterForLiqi && !waterBroken) {
         s += 14;
     }
+    // ── 理氣・九宮方位 × 元運天時 ──
+    const secEl = Config.SECTOR_EL[st.sector];
+    if (!secEl) {
+        g += 5;
+        observerText.push('理氣｜九宮立極：立極中宮・皇極歸位，羅盤以穴場為原點，八方歸中 (方位理氣)');
+    } else {
+        const yunEl = Config.YUN_EL[st.yun] || 'fire';
+        const starEl = ['metal','wood','water','fire','earth'].includes(st.star) ? st.star : 'wood';
+        if (secEl === yunEl) { g += 12; observerText.push(`理氣｜三元九運：當元得令，地段五行(${secEl})與運星(${yunEl})同氣相求，天時地利相扶 (元運理氣)`); }
+        else if (Config.SHENG[yunEl] === secEl) { g += 7; observerText.push(`理氣｜三元九運：運星(${yunEl})生入地段(${secEl})，乘時納氣 (元運理氣)`); }
+        else if (Config.KE[yunEl] === secEl) { s += 12; observerText.push(`理氣｜三元九運：運星(${yunEl})剋入地段(${secEl})，失令受制，氣數不振 (元運理氣)`); }
+        else if (Config.KE[secEl] === yunEl) { s += 6; observerText.push(`理氣｜三元九運：地段(${secEl})剋犯運星(${yunEl})，逆氣犯上 (元運理氣)`); }
+        else { g += 3; observerText.push(`理氣｜三元九運：地段(${secEl})生助運星(${yunEl})，洩己扶運，平穩無咎 (元運理氣)`); }
+        if (secEl === starEl) g += 6;
+        else if (Config.SHENG[secEl] === starEl) g += 4;
+        else if (Config.KE[secEl] === starEl || Config.KE[starEl] === secEl) s += 5;
+    }
     const sensorFrontZ = (stateManager.taijiZ || 0) + 20;
     for (const src of stateManager.sources) {
       if (src.isTantou && !peekSha) continue; 
@@ -1157,7 +1227,9 @@ class FengShuiEngine {
     }
     const hasChaoshanGuanxing = !st.special.includes('none') && (st.special.includes('chaoshan') || st.special.includes('guanxing'));
     if (!fengShuiContextBroken && !waterBroken && hasChaoshanGuanxing) {
-        observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面`);
+        const caseDist = st.caseDist || 60;
+        if (caseDist > 90) { g += 2; s += 4; observerText.push(`空間｜朝山/官星：案距約 ${caseDist}m 過遠，迎而不聚，需近案關攔 (朝案失距)`); }
+        else { g += 6; observerText.push(`空間｜朝山/官星：前方遠處具備優良實體反射面（案距約 ${caseDist}m），格局宏大而有所收`); }
     } else if (hasChaoshanGuanxing) {
         const suppressDesc = waterBroken ? '水局已破' : (fengShuiContextBroken ? brokenContextDesc : '環境動能過強');
         observerText.push(`空間｜${st.special.includes('chaoshan') ? '朝山' : '官星'}佈局雖設，但${suppressDesc}，無法擴充容量 (湧現抑制: 朝山/官星失效)`);
@@ -1312,7 +1384,7 @@ class FengShuiEngine {
     g = Math.max(0, g);
     s = Math.max(0, s);
     if (st.special.includes('taiji') && spatialEntropy < 4.5 && !fengShuiContextBroken && !waterBroken) {
-        wuXingText += `量子流體｜太極暈達成超流體態：粒子受倫納德-瓊斯勢(LJ Potential)排斥核心排斥，形成完美晶格間距，負熵極低 (自然湧現: 氣聚有情)；`;
+        wuXingText += `地磁流體｜太極暈達成穩態磁晶格：帶電粒子群受地磁偶極場約束排列出完美晶格間距，微氣候負熵極低 (自然湧現: 氣聚有情)`;
     }
     if (!fengShuiContextBroken && !waterBroken && st.dragon !== 'none' && (st.special.includes('shuqi') || st.special.includes('fengyao')) && reynoldsNum < 4000) {
         let barrier = st.special.includes('fengyao') ? '蜂腰' : '束氣';
@@ -1343,8 +1415,8 @@ class FengShuiEngine {
         wuXingText = wuXingText.replace(/波浪外型\(水形\)引導氣流順暢滑過，氣場靈動活潑/g, '波浪外型(水形)受環境紊流干擾而效果不彰');
         wuXingText = wuXingText.replace(/主樓圓頂流線\(金形\)展現優異空氣動力學，有效偏轉強風衝擊/g, '主樓圓頂流線(金形)受環境紊流干擾而效果不彰');
         wuXingText = wuXingText.replace(/跨尺度分形自相似[^；]*；/g, '跨尺度分形受環境紊流干擾而效果不彰；');
-        wuXingText = wuXingText.replace(/量子流體[^；]*；/g, '量子流體受環境紊流干擾而效果不彰；');
-        const strongQiPhrases = ["強勢收納來水，水聚天心，主速發暴富", "真氣遇水盤旋不散", "界水即止", "藏風聚穴", "水聚明堂", "玄武有靠", "鬼曜撐背", "蜂腰過脈", "束氣結穴", "剝換完成", "龍穴相配", "過峽脫煞", "氣聚有情", "完美的陰陽回旋", "強制調和磁場", "穿隧效應", "擴充明堂極限容量", "承接陽氣", "增強地氣生機", "吉氣迴風返氣", "物理吉氣值", "真實物理生氣", "負熵匯聚", "左青龍右白虎俱有情", "左右護衛均衡", "跨尺度分形自相似", "量子流體", "太極暈達成超流體態", "優異空氣動力學"];
+        wuXingText = wuXingText.replace(/地磁流體[^；]*；/g, '地磁流體受環境紊流干擾而效果不彰；');
+        const strongQiPhrases = ["強勢收納來水，水聚天心，主速發暴富", "真氣遇水盤旋不散", "界水即止", "藏風聚穴", "水聚明堂", "玄武有靠", "鬼曜撐背", "蜂腰過脈", "束氣結穴", "剝換完成", "龍穴相配", "過峽脫煞", "氣聚有情", "完美的陰陽回旋", "強制調和磁場", "穿隧效應", "擴充明堂聚氣指數", "承接陽氣", "增強地氣生機", "吉氣迴風返氣", "物理吉氣值", "真實物理生氣", "負熵匯聚", "左青龍右白虎俱有情", "左右護衛均衡", "跨尺度分形自相似", "地磁流體", "太極暈達成穩態磁晶格", "優異空氣動力學"];
         const qiAdjectiveReplacements = [
             ['完美阻擋冷風', '受到環境紊流干擾，效果不彰'],
             ['引導氣流進行完美的陰陽回旋，強制調和磁場', '受到環境紊流干擾，效果不彰'],
@@ -1354,7 +1426,7 @@ class FengShuiEngine {
             ['強勢收納來水，水聚天心，主速發暴富', '受到環境紊流干擾，效果不彰'],
             ['真氣遇水盤旋不散', '受到環境紊流干擾，效果不彰'],
             ['形成完美靜力平衡點', '但受環境紊流干擾而效果不彰'],
-            ['前方遠處具備優良實體反射面，擴充明堂極限容量', '受到環境紊流干擾，效果不彰'],
+            ['前方遠處具備優良實體反射面，擴充明堂聚氣指數', '受到環境紊流干擾，效果不彰'],
             ['動能轉化為立體盤旋位能！', '但受環境紊流干擾而效果不彰'],
             ['動能轉化為立體盤旋位能', '但受環境紊流干擾而效果不彰']
         ];
@@ -1375,7 +1447,7 @@ class FengShuiEngine {
             }
             if (physicsText[i].includes('環境熵/湍流過高')) {
                 const residualPositive = [
-                    '前方遠處具備優良實體反射面，擴充明堂極限容量',
+                    '前方遠處具備優良實體反射面，擴充明堂聚氣指數',
                     '後方結構精準抵消來龍動能，防止邊界層剝離，形成',
                     '主脈後方有餘氣支撐或細巧過峽，生氣凝聚不散',
                     '高頻紊流已被沿途幾何完美濾除，能量級聯轉化為平穩低頻諧波',
@@ -1490,7 +1562,7 @@ class FengShuiEngine {
     }
     qFactor = Math.max(0, Math.min(qFactor, 99.9));
     if (qFactor <= 20) {
-        wuXingText = wuXingText.replace(/量子流體[^；]*；/g, '');
+        wuXingText = wuXingText.replace(/地磁流體[^；]*；/g, '');
     }
     let finalHeavySha = finalHeavyShaForErosion;
     if (finalHeavySha) {
@@ -1544,7 +1616,7 @@ class FengShuiEngine {
   static computeInputFingerprint(stateManager, builder) {
     const blds = builder && Array.isArray(builder.blds) ? builder.blds : [];
     const bldDigest = blds.map(b => `${b.x},${b.z},${b.w},${b.d},${b.h},${b.y || 0},${b.isWater ? 1 : 0},${b.isSandbox ? 1 : 0},${b.isGlass ? 1 : 0},${b.wx || ''}`).join(';');
-    const mkDigest = (stateManager.markers || []).map(p => `${p.x},${p.z}`).join(';');
+    const mkDigest = (stateManager.markers || []).map(p => `${p.x},${p.z},${p.pow||0}`).join(';');
     const fpSrc = JSON.stringify({ c: stateManager.current, h: stateManager.heights, w: stateManager.wind, t: stateManager.trafficSpeed, tx: stateManager.taijiX, tz: stateManager.taijiZ, m: mkDigest, b: bldDigest });
     let fp = 2166136261;
     for (let i = 0; i < fpSrc.length; i++) { fp ^= fpSrc.charCodeAt(i); fp = Math.imul(fp, 16777619); }
@@ -1563,13 +1635,15 @@ class FengShuiEngine {
     if(st.sha.includes('glass'))A.push({x:0,z:100,dx:0,dz:-1,w:18,pw:14,len:100});
     if(st.sha.includes('walledge'))A.push({x:-50,z:55,dx:0,dz:-1,w:28,pw:10,len:60});
     if(st.sha.includes('pylon'))A.push({x:0,z:90,dx:0,dz:0,w:15,pw:8,len:0});
+    if(st.sha.includes('gufeng'))A.push({x:-52,z:-40,dx:0,dz:1,w:14,pw:7,len:60});
+    if(st.sha.includes('noise'))A.push({x:45,z:-30,dx:0,dz:1,w:26,pw:4+Math.round((stateManager.trafficSpeed||5)*0.8),len:60});
     if(st.water==='rush'&&!st.sha.includes('rush'))A.push({x:0,z:56,dx:0,dz:-1,w:22,pw:8,len:46});
     if(st.water==='tfork')A.push({x:0,z:52,dx:0,dz:-1,w:20,pw:8,len:40});
     if(st.water==='bow'&&!st.sha.includes('bow'))A.push({x:0,z:42,dx:0,dz:-1,w:18,pw:14,len:36,kind:'bow'});
     if(st.water==='cut')A.push({x:-135,z:13,dx:1,dz:0,w:14,pw:8,len:270});
     if(st.water==='lintou')A.push({x:-130,z:20,dx:1,dz:0,w:16,pw:11,len:260});
     if(st.water==='bazi'){A.push({x:-10,z:34,dx:0,dz:0,w:12,pw:5,len:0});A.push({x:10,z:34,dx:0,dz:0,w:12,pw:5,len:0});}
-    if(st.sha.includes('manual')) stateManager.markers.forEach(m=>A.push({x:m.x,z:m.z,dx:0,dz:0,w:22,pw:9,len:0}));
+    if(st.sha.includes('manual')) stateManager.markers.forEach(m=>A.push({x:m.x,z:m.z,dx:0,dz:0,w:22,pw:2.5+(m.pow||5)*1.1,len:0}));
     return A;
   }
   static distCurve(x, z, curves, y = 0) {
@@ -1584,15 +1658,46 @@ class FengShuiEngine {
     }
     return Math.sqrt(m);
   }
-  static heatField(x, z, stateManager, curves, builder) {
+  // 效能：將曲線取樣點預先攤平為 TypedArray（取樣間隔與距離公式和 distCurve 完全一致），
+  // drawHeatmap 每次只建立一次，避免 48k 像素 × 曲線數的重複物件走訪
+  static prepareHeatCurves(curves) {
+    const out = [];
+    if (!Array.isArray(curves)) return out;
+    for (const c of curves) {
+      if (!(c.type === 'water' || c.len > 0)) continue;
+      const pts = c.pts;
+      const n = pts ? Math.ceil(pts.length / 4) : 0;
+      const xs = new Float64Array(n), ys = new Float64Array(n), zs = new Float64Array(n);
+      for (let i = 0, k = 0; i < pts.length; i += 4, k++) {
+        xs[k] = pts[i].x; ys[k] = pts[i].y; zs[k] = pts[i].z;
+      }
+      out.push({ weight: c.bad ? -18 : 20, xs, ys, zs });
+    }
+    return out;
+  }
+  static heatField(x, z, stateManager, curves, builder, preparedCurves) {
     let v = 0; 
     const st = stateManager.current;
+    if (preparedCurves) {
+        for (const pc of preparedCurves) {
+            const xs = pc.xs, ys = pc.ys, zs = pc.zs;
+            let m = 1e9;
+            for (let i = 0, n = xs.length; i < n; i++) {
+                const dx = x - xs[i], dz = z - zs[i];
+                const d = dx*dx + ys[i]*ys[i]*0.5 + dz*dz;
+                if(d<m) m=d;
+            }
+            const dd = Math.sqrt(m);
+            v += pc.weight * Math.exp(-(dd * dd) / 160);
+        }
+    } else {
     for (const c of curves) {
         if (c.type === 'water' || c.len > 0) {
             const d = this.distCurve(x, z, [c]);
             const weight = c.bad ? -18 : 20;
             v += weight * Math.exp(-(d * d) / 160);
         }
+    }
     }
     for (const sc of stateManager.sources) {
       if (sc.isTantou) continue; 
@@ -1660,6 +1765,8 @@ class CityBuilder {
     this.scene.add(this.group);
     this.blds = [];
     this.curves = [];
+    this._qx = false;
+    this._sunkenFront = false;
     this.auraRing = null;
     this.beacon = null;
     this.fountainBeam = null;
@@ -1693,9 +1800,9 @@ class CityBuilder {
   }
   terrainYCorrected(x, z) {
       let y = Util.terrainY(x, z, this.currentTerrain || 'flat');
-      const st = this.currentState || {};
-      if (st.special && st.special.includes('qingxie')) { let tq = Math.min(1, Math.max(0, (z - 20) / 10)); tq = tq * tq * (3 - 2 * tq); y -= tq * (z - 20) * 0.15; }
-      if (st.front === 'sunken') {
+      // 效能：旗標於 buildAll 時預先計算（熱路徑：每幀每車流粒子呼叫一次）
+      if (this._qx) { let tq = Math.min(1, Math.max(0, (z - 20) / 10)); tq = tq * tq * (3 - 2 * tq); y -= tq * (z - 20) * 0.15; }
+      if (this._sunkenFront) {
           let nx = Math.abs(x) / 25.0;
           let nz = Math.abs(z - 34) / 20.0;
           let nd = Math.max(nx, nz);
@@ -1995,9 +2102,11 @@ class CityBuilder {
   }
   addSpike(m) {
     const ty = this.terrainYCorrected(m.x, m.z);
-    const s=new THREE.Mesh(new THREE.ConeGeometry(2,8,8),new THREE.MeshBasicMaterial({color:0xdd2222}));
-    s.rotation.x=Math.PI; s.position.set(m.x,ty+4,m.z); this.group.add(s);
-    const r=new THREE.Mesh(new THREE.RingGeometry(3,3.6,24),new THREE.MeshBasicMaterial({color:0xdd2222,side:THREE.DoubleSide,transparent:true,opacity:.7}));
+    const p = Math.max(1, Math.min(10, m.pow || 5));
+    const hh = 4 + p * 0.9;
+    const s=new THREE.Mesh(new THREE.ConeGeometry(1.4+p*0.18,hh,8),new THREE.MeshBasicMaterial({color:0xdd2222}));
+    s.rotation.x=Math.PI; s.position.set(m.x,ty+hh/2,m.z); this.group.add(s);
+    const r=new THREE.Mesh(new THREE.RingGeometry(3,3.6+p*0.14,24),new THREE.MeshBasicMaterial({color:0xdd2222,side:THREE.DoubleSide,transparent:true,opacity:Math.min(0.9,.5+p*0.04)}));
     r.rotation.x=-Math.PI/2; r.position.set(m.x,ty+0.2,m.z); this.group.add(r);
   }
   buildAll(stateManager) {
@@ -2006,6 +2115,8 @@ class CityBuilder {
     const h = stateManager.heights;
     this.currentState = st;
     this.currentTerrain = st.terrain;
+    this._qx = !!(st.special && st.special.includes('qingxie'));
+    this._sunkenFront = st.front === 'sunken';
     this.buildBackgroundCity();
     if(st.dragon!=='none'){
       const bh=st.dragon==='avenue'?h.tort:st.dragon==='elevated'?h.tort-6:st.dragon==='metro'?h.tort-4:h.tort-18;
@@ -2256,8 +2367,28 @@ class CityBuilder {
          const b = new THREE.Mesh(new THREE.BoxGeometry(12, 0.5, 0.5), pMat);
          b.position.set(0, ty + 10 + i*8, 90); this.group.add(b);
       }
-      this.group.add(ResourceManager.createLabel('蜈蚣煞','#d31515',9,0,ty+45,90));
+      this.group.add(ResourceManager.createLabel('電磁煞','#d31515',9,0,ty+45,90));
 	  this.blds.push({x:0, z:90, w:8, d:4, h:40});
+    }
+    if(st.sha.includes('gufeng')){
+      const tyG = this.terrainYCorrected(-60, -30);
+      const gt = new THREE.Mesh(new THREE.BoxGeometry(10, 58, 10), new THREE.MeshLambertMaterial({ color: 0x4a5568 }));
+      gt.castShadow = true; gt.position.set(-60, tyG + 29, -30); this.group.add(gt);
+      const crown = new THREE.Mesh(new THREE.BoxGeometry(12, 3, 12), new THREE.MeshLambertMaterial({ color: 0x2d3748 }));
+      crown.position.set(-60, tyG + 59.5, -30); this.group.add(crown);
+      this.group.add(ResourceManager.createLabel('孤峰煞','#d31515',8,-60,tyG+66,-30));
+      this.blds.push({x:-60, z:-30, w:10, d:10, h:58, isShaProp:true});
+    }
+    if(st.sha.includes('noise')){
+      const tyN = this.terrainYCorrected(45, 0);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(3, 8, 60), new THREE.MeshLambertMaterial({ color: 0x555566 }));
+      wall.castShadow = true; wall.position.set(45, tyN + 4, 0); this.group.add(wall);
+      for(let i=0;i<3;i++){
+        const arc = new THREE.Mesh(new THREE.TorusGeometry(6+i*3, 0.25, 6, 24, Math.PI), new THREE.MeshBasicMaterial({ color: 0x88aacc, transparent:true, opacity:0.5 }));
+        arc.rotation.x = Math.PI/2; arc.position.set(41, tyN + 1.5, 0); this.group.add(arc);
+      }
+      this.group.add(ResourceManager.createLabel('聲煞','#d31515',8,45,tyN+14,0));
+      this.blds.push({x:45, z:0, w:3, d:60, h:8, isShaProp:true});
     }
     if(st.sha.includes('manual')) stateManager.markers.forEach(m=>this.addSpike(m));
     if(st.cure.includes('trees')){
@@ -2384,6 +2515,23 @@ class CityBuilder {
            this.box(24, 25, 24, sb.x, sb.z, 0x7c6a4a);
            this.blds[this.blds.length - 1].wx = 'earth'; 
            this.blds[this.blds.length - 1].isSandbox = true;
+       }
+       if (sb.type === 'metal') {
+           const tyM = this.terrainYCorrected(sb.x, sb.z);
+           const col = new THREE.Mesh(new THREE.CylinderGeometry(7, 8.5, 26, 28), new THREE.MeshLambertMaterial({ color: Util.brighten(0xb8a66a) }));
+           col.castShadow = true; col.position.set(sb.x, tyM + 13, sb.z); this.group.add(col);
+           const dome = new THREE.Mesh(new THREE.SphereGeometry(7, 24, 12, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshLambertMaterial({ color: Util.brighten(0xd4af37) }));
+           dome.castShadow = true; dome.position.set(sb.x, tyM + 26, sb.z); this.group.add(dome);
+           this.blds.push({ x: sb.x, z: sb.z, w: 16, d: 16, h: 32, y: 0, wx: 'metal', isSandbox: true });
+       }
+       if (sb.type === 'fire') {
+           this.box(14, 44, 14, sb.x, sb.z, 0xa24836);
+           const fm = this.blds[this.blds.length - 1];
+           fm.wx = 'fire'; fm.isSandbox = true;
+           const tipY = this.terrainYCorrected(sb.x, sb.z) + 44 + 8;
+           const tip = new THREE.Mesh(new THREE.ConeGeometry(7, 16, 4), new THREE.MeshLambertMaterial({ color: Util.brighten(0xc2542f) }));
+           tip.rotation.y = Math.PI/4; tip.castShadow = true;
+           tip.position.set(sb.x, tipY, sb.z); this.group.add(tip);
        }
        if (sb.type === 'water') {
            this.poolCrescent(sb.x, sb.z, 5, 12, true);
@@ -2736,6 +2884,8 @@ class ParticleSystem {
     this.scene.add(goodPts);
     this.scene.add(badPts);
     this.windGroup = new THREE.Group(); this.windGroup.visible = false; this.scene.add(this.windGroup);
+    this._waCol = new THREE.Color();
+    this._waDir = new THREE.Vector3();
     this.windArrows = [];
     for(let x=-120;x<=120;x+=27)for(let z=-126;z<=144;z+=27){
       const a=new THREE.ArrowHelper(Util.v3(0,0,1),Util.v3(x,2.2,z),8,0x3388ff,2.5,1.4);
@@ -2853,7 +3003,7 @@ class ParticleSystem {
     this.badGeo.setDrawRange(0, nB);
     if(this.windGroup.visible) {
       const W = Math.max(0, stateManager.wind) * 1.0; 
-      const col=new THREE.Color();
+      const col = this._waCol;
       for(const w of this.windArrows){
         if (W < 0.1) { w.a.visible = false; continue; } 
         let vx=Math.sin(time*0.7+w.z*0.03)*0.12*W, vz=W, blocked=false;
@@ -2868,8 +3018,7 @@ class ParticleSystem {
         w.a.visible=true;
         const ty = builder.terrainYCorrected(w.x, w.z);
         w.a.position.y = ty + 2.2;
-        const tmp=Util.v3(vx/sp, 0, vz/sp); 
-        w.a.setDirection(tmp); 
+        w.a.setDirection(this._waDir.set(vx/sp, 0, vz/sp)); 
         w.a.setLength(Util.clamp(sp*2.2, 1.5, 16), 1.8, 1.1);
         w.a.setColor(col.setHSL(0.55-0.55*Util.clamp(sp/14,0,1),0.8,0.45));
       }
@@ -2890,6 +3039,10 @@ class World3D {
     this.renderer.outputEncoding = THREE.sRGBEncoding;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // 效能：投射陰影的建築僅在 rebuild 時變動，凍結陰影貼圖自動更新改為手動標記，
+    // 畫面完全一致但省去每幀陰影 pass
+    this.renderer.shadowMap.autoUpdate = false;
+    this.renderer.shadowMap.needsUpdate = true;
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xd0d8e0, 0.6)); 
     const dl = new THREE.DirectionalLight(0xfff5e6, 1.2); 
     dl.position.set(120, 180, 90); 
@@ -3001,8 +3154,8 @@ class World3D {
                     showToast('此處為穴場核心，無法蓋樓！');
                     return;
                 }
-                const toolW = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
-                const toolD = (st.tool === 'earth' || st.tool === 'water') ? 24 : 12;
+                const foot = t => (t === 'earth' || t === 'water') ? 24 : ((t === 'metal' || t === 'fire') ? 16 : 12);
+                const toolW = foot(st.tool), toolD = foot(st.tool);
                 const overlap = this.app.builder.blds.some(b => {
                     if (b.x === 0 && b.z === 0) return false;
                     return Math.abs(snapX - b.x) < (toolW + b.w) / 2 - 0.5 && 
@@ -3013,8 +3166,7 @@ class World3D {
                     return;
                 }
                 const overlapSandbox = st.sandboxBlds.some(sb => {
-                    const w = (sb.type === 'earth' || sb.type === 'water') ? 24 : 12;
-                    const d = (sb.type === 'earth' || sb.type === 'water') ? 24 : 12;
+                    const w = foot(sb.type), d = foot(sb.type);
                     return Math.abs(snapX - sb.x) < (toolW + w) / 2 - 0.5 && 
                            Math.abs(snapZ - sb.z) < (toolD + d) / 2 - 0.5;
                 });
@@ -3161,11 +3313,12 @@ class World3D {
   }
   drawHeatmap(stateManager, curves, builder) {
     const W=220, H=220, img=this.heatCtx.createImageData(W,H);
+    const prepared = FengShuiEngine.prepareHeatCurves(curves);
     for(let py=0; py<H; py++){
       const z = py/H*360-180;
       for(let px=0; px<W; px++){
         const x = px/W*360-180;
-        const v = FengShuiEngine.heatField(x, z, stateManager, curves, builder);
+        const v = FengShuiEngine.heatField(x, z, stateManager, curves, builder, prepared);
         let r=0, g=0, b=0, a=0;
         if(v > 1) { 
             const t = Math.min(1, v/60);
@@ -3195,8 +3348,12 @@ class UIManager {
     this.app = app;
     this.disp = { g:0, s:0, c:40 };
     this._lastCommitSig = '';
+    // 效能：每幀更新的 DOM 參考只查詢一次
+    this.elMG = Util.$('mG'); this.elMS = Util.$('mS'); this.elMC = Util.$('mC');
+    this.elBG = Util.$('bG'); this.elBS = Util.$('bS'); this.elBC = Util.$('bC');
   }
   static trafficLabel(v) { return v < 4 ? '慢 (聚財)' : (v > 7 ? '極快 (風煞)' : '中'); }
+  static caseLabel(v) { return v > 90 ? '遠 (迎而不聚)' : (v < 45 ? '近 (關攔有力)' : '中'); }
   applyStateSanitize() {
     this.app.state.current = Config.sanitize(this.app.state.current);
     this.syncControls();
@@ -3211,6 +3368,8 @@ class UIManager {
     Util.$('rWind').value = st.wind; Util.$('windVal').textContent = '+' + st.wind;
     Util.$('rTraffic').value = st.trafficSpeed; 
     Util.$('trafVal').textContent = UIManager.trafficLabel(st.trafficSpeed);
+    const cdSync = st.current ? (st.current.caseDist || 60) : 60;
+    if (Util.$('rCase')) { Util.$('rCase').value = cdSync; Util.$('caseVal').textContent = UIManager.caseLabel(cdSync); }
   }
   syncControls() {
     const st = this.app.state.current;
@@ -3302,6 +3461,19 @@ class UIManager {
       debouncedEnvRefresh(); 
     };
     Util.$('rTraffic').onchange = (e) => { e.target.blur(); this.commitHistoryIfChanged(); };
+    Util.$('rCase').oninput = e => {
+      const v = +e.target.value;
+      this.app.state.current.presetName = 'custom';
+      this.app.state.current.caseDist = v;
+      Util.$('caseVal').textContent = UIManager.caseLabel(v);
+      debouncedEnvRefresh();
+    };
+    Util.$('rCase').onchange = (e) => { e.target.blur(); this.commitHistoryIfChanged(); };
+    Util.$('rShaPow').oninput = e => {
+      this.app.state.shaPower = +e.target.value;
+      Util.$('shaPowVal').textContent = e.target.value;
+    };
+    Util.$('rShaPow').onchange = (e) => { e.target.blur(); };
     Util.$('ckHeat').onchange = e => { e.target.blur(); this.app.world.heatMesh.visible = e.target.checked; };
     Util.$('ckWind').onchange = e => { e.target.blur(); this.app.particles.windGroup.visible = e.target.checked; };
     Util.$('bFS').onclick = (e) => { e.target.blur(); this.app.world.setCamMode('fs'); this.syncCamButtons(); };
@@ -3383,8 +3555,11 @@ class UIManager {
         choices.sort(() => 0.5 - Math.random());
         return choices.slice(0, num);
       };
-      st.current.sector = pick(['center','east','south','west','north']);
+      st.current.sector = pick(['center','ne','east','se','south','sw','west','nw','north']);
       st.current.color = pick(['default','metal','wood','water','earth']);
+      st.current.back = 'xuanwu';
+      st.current.yun = pick(['y8','y9']);
+      st.current.caseDist = 40 + (Math.random()*40|0);
       st.current.terrain = pick(['flat','backhigh','basin']);
       st.current.waterDir = pick(['wang','reverse']);
       st.current.dragon = pick(['avenue','metro','branch']);
@@ -3416,8 +3591,11 @@ class UIManager {
         choices.sort(() => 0.5 - Math.random());
         return choices.slice(0, num);
       };
-      st.current.sector = pick(['center','east','south','west','north']);
+      st.current.sector = pick(['center','ne','east','se','south','sw','west','nw','north']);
       st.current.color = pick(['default','metal','wood','water','fire','earth']);
+      st.current.back = pick(['xuanwu','xuanwu','broken','low','oppress','none']);
+      st.current.yun = pick(['y7','y8','y9']);
+      st.current.caseDist = 25 + (Math.random()*95|0);
       st.current.terrain = pick(['flat','backhigh','slope','basin']);
       st.current.waterDir = pick(['wang','shuai','reverse']);
       st.current.dragon = pick(['avenue','elevated','metro','branch','none']);
@@ -3428,7 +3606,7 @@ class UIManager {
       st.current.shuifa = (st.current.water === 'none' || Config.SHA_WATER.includes(st.current.water)) ? ['none'] : pickMulti(['san cha','banyue','luoxing','huabiao','shixiang','qinxing']);
       st.current.star = pick(['metal','wood','water','fire','earth']);
       st.current.hole = pick(['none','wo','qian','ru','tu']);
-      let shaChoices = ['tianzhan','rush','bow','sickle','pierce','windshaft','qingquan','tantou','glass','pylon','walledge','sedan'];
+      let shaChoices = ['tianzhan','rush','bow','sickle','pierce','windshaft','qingquan','tantou','glass','pylon','walledge','sedan','gufeng','noise'];
       shaChoices.sort(() => 0.5 - Math.random());
       let hasFrontSha = false;
       let validSha = [];
@@ -3460,6 +3638,9 @@ class UIManager {
         }
         st.wind = typeof prs.wind === 'number' ? prs.wind : 5;
         st.trafficSpeed = typeof prs.traffic === 'number' ? prs.traffic : 5;
+        if (!('back' in prs)) st.current.back = 'xuanwu';
+        if (!('yun' in prs)) st.current.yun = 'y9';
+        if (!('caseDist' in prs)) st.current.caseDist = 60;
       }
       st.heights = { main: 44, drag: 50, tig: 42, tort: 60, bird: 12 };
     }
@@ -3486,6 +3667,8 @@ class UIManager {
     Util.$('rWind').value = st.wind; Util.$('windVal').textContent = '+' + st.wind;
     Util.$('rTraffic').value = st.trafficSpeed; 
     Util.$('trafVal').textContent = UIManager.trafficLabel(st.trafficSpeed);
+    const cdSync = st.current ? (st.current.caseDist || 60) : 60;
+    if (Util.$('rCase')) { Util.$('rCase').value = cdSync; Util.$('caseVal').textContent = UIManager.caseLabel(cdSync); }
     this.syncControls();
     const curSig = Object.assign({}, this.app.state.current);
     delete curSig.presetName;
@@ -3505,8 +3688,12 @@ class UIManager {
     const mapTexts = (cat, vals) => vals.filter(v => v!=='none').map(v => Config.TX[cat][v]).join('；') || Config.TX[cat]['none'];
     const lines = [
       Config.TX.dragon[st.dragon], Config.TX.water[st.water], mapTexts('shuifa', st.shuifa),
-      Config.TX.star[st.star], Config.TX.liqi[st.liqi] 
-    ];
+      (Config.TX.sector && Config.TX.sector[st.sector]) || '',
+      (Config.TX.yun && Config.TX.yun[st.yun]) || '',
+      Config.TX.star[st.star],
+      (Config.TX.back && Config.TX.back[st.back]) || '',
+      Config.TX.liqi[st.liqi]
+    ].filter(Boolean);
     if (ana.physicsText && ana.physicsText.length > 0) {
         lines.push(...ana.physicsText);
     } else {
@@ -3590,12 +3777,12 @@ class UIManager {
     this.disp.c += (ana.c - this.disp.c) * 0.06;
     const gWave = this.disp.g > 1.5 ? Math.sin(time * 2.0) * 1.2 : 0;
     const sWave = this.disp.s > 1.5 ? Math.sin(time * 2.3) * 1.1 : 0;
-    Util.$('mG').textContent = Math.max(0, Math.round(this.disp.g + gWave));
-    Util.$('mS').textContent = Math.max(0, Math.round(this.disp.s + sWave));
-    Util.$('mC').textContent = Math.max(20, Math.round(this.disp.c));
-    Util.$('bG').style.width = Util.clamp(this.disp.g/1.4, 0, 100) + '%';
-    Util.$('bS').style.width = Util.clamp(this.disp.s/1.4, 0, 100) + '%';
-    Util.$('bC').style.width = Util.clamp(this.disp.c/1.4, 0, 100) + '%';
+    this.elMG.textContent = Math.max(0, Math.round(this.disp.g + gWave));
+    this.elMS.textContent = Math.max(0, Math.round(this.disp.s + sWave));
+    this.elMC.textContent = Math.max(20, Math.round(this.disp.c));
+    this.elBG.style.width = Util.clamp(this.disp.g/1.4, 0, 100) + '%';
+    this.elBS.style.width = Util.clamp(this.disp.s/1.4, 0, 100) + '%';
+    this.elBC.style.width = Util.clamp(this.disp.c/1.4, 0, 100) + '%';
   }
 }
 class App {
@@ -3668,9 +3855,9 @@ class App {
         }
         showToast('已取消選取工具與置煞模式');
       }
-      if(k === '1' || k === '2' || k === '3'){
-        const toolMap = { '1':'wood', '2':'earth', '3':'water' };
-        const toolName = { '1':'木形(高樓)', '2':'土形(方樓)', '3':'水(真水池)' };
+      if(['1','2','3','4','5'].includes(k)){
+        const toolMap = { '1':'wood', '2':'earth', '3':'water', '4':'metal', '5':'fire' };
+        const toolName = { '1':'木形(高樓)', '2':'土形(方樓)', '3':'水(真水池)', '4':'金形(圓頂)', '5':'火形(尖塔)' };
         const t = toolMap[k];
         this.state.tool = (this.state.tool === t) ? null : t;
         document.querySelectorAll('.tool-btn').forEach(btn => {
@@ -3701,6 +3888,7 @@ class App {
     this.world.updateTerrain(this.state.current.terrain);
     this.state.sources = FengShuiEngine.collectSources(this.state);
     this.builder.buildAll(this.state);
+    this.world.renderer.shadowMap.needsUpdate = true;
     this.particles.buildTraffic(this.builder.curves);
     if(this.particles.updateSpawns) this.particles.updateSpawns(this.builder.curves, this.state.sources);
     this.refreshData();
@@ -3725,7 +3913,7 @@ class App {
     this.ui.refreshPanels(this.state);
   }
   addMarker(pt) {
-    this.state.markers.push(pt);
+    this.state.markers.push({ x: pt.x, z: pt.z, pow: this.state.shaPower || 5 });
     this.builder.addSpike(pt);
     this.refreshData();
   }
@@ -3758,7 +3946,7 @@ window.DryRunTool = {
     const histIdxBefore = app.state.historyIndex;
     const yieldToUI = () => new Promise(r => setTimeout(r, 0));
     const suiteResults = [];
-    const presetsToTest = ['perfect', 'cure_combo', 'huilong', 'tianzhan', 'bow', 'yang_extreme', 'yin_extreme', 'wuxing_sheng', 'luchong', 'gejiao', 'chuanxin', 'test_water', 'test_sha', 'test_physics', 'test_quantum'];
+    const presetsToTest = ['perfect', 'cure_combo', 'huilong', 'tianzhan', 'bow', 'yang_extreme', 'yin_extreme', 'wuxing_sheng', 'luchong', 'gejiao', 'chuanxin', 'test_water', 'test_sha', 'test_physics', 'test_geo'];
     const totalCases = presetsToTest.length + 5;
     let done = 0;
     for (const pName of presetsToTest) {
@@ -3882,7 +4070,8 @@ window.DryRunTool = {
         huilong: '上吉/中吉/小吉',
         cure_combo: '中吉/小吉/平局/險局/凶局',
         test_water: '上吉/中吉/小吉',
-        test_quantum: '上吉/中吉/小吉',
+        test_geo: '上吉/中吉/小吉',
+        yun_shift: '上吉/中吉/小吉/平局',
         tianzhan: '大凶/凶局/險局',
         bow: '大凶/凶局/險局',
         luchong: '大凶/凶局/險局',
