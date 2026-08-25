@@ -1517,6 +1517,8 @@ class FengShuiEngine {
         rawS: rawSBeforeClamp,
         rawC: rawCBeforeClamp,
         rawYY: rawYYBalance,
+        penaltyAudit: { entropyPenalty: entropyPenalty, closurePenalty: closurePenalty, hasBuildingsForAnalysis: !!hasBuildingsForAnalysis, hasGoodSupport: !!hasGoodSupport },
+        capacityAudit: { capacityBase: +(capacityBase.toFixed(2)), vFront: +(vFront.toFixed(2)) },
         cureText, wuXingText, yyBalance, yyText, physicsText, dropPaths,
         skyViewFactor: +(skyViewFactor.toFixed(2)),
         frontOpenness: +(frontOpenness.toFixed(2)),
@@ -2722,8 +2724,11 @@ class ParticleSystem {
         u_bldsH: { value: Array.from({length:32}, () => new THREE.Vector2()) }, 
         u_bldCount: { value: 0 }
     };
-    const goodMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: goodVert, fragmentShader: frag, transparent: true, depthWrite: false, defines: { IS_GOOD: 1 } });
-    const badMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: badVert, fragmentShader: frag, transparent: true, depthWrite: false });
+    const adaptSpawnUniforms = src => src.split('u_spawns[64]').join('u_spawns[' + this.spawnMax + ']')
+        .split('u_spawnDirs[64]').join('u_spawnDirs[' + this.spawnMax + ']')
+        .split('for(int i=0; i<64; i++)').join('for(int i=0; i<' + this.spawnMax + '; i++)');
+    const goodMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: adaptSpawnUniforms(goodVert), fragmentShader: frag, transparent: true, depthWrite: false, defines: { IS_GOOD: 1 } });
+    const badMat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: adaptSpawnUniforms(badVert), fragmentShader: frag, transparent: true, depthWrite: false });
     const goodPts = new THREE.Points(this.goodGeo, goodMat);
     const badPts = new THREE.Points(this.badGeo, badMat);
     goodPts.frustumCulled = false;
@@ -3966,6 +3971,8 @@ window.DryRunTool = {
 	  scoringAndVerdict: {
 		gatherRaw: ana.g,
 		scatterRaw: ana.s,
+		penaltyAudit: (ana && ana.penaltyAudit) || null,
+		capacityAudit: (ana && ana.capacityAudit) || null,
 		capacityLimit: ana.c,
 		realEffectiveGather: realG,
 		netEffective: realG - ana.s,

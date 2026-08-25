@@ -661,14 +661,16 @@ const Rules = {
         if (isZhaoGodWater && !isBadWaterZero) zeroGodBonus += 10; 
         if (isDirectGodWaterClash) zeroGodBonus -= 25; 
         if (state.face === '0' && state.d === 'pingyang' && !isBadWaterZero) zeroGodBonus += 10; 
-        let dEdgeShanLiQi = Math.abs((((deg % 15) + 15) % 15) - 7.5);
-        let dEdgeGuaLiQi = Math.abs((((deg % 45) + 45) % 45) - 22.5);
-        let shanKongRaw = Math.max(0, 1.0 - dEdgeShanLiQi / 3.0);
+        let dCenterShanLiQi = Math.abs((((deg % 15) + 15) % 15) - 7.5);
+        let dCenterGuaLiQi = Math.abs((((deg % 45) + 45) % 45) - 22.5);
+        let dToBoundShan = 7.5 - dCenterShanLiQi;
+        let dToBoundGua = 22.5 - dCenterGuaLiQi;
+        let shanKongRaw = Math.max(0, 1.0 - dToBoundShan / 3.0);
         shanKongRaw = shanKongRaw * shanKongRaw * (3.0 - 2.0 * shanKongRaw);
-        let guaKongRaw = Math.max(0, 1.0 - dEdgeGuaLiQi / 2.25);
+        let guaKongRaw = Math.max(0, 1.0 - dToBoundGua / 2.25);
         guaKongRaw = guaKongRaw * guaKongRaw * (3.0 - 2.0 * guaKongRaw);
         let kongwangField = Math.max(shanKongRaw * 18.0, guaKongRaw * 42.0);
-        if (dEdgeShanLiQi >= 3.0) zeroGodBonus += Math.min(1.0, (dEdgeShanLiQi - 3.0) / 1.5) * 6.0;
+        if (dCenterShanLiQi <= 4.5) zeroGodBonus += Math.min(1.0, (4.5 - dCenterShanLiQi) / 1.5) * 6.0;
 
         // 現場真實地形校驗 (In-situ Topographic Verification)
         let lx_in_situ = state.manualXue ? (state.xueX || 0) : 0;
@@ -986,7 +988,7 @@ const Rules = {
                 w: ['you', 'jiuqu', 'hejin', 'hulu', 'jushui', 'sishui'][Math.floor(Math.random()*6)],
                 xing: ['shui', 'jin', 'tu'][Math.floor(Math.random()*3)],
                 xue: ['tu', 'ping', 'wo', 'ru'][Math.floor(Math.random()*4)],
-                degree: [0, 45, 90, 135, 270, 315][Math.floor(Math.random()*6)],
+                degree: [8, 23, 38, 98, 143, 188, 263, 308][Math.floor(Math.random()*8)],
                 face: '1',
                 mt: true, xia: true, an: false, chao: false, zhu: false, xu: false, taiji: true,
                 caoshe: Math.random() < 0.7, san: Math.random() < 0.3, yue: Math.random() < 0.4,
@@ -1009,7 +1011,7 @@ const Rules = {
                 w: ['you', 'jiuqu', 'hejin', 'jushui', 'sishui', 'hulu', 'fuliu', 'none'][Math.floor(Math.random()*8)],
                 xing: ['jin', 'jin', 'mu', 'shui', 'tu'][Math.floor(Math.random()*5)],
                 xue: auspXueChoice,
-                degree: [0, 45, 90, 135, 270, 315][Math.floor(Math.random()*6)],
+                degree: [8, 23, 38, 98, 143, 188, 263, 308][Math.floor(Math.random()*8)],
                 face: isHuilong ? '0' : '1',
                 mt: true, xia: true, an: true,
                 chao: Math.random() < 0.85,
@@ -1082,7 +1084,7 @@ const Rules = {
             w: ['you', 'you', 'jiuqu', 'jiuqu', 'hejin', 'jushui', 'sishui', 'hulu', 'none', 'none', 'gejiao', 'lintou', 'ji', 'fan', 'bazi', 'tfork', 'pubu', 'liulei'][Math.floor(Math.random() * 18)],
             xing: ['jin', 'jin', 'mu', 'shui', 'tu', 'tu', 'huo'][Math.floor(Math.random() * 7)],
             xue: ['wo', 'wo', 'qian', 'ru', 'tu', 'ping', 'ya', 'none'][Math.floor(Math.random() * 8)],
-            degree: [0, 45, 90, 135, 180, 225, 270, 315][Math.floor(Math.random() * 8)],
+            degree: [8, 15, 23, 45, 68, 98, 135, 158, 188, 225, 263, 293, 315, 338][Math.floor(Math.random() * 14)],
             face: Math.random() < 0.75 ? '1' : '0',
             mt: Math.random() < 0.85, 
             xia: Math.random() < 0.90, 
@@ -2497,7 +2499,7 @@ const Engine3D = {
                     vec3 shallowColor = vec3(0.2, 0.75, 0.65);
                     float foamIntensity = 0.9;
                     
-                    if (riverType == 8 || riverType == 13 || riverType == 0) { // 割腳水/凶水 (渾濁泥漿急流)
+                    if (riverType == 8 || riverType == 13 || riverType == 14) { // 割腳水/凶水 (渾濁泥漿急流)
                         deepColor = vec3(0.42, 0.28, 0.15);
                         shallowColor = vec3(0.65, 0.48, 0.28);
                         foamIntensity = 2.2; // 劇烈衝刷浪花
@@ -4589,7 +4591,7 @@ const Physics = {
                 if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;
                 else if(state.d === 'ji') dragonCurveX = Math.sin(normT * Math.PI * 4.0) * 8.0;
                 else if(state.d === 'huan') dragonCurveX = Math.sin(normT * Math.PI * 1.8) * 40.0;
-                else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-tz)*0.02)*50.0;
+                else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0.0, Math.min(Math.PI, (tz - xueZOffset + 100.0) / 110.0 * Math.PI))) * 65.0;
                 let tx = Math.max(-125, Math.min(125, dragonCurveX + (Math.random()-0.5)*10 + xueXOffset));
                 if (state.d === 'heng') {
                     tz = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
@@ -4636,6 +4638,7 @@ const Physics = {
         else if(state.w === 'ji') rType = 8;
         else if(state.w === 'bazi') rType = 3;
         else if(state.w === 'jiaojian') rType = 13;
+        else if(state.w === 'gejiao') rType = 14;
         else if(state.w === 'jushui' || state.w === 'sishui') rType = 7; 
         else if(state.w === 'hejin') rType = 9;
         else if(state.w === 'lintou') rType = 5; 
@@ -5121,7 +5124,7 @@ const Physics = {
                 let tLeft = Engine3D.getTerrainY(x - 2, z).nx;
                 let tRight = Engine3D.getTerrainY(x + 2, z).nx;
                 let gaussianCurvature = Math.abs(tLeft - tRight);
-                if (gaussianCurvature > 1.8 && z < 0) { 
+                if (gaussianCurvature > 1.8 && dzGeom < 0) { 
                     frameTensorFracture++; 
                     vel.x += Math.sign(t.nx) * gaussianCurvature * 3.5 * dt; 
                     vel.y -= 1.0 * dt;
@@ -5614,7 +5617,7 @@ const Physics = {
                     if(state.d === 'sheng') dragonCurveX = Math.sin(normT * Math.PI * 2.2) * 25.0;
                     else if(state.d === 'ji') dragonCurveX = Math.sin(normT * Math.PI * 4.0) * 8.0;
                     else if(state.d === 'huan') dragonCurveX = Math.sin(normT * Math.PI * 1.8) * 40.0;
-                    else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0,-z)*0.02)*50.0;
+                    else if(state.d === 'huilong') dragonCurveX = Math.sin(Math.max(0.0, Math.min(Math.PI, (z - xueZOffset + 100.0) / 110.0 * Math.PI))) * 65.0;
                     x = Math.max(-125, Math.min(125, dragonCurveX + (Math.random()-0.5)*15.0 + xueXOffset));
                     if (state.d === 'heng') {
                         z = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
