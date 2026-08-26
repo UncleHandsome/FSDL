@@ -341,7 +341,7 @@ const Config = {
   XKFS_PALACE_NUM: { kan:1, kun:2, zhen:3, xun:4, qian:6, dui:7, gen:8, li:9 },
   XKFS_PALACE_DIRNAME: { kan:'北坎', gen:'東北艮', zhen:'正東震', xun:'東南巽', li:'正南離', kun:'西南坤', dui:'正西兌', qian:'西北乾' },
   XKFS_YUAN: { '壬':1,'子':2,'癸':3,'丑':1,'艮':2,'寅':3,'甲':1,'卯':2,'乙':3,'辰':1,'巽':2,'巳':3,'丙':1,'午':2,'丁':3,'未':1,'坤':2,'申':3,'庚':1,'酉':2,'辛':3,'戌':1,'乾':2,'亥':3 },
-  XKFS_YANG: ['甲','庚','丙','壬','乾','坤','艮','巽'],   // 地元四正＋天元四維為陽，其餘十六山屬陰
+  XKFS_YANG: ['甲','庚','丙','壬','乾','坤','艮','巽','寅','申','巳','亥'],   // 地元四正＋天元四維＋人元四生為陽，餘十二山屬陰
   XKFS_PALACE_MOUNTAINS: { kan:['壬','子','癸'], gen:['丑','艮','寅'], zhen:['甲','卯','乙'], xun:['辰','巽','巳'], li:['丙','午','丁'], kun:['未','坤','申'], dui:['庚','酉','辛'], qian:['戌','乾','亥'] },
   SANHE_STAGES: ['長生','沐浴','冠帶','臨官','帝旺','衰','病','死','墓','絕','胎','養'],
   SANHE_FRAMES: {
@@ -658,9 +658,11 @@ class FengShuiEngine {
           if (dzTaiji > 15 && dzTaiji < 45 && Math.abs(dxTaiji) < 8 && b.h > 10) centerBlocker = true;
         }
         let noonSun = sunAngles[1];
-        let t = dzTaiji / Math.max(0.001, noonSun.z);
+        let nsX = BK ? -noonSun.x : noonSun.x;
+        let nsZ = BK ? -noonSun.z : noonSun.z;
+        let t = dzTaiji / Math.max(0.001, nsZ);
         if (t > 0 && t < 200) {
-            let hitX = t * noonSun.x;
+            let hitX = t * nsX;
             let hitY = (hMain/2) + t * noonSun.y;
             let bBase = (b.y || 0) + terrainYCorrected(b.x, b.z);
             if (hitY >= bBase && hitY <= bBase + b.h && Math.abs(hitX - dxTaiji) < b.w/2) {
@@ -1425,7 +1427,7 @@ class FengShuiEngine {
         if (st.special.includes('chaoshan')) {
             // 朝山宜遠：遠朝有情、賓主分明
             g += 6;
-            observerText.push(`空間｜朝山遠迎：朝距約 ${Math.min(180, caseDist + 90)}m，朝山宜遠、格局宏大而有所收 (朝山宜遠)`);
+            observerText.push(`空間｜朝山遠迎：朝距約 ${Util.clamp(60 + caseDist, 110, 180)}m，朝山宜遠、格局宏大而有所收 (朝山宜遠)`);
         } else if (caseDist > 90) {
             g += 2; s += 4;
             observerText.push(`空間｜官星案距約 ${caseDist}m 過遠，迎而不聚，需近案關攔 (朝案失距)`);
@@ -1977,12 +1979,13 @@ class FengShuiEngine {
         const distZ = Math.max(0, dz - b.d / 2);
         const distToEdge = Math.hypot(distX, distZ);
         if (distToEdge < minEdgeDist) minEdgeDist = distToEdge;
-        let distFront = (b.z - b.d / 2) - z;
+        const relZ = (z - b.z) * (st.liqi === 'back' ? -1 : 1);
+        let distFront = -b.d / 2 - relZ;
         if (insideX && distFront > 0) {
             let p = Math.exp(-(distFront * distFront) / 81);
             ramPressure += p * 15;
         }
-        let distBehind = z - (b.z + b.d / 2);
+        let distBehind = relZ - b.d / 2;
         if (distBehind > 0 && dx < b.w / 2 + distBehind * 0.35) {
             let wakeStr = Math.exp(-(distBehind * distBehind) / 400);
             wakeEffect += wakeStr * 20;
@@ -2072,10 +2075,9 @@ class CityBuilder {
           if (oldGeo) oldGeo.dispose();
           this.ghostType = tool;
       }
-      let gx = this._flipBack ? -x : x, gz = this._flipBack ? -z : z;
-      let ty = this.terrainYCorrected(gx, gz);
+      let ty = this.terrainYCorrected(x, z);
       let h = (this.ghostMesh.geometry.parameters && this.ghostMesh.geometry.parameters.height) || 2;
-      this.ghostMesh.position.set(gx, ty + h / 2, gz);
+      this.ghostMesh.position.set(x, ty + h / 2, z);
       if (Math.abs(x) < 15 && Math.abs(z) < 15) {
           this.ghostMesh.material.color.setHex(0xff0000);
       } else {
@@ -2176,7 +2178,7 @@ class CityBuilder {
         let magneticInterference = (sVal * 0.008) + (ana && ana.reynoldsNum > 4000 ? 0.05 : 0);
         let jitter = magneticInterference * (1.0 - lockFactor); 
         // 堪輿工具須可讀：不再持續自轉，僅保留磁擾微擺（±2°內），靜態刻度已對齊世界北方(-z)
-        this.luopanMesh.rotation.z = ((Math.sin(time * 20) * jitter) + (Math.cos(time * 13) * jitter * 0.5)) * 0.22;
+        this.luopanMesh.rotation.z = (this._flipBack ? Math.PI : 0) + ((Math.sin(time * 20) * jitter) + (Math.cos(time * 13) * jitter * 0.5)) * 0.22;
     }
     if (this.luopanNeedle) {
         this.luopanNeedle.rotation.y = (this.luopanNeedle.userData.base || 0) + Math.sin(time * 0.7) * 0.02;
@@ -2199,6 +2201,7 @@ class CityBuilder {
                         if(c.material.color) {
                             if (idx === 1) c.material.color.setHex(0xd39e00);
                             if (idx === 2) c.material.color.setHex(0x2a6fb0);
+                            if (idx === 3) c.material.color.setHex(0x4fa6ff);
                         }
                     }
                 }
@@ -2210,6 +2213,7 @@ class CityBuilder {
                     if(c.material.emissive !== undefined) { c.material.emissiveIntensity = 0; c.material.emissive.setHex(0x000000); }
                     if(c.material.color && idx === 1) c.material.color.setHex(0xd39e00);
                     if(c.material.color && idx === 2) c.material.color.setHex(0x2a6fb0);
+                    if(c.material.color && idx === 3) c.material.color.setHex(0x4fa6ff);
                 }
             });
         }
@@ -2369,7 +2373,7 @@ class CityBuilder {
     arm.position.set(x+w*0.7-6,ty+30+h*0.55,z); this.group.add(arm);
   }
   addSpike(m) {
-    const ty = this.terrainYCorrected(this._flipBack ? -m.x : m.x, this._flipBack ? -m.z : m.z);
+    const ty = this._flipBack ? this.terrainYCorrected(-m.x, -m.z) : this.terrainYCorrected(m.x, m.z);
     const p = Math.max(1, Math.min(10, m.pow || 5));
     const hh = 4 + p * 0.9;
     const s=new THREE.Mesh(new THREE.ConeGeometry(1.4+p*0.18,hh,8),new THREE.MeshBasicMaterial({color:0xdd2222}));
@@ -2409,16 +2413,16 @@ class CityBuilder {
     }
     if(st.left==='qinglong'){
       this.box(16,h.drag,20,36,-6,0x16304e);this.box(12,h.drag-16,14,52,10,0x14283f);
-      this.box(9,Math.max(8,Math.round(h.drag*0.32)),24,46,30,0x14283f);   // 下關砂前伸兜堂
-      this.box(7,Math.max(6,Math.round(h.drag*0.22)),18,36,48,0x122639);   // 交牙末梢
+      this.box(9,Math.max(8,Math.round(h.drag*0.32)),20,46,28,0x14283f);   // 下關砂前伸兜堂
+      this.box(7,Math.max(6,Math.round(h.drag*0.22)),18,36,57,0x122639);   // 交牙末梢
       this.group.add(ResourceManager.createLabel('青龍','#0d8a43',8,36,h.drag+6,-6));
     }
     if(st.left==='oppress'){this.box(20,86,22,26,-4,0x1d2c44);this.group.add(ResourceManager.createLabel('青龍逼壓','#d34f00',8,26,92,-4));}
     if(st.left==='broken')this.brokenBld(36,-6,16,26);
     if(st.right==='baihu'){
       this.box(16,h.tig,20,-36,-6,0x16304e);this.box(12,h.tig-14,14,-52,8,0x14283f);
-      this.box(9,Math.max(8,Math.round(h.tig*0.32)),24,-46,28,0x14283f);   // 下關砂前伸兜堂
-      this.box(7,Math.max(6,Math.round(h.tig*0.22)),18,-36,46,0x122639);   // 交牙末梢
+      this.box(9,Math.max(8,Math.round(h.tig*0.32)),20,-46,28,0x14283f);   // 下關砂前伸兜堂
+      this.box(7,Math.max(6,Math.round(h.tig*0.22)),18,-36,57,0x122639);   // 交牙末梢
       this.group.add(ResourceManager.createLabel('白虎','#b87a00',8,-36,h.tig+6,-6));
     }
     if(st.right==='raise'){this.box(18,92,20,-34,-6,0x242244);this.group.add(ResourceManager.createLabel('白虎抬頭','#d31515',8,-34,98,-6));}
@@ -2548,7 +2552,7 @@ class CityBuilder {
     }
     if(st.special.includes('chaoshan')){
       // 案山要近、朝山要遠：朝樓距離由 caseDist 驅動
-      const czChao = Util.clamp(60 + (st.caseDist || 60), 100, 180);
+      const czChao = Util.clamp(60 + (st.caseDist || 60), 110, 180);
       const chaoH = Math.round(48 + (st.caseDist || 60) * 0.12);
       this.box(14,chaoH,14,0,czChao,0x16283f);
       const top=new THREE.Mesh(new THREE.ConeGeometry(5,10,4),new THREE.MeshLambertMaterial({color:0xc9a53d}));
@@ -2646,7 +2650,7 @@ class CityBuilder {
     if(st.sha.includes('pierce')){this.elevated([Util.v3(-150,9.5,26),Util.v3(150,9.5,26)],true);this.group.add(ResourceManager.createLabel('穿心煞','#d31515',9,0,16,26));}
     if(st.sha.includes('windshaft')){
       const ty = this.terrainYCorrected(0, 100);
-      this.box(13,64,13,-22,82);this.box(13,64,13,22,82);this.box(11,50,11,-40,100);this.box(11,50,11,40,100);
+      this.box(13,64,13,-26,82);this.box(13,64,13,26,82);this.box(11,50,11,-40,100);this.box(11,50,11,40,100);
       this.group.add(ResourceManager.createLabel('凹風煞','#d31515',9,0,ty+72,100));
     }
     if(st.sha.includes('qingquan')){
@@ -2700,14 +2704,14 @@ class CityBuilder {
     }
     if(st.sha.includes('noise')){
       const tyN = this.terrainYCorrected(45, 0);
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(3, 8, 60), new THREE.MeshLambertMaterial({ color: 0x555566 }));
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(3, 8, 34), new THREE.MeshLambertMaterial({ color: 0x555566 }));
       wall.castShadow = true; wall.position.set(45, tyN + 4, 0); this.group.add(wall);
       for(let i=0;i<3;i++){
         const arc = new THREE.Mesh(new THREE.TorusGeometry(6+i*3, 0.25, 6, 24, Math.PI), new THREE.MeshBasicMaterial({ color: 0x88aacc, transparent:true, opacity:0.5 }));
         arc.rotation.x = Math.PI/2; arc.position.set(41, tyN + 1.5, 0); this.group.add(arc);
       }
       this.group.add(ResourceManager.createLabel('聲煞','#d31515',8,45,tyN+14,0));
-      this.blds.push({x:45, z:0, w:3, d:60, h:8, isShaProp:true});
+      this.blds.push({x:45, z:0, w:3, d:34, h:8, isShaProp:true});
     }
     if(st.sha.includes('manual')) stateManager.markers.forEach(m=>this.addSpike(m));
     // ── 化煞指向性：依煞源座標佈放，置於穴場與煞源連線上並避開明堂中軸 ──
@@ -2734,7 +2738,7 @@ class CityBuilder {
         for (const hp of hits){ const d=Math.hypot(hp.x,hp.z); if(d<bd){bd=d;best=hp;} }
         let px2 = best.x*0.55, pz2 = best.z*0.55;
         if (Math.abs(px2) < 10) px2 = (px2>=0?1:-1)*10;   // 側移，不擋明堂中軸納氣
-        const dd = Math.hypot(px2,pz2); if (dd>26){ px2*=26/dd; pz2*=26/dd; }
+        const dd = Math.hypot(px2,pz2); if (dd>26){ px2*=26/dd; pz2*=26/dd; } else if (dd < 14.5 && dd > 0.001){ px2*=14.5/dd; pz2*=14.5/dd; }
         return {x:px2, z:pz2, aimed:true, sx:best.x, sz:best.z};
     };
     if(st.cure.includes('trees')){
@@ -2834,7 +2838,7 @@ class CityBuilder {
     this.luopanMesh = new THREE.Mesh(new THREE.RingGeometry(16, 42, 64), new THREE.MeshBasicMaterial({map: ResourceManager.getLuopanTex(), transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false}));
     this.luopanMesh.rotation.x = -Math.PI/2; this.luopanMesh.position.y = tyCore + 0.3 + elevY; this.group.add(this.luopanMesh);
     // 宮位指針（紅）：指向所選地段方位；背水立向時隨場景翻轉補償
-    const SECTOR_YAW = { north:0, ne:Math.PI/4, east:-Math.PI/2, se:-3*Math.PI/4, south:Math.PI, sw:3*Math.PI/4, west:Math.PI/2, nw:-Math.PI/4 };
+    const SECTOR_YAW = { north:0, ne:-Math.PI/4, east:-Math.PI/2, se:-3*Math.PI/4, south:Math.PI, sw:3*Math.PI/4, west:Math.PI/2, nw:Math.PI/4 };
     this.luopanNeedleYaw = (SECTOR_YAW[st.sector] != null) ? SECTOR_YAW[st.sector] : null;
     this.luopanNeedle = null;
     if (this.luopanNeedleYaw != null && st.sector !== 'center') {
@@ -2989,7 +2993,7 @@ void main() {
         float sz = u_flipBack ? -p.z : p.z;
         float dx = u_tx - sx; float dz = u_hz - sz; float d = length(vec2(dx, dz)) + 0.001;
         float ty = getTerrainY(p.x, p.z);
-        vec2 grad = vec2(getTerrainY(p.x+1.0, p.z) - getTerrainY(p.x-1.0, p.z), getTerrainY(p.x, p.z+1.0) - getTerrainY(p.x, p.z-1.0)) * 0.5 * (u_flipBack ? -1.0 : 1.0);
+        vec2 grad = vec2(getTerrainY(p.x+1.0, p.z) - getTerrainY(p.x-1.0, p.z), getTerrainY(p.x, p.z+1.0) - getTerrainY(p.x, p.z-1.0)) * 0.5;
         v.x -= grad.x * 25.0 * dt; v.z -= grad.y * 25.0 * dt;
         if (u_hz > -900.0) {
             v *= max(0.0, 1.0 - 0.35 * exp(-d * d / 288.0) * dt);
@@ -3395,7 +3399,7 @@ class ParticleSystem {
       const col = this._waCol;
       for(const w of this.windArrows){
         if (W < 0.1) { w.a.visible = false; continue; } 
-        let vx=Math.sin(time*0.7+w.z*0.03)*0.12*W, vz=W, blocked=false;
+        let vx=Math.sin(time*0.7+w.z*0.03)*0.12*W, vz=W*(st.liqi==='back'?-1:1), blocked=false;
         for(const b of builder.blds){
           if (b.isWater) continue; 
           const dx=w.x-b.x, dz=w.z-b.z;
@@ -3859,7 +3863,7 @@ class UIManager {
       this.app.state.current.presetName = 'custom';
       this.app.state.current.caseDist = v;
       Util.$('caseVal').textContent = UIManager.caseLabel(v);
-      debouncedEnvRefresh();
+      debouncedHeightRebuild();
     };
     Util.$('rCase').onchange = (e) => { e.target.blur(); this.commitHistoryIfChanged(); };
     Util.$('rShaPow').oninput = e => {
@@ -4047,6 +4051,7 @@ class UIManager {
       st.current.special = pickMulti(spChoices, 2);
       st.current.liqi = pick(['face','back']);
       st.current.cure = pickMulti(['none','trees','pool','mirror','stone','gourd','fountain']);
+      st.current.facing = 'none';
       st.heights.main = 20 + (Math.random()*50|0);
       st.heights.drag = 20 + (Math.random()*50|0);
       st.heights.tig = 20 + (Math.random()*50|0);
@@ -4066,6 +4071,7 @@ class UIManager {
         if (!('back' in prs)) st.current.back = 'xuanwu';
         if (!('yun' in prs)) st.current.yun = 'y9';
         if (!('caseDist' in prs)) st.current.caseDist = 60;
+        if (!('facing' in prs)) st.current.facing = 'none';
       }
       st.heights = { main: 44, drag: 50, tig: 42, tort: 60, bird: 12 };
     }
@@ -4519,8 +4525,8 @@ window.DryRunTool = {
         }
     }
     const scoreSuggestGood = typeof realEffectiveGather === 'number' && realEffectiveGather > 60 && typeof ana.s === 'number' && ana.s < 40;
-    if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.5 && scoreSuggestGood) {
-        sanityWarnings.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>6.5）但分數顯示吉象，氣場混亂與吉分矛盾`);
+    if (hasBldsForAnomalyCheck && typeof ana.shannonEntropy === 'number' && ana.shannonEntropy > 6.0 && scoreSuggestGood) {
+        sanityWarnings.push(`CRITICAL: 香農熵高達 ${ana.shannonEntropy.toFixed(3)} Bits（>6.0，已近 72 射線理論上界 log₂72≈6.17）但分數顯示吉象，氣場混亂與吉分矛盾`);
     }
     if (hasBldsForAnomalyCheck && typeof ana.betti1Closure === 'number' && ana.betti1Closure < 0.3 && scoreSuggestGood) {
         sanityWarnings.push(`CRITICAL: 拓撲閉合度僅 ${(ana.betti1Closure*100).toFixed(1)}%（<30%）但分數顯示吉象，明堂漏風與吉分矛盾`);

@@ -6462,7 +6462,7 @@ const Physics = {
                     邊界層二次流剝離: ${AppState.sensors.boundarySep.toFixed(1)}%
                     </span>
                     <div style="margin-top:4px; color:#22201c;">
-                        穴場地理：坡度 ${(Math.sqrt(Math.pow(Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z, this._probeT).nx, 2) + Math.pow(Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z, this._probeT).nz, 2))).toFixed(2)}｜滯氣率 ${((AppState.sensors.staleQi || 0) * 100).toFixed(0)}%｜包護度 ${(Rules.protectionRatio() * 100).toFixed(0)}%${AppState.lastXueCert ? '｜穴證 ' + AppState.lastXueCert.score + ' 分' : ''}
+                        穴場地理：坡度 ${(Math.sqrt(Math.pow(Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z, this._probeT).nx, 2) + Math.pow(Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z, this._probeT).nz, 2))).toFixed(2)}｜滯氣率 ${((AppState.sensors.staleQi || 0) * 100).toFixed(0)}%｜包護度 ${(Rules.protectionRatio() * 100).toFixed(0)}%｜容積 ${Rules.mingtangVolume()}${state.w !== 'none' ? '｜河段坡降 ' + ((() => { const wz2 = Engine3D.riverRefZ(state.w); const upH = Engine3D.getTerrainY(0, Math.min(160, wz2 + 45)).y, downH = Engine3D.getTerrainY(0, Math.max(-40, wz2 - 30)).y; return ((upH - downH) / 75 * 1000).toFixed(0) + '‰'; })()) : ''}${AppState.lastXueCert ? '｜穴證 ' + AppState.lastXueCert.score + ' 分' : ''}
                         <br>去水方位：${(ot => ot ? (ot.compass + '°' + ot.palace + '（相對立向 ' + (ot.rel >= 0 ? '+' : '') + ot.rel + '°）｜' + (Math.abs(ot.rel) < 45 ? '順水局·宜下砂收鎖' : (Math.abs(ot.rel) > 135 ? '朝水局·逆水朝堂吉' : '橫水局'))) : '—')(Rules.outletAzimuth())}
                     </div>
                 </div>
