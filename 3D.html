@@ -135,6 +135,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label">前案</span><div class="seg" data-k="ms"><button data-v="you">朱雀翔舞</button><button data-v="bijia">筆架三台</button><button data-v="yin" style="color:#b98a2e;font-weight:bold;">印砂</button><button data-v="di">低陷</button><button data-v="po" class="danger">破碎</button><button data-v="sunken" class="danger">深坑</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">水勢</span><div class="seg" data-k="w"><button data-v="you">玉帶</button><button data-v="jiuqu">九曲</button><button data-v="jushui" style="color:#0a91a1;font-weight:bold;">聚水天心</button><button data-v="hejin" style="color:#0a91a1;font-weight:bold;">合襟</button><button data-v="hulu" style="color:#0a91a1;font-weight:bold;">葫蘆</button><button data-v="fuliu" style="color:#0a91a1;font-weight:bold;">伏流</button><button data-v="sishui" style="color:#b98a2e;font-weight:bold;">四水</button><button data-v="jiaojian" class="danger">交劍</button><button data-v="gejiao" class="danger">割腳</button><button data-v="lintou" class="danger">淋頭</button><button data-v="ji" class="danger">直沖</button><button data-v="fan" class="danger">反弓</button><button data-v="bazi" class="danger">八字</button><button data-v="tfork" class="danger">丁字</button><button data-v="juanlian" class="danger">捲簾</button><button data-v="pubu" class="danger">瀑布</button><button data-v="liulei" class="danger">流淚</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">星體</span><div class="seg" data-k="xing"><button data-v="jin">金</button><button data-v="mu">木</button><button data-v="shui">水</button><button data-v="huo" class="danger">火</button><button data-v="tu">土</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">九星</span><div class="seg" data-k="jiuxing"><button data-v="none">無</button><button data-v="tanlang" style="color:#b98a2e;font-weight:bold;">貪狼</button><button data-v="jumen" style="color:#b98a2e;font-weight:bold;">巨門</button><button data-v="lucun">祿存</button><button data-v="wenqu">文曲</button><button data-v="lianzhen" class="danger">廉貞</button><button data-v="wuqu" style="color:#b98a2e;font-weight:bold;">武曲</button><button data-v="pojun" class="danger">破軍</button><button data-v="zuofu" style="color:#b98a2e;font-weight:bold;">左輔</button><button data-v="youbi" style="color:#b98a2e;font-weight:bold;">右弼</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">穴形</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo">窩</button><button data-v="qian">鉗</button><button data-v="ru">乳</button><button data-v="tu">突</button><button data-v="ping">坪</button><button data-v="ya">崖</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">定穴</span><div class="seg"><button class="tog" data-k="manualXue" id="btn-manualXue">手動點穴</button><button id="btn-auto-spot" style="background:var(--jade); color:#fff; font-weight:bold; border:none; border-radius:4px; padding:4px 6px; cursor:pointer;" title="全域搜尋最佳結穴點">尋龍點穴</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">穴高</span><div class="seg" style="align-items:center;"><input type="range" id="xueh-slider" min="0" max="20" value="0" title="穴位海拔（谷底~半山~高山）"><span id="xueh-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">平洋</span></div></div>
@@ -241,6 +242,7 @@ const CONFIG = {
         zhuScale: 1.0, mtScale: 1.0, waterVel: 1.0, 
         xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5, showCompass: true, showDragonLine: true, 
         yun: '9',
+        jiuxing: 'none',
         vHeat:true, vProbe:false, vInspect:false, vWind:true, zhihua:false, shaMode:false, wind: 5
     },
     presets: {
@@ -503,6 +505,12 @@ const Rules = {
         let isPingyang = (state.d === 'pingyang');
         if(state.shu && !isBadDragon && !isPingyang) D_raw += 10;
         else if(state.shu && isBadDragon) D_raw -= 15;
+        if (state.jiuxing && state.jiuxing !== 'none') {
+            // 楊公九星辰頭：五吉加貴，四凶視剝換
+            const jxBase = { tanlang: 15, jumen: 15, wuqu: 15, zuofu: 12, youbi: 10, lucun: -5, wenqu: -3, lianzhen: -8, pojun: -10 }[state.jiuxing] ?? 0;
+            D_raw += jxBase;
+            if (jxBase < 0 && state.bohuan === 'yes') D_raw -= jxBase * 0.6; // 凶星得剝換脫煞，六成折回
+        }
         if(state.zutai) D_raw += 15; 
         if(state.fengyao && !isPingyang) D_raw += 12; 
         if(state.hulong && !isPingyang) D_raw += 12;
@@ -996,6 +1004,7 @@ const Rules = {
         if(state.sherui) advice.push('犯射肋煞，凶風刺穴，極凶之局，宜棄用或築厚牆遮擋');
         if(state.bohuan === 'no') advice.push('龍脈未剝換，帶有高山岩石粗惡煞氣，宜尋找過峽平緩處再行點穴');
  if(state.d === 'heng' && !state.guiyao) advice.push('橫龍無鬼星撐托，縱有穴形亦是虛花，宜覓鬼曜樂山再談點穴');
+ if(state.jiuxing && state.jiuxing !== 'none') { const nm = { tanlang: '貪狼', jumen: '巨門', lucun: '祿存', wenqu: '文曲', lianzhen: '廉貞', wuqu: '武曲', pojun: '破軍', zuofu: '左輔', youbi: '右弼' }[state.jiuxing]; const good = ['tanlang','jumen','wuqu','zuofu','youbi'].includes(state.jiuxing); advice.push('九星【' + nm + '】鎮主山' + (good ? '，正體貴格應之' : (state.bohuan === 'yes' ? '，凶星幸得剝換脫煞' : '，凶星未剝換，其氣未純'))); }
         if(state.zhijiao === 'ni') advice.push('龍脈橈棹逆水反生，氣脈倒退散失，難以結穴');
         if(state.w !== 'none' && (state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) advice.push('主山過高而明堂狹小，犯「逼壓欺主」，氣場狂躁不聚');
@@ -3716,7 +3725,27 @@ const Engine3D = {
                 if (dzLair < -10 && (state.xia || state.mn !== 'none' || state.zhu || state.xu)) {
                     let mD = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+50,2)), h = 0;
                     if(state.xia) {
-                        if(state.xing==='jin') {
+                        const _jx = (state.jiuxing && state.jiuxing !== 'none') ? state.jiuxing : null;
+                        if (_jx === 'tanlang') {
+                            h = 62 / (1.0 + Math.pow(mD / 9, 3.2)) + 10 * Math.exp(-(mD * mD) / 30); // 貪狼木：竹筍尖頂
+                        } else if (_jx === 'jumen') {
+                            h = 52 * Math.exp(-Math.pow(mD / 26, 4)) + 6 * Math.exp(-(mD * mD) / 196); // 巨門土：平正方厚
+                        } else if (_jx === 'lucun') {
+                            h = 46 * Math.exp(-Math.pow(mD / 22, 3)) + Math.abs(this.pNoise(dxLair * 0.9, dzLair * 0.9)) * 9 * Math.exp(-mD / 30); // 祿存：頂破碎帶枝腳
+                        } else if (_jx === 'wenqu') {
+                            h = 24 * Math.exp(-(mD * mD) / 900) * (0.75 + 0.25 * Math.sin(dzLair * 0.18)); // 文曲水：波曲柔長
+                        } else if (_jx === 'lianzhen') {
+                            h = 58 * Math.exp(-mD / 16) + Math.abs(this.pNoise(dxLair * 1.3, dzLair * 1.3)) * 22 * Math.exp(-mD / 34); // 廉貞火：火焰嶙峋
+                        } else if (_jx === 'wuqu') {
+                            h = 50 * Math.exp(-(mD * mD) / 576); // 武曲金：圓如鐘釜
+                        } else if (_jx === 'pojun') {
+                            h = 48 * Math.exp(-(mD * mD) / 529);
+                            if (dxLair > 4) h -= (dxLair - 4) * 1.1 * Math.exp(-mD / 40); // 破軍：半邊傾側崩
+                        } else if (_jx === 'zuofu') {
+                            h = 30 * Math.exp(-Math.pow(mD / 26, 4)) + 4; // 左輔：卑平巾幘
+                        } else if (_jx === 'youbi') {
+                            h = 13 * Math.exp(-(mD * mD) / 1156) * (0.6 + 0.4 * this.pNoise(dxLair * 0.5, dzLair * 0.5)); // 右弼：隱隱隆隆
+                        } else if(state.xing==='jin') {
                             h = 45 * Math.cos(Math.min(Math.PI/2, mD/25)) * Math.exp(-(mD*mD)/1200);
                         } else if(state.xing==='mu') {
                             h = 60 / (1.0 + Math.pow(mD/12, 3.5));
