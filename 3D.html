@@ -1005,6 +1005,7 @@ const Rules = {
         if(state.bohuan === 'no') advice.push('龍脈未剝換，帶有高山岩石粗惡煞氣，宜尋找過峽平緩處再行點穴');
  if(state.d === 'heng' && !state.guiyao) advice.push('橫龍無鬼星撐托，縱有穴形亦是虛花，宜覓鬼曜樂山再談點穴');
  if(state.jiuxing && state.jiuxing !== 'none') { const nm = { tanlang: '貪狼', jumen: '巨門', lucun: '祿存', wenqu: '文曲', lianzhen: '廉貞', wuqu: '武曲', pojun: '破軍', zuofu: '左輔', youbi: '右弼' }[state.jiuxing]; const good = ['tanlang','jumen','wuqu','zuofu','youbi'].includes(state.jiuxing); advice.push('九星【' + nm + '】鎮主山' + (good ? '，正體貴格應之' : (state.bohuan === 'yes' ? '，凶星幸得剝換脫煞' : '，凶星未剝換，其氣未純'))); }
+ if(!(state.d === 'si' || state.d === 'po' || state.d === 'gufeng') && state.xia && state.xue !== 'none') { let _hxForm = ''; if (state.dazhang && state.hulong && state.zutai) _hxForm = '將軍坐帳'; else if (state.d === 'huilong' && state.zutai) _hxForm = '迴龍顧祖'; else if (state.shixiang && state.w !== 'none') _hxForm = '獅象捍門'; else if (state.tianchi && state.zhu) _hxForm = '天池蔭龍'; else if (state.d === 'pingyang' && state.caoshe) _hxForm = '草蛇灰線·平地行龍'; else if (state.bendi) _hxForm = '平地仰掌'; else if (state.jiuxing === 'tanlang') _hxForm = '貪狼吐秀'; else if (state.jiuxing === 'wuqu') _hxForm = '武曲鎮庫'; else if (state.ms === 'bijia') _hxForm = '文筆案貴'; if (_hxForm) advice.push('喝形取象：此地局可擬「' + _hxForm + '」之格'); }
         if(state.zhijiao === 'ni') advice.push('龍脈橈棹逆水反生，氣脈倒退散失，難以結穴');
         if(state.w !== 'none' && (state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) advice.push('主山過高而明堂狹小，犯「逼壓欺主」，氣場狂躁不聚');
@@ -3373,6 +3374,12 @@ const Engine3D = {
         const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
         let bestScore = -999;
         let bestX = 0, bestZ = 5;
+        // 水口理氣：預算主出口世界座標（供每候選點的來去水方位判定）
+        let _oxPre=-1,_ozPre=-1;
+        if (state.w !== 'none' && state.w !== 'lintou' && Engine3D.flowMap) {
+            const fm0=Engine3D.flowMap, seg0=CONFIG.tSeg, size0=CONFIG.tSize;
+            let bv=-1; for(let iz=1;iz<seg0;iz++) for(let ix=1;ix<seg0;ix++){ if(ix>3&&ix<seg0-3&&iz>3&&iz<seg0-3) continue; const v=fm0[iz*(seg0+1)+ix]||0; if(v>bv){bv=v;_oxPre=(ix/seg0)*size0-size0/2;_ozPre=(iz/seg0)*size0-size0/2;}}
+        }
 
         for (let gz = 8; gz < 56; gz++) {
             for (let gx = 8; gx < 56; gx++) {
@@ -3403,6 +3410,15 @@ const Engine3D = {
                 let score = 0;
                 let backShelter = Math.max(0, hB - t.y);
                 let sideSand = Math.max(0, Math.min(hL, hR) - t.y);
+                // 來去水方位：候選點到主出口的向量與立向對齊則微獎勵（天門開地戶閉的候選點擇優）
+                if (_oxPre > -1e8) {
+                    const dxo2 = _oxPre - wx, dzo2 = _ozPre - wz;
+                    const compass2 = ((Math.atan2(-dxo2, dzo2)*180/Math.PI)+360)%360;
+                    const facing2 = ((state.degree||0)%360+360)%360;
+                    let rel2 = ((compass2 - facing2 + 540)%360)-180;
+                    if (Math.abs(rel2) < 45) score -= 1.2; // 順水局：去水在正前需收鎖，微扣以擇優有下砂收鎖之點
+                    else if (Math.abs(rel2) > 120) score += 1.8; // 朝水局：逆水朝堂微獎
+                }
 
                 if (state.d === 'pingyang') {
                     if (slope < 1.0) score += 5.0;
@@ -3569,6 +3585,9 @@ const Engine3D = {
             const [lx, lz] = effLairAnchor();
             let dxLair = x - lx, dzLair = z - lz;
             if (state.degree) { const _rl = rotDeg(dxLair, dzLair, -state.degree); dxLair = _rl[0]; dzLair = _rl[1]; }
+            // 坐向鏡像：若背水(face=0)，則前後左右翻轉
+            // 這確保了「左青龍右白虎」是相對於「坐山朝向」，而非死板的世界座標
+            if (state.face === '0') { dxLair = -dxLair; dzLair = -dzLair; }
             if (state.d === 'pingyang') {
                 let microTopo = this.pNoise(dxLair*0.8, dzLair*0.8) * 1.5 + this.ridgeNoise(dxLair*2, dzLair*2) * 0.8;
                 if (state.caoshe) {
@@ -3693,7 +3712,7 @@ const Engine3D = {
                 }
                 if(state.guiyao && dzLair < -10) {
                 if (state.d === 'heng') {
-                    if (dzLair > -98 && dzLair < -52 && Math.abs(dxLair) < 35) {
+                    if (dzLair > -98 * (state.mtScale||1) && dzLair < -52 * (state.mtScale||1) && Math.abs(dxLair) < 35 * (state.mtScale||1)) {
                         let dxEdgeH = Math.max(0, 1 - Math.abs(dxLair) / 35.0);
                         dxEdgeH = dxEdgeH * dxEdgeH * (3 - 2 * dxEdgeH);
                         let dzEdgeH = Math.max(0, Math.min(1, (dzLair + 98) / 3.0)) * Math.max(0, Math.min(1, (-52 - dzLair) / 3.0));
@@ -3723,7 +3742,7 @@ const Engine3D = {
                 }
                 y = Math.max(y, sBase);
                 if (dzLair < -10 && (state.xia || state.mn !== 'none' || state.zhu || state.xu)) {
-                    let mD = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+50,2)), h = 0;
+                    let mD = Math.sqrt(dxLair*dxLair + Math.pow(dzLair+62,2)), h = 0; // 真實尺度：主山後移 1.25x
                     if(state.xia) {
                         const _jx = (state.jiuxing && state.jiuxing !== 'none') ? state.jiuxing : null;
                         if (_jx === 'tanlang') {
@@ -3773,7 +3792,7 @@ const Engine3D = {
                         kangBlend = kangBlend * kangBlend * (3 - 2 * kangBlend);
                         h += (-10 + 30 * kangBlend);
                     } else if(state.mn==='po') h += this.pNoise(dxLair,dzLair)*15;
-                    if (state.tianchi && state.zhu && dzLair > -84 && dzLair < -36 && Math.abs(dxLair) < 28) {
+                    if (state.tianchi && state.zhu && dzLair > -110 && dzLair < -52 && Math.abs(dxLair) < 28) {
                         let outerX = Math.max(0, 1 - Math.abs(dxLair) / 28.0);
                         outerX = outerX * outerX * (3 - 2 * outerX);
                         let outerZ = Math.max(0, Math.min(1, (dzLair + 84) / 4.0)) * Math.max(0, Math.min(1, (-36 - dzLair) / 4.0));
@@ -3793,7 +3812,7 @@ const Engine3D = {
                         }
                     }
                     h *= state.zhuScale; 
-                    if(state.zhu && dzLair < -38 && dzLair > -82) {
+                    if(state.zhu && dzLair < -53 && dzLair > -97) { // 真實尺度：主山後移，容納中明堂
                         let zhuCore = 18 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair+60,2))/800);
                         if (state.d === 'heng') zhuCore = 28 * Math.exp(-(dxLair*dxLair*0.05 + Math.pow(dzLair+60,2))/400); 
                         if (state.tianma) {
@@ -3834,18 +3853,18 @@ const Engine3D = {
                     }
                     y = Math.max(y, h);
                 }
-                if(state.zutai && dzLair < -90) {
-                    let zuMain = 85 * Math.exp(-(dxLair*dxLair*0.8 + Math.pow(dzLair+135,2))/900); 
-                    let zuSide1 = 55 * Math.exp(-(Math.pow(dxLair-45, 2) + Math.pow(dzLair+125,2))/1000); 
-                    let zuSide2 = 60 * Math.exp(-(Math.pow(dxLair+50, 2) + Math.pow(dzLair+130,2))/1200); 
-                    let bgMountains = (this.pNoise(dxLair * 0.35, dzLair * 0.35, 3) * 35.0 + 15.0) * Math.exp(-Math.pow(dzLair+90, 2)/15000);
+                if(state.zutai && dzLair < -112) {
+                    let zuMain = 85 * Math.exp(-(dxLair*dxLair*0.8 + Math.pow(dzLair+168,2))/900); 
+                    let zuSide1 = 55 * Math.exp(-(Math.pow(dxLair-45, 2) + Math.pow(dzLair+156,2))/1000); 
+                    let zuSide2 = 60 * Math.exp(-(Math.pow(dxLair+50, 2) + Math.pow(dzLair+162,2))/1200); 
+                    let bgMountains = (this.pNoise(dxLair * 0.35, dzLair * 0.35, 3) * 35.0 + 15.0) * Math.exp(-Math.pow(dzLair+112, 2)/15000);
                     let glacialCrevasses = -Math.abs(this.pNoise(dxLair * 1.2, dzLair * 1.2)) * 10.0; 
                     let zuTotal = Math.max(zuMain, Math.max(zuSide1, zuSide2)) + Math.max(0, bgMountains) + glacialCrevasses;
-                    let zutaiEdge = Math.max(0, Math.min(1, (-dzLair - 90) / 20.0));
+                    let zutaiEdge = Math.max(0, Math.min(1, (-dzLair - 112) / 22.0));
                     zutaiEdge = zutaiEdge * zutaiEdge * (3 - 2 * zutaiEdge);
                     y = Math.max(y, zuTotal * state.zhuScale * zutaiEdge);
-                } else if (state.d !== 'pingyang' && dzLair < -110) {
-                    let distantRanges = (this.ridgeNoise(dxLair * 0.4, dzLair * 0.4) * 30.0 + this.pNoise(dxLair * 0.2, dzLair * 0.2, 2) * 20.0) * Math.min(1.0, (-dzLair - 110) / 40.0);
+                } else if (state.d !== 'pingyang' && dzLair < -150) {
+                    let distantRanges = (this.ridgeNoise(dxLair * 0.4, dzLair * 0.4) * 30.0 + this.pNoise(dxLair * 0.2, dzLair * 0.2, 2) * 20.0) * Math.min(1.0, (-dzLair - 150) / 50.0);
                     y = Math.max(y, distantRanges * state.zhuScale);
                 }
                 let brokenNoise = state.posui ? (this.pNoise(dxLair*2.0, dzLair*2.0) * 20.0 - 5.0) : 0; 
@@ -4005,12 +4024,12 @@ const Engine3D = {
                 }
             }
             let pScale = (state.d === 'pingyang') ? 0.15 : 1.0;
-            if(state.an && dzLair > 40 && dzLair < 107) {
+            if(state.an && dzLair > 50 && dzLair < 133) { // 真實尺度：案山外移 1.25x
                 let targetH = (state.ms === 'di') ? 5 : 18;
-                let flatTableAn = targetH * Math.exp(-(Math.pow(dxLair/1.8, 4) + Math.pow(dzLair-70, 2)) / 350);
+                let flatTableAn = targetH * Math.exp(-(Math.pow(dxLair/1.8, 4) + Math.pow(dzLair-87, 2)) / 350);
                 if (state.ms === 'bijia') {
-                    let pCenter = 28 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-70, 2))/80);
-                    let pLeft   = 22 * Math.exp(-(Math.pow(dxLair+25, 2) + Math.pow(dzLair-70, 2))/80);
+                    let pCenter = 28 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-87, 2))/80);
+                    let pLeft   = 22 * Math.exp(-(Math.pow(dxLair+25, 2) + Math.pow(dzLair-87, 2))/80);
                     let pRight  = 22 * Math.exp(-(Math.pow(dxLair-25, 2) + Math.pow(dzLair-70, 2))/80);
                     let pRidgeBase = 12 * Math.exp(-(Math.pow(dxLair/1.8, 2) + Math.pow(dzLair-70, 2))/300); 
                     flatTableAn = Math.max(flatTableAn, pRidgeBase + Math.max(pCenter, Math.max(pLeft, pRight)));
@@ -4034,23 +4053,23 @@ const Engine3D = {
                 tantouEdgeBlend = tantouEdgeBlend * tantouEdgeBlend * (3 - 2 * tantouEdgeBlend);
                 y = Math.max(y, 25 * pScale * Math.exp(-(dxLair*dxLair+Math.pow(dzLair-95,2))/100) * tantouEdgeBlend);
             }
-            if(state.chao && dzLair > 100) {
-                let t1 = 35 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-120, 2))/1200);
-                let t2 = 50 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-140, 2))/1800);
-                let t3 = 70 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-160, 2))/2500);
-                let chaoEdgeBlend = Math.max(0, Math.min(1, (dzLair - 100) / 10.0));
+            if(state.chao && dzLair > 125) {
+                let t1 = 35 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-150, 2))/1200);
+                let t2 = 50 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-170, 2))/1800);
+                let t3 = 70 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair-180, 2))/2500);
+                let chaoEdgeBlend = Math.max(0, Math.min(1, (dzLair - 125) / 12.0));
                 chaoEdgeBlend = chaoEdgeBlend * chaoEdgeBlend * (3 - 2 * chaoEdgeBlend);
                 y = Math.max(y, Math.max(t1, Math.max(t2, t3)) * pScale * chaoEdgeBlend);
             }
             if (state.shidao) {
-                let zqH = 35 * state.zhuScale * pScale * Math.exp(-Math.pow(dxLair/8,4) - Math.pow((dzLair-75)/15,4)); 
-                let xwH = 35 * state.zhuScale * Math.exp(-Math.pow(dxLair/8,4) - Math.pow((dzLair+65)/15,4)); 
-                let bhH = 35 * Math.exp(-Math.pow(dzLair/8,4) - Math.pow((dxLair-40)/15,4)); 
+                let zqH = 35 * state.zhuScale * pScale * Math.exp(-Math.pow(dxLair/8,4) - Math.pow((dzLair-93)/18,4)); 
+                let xwH = 35 * state.zhuScale * Math.exp(-Math.pow(dxLair/8,4) - Math.pow((dzLair+80)/18,4)); 
+                let bhH = 35 * Math.exp(-Math.pow(dzLair/8,4) - Math.pow((dxLair-50)/18,4)); 
                 let qlH = 35 * Math.exp(-Math.pow(dzLair/8,4) - Math.pow((dxLair+40)/15,4)); 
                 y = Math.max(y, zqH, xwH, bhH, qlH);
             }
             let xueH = state.xueHeight || 0;
-            let scaledMtRadius = 65 * state.mtScale;
+            let scaledMtRadius = 42 * state.mtScale; // 真實尺度：明堂半徑 65→42，穴場 15m 佔比更真實
             let mtD = Math.sqrt(dxLair*dxLair + dzLair*dzLair);
             if(state.mt && mtD < scaledMtRadius + 20) {
                 let normMtD = mtD / state.mtScale;
@@ -4162,14 +4181,14 @@ const Engine3D = {
                     yangwaEdge = yangwaEdge * yangwaEdge * (3 - 2 * yangwaEdge);
                     tY -= 8.0 * pScale * Math.exp(-(dxLair*dxLair + Math.pow(dzLair+5, 2))/40) * yangwaEdge;
                 }
-                if (dzLair >= -10 && dzLair < 10) {
-                    let innerHall = Math.exp(-(dxLair*dxLair + Math.pow(dzLair, 2))/120) * 1.8 * pScale;
+                if (dzLair >= -7 && dzLair < 7) {
+                    let innerHall = Math.exp(-(dxLair*dxLair + Math.pow(dzLair, 2))/85) * 1.8 * pScale;
                     let innerBaseY = Math.max(1.2 * pScale, xueBaseY);
                     tY = tY * (1 - Math.min(1, innerHall)) + innerBaseY * Math.min(1, innerHall);
-                } else if (dzLair >= 10 && dzLair < 37 * state.mtScale) {
-                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 10) / 8.0));
+                } else if (dzLair >= 7 && dzLair < 25 * state.mtScale) {
+                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 7) / 6.0));
                     smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
-                    let midHallDrop = (3.5 + Math.sin((dzLair - 10) / (27 * state.mtScale) * Math.PI) * 1.5) * pScale * smoothStart;
+                    let midHallDrop = (3.5 + Math.sin((dzLair - 7) / (18 * state.mtScale) * Math.PI) * 1.5) * pScale * smoothStart;
                     tY -= midHallDrop;
                     if (state.baitai) {
                         let platformLevel = Math.floor(tY / 4.0) * 4.0;
@@ -4181,15 +4200,15 @@ const Engine3D = {
                         let sinkDepth = 22.0 * Math.exp(-(dxLair*dxLair + Math.pow(dzLair - 20, 2))/180) * pScale;
                         tY -= sinkDepth;
                     }
-                } else if (dzLair >= 37 * state.mtScale && dzLair < scaledMtRadius) {
-                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / 8.0));
+                } else if (dzLair >= 25 * state.mtScale && dzLair < scaledMtRadius) {
+                    let smoothStart = Math.min(1, Math.max(0, (dzLair - 25 * state.mtScale) / 6.0));
                     smoothStart = smoothStart * smoothStart * (3 - 2 * smoothStart);
-                    let progress = Math.min(1, Math.max(0, (dzLair - 37 * state.mtScale) / Math.max(1, scaledMtRadius - 37 * state.mtScale)));
+                    let progress = Math.min(1, Math.max(0, (dzLair - 25 * state.mtScale) / Math.max(1, scaledMtRadius - 25 * state.mtScale)));
                     let outerHallDrop = (3.5 + (7.0 - 3.5 + Math.exp(-Math.pow(dxLair/25, 2)) * 3.0) * progress) * pScale * smoothStart;
                     tY -= outerHallDrop;
                 }
-                let blendDist = Math.min(1.0, mtD / (55.0 * state.mtScale));
-                let outerFade = Math.max(0, Math.min(1, (mtD - 55.0 * state.mtScale) / Math.max(0.001, (65.0 * state.mtScale - 55.0 * state.mtScale))));
+                let blendDist = Math.min(1.0, mtD / (38.0 * state.mtScale));
+                let outerFade = Math.max(0, Math.min(1, (mtD - 38.0 * state.mtScale) / Math.max(0.001, (42.0 * state.mtScale - 38.0 * state.mtScale))));
                 outerFade = outerFade * outerFade * (3 - 2 * outerFade);
                 let mtInfluence = (1.0 - blendDist) * (1.0 - outerFade);
                 y = y * (1.0 - mtInfluence) + tY * mtInfluence;
@@ -4238,6 +4257,10 @@ const Engine3D = {
                 let poolBottom = (state.d === 'pingyang') ? -5.0 : -16.0;
                 let poolSlope = (state.d === 'pingyang') ? 1.5 : 4.0;
                 let edgeY = poolBottom + poolSlope; 
+                if (state.w === 'liulei' && dzLair > -18 && dzLair < 38 && Math.abs(dxLair) < 18) {
+                    let drip = 0; for (const off of [-9, 0, 9]) drip = Math.max(drip, Math.exp(-Math.pow(dxLair - off, 2) / 3) * Math.exp(-Math.pow(dzLair - 10, 2) / 380));
+                    y -= drip * 2.2 * pScale; // 流淚：崖壁垂淚細溝
+                }
                 if (poolRadius < 14 && !(dzLair < 25 && Math.abs(dxLair) < 9)) {
                     // 半月：背穴半環蓄水，面向穴場開口
                     y = poolBottom + (poolRadius/14) * poolSlope; 
@@ -4404,7 +4427,7 @@ const Engine3D = {
                     dR = Math.abs(dzLair - rS);
                 }
                 if(dR < 25 && state.w !== 'sishui' && state.w !== 'jushui') {
-                    let isKeyMountain = (state.an && dzLair > 50 && dzLair < 95 && Math.abs(dxLair) < 40) || (state.chao && dzLair > 105 && Math.abs(dxLair) < 80);
+                    let isKeyMountain = (state.an && dzLair > 75 && dzLair < 140 && Math.abs(dxLair) < 50) || (state.chao && dzLair > 165 && Math.abs(dxLair) < 90);
                     if (!isKeyMountain) {
                         let t = Math.max(0, dR / 25);
                         let smoothT = t * t * (3 - 2 * t);
@@ -4849,7 +4872,7 @@ cols.push(c.r, c.g, c.b);
                 let dxLairGuard = x - lxGuard;
                 let dzLairGuard = z - lzGuard;
                 if (state.degree) { const _rg = rotDeg(dxLairGuard, dzLairGuard, -state.degree); dxLairGuard = _rg[0]; dzLairGuard = _rg[1]; }
-                let isKeyMountainGuard = (state.an && dzLairGuard > 50 && dzLairGuard < 95 && Math.abs(dxLairGuard) < 40) || (state.chao && dzLairGuard > 105 && Math.abs(dxLairGuard) < 80);
+                let isKeyMountainGuard = (state.an && dzLairGuard > 62 && dzLairGuard < 118 && Math.abs(dxLairGuard) < 40) || (state.chao && dzLairGuard > 105 && Math.abs(dxLairGuard) < 80);
                 let rS_guard = wZ;
                 const _zigG = () => { const t = (((dxLairGuard / 38.0) % 1) + 1) % 1; const tri = Math.abs(t - 0.5) * 2; const ss = tri * tri * (3 - 2 * tri); return ss * 2 - 1; };
                 if (state.d === 'pingyang') rS_guard += Math.sin(dxLairGuard * 0.08) * 20.0 + Math.cos(dxLairGuard * 0.18) * 8.0;
@@ -5765,11 +5788,21 @@ const Physics = {
                             vel.y -= 0.6 * dt; 
                         }
                     }
-                    vel.x += waterFlowX * dt;
-                    vel.z += waterFlowZ * dt;
-                    // 界水則止：氣浮於地表不隨波逐流，遇水減速並緩推回岸
-                    vel.x *= Math.pow(0.25, dt);
-                    vel.z *= Math.pow(0.25, dt);
+                    // 界水則止：區分吉氣與煞氣/環境氣
+                    if (st === 2) {
+                        // 吉氣遇水：大幅減速，抵消水流拖曳，施加向穴心的微弱吸引力(盤旋停聚)
+                        vel.multiplyScalar(Math.pow(0.1, dt));
+                        vel.x -= dxTaiji * 0.05 * dt; // 微弱拉回穴心
+                        vel.z -= dzTaiji * 0.05 * dt;
+                        // 增加水邊聚氣率 (水止氣蓄)
+                        if (Math.random() < 0.2 * dt) frameGather++;
+                    } else {
+                        // 煞氣/環境氣：被水沖走或減速
+                        vel.x += waterFlowX * dt;
+                        vel.z += waterFlowZ * dt;
+                        vel.x *= Math.pow(0.25, dt);
+                        vel.z *= Math.pow(0.25, dt);
+                    }
                     vel.x -= t.nx * 3.5 * dt;
                     vel.z -= t.nz * 3.5 * dt;
                 } else { 
