@@ -676,18 +676,43 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
 
         try:
             if is_opencode_responses:
-                # OpenCode Zen / Go 專屬 Responses API 協議轉發 (開啟高強度思考)
+                # OpenCode Zen / Go 專屬 Responses API 協議轉發 (開啟高強度思考並適配多模態圖片輸入)
                 try:
+                    responses_input = []
+                    for msg in conversation_history:
+                        role = msg.get("role", "user")
+                        content = msg.get("content")
+                        if isinstance(content, list):
+                            new_content = []
+                            for part in content:
+                                if isinstance(part, dict):
+                                    p_type = part.get("type", "")
+                                    if p_type == "text":
+                                        new_content.append({"type": "input_text", "text": part.get("text", "")})
+                                    elif p_type == "image_url":
+                                        img_val = part.get("image_url", "")
+                                        img_url = img_val.get("url", "") if isinstance(img_val, dict) else str(img_val)
+                                        new_content.append({"type": "input_image", "image_url": img_url})
+                                    elif p_type in ["input_text", "input_image"]:
+                                        new_content.append(part)
+                                    else:
+                                        new_content.append(part)
+                                else:
+                                    new_content.append(part)
+                            responses_input.append({"role": role, "content": new_content})
+                        else:
+                            responses_input.append(msg)
+
                     resp_data = client.post(
                         "responses",
                         cast_to=object,
                         body={
                             "model": model,
-                            "input": conversation_history,
+                            "input": responses_input,
                             "temperature": 1.0,
                             "max_output_tokens": min(max_tokens_val, 65536),
-                            "reasoning": {"effort": "max"},
-                            "reasoning_effort": "max",
+                            "reasoning": {"effort": "xhigh"},
+                            "reasoning_effort": "xhigh",
                         }
                     )
                     raw_response = ""
