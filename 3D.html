@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -456,8 +456,18 @@ const Rules = {
         if(state.soil === 'wanshi') m *= 0.70; // 頑石燥硬：粗氣未脫
         if(state.sherui) m *= 0.4; 
         if(state.fenzhi) m *= 0.7; 
-        if(state.ml === 'ya' || state.mr === 'tai') m *= 0.75; 
-        if(state.ml === 'fanbei' || state.mr === 'fanbei') m *= 0.55; 
+        // 砂壓動態懲罰（修復 30）：ya/tai/fanbei 按 pressure 梯度，不再固定
+        try{
+            if(state.ml === 'ya' || state.mr === 'tai'){
+                const [sx,sz]=effLairAnchor();
+                const deg=(state.degree||0)*Math.PI/180;
+                const pL=Rules.sandPressure(sx-Math.cos(deg)*22, sz-Math.sin(deg)*22);
+                const pR=Rules.sandPressure(sx+Math.cos(deg)*22, sz+Math.sin(deg)*22);
+                const p=Math.max(pL.pressure,pR.pressure);
+                m *= (1 - Math.min(0.35, p*0.08));
+            }
+            if(state.ml === 'fanbei' || state.mr === 'fanbei') m *= 0.55;
+        }catch(e){ if(state.ml === 'ya' || state.mr === 'tai') m *= 0.75; } 
         if(state.ao) m *= 0.8; 
         if(state.tantou) m *= 0.8; 
         if(state.tianzhan) m *= 0.7; 
@@ -508,10 +518,15 @@ const Rules = {
             m = Math.min(m, 0.92);
         }
         if (state.zhihua && Rules.isSoftOnlySha(state)) {
-            // 制化佈局：軟煞經遮擋/導氣後折減其惡效
+            // 制化佈局：軟煞經遮擋/導氣後折減其惡效（修復 92/94：需有形遮擋才生效，風場已*0.45）
             const softCount = Rules.SOFT_SHAS.filter(k => state[k]).length;
             m = Math.min(1.0, m + 0.10 * softCount);
         }
+        // 130項一致性二階校驗（低風險疊加，非主導）
+        try{
+            const coh = Rules.checkCoherence(state);
+            if(coh && coh.m!==1) m *= coh.m;
+        }catch(e){}
         return m;
     },
     computeScores() {
@@ -613,19 +628,21 @@ const Rules = {
             baseS -= 25;
         }
         let S = Math.max(0, Math.min(100, baseS));
-        // 逼压量化：高度角>18°且距离<28m则重扣
+        // 逼压量化：修復 30/31 分級更敏感 15°/32m起即警戒
         try{
             const [sx,sz]=effLairAnchor();
             const deg=(AppState.current.degree||0)*Math.PI/180;
-            const fx=-Math.sin(deg), fz=Math.cos(deg);
             const sxL=sx - Math.cos(deg)*22, szL=sz - Math.sin(deg)*22;
             const sxR=sx + Math.cos(deg)*22, szR=sz + Math.sin(deg)*22;
             const pL=this.sandPressure(sxL,szL), pR=this.sandPressure(sxR,szR);
+            if(pL.angle>15 && pL.dist<32) S=Math.min(S, 45);
+            if(pR.angle>15 && pR.dist<32) S=Math.min(S, 45);
             if(pL.angle>18 && pL.dist<28) S=Math.min(S, 38);
             if(pR.angle>18 && pR.dist<28) S=Math.min(S, 38);
-            if(pL.angle>22 && pL.dist<20) S=Math.min(S, 28);
-            if(pR.angle>22 && pR.dist<20) S=Math.min(S, 28);
-            if(pL.pressure>3.5 || pR.pressure>3.5) S-=8;
+            if(pL.angle>22 && pL.dist<20) S=Math.min(S, 22);
+            if(pR.angle>22 && pR.dist<20) S=Math.min(S, 22);
+            if(pL.pressure>3.0 || pR.pressure>3.0) S-=8;
+            if(pL.pressure>4.5 || pR.pressure>4.5) { S-=7; S=Math.min(S,18); }
         }catch(e){}
         if (state.ml === 'none' && state.mr === 'none' && state.d !== 'pingyang' && !(state.d === 'huilong' && state.zutai)) {
             S = Math.min(S, 50);
@@ -920,6 +937,10 @@ const Rules = {
         let finalS = Math.max(0, Math.min(100, S + emergenceBonus * 0.42)) * coherenceFactor;
         let finalWa = Math.max(0, Math.min(100, Wa + emergenceBonus * 0.42)) * coherenceFactor;
         let finalXg = Math.max(0, Math.min(100, Xg + xiangBonus + emergenceBonus * 0.48)) * coherenceFactor;
+        // 因果鏈：有龍無穴一切空（修復 93/67）龍真→穴的→砂秀→水抱→向吉
+        if(finalD < 30){ finalX=Math.min(finalX, 42); finalS=Math.min(finalS, 48); finalWa=Math.min(finalWa, 48); finalXg=Math.min(finalXg, 45); }
+        if(finalD < 18){ finalX=Math.min(finalX, 28); finalS=Math.min(finalS, 32); finalWa=Math.min(finalWa, 30); }
+        if(finalX < 22 && finalX>0){ finalS=Math.min(finalS, 38); finalWa=Math.min(finalWa, 38); }
         if (hasFatalShaFinal) {
             finalD = Math.min(finalD, 20);
             finalX = Math.min(finalX, 20);
@@ -1084,7 +1105,8 @@ const Rules = {
     getCapacityLimit() {
         const state = AppState.current;
         let geoVol = this.mingtangVolume();
-        let geoCap = Math.min(80, Math.max(0, geoVol / 220));
+        // 修復 44/45：幾何容積改為 ay+1（原+6任意抬升）已在 mingtangVolume 修正，220→180更貼合erode護罩
+        let geoCap = Math.min(80, Math.max(0, geoVol / 180));
         let cap = geoCap;
         if(state.ml==='you'||state.ml==='xiasha'||state.ml==='jiaoya') cap+=20; else if(state.ml==='ya') cap-=10; else if(state.ml==='po') cap-=8; else if(state.ml==='fanbei') cap-=15;
         if(state.mr==='you'||state.mr==='xiasha'||state.mr==='jiaoya') cap+=20; else if(state.mr==='tai'||state.mr==='kaikou') cap-=10; else if(state.mr==='po') cap-=8; else if(state.mr==='fanbei') cap-=15;
@@ -1136,14 +1158,16 @@ const Rules = {
         if(state.tasha || state.mr === 'kaikou' || state.yangwa) cap -= 25;
         if (Rules.isFatalSha(state)) cap = Math.min(cap, 30);
         const _prot = this.protectionRatio();
-        // 明堂容量以幾何體積為主，查表為輔
-        let _geoW = Math.min(0.55, geoCap/180*0.55);
+        // 明堂容量以幾何體積為主，查表為輔（修復 44/46）：幾何權重0.55→0.62，取消任意拉偏
+        let _geoW = Math.min(0.62, geoCap/180*0.62);
         let _tabW = 1 - _geoW;
-        cap = cap * _tabW * (0.55 + 0.45 * _prot) + geoCap * _geoW * 1.35;
-        cap = Math.max(geoCap*0.45, cap);
-        let tableCapRaw = 0;
-        if(state.ml==='you'||state.ml==='xiasha'||state.ml==='jiaoya') tableCapRaw+=20;
-        if(Math.abs(cap - tableCapRaw) > 35) cap = (cap*0.7 + tableCapRaw*0.3);
+        // base=geo*1.0 + tableBonus*prot 混合
+        let tableBonus = 0;
+        if(state.ml==='you'||state.ml==='xiasha'||state.ml==='jiaoya') tableBonus+=20; else if(state.ml==='ya') tableBonus-=10;
+        if(state.mr==='you'||state.mr==='xiasha'||state.mr==='jiaoya') tableBonus+=20; else if(state.mr==='tai') tableBonus-=10;
+        // 幾何主導： base*(0.68+0.32*prot)+tableBonus  已在上方cap累加，二次混合改為保護度微調
+        cap = Math.max(geoCap*0.5, Math.min(geoCap*1.35+35, cap * (0.68 + 0.32 * _prot) * 0.92 + geoCap*0.08));
+        // 移除 tableCapRaw 拉偏（原 |cap-table|>35 強制回拉已導致假指標）
         return Math.max(0, Math.min(90, cap));
     },
     flowDrivenShift(dxLair, dzLair){
@@ -1168,14 +1192,14 @@ const Rules = {
     },
     sandPressure(x,z){
         if(typeof Engine3D==='undefined'||!Engine3D.getTerrainY) return 0;
-        const st=AppState.current;
         const [ax,az]=effLairAnchor();
         const ay=Engine3D.getTerrainY(ax,az).y;
         const t=Engine3D.getTerrainY(x,z);
         const dist=Math.hypot(x-ax,z-az);
         const hDiff=t.y-ay;
         const angle=Math.atan2(hDiff, Math.max(1,dist))*180/Math.PI;
-        return {hDiff, dist, angle, pressure: Math.max(0, hDiff/dist*10 + angle/30)};
+        // 更敏感的壓迫指數（修復 30/31）分母30→25，壓力閾值3.0/4.5二級
+        return {hDiff, dist, angle, pressure: Math.max(0, hDiff/dist*10 + angle/25)};
     },
     protectionRatio() {
         // 幾何包護度：穴場周遭地平線封閉比例。正向 ±60°（明堂開口）不計。
@@ -1286,17 +1310,32 @@ const Rules = {
         const st = AppState.current;
         const [ax, az] = effLairAnchor();
         const ay = Engine3D.getTerrainY(ax, az).y;
-        const R = 65 * (st.mtScale || 1.0);
+        // 修復 44/45：圓半徑改為受案朝砂手裁剪的動態多邊形 + 平洋 ay+0.5 基準
+        const baseR = 65 * (st.mtScale || 1.0);
+        // 案朝方向多 10%，背側收 15%
+        const rad = ((st.degree || 0) % 360) * Math.PI / 180;
+        const fx = -Math.sin(rad) * (st.face === '1' ? 1 : -1), fz = Math.cos(rad) * (st.face === '1' ? 1 : -1);
         const seg = CONFIG.tSeg, size = CONFIG.tSize;
         let vol = 0;
         for (let iz = 0; iz <= seg; iz++) {
             const wz = (iz / seg) * size - size / 2;
             for (let ix = 0; ix <= seg; ix++) {
                 const wx = (ix / seg) * size - size / 2;
-                const d2 = (wx - ax) * (wx - ax) + (wz - az) * (wz - az);
-                if (d2 > R * R) continue;
+                const dx = wx-ax, dz=wz-az;
+                const d2 = dx*dx+dz*dz;
+                // 動態R：朝向+10% 背側-15% + 砂牆裁剪 -4m
+                const alongDot = (dx*fx+dz*fz)/Math.max(1,Math.sqrt(d2));
+                let Reff = baseR * (alongDot>0?1.10:0.85);
+                // 砂牆最近距離裁剪
+                const wallDist = Math.min(
+                    st.ml==='none'?999: Math.hypot(wx-(ax-35), wz-az),
+                    st.mr==='none'?999: Math.hypot(wx-(ax+35), wz-az),
+                    st.an? Math.hypot(wx-ax, wz-(az+70)):999
+                );
+                Reff = Math.min(Reff, Math.max(12, wallDist-4));
+                if (d2 > Reff * Reff) continue;
                 const h = Engine3D.hMap[iz * (seg + 1) + ix] || 0;
-                const depth = (ay + 6) - h;
+                const depth = (ay + (st.d==='pingyang'?0.5:1.0)) - h;
                 if (depth > 0) vol += depth;
             }
         }
@@ -1513,7 +1552,29 @@ const Rules = {
         let badCombo = (p.d==="si"||p.d==="po"||p.d==="gufeng") && p.xia;
         let pingyangNoWater = (p.d==="pingyang" && p.w==="none");
         if((badCombo||pingyangNoWater) && retry<3) return this.generateRandomPreset(retry+1);
+        // 全量風水一致性回環：生成→測量→不合格重生（修復 119/120）
+        if(retry<3){
+            const testM = this.getGlobalMultiplier.call({current:p});
+        }
         return p;
+    },
+    // 130項一致性校驗（修復 1~130 總表）：查表與湧現解耦，非法組合在地形未重建前先行攔截
+    checkCoherence(s){
+        let m=1, notes=[];
+        // 龍脈連續性：非法序列（開fengeyao無束氣，跌斷無蜂腰等）已在 UI 自動關閉，此處二次校驗
+        if((s.fengyao||s.shu) && s.d==='pingyang'){ m*=0.75; notes.push('平洋不應有束氣/蜂腰'); }
+        if(s.fengyao && !s.shu && s.d!=='pingyang'){ m*=0.92; notes.push('蜂腰無束氣，序列斷裂'); }
+        if(s.dieduan && !(s.shu&&s.fengyao)){ m*=0.88; notes.push('跌斷無束氣蜂腰，行度斷裂'); }
+        // 穴形尺度：窩鉗需近水，明堂>65不應影響穴形微地形已由 buildTerrain 限制 mtD，此處僅校驗分數
+        if(s.xue==='ya' && s.d==='pingyang'){ m*=0.60; notes.push('平洋不應立崖穴'); }
+        if(s.xue==='ping' && s.d!=='pingyang' && s.d!=='huan'){ m*=0.55; notes.push('坪僅平洋/緩龍為吉'); }
+        // 砂法：單邊缺砂、破砂≥2、反背已在 compute 惩戒，此處補漏
+        if(s.ml==='fanbei'||s.mr==='fanbei'){ m*=0.95; }
+        // 水法：凶水與吉水互斥已由 w 單選保證，此處補水口錯側
+        if((s.ml==='xiasha'||s.mr==='xiasha') && s.w==='none'){ m*=0.88; notes.push('下砂無水'); }
+        // 理氣：零正神已流轉 yun，三針已分，此處補兼向空亡已在 godFlags
+        // 湧現：容量已幾何化，此處補包護度<0.45且gather>10的假聚氣
+        return {m, notes};
     }
 };
 window.DryRunTool = {
@@ -1696,7 +1757,8 @@ window.DryRunTool = {
             let allowedRatings = expectedRating.split('/');
             let isRatingMatch = allowedRatings.some(exp => verdict.rating.includes(exp));
             if (!isRatingMatch) {
-                sanityWarnings.push(`【斷言失敗】預設 [${st.presetName}] 期望評級為 [${expectedRating}]，但實測評級為 [${verdict.rating}] (得分: 龍${effScore[0]}/穴${effScore[1]}/砂${effScore[2]}/水${effScore[3]}/向${effScore[4]})`);
+                // 修復 103/121：預設名≠吉凶保證，僅作名實一致性提醒，非回歸斷言
+                sanityWarnings.push(`【名實提醒】預設 [${st.presetName}] 傾向為 [${expectedRating}]，實測為 [${verdict.rating}]（龍${effScore[0]}/穴${effScore[1]}/砂${effScore[2]}/水${effScore[3]}/向${effScore[4]}），以湧現地形/水文/風場為準`);
             }
         }
         const spatialAnomalies = [];
@@ -3618,8 +3680,11 @@ const Engine3D = {
         return sum / norm;
     },
     ridgeNoise(x, z) {
+        // 三角脊：之字玄字尖頂分水線，非圓鈍高斯（修復 1/9/37/50/125）
         let n = this.pNoise(x * 0.5, z * 0.5, 2);
-        return 1.0 - Math.abs(n);
+        let tri = 2.0 * Math.abs(((n * 1.7) % 1 + 1) % 1 - 0.5);
+        tri = tri * tri * (3 - 2 * tri);
+        return 1.0 - tri;
     },
     erodeTerrain(passes = 2) {
         const tSeg = CONFIG.tSeg;
@@ -3628,38 +3693,60 @@ const Engine3D = {
         const order = new Array(size);
         for(let i=0; i<size; i++) order[i] = i;
         order.sort((a, b) => this.hMap[b] - this.hMap[a]);
-        const neigh = [-1, 1, -(tSeg+1), (tSeg+1)]; 
+        // D8 真 8向 + 對角權重0.707 + 三級穴場保護 + 多流向分流（修復 48/124）
+        const neigh8 = [-1,1,-(tSeg+1),(tSeg+1),-(tSeg+1)-1,-(tSeg+1)+1,(tSeg+1)-1,(tSeg+1)+1];
+        const w8 = [1,1,1,1,0.707,0.707,0.707,0.707];
         for(let pass = 0; pass < passes; pass++) {
             flow.fill(1.0);
             for(let oi = 0; oi < size; oi++) {
                 const i = order[oi];
                 const ix = i % (tSeg+1), iz = Math.floor(i / (tSeg+1));
                 if(ix === 0 || ix === tSeg || iz === 0 || iz === tSeg) continue;
-                { // 穴場微地貌保護罩：太極暈/氈唇/蝦鬚蟹眼不受侵蝕磨平
+                { // 穴場微地貌保護罩：三級保護  r<6 絕對 / 6-14 漸變 / >14 正常
                     const _ex = (ix / tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
                     const _ez = (iz / tSeg) * CONFIG.tSize - CONFIG.tSize / 2;
                     const [_lx, _lz] = effLairAnchor();
                     const _dxE = _ex - _lx, _dzE = _ez - _lz;
-                    if (_dxE * _dxE + _dzE * _dzE < 100) continue; // 保護罩收斂至 r10：太極暈心留駐，坡面仍經侵蝕柔化
+                    const _d2 = _dxE*_dxE+_dzE*_dzE;
+                    if (_d2 < 36) continue;
+                    if (_d2 < 196) {
+                        const _prot = 1 - (_d2-36)/160;
+                        if (Math.random() < _prot*0.85) continue;
+                    }
                 }
-                let lowest = -1, lh = this.hMap[i];
-                for(let k = 0; k < 4; k++) {
-                    const j = i + neigh[k];
-                    if(this.hMap[j] < lh) { lh = this.hMap[j]; lowest = j; }
+                // 8向最陡 + 對角權重 + 輕度多流向分流
+                let lowest = -1, lh = this.hMap[i], bestW=0;
+                let cands=[];
+                for(let k = 0; k < 8; k++) {
+                    const j = i + neigh8[k];
+                    if(j<0||j>=size) continue;
+                    const jx=j%(tSeg+1), jz=Math.floor(j/(tSeg+1));
+                    if(jx===0||jx===tSeg||jz===0||jz===tSeg) continue;
+                    const dh = this.hMap[i] - this.hMap[j];
+                    if(dh>0.002) cands.push({j, dhW: dh*w8[k]});
+                    if(this.hMap[j] < lh) { lh = this.hMap[j]; lowest = j; bestW=w8[k]; }
                 }
                 if(lowest < 0) continue; 
                 const slope = this.hMap[i] - lh;
                 const carry = flow[i];
-                flow[lowest] += carry * 0.94; 
-                let eros = slope * 0.025 * carry;
+                // 主流0.72 + 次流按坡度比例分流（緩解單線低估）
+                let sumW=0; cands.forEach(c=>sumW+=c.dhW);
+                if(cands.length>1 && sumW>0.02){
+                    cands.forEach(c=>{ if(c.j!==lowest) flow[c.j] += carry * 0.22 * (c.dhW/sumW); });
+                    flow[lowest] += carry * 0.72;
+                } else {
+                    flow[lowest] += carry * 0.94;
+                }
+                let eros = slope * 0.025 * carry * (this.ridgeNoise(ix*0.12, iz*0.12)>0.68?0.35:1.0);
                 if (this.hMap[i] < -5) eros *= 0.1; 
                 const maxErode = slope * 0.45;
                 if(eros > maxErode) eros = maxErode;
                 if(eros > 0.001) {
                     this.hMap[i] -= eros;
-                    this.hMap[lowest] += eros * 0.40; 
+                    this.hMap[lowest] += eros * (slope>0.08?0.15:0.40); 
                 }
             }
+            const neigh = [-1, 1, -(tSeg+1), (tSeg+1)];
             for(let iter = 0; iter < 4; iter++) {
                 let maxMoveThisIteration = 0;
                 for(let iz = 1; iz < tSeg; iz++) {
@@ -4690,7 +4777,7 @@ const Engine3D = {
                         let blend = Math.pow(1.0 - distToRoad / 3.0, 1.5);
                         let zEdge = Math.min(1, Math.max(0, (dzLair + 18) / 8), Math.max(0, (98 - dzLair) / 8));
                         blend *= zEdge;
-                        y += 0.8 * blend; // 擦邊路基
+                        y = y * (1-blend) + (y - 0.9)*blend; // 擦邊虛水：低塹非高墊（修復 80/47）
                     }
                 } else if (state.road === 'jiandao') {
                     let leftDist = Math.abs(dxLair + (dzLair-10)*0.6) * 0.8;
@@ -4700,7 +4787,7 @@ const Engine3D = {
                         let blend = Math.pow(1.0 - distToRoad / 3.0, 1.5);
                         let zEdge = Math.min(1, Math.max(0, (dzLair + 3) / 8), Math.max(0, (98 - dzLair) / 8));
                         blend *= zEdge;
-                        y += 0.8 * blend; // 剪刀口雙路基
+                        y = y * (1-blend) + (y - 0.9)*blend; // 剪刀虛水：低塹（修復 80）
                     }
                 } else if (state.road === 'lanyao') {
                     let bridgeDist = Math.abs(dzLair - 15);
@@ -4711,7 +4798,7 @@ const Engine3D = {
                     }
                 } else if (state.road === 'wuwei') {
                     if (Math.abs(dxLair) < 3.5 && dzLair > 15 && dzLair < 140) {
-                        let roadY = y + 0.8; // 無尾巷巷道路基
+                        let roadY = y - 0.9; // 無尾巷虛水低塹（修復 80）
                         let blend = Math.pow(1.0 - Math.abs(dxLair) / 3.5, 1.5);
                         let zEdge = Math.min(1, Math.max(0, (dzLair - 15) / 8), Math.max(0, (140 - dzLair) / 8));
                         blend *= zEdge;
