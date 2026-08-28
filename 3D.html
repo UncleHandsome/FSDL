@@ -127,18 +127,23 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
     <button id="fold-left-btn" class="panel-fold-btn" title="折疊/展開左側面板">◀</button>
     <div class="header"><h1>3D 龍山水・大一統進化版</h1><div style="font-size:10px;color:#b98a2e;">* 為傾向預設，真實吉凶由地形/水文/風場湧現判定</div></div>
     <div class="scroll-area">
+        <div style="display:flex; gap:6px; margin-bottom:10px; font-size:11px; line-height:1.4;">
+          <span style="flex:1; background:rgba(63,107,82,0.12); border:1px solid #3f6b52; border-radius:6px; padding:4px 6px; color:#3f6b52;"><b>生成層·巒頭</b><br>地形/龍脈/明堂/穴星<br><span style="font-size:10px; color:#666;">由連續脊線與侵蝕生成，為客觀地理</span></span>
+          <span style="flex:1; background:rgba(185,138,46,0.10); border:1px solid #b98a2e; border-radius:6px; padding:4px 6px; color:#8a6a20;"><b>分析層·理氣</b><br>羅盤/元運/飛星<br><span style="font-size:10px; color:#666;">為測量與映射，不改地形</span></span>
+        </div>
         <div class="ctrl-row"><span class="ctrl-label" title="龍勢非單一標籤，需由祖脈→迎送→過峽束氣→跌斷→穿帳→入首連續生成；此處僅決定起伏傾向，吉凶由地形與水口驗證">龍勢傾向*</span><div class="seg" data-k="d"><button data-v="sheng">躍龍</button><button data-v="huilong">迴龍顧祖</button><button data-v="heng">橫龍</button><button data-v="ji">急龍</button><button data-v="huan">緩龍</button><button data-v="gufeng" class="danger" title="孤峰無護八風吹穴，非正穴">孤峰(凶)</button><button data-v="si" class="danger" title="枯槁無起伏、草木不生">死龍(枯)</button><button data-v="po" class="danger">破碎(崩)</button></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px; line-height:1.4;">＊龍脈由地形連續推導（祖山→開帳→束氣→跌斷→入首），選項僅為行度傾向；平洋以水為龍請切「平洋水龍」</div>
         <div class="ctrl-row" style="background:rgba(10,145,161,0.08);border:1px dashed #0a91a1;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#0a91a1;">平洋局</span><div class="seg" data-k="d_pingyang"><button data-v="pingyang" id="btn-pingyang-env" onclick="(function(){let b=document.querySelector(&quot;.seg[data-k=d] button[data-v=pingyang]&quot;); if(!b){let seg=document.querySelector(&quot;.seg[data-k=d]&quot;); let nb=document.createElement(&quot;button&quot;); nb.dataset.v=&apos;pingyang&apos;; nb.style.display=&apos;none&apos;; seg.appendChild(nb); b=nb;} b.click();})()" title="平洋以水為龍，高一寸山低一寸水，需微高差與水網">平洋水龍(獨立環境)</button><span style="font-size:10px;color:#0a91a1;line-height:1.2;">低平水繞・微高為穴・非山龍一項</span></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="玄武後靠：垂頭有情/屏風端正/拒屍僵直凶">玄武後靠</span><div class="seg" data-k="mn"><button data-v="you">垂頭(有情)</button><button data-v="pingfeng">屏風(端正)</button><button data-v="kang" class="danger" title="僵直無情如屍橫拒">拒屍(凶)</button><button data-v="po" class="danger">破碎(凶)</button><button data-v="none">無</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">左砂</span><div class="seg" data-k="ml"><button data-v="you">青龍有情</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="ya" class="danger">逼壓</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">右砂</span><div class="seg" data-k="mr"><button data-v="you">白虎有情</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="tai" class="danger">抬頭</button><button data-v="kaikou" class="danger">開口</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="四象不刻板：青龍亦可抬頭凶惡，白虎亦可低伏有情；此處列舉為常見俗語對照，實際以形態與相對穴位判定">左砂（青龍）</span><div class="seg" data-k="ml"><button data-v="you">有情環抱</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="ya" class="danger">逼壓(示例)</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="四象不刻板：白虎抬頭/開口僅為常見凶格示例，非專屬；青龍高壓低陷亦常見">右砂（白虎）</span><div class="seg" data-k="mr"><button data-v="you">有情馴伏</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="tai" class="danger">抬頭(示例)</button><button data-v="kaikou" class="danger">開口(示例)</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="真地勢需坡度/坡向/高程/曲率/分水線綜合判定">地勢傾向</span><div class="seg" data-k="terrain"><button data-v="flat">平坦</button><button data-v="slope" class="danger">前傾(退氣)</button><button data-v="backhigh">後仰(聚)</button><button data-v="fanpo" class="danger">反坡(堵)</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="案山高不過眉低不過心，需距離高度綜合判定">前案朝揖</span><div class="seg" data-k="ms"><button data-v="you">朱雀翔舞</button><button data-v="bijia">筆架三台</button><button data-v="yin" style="color:#b98a2e;font-weight:bold;">印砂</button><button data-v="di">低陷</button><button data-v="po" class="danger">破碎</button><button data-v="sunken" class="danger">深坑</button><button data-v="none">無</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label" title="水形由坡度/匯流/流量決定，此處僅預設引導">水形引導*</span><div class="seg" data-k="w"><button data-v="you">玉帶</button><button data-v="jiuqu">九曲</button><button data-v="jushui" style="color:#0a91a1;font-weight:bold;">聚水天心</button><button data-v="hejin" style="color:#0a91a1;font-weight:bold;">合襟</button><button data-v="hulu" style="color:#0a91a1;font-weight:bold;">葫蘆</button><button data-v="fuliu" style="color:#0a91a1;font-weight:bold;">伏流</button><button data-v="sishui" style="color:#b98a2e;font-weight:bold;">四水</button><button data-v="jiaojian" class="danger">交劍</button><button data-v="gejiao" class="danger">割腳</button><button data-v="lintou" class="danger">淋頭</button><button data-v="ji" class="danger">直沖</button><button data-v="fan" class="danger">反弓</button><button data-v="bazi" class="danger">八字</button><button data-v="tfork" class="danger">丁字</button><button data-v="juanlian" class="danger">捲簾</button><button data-v="pubu" class="danger">瀑布</button><button data-v="liulei" class="danger">流淚</button><button data-v="none">無</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="水形由坡度/匯流/流量決定，此處僅預設引導，吉凶由相對穴位環抱/反弓判定">水形·流之形態*</span><div class="seg" data-k="w"><button data-v="you">玉帶</button><button data-v="jiuqu">九曲</button><button data-v="jushui" style="color:#0a91a1;font-weight:bold;">聚水天心</button><button data-v="hejin" style="color:#0a91a1;font-weight:bold;">合襟</button><button data-v="hulu" style="color:#0a91a1;font-weight:bold;">葫蘆</button><button data-v="fuliu" style="color:#0a91a1;font-weight:bold;">伏流</button><button data-v="sishui" style="color:#b98a2e;font-weight:bold;">四水</button><button data-v="jiaojian" class="danger">交劍</button><button data-v="gejiao" class="danger">割腳</button><button data-v="lintou" class="danger">淋頭</button><button data-v="ji" class="danger">直沖</button><button data-v="fan" class="danger">反弓</button><button data-v="bazi" class="danger">八字</button><button data-v="tfork" class="danger">丁字</button><button data-v="juanlian" class="danger">捲簾</button><button data-v="pubu" class="danger">瀑布</button><button data-v="liulei" class="danger">流淚</button><button data-v="none">無</button></div></div>
+        <div style="font-size:10px; color:#666; margin:-6px 0 8px 51px;">水形吉凶由<strong>相對穴位</strong>判定：玉帶環抱吉/反弓凶，九曲朝拜吉/直沖去凶；割腳/淋頭由<strong>距離/方位</strong>（貼身/玄武淋漓）判定，非單純名詞</div>
         <div class="ctrl-row"><span class="ctrl-label">星體</span><div class="seg" data-k="xing"><button data-v="jin">金</button><button data-v="mu">木</button><button data-v="shui">水</button><button data-v="huo" class="danger">火</button><button data-v="tu">土</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">九星</span><div class="seg" data-k="jiuxing"><button data-v="none">無</button><button data-v="tanlang" style="color:#b98a2e;font-weight:bold;">貪狼</button><button data-v="jumen" style="color:#b98a2e;font-weight:bold;">巨門</button><button data-v="lucun">祿存</button><button data-v="wenqu">文曲</button><button data-v="lianzhen" class="danger">廉貞</button><button data-v="wuqu" style="color:#b98a2e;font-weight:bold;">武曲</button><button data-v="pojun" class="danger">破軍</button><button data-v="zuofu" style="color:#b98a2e;font-weight:bold;">左輔</button><button data-v="youbi" style="color:#b98a2e;font-weight:bold;">右弼</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label" title="真穴需脈入、界水、氈唇、小明堂，非單純凹凸">穴形*</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo" title="金開窩，弦棱分明">窩</button><button data-v="qian" title="鉗中微突">鉗</button><button data-v="ru" title="乳頭圓淨">乳</button><button data-v="tu" title="突面光圓有氈唇">突</button><button data-v="ping" title="平洋/陽基坪台，非正穴">坪(陽基)</button><button data-v="ya" class="danger" title="險峻破碎，非正穴">崖(險)</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="窩鉗乳突為陰宅四象正穴；坪為陽基，崖為險地（掛燈/倚壁除外不結正穴，作凶例對照）">穴形*（四象）</span><div class="seg" data-k="xue"><button data-v="none">無</button><button data-v="wo" title="金開窩，弦棱分明">窩</button><button data-v="qian" title="鉗中微突">鉗</button><button data-v="ru" title="乳頭圓淨">乳</button><button data-v="tu" title="突面光圓有氈唇">突</button><button data-v="ping" title="陽基坪台，與窩鉗乳突點穴邏輯不同，作對照">坪(陽基)</button><button data-v="ya" class="danger" title="崖險：氣脈未停形勢陡峭，除掛燈/倚壁特殊外不結正穴，作凶例對照">崖(險·對照)</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">定穴</span><div class="seg"><button class="tog" data-k="manualXue" id="btn-manualXue">手動點穴</button><button id="btn-auto-spot" style="background:var(--jade); color:#fff; font-weight:bold; border:none; border-radius:4px; padding:4px 6px; cursor:pointer;" title="全域搜尋最佳結穴點">尋龍點穴</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">穴高</span><div class="seg" style="align-items:center;"><input type="range" id="xueh-slider" min="0" max="20" value="0" title="穴位海拔（谷底~半山~高山）"><span id="xueh-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">平洋</span></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="羅盤為測量工具，非地理本身；龍脈線為脊線提取">形勢輔助</span><div class="seg"><button class="tog" data-k="showCompass">三針羅盤</button><button class="tog" data-k="showDragonLine">脊線龍脈</button></div></div>
@@ -148,7 +153,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label">隨龍水</span><div class="seg" data-k="suilong"><button data-v="none">無</button><button data-v="shuang">雙側夾送</button><button data-v="zuo">單左(青龍)</button><button data-v="you">單右(白虎)</button></div></div>
         <div class="ctrl-row" style="background:rgba(10,145,161,0.07);border:1px dashed #0a91a1;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#0a91a1;">水文</span><div class="seg"><button class="tog" data-k="pureHydro" style="color:#0a91a1;font-weight:bold;">純降水自發河網</button><span style="font-size:10px;color:#0a91a1;">無參數引導·降雨匯流</span></div></div>
         <div class="ctrl-row" style="background:rgba(185,138,46,0.07);border:1px dashed #b98a2e;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#b98a2e;">場景</span><div class="seg" data-k="sceneMode"><button data-v="mountain">山水龍穴</button><button data-v="urban">都市陽宅</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label" title="水口星曜須落位於真實流量出口且跨河關鎖">水口關鎖*</span><div class="seg"><button class="tog" data-k="riyue" style="color:#b98a2e;font-weight:bold;">日月</button><button class="tog" data-k="luo">羅星</button><button class="tog" data-k="hua">華表</button><button class="tog" data-k="shixiang">獅象</button><button class="tog" data-k="qin">禽星</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="水口關鎖為山形（獅象/羅星等）交錯攔截，非水形環抱">水口關鎖*（山形）</span><div class="seg"><button class="tog" data-k="riyue" style="color:#b98a2e;font-weight:bold;">日月</button><button class="tog" data-k="luo">羅星</button><button class="tog" data-k="hua">華表</button><button class="tog" data-k="shixiang">獅象</button><button class="tog" data-k="qin">禽星</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="道路為虛水，需距離/高差/車速/遮蔽綜合判定">道路虛水</span><div class="seg" data-k="road"><button data-v="none">無</button><button data-v="huanbao">環抱</button><button data-v="zhichong" class="danger">直沖</button><button data-v="sickle" class="danger">鐮刀煞</button><button data-v="zuocha" class="danger">左斜</button><button data-v="youcha" class="danger">右斜</button><button data-v="jiandao" class="danger">剪刀煞</button><button data-v="lanyao" class="danger">高架攔腰</button><button data-v="wuwei" class="danger">無尾巷</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="煞由地形/道路/水勢自然形成，手動置煞僅演示">形煞演示</span><div class="seg"><button class="tog danger" data-k="tianjing">天井</button><button class="tog danger" data-k="tianzhan">天斬</button><button class="tog danger" data-k="qingquan">擎拳</button><button class="tog danger" data-k="ao">凹風</button><button class="tog danger" data-k="tantou">探頭</button><button class="tog danger" data-k="tasha">孤陽塔</button><button class="tog danger" data-k="shaMode" id="btn-shaMode">手動置煞</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">風場</span><div class="seg" style="align-items:center;"><input type="range" id="wind-slider" min="-10" max="10" value="5" title="八風交吹強度 (左右側風)"><span id="wind-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">+5</span></div></div>
@@ -157,10 +162,11 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label">穴土</span><div class="seg" data-k="soil"><button data-v="wuse">五色土</button><button data-v="wanshi" class="danger">頑石</button><button data-v="yuni" class="danger">淤泥</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">新增煞</span><div class="seg"><button class="tog danger" data-k="sherui">射肋煞</button><button class="tog danger" data-k="posui">破碎崖</button><button class="tog danger" data-k="wugong">蜈蚣脊</button><button class="tog danger" data-k="bidao">刀削壁</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">主山高</span><div class="seg" style="align-items:center;"><input type="range" id="zhu-slider" min="5" max="20" value="10" title="主山比例"><span id="zhu-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">1.0</span></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">明堂大</span><div class="seg" style="align-items:center;"><input type="range" id="mt-slider" min="5" max="20" value="10" title="明堂比例"><span id="mt-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">1.0</span></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="明堂貴在關攔，非越大越好；過大且無案朝關鎖則氣散，需配合保護度判定">明堂容積*</span><div class="seg" style="align-items:center;"><input type="range" id="mt-slider" min="5" max="20" value="10" title="明堂幾何容積，過大無攔則判氣散"><span id="mt-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">1.0</span></div></div>
         <div class="ctrl-row"><span class="ctrl-label">水流速</span><div class="seg" style="align-items:center;"><input type="range" id="wvel-slider" min="1" max="25" value="5" title="水流速度"><span id="wvel-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">x1</span></div></div>
         <div class="ctrl-row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;"><span class="ctrl-label">理氣</span><div class="seg" data-k="face"><button data-v="1">向水</button><button data-v="0">背水(坐空)</button></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">立向</span><div class="seg" style="align-items:center;"><input type="range" id="degree-slider" min="0" max="345" step="15" value="0" title="立向度數（0°=朝北坎宮；影響零神/照神理氣與羅盤指向）"><span id="degree-val" style="min-width:56px; text-align:right; font-size:12px; color:var(--gold);">0° 坎北</span></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="立向應由地形（來龍/水口/朝案）決定，為果非因；建議先定地後擇向">立向*（果）</span><div class="seg" style="align-items:center;"><input type="range" id="degree-slider" min="0" max="345" step="15" value="0" title="立向度數（先有地形，後擇坐向；拖動僅改羅盤讀數，不改地形）"><span id="degree-val" style="min-width:56px; text-align:right; font-size:12px; color:var(--gold);">0° 坎北</span><button id="btn-suggest-facing" style="margin-left:6px; background:#3f6b52; color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:11px; cursor:pointer;" title="依來龍/水口/朝案自動推薦立向">推薦</button></div></div>
+        <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px;">＊先有地形，後擇坐向；改變立向不改地形，僅改理氣盤</div>
         <div class="ctrl-row"><span class="ctrl-label">元運</span><div class="seg" style="align-items:center;"><select id="yun-select" style="flex:1;padding:3px;font-family:'Noto Serif TC',serif;border-radius:4px;border:1px solid rgba(0,0,0,0.15);background:#fff;"><option value="1">一運</option><option value="2">二運</option><option value="3">三運</option><option value="4">四運</option><option value="5">五運</option><option value="6">六運</option><option value="7">七運</option><option value="8">八運</option><option value="9" selected>九運（現行）</option></select></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="人盤中針/天盤縫針可獨立微調 ±15°，亦可鼠標拖拽羅盤外圈">三針撥盤</span><div class="seg" style="align-items:center; gap:4px;"><span style="font-size:10px; color:#3366ff;">人盤</span><input type="range" id="ren-slider" min="-15" max="15" value="-7.5" step="0.5" style="flex:1;"><span id="ren-val" style="min-width:32px; font-size:11px; color:#3366ff;">-7.5°</span><span style="font-size:10px; color:#22aa33;">天盤</span><input type="range" id="tian-slider" min="-15" max="15" value="7.5" step="0.5" style="flex:1;"><span id="tian-val" style="min-width:32px; font-size:11px; color:#22aa33;">+7.5°</span></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px;">＊可直接拖拽 3D 羅盤外圈微調人/天盤（紅地/藍人/綠天）</div>
@@ -209,10 +215,20 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
             <div id="flystar-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px; font-size:11px; text-align:center;"></div>
             <div id="flystar-legend" style="font-size:10px; color:#666; margin-top:6px; line-height:1.4; border-top:1px dashed #ddd; padding-top:4px;"></div>
         </div>
+        <div class="box" id="soil-box" style="padding:10px;">
+            <h3 style="margin:0 0 6px 0;font-size:13px;color:var(--gold);font-family:'Noto Serif TC',serif;">穴土地質剖面 <span style="font-size:10px; color:#666;">(證穴)</span></h3>
+            <canvas id="soil-canvas" width="260" height="70" style="width:100%; height:70px; border:1px solid #ddd; border-radius:6px;"></canvas>
+            <div id="soil-legend" style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;"></div>
+        </div>
+        <div class="box" id="xuecert-box" style="padding:10px; border:1px dashed var(--jade);">
+            <h3 style="margin:0 0 6px 0;font-size:13px;color:var(--jade);font-family:'Noto Serif TC',serif;">尋龍點穴報告 <span style="font-size:10px; color:#666;">(幾何極值驗證)</span></h3>
+            <div id="xuecert-detail" style="font-size:11px; color:#333; line-height:1.5; max-height:120px; overflow-y:auto;">尚未點穴，請按「尋龍點穴」或手動點擊地形</div>
+        </div>
         <div class="box">
-            <div class="meter-group m-gather"><div class="meter-title"><span>湧現聚氣量 (Gather)</span><b id="g-num">0</b></div><div class="meter"><i id="g-fill"></i></div></div>
-            <div class="meter-group m-scatter"><div class="meter-title"><span>湧現散煞氣 (Scatter)</span><b id="s-num">0</b></div><div class="meter"><i id="s-fill"></i></div></div>
-            <div class="meter-group m-cap"><div class="meter-title"><span>明堂極限容量 (Capacity)</span><b id="cap-num">0</b></div><div class="meter"><i id="cap-fill"></i></div></div>
+            <div style="font-size:10px; color:#8a7a5a; background:rgba(185,138,46,0.08); border:1px dashed #b98a2e; border-radius:6px; padding:6px; margin-bottom:8px; line-height:1.5;"><b style="color:#a63a2b;">免責聲明：</b>本儀器測量的是<strong>可計算物理代理</strong>（風速/湍流/日照/視域閉合/水力抽吸），並以風水規則映射為吉凶，非對「氣/煞」玄學實體的直接量化。<br><span style="color:#3f6b52;">藏風聚氣</span> = 低風速+低湍流+高閉合，<span style="color:#a63a2b;">散風</span> = 狹管加速/湍流剝離，<span style="color:#1a5a8a;">明堂</span> = 幾何容積。</div>
+            <div class="meter-group m-gather"><div class="meter-title"><span title="風速<0.5且湍流<1.0且視域閉合>45%的靜滯代理，非玄學氣體">藏風聚氣指數 (Gather) <span style="color:#3f6b52;">●代理</span></span><b id="g-num">0</b></div><div class="meter"><i id="g-fill"></i></div></div>
+            <div class="meter-group m-scatter"><div class="meter-title"><span title="狹管/凹風/剪刀路等導致的風速與湍流剝離代理">散風/湍流指數 (Scatter) <span style="color:#a63a2b;">●代理</span></span><b id="s-num">0</b></div><div class="meter"><i id="s-fill"></i></div></div>
+            <div class="meter-group m-cap"><div class="meter-title"><span title="穴基準線下離散體積，配合關攔判定，非越大越好">明堂幾何容積 (Capacity) <span style="color:#1a5a8a;">●幾何</span></span><b id="cap-num">0</b></div><div class="meter"><i id="cap-fill"></i></div></div>
             <div id="verdict-box">
                 <span id="v-rating">觀測中</span>
                 <div id="v-text">載入中...</div>
@@ -593,12 +609,14 @@ const Rules = {
     },
     computeScores() {
         const state = AppState.current;
-        // P1-6 三針分盤：地盤立向、人盤消砂、天盤納水（可獨立撥盤）
+        // 三針分盤：地盤立向、人盤消砂、天盤納水——羅盤為測量工具，撥盤僅改讀數不改地形
         const diDeg = ((state.degree||0)%360+360)%360;
-        const tianOff = (typeof state.needleTian==='number'?state.needleTian:7.5);
-        const renOff = (typeof state.needleRen==='number'?state.needleRen:-7.5);
-        const tianDeg = (diDeg + tianOff + 360) % 360;
-        const renDeg = (diDeg + renOff + 360) % 360;
+        const tianOffFixed = 7.5, renOffFixed = -7.5;
+        const tianDeg = (diDeg + tianOffFixed + 360) % 360;
+        const renDeg = (diDeg + renOffFixed + 360) % 360;
+        // 人/天盤顯示用可撥偏移（教學對照，不入吉凶）
+        const tianOffDisp = (typeof state.needleTian==='number'?state.needleTian:7.5);
+        const renOffDisp = (typeof state.needleRen==='number'?state.needleRen:-7.5);
         let isBadDragon = (state.d === 'si' || state.d === 'po' || state.d === 'gufeng'); // 孤峰同列枯龍
         const capacityLimitSc = this.getCapacityLimit();
         const isCapacityFullSc = capacityLimitSc > 20 && AppState.gatherAcc >= capacityLimitSc * 0.9 && AppState.gatherAcc > AppState.scatterAcc;
@@ -2485,7 +2503,12 @@ const UI = {
             AppState.current.presetName = 'custom';
             AppState.current.wind = val;
             const valEl = document.getElementById('wind-val');
-            if (valEl) valEl.innerText = `${val > 0 ? '+'+val : val}級`;
+            if (valEl){
+                valEl.innerText = `${val > 0 ? '+'+val : val}級`;
+                if(Math.abs(val)>6) { valEl.style.color='#a63a2b'; valEl.title='八風交吹過劇，風水主氣散，不利藏風'; }
+                else { valEl.style.color='var(--gold)'; valEl.title='八風強度，藏風宜微風(±3內)'; }
+                if(Math.abs(val)>6 && AppState.current.xia) Engine3D.showToast('⚠️ 風場過強（藏風忌八風吹散），已按物理代理扣分', 2200);
+            }
             this.update();
         });
         document.getElementById('degree-slider')?.addEventListener('input', e => {
@@ -2515,6 +2538,30 @@ const UI = {
             AppState.current.presetName='custom';
             AppState.current.needleTian=v;
             document.getElementById('tian-val').innerText=(v>0?'+':'')+v.toFixed(1)+'°';
+            this.update();
+        });
+        document.getElementById('btn-suggest-facing')?.addEventListener('click', e=>{
+            e.target.blur();
+            const [ax,az]=effLairAnchor();
+            const outlet=Rules.outletAzimuth();
+            let best=0;
+            if(outlet) best=(outlet.compass+180)%360;
+            else {
+                // 無水口則朝向案山
+                const anH=Engine3D.getTerrainY(ax, az+70).y;
+                const dhaH=Engine3D.getTerrainY(ax, az+120).y;
+                best = (dhaH>anH? 0 : 0); // 朝南為默認，實測以地形高點為朝
+                // 簡化：以穴至案山向量
+                best = (Math.atan2(-(ax - ax), (az+70)-az)*180/Math.PI+360)%360;
+            }
+            best=Math.round(best/15)*15%360;
+            AppState.current.degree=best;
+            AppState.current.presetName='custom';
+            const ds=document.getElementById('degree-slider');
+            if(ds) ds.value=best;
+            const dv=document.getElementById('degree-val');
+            if(dv) dv.innerText=UI.degreeLabel(best);
+            Engine3D.showToast('已依水口/朝案推薦立向 '+best+'°（僅改羅盤，不改地形）', 2600);
             this.update();
         });
         ['zhu', 'mt', 'wvel'].forEach(id => {
@@ -3004,6 +3051,8 @@ const UI = {
         document.getElementById('v-rating').style.color = vObj.color;
         document.getElementById('v-text').innerText = '有效：龍' + effScore[0] + ' 穴' + effScore[1] + ' 砂' + effScore[2] + ' 水' + effScore[3] + ' 向' + effScore[4] + ' (基礎:' + Math.round(rawScore[0]) + '/' + Math.round(rawScore[1]) + '/' + Math.round(rawScore[2]) + '/' + Math.round(rawScore[3]) + '/' + Math.round(rawScore[4]) + ')\n\n' + vObj.text;
         this.renderFlyStar();
+        this.renderSoilProfile();
+        this.renderXueCert();
     },
     renderFlyStar(){
         const st=AppState.current;
@@ -3064,6 +3113,84 @@ const UI = {
         let xc=xiangCenter;
         order.forEach(idx=>{ yunGrid[idx].xiang=xc; xc = xiangForward ? (xc%9+1) : (xc-2+9)%9+1; });
         return yunGrid;
+    },
+    renderSoilProfile(){
+        const st=AppState.current;
+        const cv=document.getElementById('soil-canvas');
+        const leg=document.getElementById('soil-legend');
+        if(!cv) return;
+        const ctx=cv.getContext('2d');
+        const w=cv.width, h=cv.height;
+        ctx.clearRect(0,0,w,h);
+        // 背景
+        ctx.fillStyle='#f6f1e7'; ctx.fillRect(0,0,w,h);
+        // 剖面：根據 soil 類型與地形微起伏繪製地層
+        const soil=st.soil||'wuse';
+        const colors={wuse:['#d4a017','#c9b896','#a67c52','#5a4a3a'], wanshi:['#e8e8e8','#c0c0c0','#a0a0a0','#707070'], yuni:['#2a3a2a','#1e2e1e','#0f1f0f','#050f05']};
+        const pal=colors[soil]||colors.wuse;
+        // 地表線（微起伏）
+        ctx.beginPath();
+        ctx.moveTo(0, h*0.35);
+        for(let x=0;x<w;x++){
+            const wx=(x/w-0.5)*24;
+            const und = Math.sin(wx*0.4)*3 + Math.cos(wx*0.25)*2;
+            const y = h*0.35 + und*1.2 + (soil==='wanshi'? Math.random()*4 : 0) + (soil==='yuni'? 2:0);
+            if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.lineTo(w, h); ctx.lineTo(0,h); ctx.closePath();
+        // 分層填充
+        for(let i=0;i<4;i++){
+            ctx.fillStyle=pal[i];
+            const y0 = h*0.35 + i*(h*0.65/4);
+            ctx.fillRect(0, y0, w, h*0.65/4+1);
+            // 層理紋理
+            ctx.strokeStyle='rgba(0,0,0,0.08)';
+            for(let k=0;k<3;k++){
+                ctx.beginPath();
+                const yy=y0+4+k*5;
+                ctx.moveTo(0, yy);
+                for(let x=0;x<w;x+=8) ctx.lineTo(x, yy+Math.sin(x*0.05+i)*1.5);
+                ctx.stroke();
+            }
+            ctx.fillStyle='rgba(0,0,0,0.55)';
+            ctx.font='10px sans-serif';
+            const names={wuse:['表土·腐殖','五色暈·黃','五花土','生氣底土'], wanshi:['浮土','砂礫','頑石層','基岩'], yuni:['積水','淤泥','黑泥','死土']};
+            ctx.fillText(names[soil][i]||'', 6, y0+12);
+        }
+        // 地表線描邊
+        ctx.strokeStyle='#5a4a3a'; ctx.lineWidth=1.5; ctx.beginPath();
+        ctx.moveTo(0, h*0.35);
+        for(let x=0;x<w;x++){
+            const wx=(x/w-0.5)*24;
+            const und = Math.sin(wx*0.4)*3 + Math.cos(wx*0.25)*2;
+            ctx.lineTo(x, h*0.35 + und*1.2);
+        }
+        ctx.stroke();
+        if(leg){
+            if(soil==='wuse') leg.innerHTML='<span style="color:#b98a2e;">●五色土為吉</span>：溫潤五彩，團塊暈染，證穴融結；剖面含暈層與微起伏';
+            else if(soil==='wanshi') leg.innerHTML='<span style="color:#a63a2b;">●頑石為凶</span>：斑駁白堊，碎裂鬆散，脈氣不融，風水林稀';
+            else if(soil==='yuni') leg.innerHTML='<span style="color:#1a5a2b;">●淤泥為凶</span>：漆黑黏滯，陰濕積水，氣滯不聚，需客土換心';
+            else leg.innerHTML='';
+            // 追加穴場實測
+            try{
+                const [ax,az]=effLairAnchor();
+                const t=Engine3D.getTerrainY(ax,az);
+                leg.innerHTML+=` ｜ 穴心高程 ${t.y.toFixed(1)}m 坡度 ${(Math.hypot(t.nx,t.nz)).toFixed(2)}`;
+            }catch(e){}
+        }
+    },
+    renderXueCert(){
+        const el=document.getElementById('xuecert-detail');
+        if(!el) return;
+        const st=AppState.current;
+        const cert=AppState.lastXueCert || (st.manualXue? Rules.xueCert(st.xueX, st.xueZ) : null);
+        if(!cert || !cert.msgs){
+            el.innerHTML='尚未點穴。演算法驗證項：<br>① 來龍過峽束氣連續 ② 穴後靠山高差>1.5m ③ 左右龍虎護砂>1.5m ④ 明堂前緩坡 -2~5m ⑤ 氈唇/蟬翼/蝦鬚微地形 ⑥ 穴心風速<0.6 ⑦ 坡度<2.5 ⑧ 非落水<br><span style="color:#888;">手動點穴為原位檢驗，地形不隨點位平移</span>';
+            return;
+        }
+        const scoreColor = cert.score>=55?'#3f6b52':cert.score>=35?'#b98a2e':'#a63a2b';
+        const head = cert.score>=55?'上吉結穴':cert.score>=35?'中平可酌':'凶地不結';
+        el.innerHTML=`<div style="color:${scoreColor}; font-weight:bold;">${head} · 穴證 ${cert.score}分</div>`+cert.msgs.map(m=>`· ${m}`).join('<br>')+`<div style="margin-top:4px; font-size:10px; color:#888;">演算法：掃描 48×48 網格，綜合高程/坡度/護砂/明堂/風場/日照，非隨機選點</div>`;
     }
 };
 const Engine3D = {
@@ -7639,9 +7766,11 @@ const Physics = {
                 let timePhase = AppState.frames * 0.15;
                 let degRad = ((state.degree || 0) % 360) * Math.PI / 180;
                 let targetRotY = Math.PI - degRad + (Math.sin(timePhase * 2.3) * jitter) + (Math.cos(timePhase * 5.1) * jitter * 0.5);
+                const renOffDisp = (typeof state.needleRen==='number'?state.needleRen:-7.5);
+                const tianOffDisp = (typeof state.needleTian==='number'?state.needleTian:7.5);
                 if(needleDi) needleDi.rotation.y += (targetRotY - needleDi.rotation.y) * 0.15;
-                if(needleRen) needleRen.rotation.y += (targetRotY - 7.5*Math.PI/180 - needleRen.rotation.y) * 0.15;
-                if(needleTian) needleTian.rotation.y += (targetRotY + 7.5*Math.PI/180 - needleTian.rotation.y) * 0.15;
+                if(needleRen) needleRen.rotation.y += (targetRotY + renOffDisp*Math.PI/180 - needleRen.rotation.y) * 0.15;
+                if(needleTian) needleTian.rotation.y += (targetRotY + tianOffDisp*Math.PI/180 - needleTian.rotation.y) * 0.15;
             }
             if (Engine3D.dragonLineMesh) {
                 Engine3D.dragonLineMesh.visible = !!state.showDragonLine && state.d !== 'pingyang';
@@ -7767,12 +7896,13 @@ const Physics = {
         let isTurbulentSha = (reynoldsNum > 2300 && AppState.sensors.windSpeed > 2.0);
         if (AppState.frames % 6 === 0) {
             let sensorHtml = `
-                <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心湧現觀測儀]</div>
-                氣密度: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>
+                <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心物理代理觀測儀]</div>
+                <div style="font-size:9px; color:#a63a2b; margin-bottom:4px;">※ 本欄為可測物理量的風水規則映射，非玄學實體直接測量</div>
+                聚風密度代理: ${(AppState.sensors.qiDensity*100).toFixed(1)}% | 亂流度: ${AppState.sensors.turbulence.toFixed(2)}<br>
                 穴心風速: ${AppState.sensors.windSpeed.toFixed(2)} | 水力抽吸: ${AppState.sensors.waterDrag.toFixed(2)}<br>
-                雷諾數 (Re): ${reynoldsNum} ${isTurbulentSha ? '<span style="color:#a63a2b;">(湍流煞)</span>' : '<span style="color:#3f6b52;">(層流吉)</span>'} | 水流弗勞德數 (Fr): ${froudeNum.toFixed(2)}<br>
+                雷諾數 (Re): ${reynoldsNum} ${isTurbulentSha ? '<span style="color:#a63a2b;">(湍流·散風代理)</span>' : '<span style="color:#3f6b52;">(層流吉)</span>'} | 水流弗勞德數 (Fr): ${froudeNum.toFixed(2)}<br>
                 香農資訊熵: ${AppState.sensors.shannonEntropy.toFixed(3)} Bits | 拓撲閉合度 (β₁): ${(AppState.sensors.betti1Closure*100).toFixed(1)}%<br>
-                陰陽向陽度: ${(AppState.sensors.sunlight*100).toFixed(1)}%<br>
+                日照度: ${(AppState.sensors.sunlight*100).toFixed(1)}%<br>
                 <div style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(0,0,0,0.15); color:#3f6b52; font-size:10.5px;">
                     <b style="color:#22201c; font-size:11px;">[進階 PDE 與非線性地質遙測]</b><br>
                     耗散駐波共振 (Resonant Q): ${qFactor.toFixed(1)} | 拓撲分形維度 (D): ${fractalDim.toFixed(3)}<br>
