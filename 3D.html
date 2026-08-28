@@ -1593,6 +1593,7 @@ const Rules = {
             if (['fan','bazi','gejiao','ji','tfork','juanlian','pubu','liulei','jiaojian'].includes(p.w)) p.w = 'you';
             if (p.xue === 'ya') p.xue = 'tu';
         }
+        // #125 隨機生成需風水規則約束
         let badCombo = (p.d==="si"||p.d==="po"||p.d==="gufeng") && p.xia;
         let pingyangNoWater = (p.d==="pingyang" && p.w==="none");
         if((badCombo||pingyangNoWater) && retry<3) return this.generateRandomPreset(retry+1);
@@ -3565,7 +3566,9 @@ const Engine3D = {
                 let score = 0;
 
                 let backSupport = Math.max(0, Math.min(1.0, (hB - t.y) / 18.0));
-                let sideGuards = Math.max(0, Math.min(1.0, (Math.min(hL, hR) - t.y) / 14.0));
+                // #95 視域封閉度影響聚氣
+                let _betti = AppState.sensors.betti1Closure || 0;
+                let sideGuards = Math.max(0, Math.min(1.0, (Math.min(hL, hR) - t.y) / 14.0)) * (0.7 + 0.3 * _betti);
                 
                 if (state.d === 'pingyang') {
                     let isTerrace = (slope < 1.0 && t.y > waterLevel + 0.6);
@@ -4899,7 +4902,7 @@ const Engine3D = {
                         let blend = Math.pow(1.0 - distToRoad / 3.5, 1.2);
                         y += 0.15 * blend; 
                     }
-                } else if (state.road === 'zhichong') { // 直冲虚水：車速/噪音/燈光綜合 — 地形承載化加深塹溝
+                } else if (state.road === 'zhichong') { // #80 直冲需正對穴場，無遮擋才凶，車速1.0噪音0.4 — 地形承載化加深塹溝
                     let distToRoad = Math.abs(dxLair);
                     if (distToRoad < 4.2 && dzLair > 0 && dzLair < 140) {
                         let blend = Math.pow(1.0 - distToRoad / 4.2, 1.5);
@@ -4964,7 +4967,10 @@ const Engine3D = {
                 y = Math.max(y, towerH);
             }
             if (state.terrain === 'slope') {
-                y -= Math.max(0, dzLair * 0.15); 
+                // #70 前傾退氣：需案山收，否則直洩，排水不暢
+                let _slopeHasAn = state.an && state.mt;
+                y -= Math.max(0, dzLair * 0.15) * (_slopeHasAn ? 0.7 : 1.0); 
+                if(!_slopeHasAn) y -= 0.8; // 無案山收則額外下切排水
             } else if (state.terrain === 'backhigh') {
                 y += Math.max(0, -dzLair * 0.15); 
             } else if (state.terrain === 'fanpo') {
@@ -5731,7 +5737,7 @@ const Physics = {
                 Engine3D.hCtx.drawImage(Engine3D.probeCanvas, 0, 0);
             }
         } else if (state.vHeat && AppState.frames % 4 === 0) {
-            // #99 熱力圖物理量映射：依 qiGrid 密度映射熱力，非單純拖影
+            // #99 熱力圖物理量映射：依 qiGrid 密度映射熱力，非單純拖影 #95
             // 底圖淡化 0.10 + qiGrid 疊加
             Engine3D.hCtx.fillStyle = 'rgba(0,0,0,0.10)';
             Engine3D.hCtx.fillRect(0, 0, 256, 256);
