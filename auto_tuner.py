@@ -171,7 +171,7 @@ def load_api_keys(
     file_map = {
         "gemini": ["gemini_key.txt", "google_key.txt", "gemini_api_key.txt", "api_key.txt"],
         "nvidia": ["nvidia_key.txt", "nvidia_api_key.txt", "nv_key.txt", "api_key.txt"],
-        "openrouter": ["openrouter_key.txt", "openrouter_api_key.txt", "openrouter.txt", "or_key.txt", "glm_key.txt", "api_key.txt"],
+        "openrouter": ["openrouter_key.txt", "openrouter_api_key.txt", "openrouter.txt", "or_key.txt", "minimax_key.txt", "glm_key.txt", "api_key.txt"],
         "opencode": ["opencode_key.txt", "opencode_api_key.txt", "api_key.txt"],
         "deepseek": ["api_key.txt", "deepseek_key.txt", "deepseek_api_key.txt", "key.txt"],
     }
@@ -204,7 +204,7 @@ def load_api_keys(
         elif is_nvidia:
             env_candidates = ["NVIDIA_API_KEY", "NV_API_KEY", "OPENAI_API_KEY"]
         elif is_free_glm or is_openrouter:
-            env_candidates = ["OPENROUTER_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY"]
+            env_candidates = ["OPENROUTER_API_KEY", "MINIMAX_API_KEY", "GLM_API_KEY", "OPENAI_API_KEY"]
         elif is_opencode:
             env_candidates = ["OPENCODE_API_KEY", "OPENAI_API_KEY"]
         else:
@@ -632,6 +632,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
         or "glm" in model.lower()
         or "gemini" in model.lower()
         or "dots" in model.lower()
+        or "minimax" in model.lower()
         or "openrouter" in str(getattr(client, "base_url", "")).lower()
         or "googleapis" in str(getattr(client, "base_url", "")).lower()
     )
@@ -639,6 +640,8 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
     m_lower = model.lower()
     if "dots" in m_lower:
         max_tokens_val = 200000
+    elif "minimax" in m_lower or "m3" in m_lower:
+        max_tokens_val = 131072
     elif "nvidia" in str(getattr(client, "base_url", "")).lower():
         max_tokens_val = 16384
     elif "glm-5.2" in m_lower or "glm" in m_lower:
@@ -1381,6 +1384,7 @@ def main():
     parser.add_argument("--gemini", "--google", action="store_true", dest="gemini", help="★ 使用 Google AI Studio Gemini 端點 (https://generativelanguage.googleapis.com/v1beta/openai/)")
     parser.add_argument("--nvidia", "--nim", action="store_true", dest="nvidia", help="★ 使用 NVIDIA NIM (build.nvidia.com) GLM-5.2 端點")
     parser.add_argument("--dots", nargs="?", const="dots-studio/dots-3-note-preview:free", type=str, default=None, help="★ 使用 OpenRouter Dots3-Note Preview 免費模型 (https://openrouter.ai/api/v1)")
+    parser.add_argument("--m3", "--minimax", "--minimax-m3", nargs="?", const="minimax/minimax-m3:free", type=str, default=None, help="★ 使用 OpenRouter MiniMax M3 免費/付費模型 (預設 minimax/minimax-m3:free, https://openrouter.ai/api/v1)")
     parser.add_argument("--free-glm", "--glm5", action="store_true", dest="free_glm", help="★ 使用 OpenRouter Free GLM 5.2 免費模型端點 (https://openrouter.ai/api/v1)")
     parser.add_argument("--opencode", "--go", action="store_true", dest="opencode", help="★ 使用 OpenCode Go 訂閱端點 (https://opencode.ai/zen/go/v1)")
     parser.add_argument("--zen", action="store_true", help="使用 OpenCode Zen 按量計費端點 (https://opencode.ai/zen/v1)")
@@ -1402,6 +1406,13 @@ def main():
         if not (dots_val.endswith(":free") or dots_val.endswith(":preview")):
             dots_val = f"{dots_val}:free"
         args.model = dots_val
+    elif args.m3:
+        m3_val = args.m3.strip()
+        if not ("/" in m3_val):
+            m3_val = f"minimax/{m3_val}"
+        if m3_val in ["minimax/m3", "minimax/minimax-m3"]:
+            m3_val = "minimax/minimax-m3:free"
+        args.model = m3_val
     elif args.free_glm and args.model == "deepseek-v4-flash":
         args.model = "z-ai/glm-5.2:free"
     elif args.glm:
@@ -1444,7 +1455,7 @@ def main():
     # 初始化 API 提供商端點與模型
     is_gemini_provider = args.gemini
     is_nvidia_provider = args.nvidia
-    is_openrouter_provider = bool(args.dots) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
+    is_openrouter_provider = bool(args.dots) or bool(args.m3) or ("minimax" in args.model.lower()) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
     is_opencode_provider = (args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or bool(args.ox)) and not is_openrouter_provider
 
     if args.gemini:

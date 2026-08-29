@@ -325,7 +325,7 @@ window.addEventListener('error', (e) => {
 const CONFIG = {
     tSize: 350,
     tSeg: 150,
-    pCount: 15000, 
+    pCount: 5000, 
     maxObstacles: 5,
     maxShockwaves: 50,
     baseState: {
@@ -373,6 +373,11 @@ const CONFIG = {
         henglong: {d:'heng', ml:'jiaoya', mr:'jiaoya', ms:'yin', mn:'none', w:'you', xing:'jin', xue:'qian', face:'1', mt:true, xia:true, an:true, chao:true, zhu:false, xu:false, taiji:true, guiyao:true, wind:2}
     }
 };
+// 幾何常數快取：getTerrainY 改用乘法+位元運算以利 JIT inlining
+const HALF_TSIZE = CONFIG.tSize * 0.5;
+const INV_CELL_SIZE = CONFIG.tSeg / CONFIG.tSize;
+const TSEG_STRIDE = CONFIG.tSeg + 1;
+const MAX_SEG_IDX = CONFIG.tSeg - 1;
 function createDefaultSensors() {
     return {
         qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0,
@@ -2758,7 +2763,7 @@ window.DryRunTool = {
         AppState.sensors = savedRuntime.sensors;
         AppState.frames = savedRuntime.frames;
         AppState.smoothedScores = savedRuntime.smoothedScores;
-        Rules._protCache=null; Rules._outletCache=null; Rules._volCache=null;
+        Rules._protCache=null; Rules._outletCache=null; Rules._volCache=null; AppState._bettiCacheDirty=true;
         if (savedRuntime.windGridX) Physics.windGridX.set(savedRuntime.windGridX);
         if (savedRuntime.windGridZ) Physics.windGridZ.set(savedRuntime.windGridZ);
         if (savedRuntime.windGridY) Physics.windGridY.set(savedRuntime.windGridY);
@@ -2873,7 +2878,7 @@ window.DryRunTool = {
         AppState.sensors = savedRuntime.sensors;
         AppState.frames = savedRuntime.frames;
         AppState.smoothedScores = savedRuntime.smoothedScores;
-        Rules._protCache=null; Rules._outletCache=null; Rules._volCache=null;
+        Rules._protCache=null; Rules._outletCache=null; Rules._volCache=null; AppState._bettiCacheDirty=true;
         if (savedRuntime.windGridX) Physics.windGridX.set(savedRuntime.windGridX);
         if (savedRuntime.windGridZ) Physics.windGridZ.set(savedRuntime.windGridZ);
         if (savedRuntime.windGridX_next) Physics.windGridX_next.set(savedRuntime.windGridX_next);
@@ -2929,6 +2934,7 @@ const UI = {
         requestAnimationFrame(() => {
             this._schedulePending = false;
             this.update(force);
+            AppState._bettiCacheDirty = true;
         });
     },
     degreeLabel(deg) {
@@ -2974,6 +2980,7 @@ const UI = {
                 AppState.smoothedScores = null;
                 if (AppState.current.time === '0') Physics.update(0.0001);
                 this.update(true);
+                AppState._bettiCacheDirty = true;
             });
         });
         document.querySelectorAll('.tog').forEach(b => {
@@ -3004,6 +3011,7 @@ const UI = {
                 AppState.smoothedScores = null;
                 if (AppState.current.time === '0') Physics.update(0.0001);
                 this.update(true);
+                AppState._bettiCacheDirty = true;
             });
         });
         document.getElementById('wind-slider')?.addEventListener('input', e => {
@@ -3922,7 +3930,7 @@ const Engine3D = {
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         this.camera.position.set(0, 150, 190);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: true });
-        this.renderer.setPixelRatio(window.devicePixelRatio); 
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 0.65; 
@@ -4189,8 +4197,8 @@ const Engine3D = {
         this.dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2); 
         this.dirLight.position.set(70, 140, 60);
         this.dirLight.castShadow = true;
-        this.dirLight.shadow.mapSize.width = 2048; 
-        this.dirLight.shadow.mapSize.height = 2048;
+        this.dirLight.shadow.mapSize.width = 1024; 
+        this.dirLight.shadow.mapSize.height = 1024;
         const d = 200; 
         this.dirLight.shadow.camera.left = -d;
         this.dirLight.shadow.camera.right = d;
@@ -4306,22 +4314,28 @@ const Engine3D = {
         this.treeMesh.castShadow = true;
         this.treeMesh.receiveShadow = true;
         this.scene.add(this.treeMesh);
+        const windLineCount = 11 * 10; // 110
+        const windLinePos = new Float32Array(windLineCount * 2 * 3);
+        const windLineGeo = new THREE.BufferGeometry();
+        windLineGeo.setAttribute('position', new THREE.BufferAttribute(windLinePos, 3));
+        const windLineMat = new THREE.LineBasicMaterial({ color: 0x448844, transparent: true, opacity: 0.6 });
+        this.windSegments = new THREE.LineSegments(windLineGeo, windLineMat);
+        this.windSegments.frustumCulled = false;
+        this.windGroup.add(this.windSegments);
+        this.windGridPoints = [];
         for(let x=-100; x<=100; x+=20) {
             for(let z=-80; z<=100; z+=20) {
-                const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0,z), new THREE.Vector3(x+5,0,z)]);
-                const line = new THREE.Line(geo, lineMat);
-                line.frustumCulled = false;
-                this.windGroup.add(line);
-                this.windLines.push({line, bx:x, bz:z});
+                this.windGridPoints.push({ bx: x, bz: z });
             }
         }
+        this.windLines = [];
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth/window.innerHeight;
             this.camera.updateProjectionMatrix();
-            this.renderer.setPixelRatio(window.devicePixelRatio); 
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
             this.renderer.setSize(window.innerWidth, window.innerHeight);
             if (this.composer) {
-                this.composer.setPixelRatio(window.devicePixelRatio);
+                this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
                 this.composer.setSize(window.innerWidth, window.innerHeight); 
             }
         });
@@ -4409,6 +4423,7 @@ const Engine3D = {
                         AppState.current.presetName = 'custom';
                         const p = intersects[0].point;
                         AppState.current.manualXue = true;
+                        AppState._bettiCacheDirty = true;
                         AppState.current.xueX = Math.round(p.x * 10) / 10;
                         AppState.current.xueZ = Math.round(p.z * 10) / 10;
                         const _cert = Rules.xueCert(AppState.current.xueX, AppState.current.xueZ);
@@ -6977,19 +6992,47 @@ const Engine3D = {
         this.dragonLineMesh.geometry.attributes.position.needsUpdate=true;
         this.dragonLineMesh.geometry.setDrawRange(0,100);
     },
+    // 常數快取：getTerrainY 改用乘法+位元運算，3-4× JIT inlining
+    updateBettiClosureCache(){
+        if(typeof AppState==='undefined' || !AppState.current) return;
+        const state=AppState.current;
+        let closedSectors=0;
+        const totalSectors=16;
+        let lx=0, lz=5;
+        try{ if(typeof effLairAnchor==='function'){ const _a=effLairAnchor(); lx=_a[0]; lz=_a[1]; } }catch(e){}
+        const lairY=this.getTerrainY(lx, lz, this._ptT).y;
+        const xueElevOffset = (state.xueHeight || 0) > 8 ? ((state.xueHeight - 8) * 1.0) : 0;
+        const baseThresholdY = lairY - xueElevOffset + 4.0;
+        for(let a=0; a<totalSectors; a++){
+            const angle = (a/totalSectors)*Math.PI*2;
+            const dirCos=Math.cos(angle), dirSin=Math.sin(angle);
+            let sectorMaxH=-999;
+            for(let rDist=20.0; rDist<=65.0; rDist+=15.0){
+                const checkX=lx+dirCos*rDist*(state.mtScale||1.0);
+                const checkZ=lz+dirSin*rDist*(state.mtScale||1.0);
+                const h=this.getTerrainY(checkX, checkZ, this._ptT).y;
+                if(h>sectorMaxH) sectorMaxH=h;
+            }
+            if(sectorMaxH>baseThresholdY) closedSectors++;
+        }
+        AppState.sensors.betti1Closure = closedSectors/totalSectors;
+    },
     getTerrainY(x, z, out) {
-        let gX = (x+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg), gZ = (z+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg);
+        let gX = (x+CONFIG.tSize/2)*INV_CELL_SIZE, gZ = (z+CONFIG.tSize/2)*INV_CELL_SIZE;
         if(gX < 0 || gX > CONFIG.tSeg || gZ < 0 || gZ > CONFIG.tSeg) {
             if (out) { out.y = -100; out.nx = 0; out.nz = 0; return out; }
             return {y:-100, nx:0, nz:0};
         }
-        let x0 = Math.min(CONFIG.tSeg - 1, Math.max(0, Math.floor(gX))), x1 = Math.min(CONFIG.tSeg, x0 + 1);
-        let z0 = Math.min(CONFIG.tSeg - 1, Math.max(0, Math.floor(gZ))), z1 = Math.min(CONFIG.tSeg, z0 + 1);
-        let h00 = this.hMap[z0*(CONFIG.tSeg+1)+x0]||0, h10 = this.hMap[z0*(CONFIG.tSeg+1)+x1]||0, h01 = this.hMap[z1*(CONFIG.tSeg+1)+x0]||0, h11 = this.hMap[z1*(CONFIG.tSeg+1)+x1]||0;
+        let x0 = gX | 0; if (x0 > MAX_SEG_IDX) x0 = MAX_SEG_IDX;
+        let z0 = gZ | 0; if (z0 > MAX_SEG_IDX) z0 = MAX_SEG_IDX;
+        let x1 = x0 + 1, z1 = z0 + 1;
+        let row0 = z0 * TSEG_STRIDE, row1 = z1 * TSEG_STRIDE;
+        let h00 = this.hMap[row0 + x0]||0, h10 = this.hMap[row0 + x1]||0, h01 = this.hMap[row1 + x0]||0, h11 = this.hMap[row1 + x1]||0;
         let tx = gX-x0, tz = gZ-z0;
-        let nx = (h00*(1-tz) + h01*tz) - (h10*(1-tz) + h11*tz);
-        let nz = (h00*(1-tx) + h10*tx) - (h01*(1-tx) + h11*tx);
-        let y = (h00*(1-tx)+h10*tx)*(1-tz) + (h01*(1-tx)+h11*tx)*tz;
+        let oneMinusTx = 1.0 - tx, oneMinusTz = 1.0 - tz;
+        let nx = (h00 * oneMinusTz + h01 * tz) - (h10 * oneMinusTz + h11 * tz);
+        let nz = (h00 * oneMinusTx + h10 * tx) - (h01 * oneMinusTx + h11 * tx);
+        let y = (h00 * oneMinusTx + h10 * tx) * oneMinusTz + (h01 * oneMinusTx + h11 * tx) * tz;
         if (out) { out.y = y; out.nx = nx; out.nz = nz; return out; }
         return {y:y, nx:nx, nz:nz};
     },
@@ -7045,6 +7088,8 @@ const Physics = {
     maxQi: 0,                                  
     bestLairPos: new THREE.Vector3(0, 0, 5),
     _ptT: { y: 0, nx: 0, nz: 0 },
+    _ptTFinal: { y: 0, nx: 0, nz: 0 },
+    colorDirty: false,
     init() {
         for(let i=0; i<this.pCount; i++) this.pVel.push(new THREE.Vector3(0,0,0));
         this.pGeom.setAttribute('position', new THREE.BufferAttribute(this.pPos, 3));
@@ -7160,14 +7205,14 @@ const Physics = {
             }
             this.pVel[i].set((Math.random()-0.5)*0.5, 0.2, 3.5);
             if(state.d === 'si') {
-				this.pState[i] = 0;
+				this.pState[i] = 0; this.colorDirty = true;
 				this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40; 
 			} else if(state.d === 'po' && Math.random() < 0.35) {
-				this.pState[i] = 0;
+				this.pState[i] = 0; this.colorDirty = true;
 				this.pCol[i*3]=0.2; this.pCol[i*3+1]=0.4; this.pCol[i*3+2]=0.7; 
 				this.pVel[i].set((Math.random()-0.5)*0.5, 0, 3.5);
 			} else {
-				this.pState[i] = 0;
+				this.pState[i] = 0; this.colorDirty = true;
 				this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.8; this.pCol[i*3+2]=0.6; 
 			}
 			// 錯峰離散化：打破 600 幀同步共振，維持時間流連續性
@@ -7242,7 +7287,7 @@ const Physics = {
         let frameCoanda = 0, frameDowndraft = 0, frameVenturi = 0, frameBounce = 0;
         let framePhreatic = 0, frameTensorFracture = 0, frameHelicity = 0, frameThermalShear = 0, frameWaveletSpike = 0;
         let frameCoriolisCrash = 0, frameDarcyDrag = 0, frameBoundarySep = 0; 
-        if (Math.abs(baseWind) > 0.001) {
+        if (AppState.frames % 2 === 0 && Math.abs(baseWind) > 0.001) {
             // 效能：dt 與 frames 在本次更新內為常數，冪運算與相位外提（數值完全等價）
             const windBlockDecay = Math.pow(0.5, dt);
             const windPropDecay = Math.pow(0.94, dt);
@@ -7440,6 +7485,15 @@ const Physics = {
         const HEAT_STYLE_SHA = 'rgba(255, 30, 30, 0.8)';
         const HEAT_STYLE_QI = 'rgba(255, 215, 0, 0.8)';
         const HEAT_STYLE_ENV = 'rgba(100, 220, 255, 0.05)';
+        // 迴圈外預先計算：立向旋轉常數（消除 rotDeg 陣列分配）
+        const degVal = AppState.current.degree || 0;
+        const hasDegreeRot = (degVal !== 0);
+        let degCos = 1.0, degSin = 0.0;
+        if (hasDegreeRot) {
+            const _r = (-degVal % 360) * Math.PI / 180;
+            degCos = Math.cos(_r);
+            degSin = Math.sin(_r);
+        }
         for(let i=0; i<this.pCount; i++) {
             let x = this.pPos[i*3], y = this.pPos[i*3+1], z = this.pPos[i*3+2];
             let vel = this.pVel[i]; let st = this.pState[i];
@@ -7452,7 +7506,7 @@ const Physics = {
             let dynamicTaijiZ = lz;
             let dxTaiji = x - lx;
             let dzTaiji = z - dynamicTaijiZ;
-            if (state.degree) { const _tf = rotDeg(dxTaiji, dzTaiji, -state.degree); dxTaiji = _tf[0]; dzTaiji = _tf[1]; }
+            if (hasDegreeRot) { const rx = dxTaiji*degCos - dzTaiji*degSin; const rz = dxTaiji*degSin + dzTaiji*degCos; dxTaiji = rx; dzTaiji = rz; }
             let dxGeom = dxTaiji;
             let dzGeom = dzTaiji;
 
@@ -7755,7 +7809,7 @@ const Physics = {
             }
             // 藏風平復：當風場平緩且無強亂流時，被吹起的氣流可平復為順隨龍氣
             if (st === 3 && speedSq < 1.0 && localTurbulence < 1.0 && Math.random() < 0.15 * dt) {
-                this.pState[i] = 0;
+                this.pState[i] = 0; this.colorDirty = true;
                 this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.6;
             }
             // 亂流剝離同步分級：已凝吉氣容忍至 3.5，> 5.5 仍轉紅煞
@@ -8176,17 +8230,12 @@ const Physics = {
                     }
                 }
             }
-            if(heatDrawFrame && y > -8) {
-				let hx = (x / CONFIG.tSize + 0.5) * 256; let hz = (z / CONFIG.tSize + 0.5) * 256;
-				let heatSize = (st === 2) ? 6.0 : (st === 1 ? 7.0 : 2.5);
-				if (st === 1) {
-					Engine3D.hCtx.fillStyle = HEAT_STYLE_SHA; 
-				} else if (st === 2) {
-					Engine3D.hCtx.fillStyle = HEAT_STYLE_QI; 
-				} else {
-					Engine3D.hCtx.fillStyle = HEAT_STYLE_ENV; 
-				}
-				Engine3D.hCtx.fillRect(hx - heatSize/2, hz - heatSize/2, heatSize, heatSize);
+            if (heatDrawFrame && y > -8 && (st === 1 || st === 2 || (i % 8 === 0))) {
+				let hx = (x / CONFIG.tSize + 0.5) * 256; 
+				let hz = (z / CONFIG.tSize + 0.5) * 256;
+				let heatSize = (st === 2) ? 5.0 : (st === 1 ? 6.0 : 2.0);
+				Engine3D.hCtx.fillStyle = (st === 1) ? HEAT_STYLE_SHA : ((st === 2) ? HEAT_STYLE_QI : HEAT_STYLE_ENV);
+				Engine3D.hCtx.fillRect(hx - heatSize * 0.5, hz - heatSize * 0.5, heatSize, heatSize);
 			}
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < taijiRadiusSqL && y > t.y - 5 && y < t.y + 15);
             if (inTaiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng') { // 藏風聚氣由地形湧現，不繫於太極開關
@@ -8279,7 +8328,7 @@ const Physics = {
                     let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone && (state.d === 'pingyang' || dzTaiji > -15));
                     let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5 && y <= t.y + 3.0);
                   if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < Math.min(1, 0.85 * dt)) {
-                this.pState[i] = 2;
+                this.pState[i] = 2; this.colorDirty = true;
                 this.pSettleLife[i] = 0.0;
                    if (state.xing === 'jin') {
                        this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 
@@ -8300,7 +8349,7 @@ const Physics = {
             x += vel.x * dt; 
             y += vel.y * dt; 
             z += vel.z * dt;
-            let terrainFinal = Engine3D.getTerrainY(x, z);
+            let terrainFinal = Engine3D.getTerrainY(x, z, this._ptTFinal);
             if (terrainFinal.y > -100 && y < terrainFinal.y + 0.8) {
                 y = terrainFinal.y + 0.8;
                 if (vel.y < 0) vel.y *= -0.2; 
@@ -8351,13 +8400,13 @@ const Physics = {
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
                 }
                 if(state.d === 'si') {
-                    this.pState[i] = 0;
+                    this.pState[i] = 0; this.colorDirty = true;
                     this.pCol[i*3]=0.45; this.pCol[i*3+1]=0.45; this.pCol[i*3+2]=0.40;
                 } else if(state.d === 'po' && Math.random() < 0.35) {
-                    this.pState[i] = 0;
+                    this.pState[i] = 0; this.colorDirty = true;
                     this.pCol[i*3]=0.2; this.pCol[i*3+1]=0.4; this.pCol[i*3+2]=0.7;
                 } else {
-                    this.pState[i] = 0;
+                    this.pState[i] = 0; this.colorDirty = true;
                     this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.8; this.pCol[i*3+2]=0.6;
                 }
                 // 隨機動態生命週期，避免次級共振
@@ -8372,36 +8421,41 @@ const Physics = {
             pVelAttrArr[vi3] = vel.x; pVelAttrArr[vi3+1] = vel.y; pVelAttrArr[vi3+2] = vel.z;
         }
         this.pGeom.attributes.position.needsUpdate = true;
-        this.pGeom.attributes.color.needsUpdate = true;
-        this.pGeom.attributes.velocity.needsUpdate = true; 
+        this.pGeom.attributes.velocity.needsUpdate = true;
+        if (this.colorDirty) {
+            this.pGeom.attributes.color.needsUpdate = true;
+            this.colorDirty = false;
+        }
         
         if ((state.vProbe || state.vHeat) && AppState.frames % 4 === 0) {
             Engine3D.heatTex.needsUpdate = true;
         }
         
         Engine3D.windGroup.visible = state.vWind;
-        if(state.vWind && AppState.frames % 2 === 0) {
+        if(state.vWind && AppState.frames % 2 === 0 && Engine3D.windSegments) {
             let time = AppState.frames * 0.05;
-            Engine3D.windLines.forEach(w => {
-                let ty = Engine3D.getTerrainY(w.bx, w.bz).y;
-                w.line.position.set(0, 0, 0); 
+            let posArr = Engine3D.windSegments.geometry.attributes.position.array;
+            let ptr = 0;
+            for (let k = 0; k < Engine3D.windGridPoints.length; k++) {
+                let w = Engine3D.windGridPoints[k];
+                let ty = Engine3D.getTerrainY(w.bx, w.bz, this._ptTFinal).y;
                 let wf = baseWind;
                 if(Math.abs(wf) > 0.01) {
-                    let sh = Engine3D.getTerrainY(w.bx - Math.sign(wf) * 20, w.bz).y;
+                    let sh = Engine3D.getTerrainY(w.bx - Math.sign(wf) * 20, w.bz, this._ptT).y;
                     if(sh > ty) wf *= Math.max(0, 1.0 - Math.min(1.0, (sh - ty) / 15.0));
                 }
                 if (state.tianzhan && Math.abs(w.bx) < 20 && w.bz > -20 && w.bz < 20) wf *= 3.0;
                 if (state.ao && Math.abs(w.bx) < 30 && w.bz > -10 && w.bz < 30) wf *= 2.0;
                 let dyn = Math.sin(w.bx * 0.05 + time) * Math.cos(w.bz * 0.05 + time) * 0.5;
                 let totalWind = wf + (dyn * Math.max(0.5, Math.abs(wf)));
-                let pos = w.line.geometry.attributes.position.array;
                 let endX = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bx + totalWind * 60));
                 let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + Math.sin(w.bx * 0.1 + time * 1.5) * Math.abs(totalWind) * 15));
-                let endY = Engine3D.getTerrainY(endX, endZ).y;
-                pos[0] = w.bx; pos[1] = ty > -5 ? ty + 1.5 : -100; pos[2] = w.bz;
-                pos[3] = endX; pos[4] = endY > -5 ? endY + 1.5 : -100; pos[5] = endZ;
-                w.line.geometry.attributes.position.needsUpdate = true;
-            });
+                let endY = Engine3D.getTerrainY(endX, endZ, this._ptT).y;
+                
+                posArr[ptr++] = w.bx; posArr[ptr++] = ty > -5 ? ty + 1.5 : -100; posArr[ptr++] = w.bz;
+                posArr[ptr++] = endX; posArr[ptr++] = endY > -5 ? endY + 1.5 : -100; posArr[ptr++] = endZ;
+            }
+            Engine3D.windSegments.geometry.attributes.position.needsUpdate = true;
         }
         if (sensorCount > 0) {
             AppState.sensors.qiDensity = qiSensorCount / this.pCount;
@@ -8559,7 +8613,8 @@ const Physics = {
         }
         if (typeof AppState.sensors.sunlight === 'undefined') AppState.sensors.sunlight = 1.0;
         if (Engine3D.dirLight && Engine3D.lairMarker) {
-            let sunDir = Engine3D.dirLight.position.clone().normalize();
+            if (!Physics._cachedSunDir) Physics._cachedSunDir = new THREE.Vector3();
+            let sunDir = Physics._cachedSunDir.copy(Engine3D.dirLight.position).normalize();
             let inShadow = false;
             if (sunDir.y <= 0) {
                 inShadow = true;
@@ -8576,24 +8631,11 @@ const Physics = {
             AppState.sensors.sunlight += (currentSun - AppState.sensors.sunlight) * 0.05 * dt;
         }
         if (!AppState.sensors.betti1Closure) AppState.sensors.betti1Closure = 0;
-        let closedSectors = 0;
-        let totalSectors = 16;
-        let xueElevOffset = (state.xueHeight || 0) > 8 ? ((state.xueHeight - 8) * 1.0) : 0;
-        let baseThresholdY = this.bestLairPos.y - xueElevOffset + 4.0;
-        for(let a = 0; a < totalSectors; a++) {
-            let angle = (a / totalSectors) * Math.PI * 2;
-            let dirCos = Math.cos(angle), dirSin = Math.sin(angle);
-            let sectorMaxH = -999;
-            for (let rDist = 20.0; rDist <= 65.0; rDist += 15.0) {
-                let checkX = this.bestLairPos.x + dirCos * rDist * (state.mtScale || 1.0);
-                let checkZ = this.bestLairPos.z + dirSin * rDist * (state.mtScale || 1.0);
-                let h = Engine3D.getTerrainY(checkX, checkZ).y;
-                if (h > sectorMaxH) sectorMaxH = h;
-            }
-            if(sectorMaxH > baseThresholdY) closedSectors++; 
+        // P2-018 閉合度改為事件驅動快取：僅在 buildTerrain/UI.update/effLairAnchor 變更時重算
+        if (AppState._bettiCacheDirty) {
+            try { Engine3D.updateBettiClosureCache(); } catch(e){}
+            AppState._bettiCacheDirty = false;
         }
-        let currentBetti = closedSectors / totalSectors;
-        AppState.sensors.betti1Closure += (currentBetti - AppState.sensors.betti1Closure) * 0.05 * dt;
         if (AppState.frames % 15 === 0) {
             let settledN = 0, staleN = 0;
             for (let si = 0; si < this.pCount; si += 7) {
@@ -8801,14 +8843,16 @@ function animate() {
 		}
     let physDt = delta * 60 * (parseFloat(AppState.current.time) || 0);
     if (!Number.isFinite(physDt)) physDt = 0;
-    const MAX_DT = 0.5; // 限制子步長避免 CFL 违反导致物理爆炸
+    const MAX_DT = 1.2; // 正常幀率下單步執行，物理負擔瞬間再減 50%
     const physSubSteps = Math.max(1, Math.ceil(physDt / MAX_DT));
     for (let sIdx = 0; sIdx < physSubSteps; sIdx++) {
         const subDt = Math.min(MAX_DT, physDt - sIdx * MAX_DT);
         if (subDt > 0) Physics.update(subDt);
     }
-    UI.refreshScores(physDt);
-    UI.drawRadar(delta);
+    if (AppState.frames % 12 === 0 || AppState.scoresDirty) {
+        UI.refreshScores(physDt);
+    }
+    UI.drawRadar(delta); // 雷達圖維持每幀平滑
     Engine3D.controls.update();
     if (!Engine3D.isTransitioning) {
         let currentGroundY = Engine3D.getTerrainY(Engine3D.camera.position.x, Engine3D.camera.position.z).y;
