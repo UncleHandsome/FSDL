@@ -630,10 +630,11 @@ const Rules = {
                 const meanN = sumN/cntN;
                 const dome = tCenter.y - meanN; // 穴場微凸
                 const rugged = maxN - minN;       // 微脊曲率
-                if(dome < 0.3) m *= 0.55;       // 微高閾值 0.3m：未高=散
-                else if(dome > 1.5) m *= 0.75;  // > 1.5m 過凸
-                if(rugged < 0.05) m *= 0.7;     // 平坦無生氣
-                if(rugged > 6) m *= 0.62;         // 過陡
+                let _flatAuspCond = (state.w !== 'none' && state.w !== 'lintou') && (state.caoshe || state.suilong !== 'none');
+                if(dome < 0.3) { if(!_flatAuspCond) m *= 0.55; }
+                else if(dome > 1.5) m *= 0.75;
+                if(rugged < 0.05) { if(!_flatAuspCond) m *= 0.7; }
+                if(rugged > 6) m *= 0.62;
                 // 凸岸/凹岸：穴位於河道曲流外凸（凸岸=吉）
 				const fMap = (typeof Engine3D !== 'undefined' && Engine3D.flowMap) ? Engine3D.flowMap : null;
 				if(fMap){
@@ -8028,16 +8029,33 @@ const Physics = {
                         if (helicoidalShear > 2.0) frameBoundarySep++;
                     }
                     if (waterSpeed > 5.0) {
-                        vel.y -= waterSpeed * 0.25 * dt; 
+                        vel.y -= waterSpeed * 0.25 * dt;
                         vel.z += waterSpeed * 0.20 * dt;
                     }
                     if (waterSpeed < 4.5) {
-                        vel.multiplyScalar(Math.pow(0.95, dt)); 
+                        vel.multiplyScalar(Math.pow(0.95, dt));
                         let deepWaterThreshold = (state.d === 'pingyang') ? -3.4 : -15.0;
                         if (t.y < deepWaterThreshold) {
-                            vel.x += t.nx * 2.5 * dt; 
+                            vel.x += t.nx * 2.5 * dt;
                             vel.z += t.nz * 2.5 * dt;
-                            vel.y -= 0.6 * dt; 
+                            vel.y -= 0.6 * dt;
+                        }
+                    }
+                    let _isAuspiciousWater = (rType === 0 || rType === 1 || rType === 7 || rType === 9 || rType === 12 || rType === 15);
+                    if (_isAuspiciousWater && waterSpeed > 0.5 && waterSpeed < 4.0) {
+                        let _shoreX = (t.nx) * (waterSpeed * 0.55);
+                        let _shoreZ = (t.nz) * (waterSpeed * 0.55);
+                        let _dxShore = x - lx_L, _dzShore = z - lz_L;
+                        if (state.degree) { const _rxShore = _dxShore*degCos - _dzShore*degSin; const _rzShore = _dxShore*degSin + _dzShore*degCos; _dxShore = _rxShore; _dzShore = _rzShore; }
+                        let _lairDistShore = Math.max(0.001, Math.sqrt(_dxShore*_dxShore + _dzShore*_dzShore));
+                        if (_lairDistShore < 40.0) {
+                            let _lairFade = 1.0 - _lairDistShore / 40.0;
+                            _lairFade = _lairFade * _lairFade * (3.0 - 2.0 * _lairFade);
+                            let _dotShore = (t.nx * _dxShore + t.nz * _dzShore) / _lairDistShore;
+                            let _convexFactor = Math.max(0, -_dotShore);
+                            vel.x += _shoreX * dt * _lairFade * (0.6 + 0.4 * _convexFactor);
+                            vel.z += _shoreZ * dt * _lairFade * (0.6 + 0.4 * _convexFactor);
+                            vel.y -= waterSpeed * 0.18 * dt * _lairFade * (0.5 + 0.5 * _convexFactor);
                         }
                     }
                     vel.x += waterFlowX * dt;
