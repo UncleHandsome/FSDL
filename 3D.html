@@ -190,7 +190,8 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label" title="磁偏角校正：磁北與真北之差，獨立於三針偏角；點擊砂體自動切人盤、點水口自動切天盤讀取方位">磁偏角校正</span><div class="seg" style="align-items:center;"><input type="range" id="magvar-slider" min="-15" max="15" value="0" step="0.5" title="磁偏角校正 (°)，獨立於三針"><span id="magvar-val" style="min-width:48px; font-size:11px; color:#888;">0.0°</span></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px;">＊三針偏角不可調整；磁偏角獨立校正；點砂體/水口自動讀對應盤</div>
         <div class="ctrl-row"><span class="ctrl-label">羅盤顯示</span><div class="seg"><button class="tog" data-k="showCompass">顯示三針羅盤</button><span style="font-size:10px; color:#666;">（僅在理氣層）</span></div></div>
-        <div class="ctrl-row"><span class="ctrl-label">視效</span><div class="seg"><button class="tog" data-k="vHeat">3D熱力圖</button><button class="tog" data-k="vProbe" style="color:#b98a2e;font-weight:bold;">全域探測</button><button class="tog" data-k="vInspect" style="color:#0a91a1;font-weight:bold;">隨處探針</button><button class="tog" data-k="vWind">風場矩陣</button><button class="tog" data-k="zhihua">制化佈局</button><button id="btn-cam-cave">堪輿視角(C)</button><button id="btn-cam-reset">預設視角</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label">視效</span><div class="seg"><button class="tog" data-k="vHeat" title="64×64 降維勢流，邊緣可能數值擴散；建議預計算流場或 GPU LBM">3D熱力圖</button><button class="tog" data-k="vProbe" style="color:#b98a2e;font-weight:bold;">全域探測</button><button class="tog" data-k="vInspect" style="color:#0a91a1;font-weight:bold;">隨處探針</button><button class="tog" data-k="vWind">風場矩陣</button><button class="tog" data-k="zhihua">制化佈局</button><button id="btn-cam-cave">堪輿視角(C)</button><button id="btn-cam-reset">預設視角</button></div></div>
+        <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 45px;">＊熱力圖為 64×64 降維勢流預覽，邊緣可能數值擴散；精確場建議預計算或 LBM</div>
         <fieldset class="layer-fs" data-layer="zhihua" style="border:1px solid #0a91a1; border-radius:6px; padding:6px 8px; margin:6px 0; background:rgba(10,145,161,0.04); display:none;">
           <legend style="font-size:11px; color:#0a91a1; padding:0 6px;">制化物類型 🔧物理 / 📿文化</legend>
           <div class="ctrl-row" style="margin-bottom:4px;"><div class="seg" data-k="zhihuaType"><button data-v="phys">🔧物理制化</button><button data-v="cult">📿文化制化</button><button data-v="mix" class="on">混用</button></div></div>
@@ -339,7 +340,7 @@ const CONFIG = {
         xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5, showCompass: true, showDragonLine: true, 
         yun: '9',
         jiuxing: 'none',
-        vHeat:true, vProbe:false, vInspect:false, vWind:true, zhihua:false, zhihuaType:'mix', shaMode:false, wind: 5, pureHydro:false, sceneMode:'mountain', needleRen:-7.5, needleTian:7.5, magVar:0, hanmen:false, jiaoyaMouth:false, soilUserSet:false, solarTime:12
+        vHeat:true, vProbe:false, vInspect:false, vWind:true, zhihua:false, zhihuaType:'mix', shaMode:false, wind: 5, pureHydro:false, sceneMode:'mountain', needleRen:-7.5, needleTian:7.5, magVar:0, hanmen:false, jiaoyaMouth:false, soilUserSet:false, solarTime:12, season:'spring'
     },
     presets: {
         perfect: {
@@ -378,7 +379,8 @@ function createDefaultSensors() {
         shannonEntropy: 0, betti1Closure: 0, sunlight: 1.0, staleQi: 0,
         phreatic: 0, helicity: 0, coanda: 0, venturi: 0,
         tensorFrac: 0, thermalShear: 0, downdraft: 0, waveletSpike: 0,
-        coriolisCrash: 0, darcyDrag: 0, boundarySep: 0, bounce: 0
+        coriolisCrash: 0, darcyDrag: 0, boundarySep: 0, bounce: 0,
+        airChangeRate: 0, frostRisk: 0
     };
 }
 function rotDeg(dx, dz, deg) {
@@ -1369,6 +1371,14 @@ const Rules = {
         if(state.zhijiao === 'ni') advice.push('龍脈橈棹逆水反生，氣脈倒退散失，難以結穴');
         if(state.w !== 'none' && (state.waterVel || 1.0) > 1.8) advice.push('水流過急，真氣被水力抽吸帶走，宜建半月池或多重關攔以緩水勢');
         if((state.zhuScale || 1.0) > 1.4 && (state.mtScale || 1.0) < 0.8) advice.push('主山過高而明堂狹小，犯「逼壓欺主」，氣場狂躁不聚');
+        // 理氣動態制約：龍山向水須合局
+        try{
+            const _outletForAdvice = Rules.outletAzimuth();
+            const _sanAdv = _outletForAdvice ? Rules.sanHeBonus(state.degree, state.yun, state.w, _outletForAdvice) : 0;
+            if(_sanAdv < -10) advice.push('立向與三合水法不合（去水破旺/沖生），宜依水口重定坐向');
+            const _baAdv = _outletForAdvice ? Rules.baShaCheck(state.degree, _outletForAdvice) : 0;
+            if(_baAdv < -10) advice.push('去水逢八煞黃泉，去水方位犯煞，需改立向或改水口');
+        }catch(e){}
         let adviceStr = advice.length > 0 ? `\n\n💡【趨吉避凶建議】：\n• ${advice.slice(0, 4).join('\n• ')}` : '';
         return { rating, color, text: `${compassStr}${shaStr}${multStr}${tail}${adviceStr}` };
     },
@@ -2287,6 +2297,10 @@ const Rules = {
         if(s.xue==='ping' && s.d!=='pingyang' && s.d!=='huan'){ m*=0.55; notes.push('坪僅平洋/緩龍為吉'); }
         // 砂法：單邊缺砂、破砂≥2、反背已在 compute 惩戒，此處補漏
         if(s.ml==='fanbei'||s.mr==='fanbei'){ m*=0.95; }
+        // 幾何互斥：窩/鉗穴必須有護砂
+        if((s.xue==='wo' || s.xue==='qian') && (s.ml==='none' || s.ml==='fanbei' || s.mr==='none' || s.mr==='fanbei')){
+            m*=0.55; notes.push('窩/鉗穴無護砂，幾何無法封閉');
+        }
         // 水法：凶水與吉水互斥已由 w 單選保證，此處補水口錯側
         if((s.ml==='xiasha'||s.mr==='xiasha') && s.w==='none'){ m*=0.88; notes.push('下砂無水'); }
         // 理氣：零正神已流轉 yun，三針已分，此處補兼向空亡已在 godFlags
@@ -2942,6 +2956,12 @@ const UI = {
                     } else {
                         AppState.current.soilUserSet = true;
                     }
+                }
+                // 五星九星統一：九星為五星子類
+                if(seg.dataset.k === 'jiuxing'){
+                    const map = {tanlang:'mu', jumen:'tu', lucun:'tu', wenqu:'shui', lianzhen:'huo', wuqu:'jin', pojun:'jin', zuofu:'jin', youbi:'shui', none:null};
+                    const xing = map[b.dataset.v];
+                    if(xing) AppState.current.xing = xing;
                 }
                 if(seg.dataset.k === 'd' && oldD !== AppState.current.d) {
                     Physics.resetParticles();
@@ -6885,7 +6905,18 @@ const Engine3D = {
                     const flow = this.flowMap[gz*(CONFIG.tSeg+1)+gx]||0;
                     let h=this.getTerrainY(wx,wz).y;
                     let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12)>0.68? 6:0;
-                    let score = h - flow*0.5 + ridgeW;
+                    let hL=this.getTerrainY(wx-2,wz).y, hR=this.getTerrainY(wx+2,wz).y;
+                    let hU=this.getTerrainY(wx,wz-2).y, hD=this.getTerrainY(wx,wz+2).y;
+                    let hLU=this.getTerrainY(wx-2,wz-2).y, hLD=this.getTerrainY(wx-2,wz+2).y;
+                    let hRU=this.getTerrainY(wx+2,wz-2).y, hRD=this.getTerrainY(wx+2,wz+2).y;
+                    let fxx = hL -2*h + hR;
+                    let fyy = hU -2*h + hD;
+                    let fxy = (hRD - hRU - hLD + hLU)/4;
+                    let tr = fxx + fyy, de = fxx*fyy - fxy*fxy;
+                    let disc2 = Math.sqrt(Math.max(0, tr*tr/4 - de));
+                    let eigA = tr/2 + disc2, eigB = tr/2 - disc2;
+                    let ridgeHessian = (eigA < -0.8 && Math.abs(eigB) < 0.5) || (eigB < -0.8 && Math.abs(eigA) < 0.5) ? 8 : 0;
+                    let score = h - flow*0.5 + ridgeW + ridgeHessian;
                     if(score>bestH){bestH=score; bestX=wx; bestFlow=flow;}
                 }
             } else {
@@ -6894,7 +6925,18 @@ const Engine3D = {
                     if(state.degree){ const _r=rotDeg(dx,zLair,-state.degree); wx=lx+_r[0]; wz=lz+_r[1]; }
                     let h=this.getTerrainY(wx,wz).y;
                     let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12)>0.68? 4:0;
-                    let score = h + ridgeW;
+                    let hL2=this.getTerrainY(wx-2,wz).y, hR2=this.getTerrainY(wx+2,wz).y;
+                    let hU2=this.getTerrainY(wx,wz-2).y, hD2=this.getTerrainY(wx,wz+2).y;
+                    let hLU2=this.getTerrainY(wx-2,wz-2).y, hLD2=this.getTerrainY(wx-2,wz+2).y;
+                    let hRU2=this.getTerrainY(wx+2,wz-2).y, hRD2=this.getTerrainY(wx+2,wz+2).y;
+                    let fxx2 = hL2 -2*h + hR2;
+                    let fyy2 = hU2 -2*h + hD2;
+                    let fxy2 = (hRD2 - hRU2 - hLD2 + hLU2)/4;
+                    let tr2 = fxx2 + fyy2, de2 = fxx2*fyy2 - fxy2*fxy2;
+                    let disc2b = Math.sqrt(Math.max(0, tr2*tr2/4 - de2));
+                    let eigA2 = tr2/2 + disc2b, eigB2 = tr2/2 - disc2b;
+                    let ridgeHessian2 = (eigA2 < -0.8 && Math.abs(eigB2) < 0.5) || (eigB2 < -0.8 && Math.abs(eigA2) < 0.5) ? 8 : 0;
+                    let score = h + ridgeW + ridgeHessian2;
                     if(score>bestH){bestH=score; bestX=wx;}
                 }
             }
