@@ -453,8 +453,9 @@ const AppState = {
         while(Engine3D.obsGroup.children.length > 0) {
             let child = Engine3D.obsGroup.children[0];
             Engine3D.obsGroup.remove(child);
-            if (child.geometry) child.geometry.dispose();
-            if (child.material) child.material.dispose();
+            // 僅釋放獨立創建的幾何體與材質，保護全域共用資源不被銷毀
+            if (child.geometry && child.geometry !== Engine3D.obsGeo) child.geometry.dispose();
+            if (child.material && child.material !== Engine3D.obsMat) child.material.dispose();
         }
         this.obstacles.length = 0;
         while(Engine3D.swGroup.children.length > 0) {
@@ -1056,8 +1057,8 @@ const Rules = {
             waterBonus = Math.max(0, waterBonus - 10); 
         }
         let zeroGodBonus = 0;
-        let deg = (state.degree !== undefined) ? ((state.degree % 360) + 360) % 360 : 0;
-        const _gods = this.godFlags(deg, state.yun || '9');
+        let deg = (state.degree !== undefined) ? ((state.degree % 360) + 360) % 360;
+        const _gods = this.godFlags(tianDeg, state.yun || '9');
         let isZeroGodWater = (state.w !== 'none') && (state.face === '1') && (_gods.idx === _gods.zero);
         let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (_gods.idx === _gods.zhao);
         let isDirectGodWaterClash = (state.w !== 'none') && (state.face === '1') && (_gods.idx === _gods.zheng);
@@ -1614,7 +1615,10 @@ const Rules = {
         const labels = ['來龍','穴星','龍虎','明堂','水口','風場','案朝','水法','證穴'];
         const details = ['主脊/剝換/入首', st.xue||'none', `左${Math.round(pL.angle)}°/右${Math.round(pR.angle)}°`, `綜合${mtScore}`, `收束度${mouthScore}`, `風${wv.toFixed(2)}湍${turb.toFixed(2)}`, `仰角${anAngle.toFixed(1)}°`, st.w, st.soil];
         let logAvg = 0;
-        for (let i=0;i<9;i++){ logAvg += w[i] * Math.log(Math.max(1, arr[i])); }
+        for (let i=0; i<9; i++){
+            const val = (typeof arr[i] === 'number' && Number.isFinite(arr[i])) ? Math.max(1, arr[i]) : 50;
+            logAvg += w[i] * Math.log(val);
+        }
         const total = Math.round(Math.exp(logAvg));
         const dims = labels.map((k,i)=>({ 維度:k, 分數: Math.round(arr[i]), 權重: w[i], 細項: details[i] }));
         return {
@@ -2450,10 +2454,10 @@ window.DryRunTool = {
         let dominantRatio = maxBinCount / sampleCount;
         if (overRatio > 0.35) opticalAnomalies.push(`【光學異常】畫面發生嚴重過曝泛白 (高光佔比 ${(overRatio*100).toFixed(1)}%)，可能發生 NaN 幾何爆炸或 Shader 發光疊加失控！`);
         if (underRatio > 0.85) opticalAnomalies.push(`【光學異常】畫面極度昏暗或全黑 (黑像素佔比 ${(underRatio*100).toFixed(1)}%)，可能是燈光失效或相機掉入地底穿模！`);
-        let distToSky = Math.abs(dominantColor.r - 223) + Math.abs(dominantColor.g - 233) + Math.abs(dominantColor.b - 245);
-        let isTerrainColor = (dominantColor.r >= 140 && dominantColor.r <= 210 && 
-                              dominantColor.g >= 140 && dominantColor.g <= 210 && 
-                              dominantColor.b >= 130 && dominantColor.b <= 210 &&
+        let distToSky = Math.abs(dominantColor.r - 198) + Math.abs(dominantColor.g - 215) + Math.abs(dominantColor.b - 232);
+        let isTerrainColor = (dominantColor.r >= 130 && dominantColor.r <= 210 && 
+                              dominantColor.g >= 130 && dominantColor.g <= 210 && 
+                              dominantColor.b >= 120 && dominantColor.b <= 210 &&
                               Math.abs(dominantColor.r - dominantColor.g) < 40 &&
                               Math.abs(dominantColor.g - dominantColor.b) < 50 &&
                               Math.abs(dominantColor.r - dominantColor.b) < 50);
@@ -2637,7 +2641,7 @@ window.DryRunTool = {
         const isBadWaterCompass = Rules.BAD_WATERS.includes(st.w);
         let zeroGodStatus = "無見水";
         if (st.w !== 'none') {
-            const _gd = Rules.godFlags(deg, st.yun || '9');
+            const _gd = Rules.godFlags(deg, state.yun || '9', 'tian');
             const _pn = Rules.GOD_PALACES[_gd.idx] + '宮';
             const _yn = (parseInt(st.yun) || 9) + '運';
             if (_gd.idx === _gd.zero) zeroGodStatus = isBadWaterCompass ? (_yn + _pn + "見水 (零神方位但為凶水, 不吉反凶)") : (_yn + _pn + "見水 (零神催財大吉)");
@@ -3140,7 +3144,7 @@ const UI = {
             let humanY = groundY + 1.8;
             Engine3D.controls.minDistance = 0.1;
             Engine3D.targetCamPos = new THREE.Vector3(lx, humanY, lz);
-            Engine3D.targetLookAt = new THREE.Vector3(lx + _cvx * 0.5, humanY, lz + _cvz * 0.5);
+            Engine3D.targetLookAt = new THREE.Vector3(lx + _cvx * 80.0, humanY, lz + _cvz * 80.0);
             Engine3D.targetFov = 95;
             Engine3D.isTransitioning = true;
         });
@@ -3257,6 +3261,11 @@ const UI = {
     },
     update(forceBuild = false) {
         AppState.scoresDirty = true;
+        // 清除依賴立向角度、朝向與明堂尺度的幾何快取，確保數值即時響應
+        Rules._protCache = null;
+        Rules._mtMulCache = null;
+        Rules._volCache = null;
+        Rules._outletCache = null;
         let autoChanged = forceBuild;
         let s = AppState.current;
         const noWater = s.w === 'none' || s.w === 'lintou';
@@ -3840,8 +3849,18 @@ const UI = {
         const cv=document.getElementById('soil-canvas');
         const leg=document.getElementById('soil-legend');
         if(!cv) return;
+        const dpr = window.devicePixelRatio || 1;
+        const cssW = 260, cssH = 70;
+        if (cv.width !== cssW * dpr || cv.height !== cssH * dpr) {
+            cv.width = cssW * dpr;
+            cv.height = cssH * dpr;
+            cv.style.width = cssW + 'px';
+            cv.style.height = cssH + 'px';
+        }
         const ctx=cv.getContext('2d');
-        const w=cv.width, h=cv.height;
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        const w=cssW, h=cssH;
         ctx.clearRect(0,0,w,h);
         // 背景
         ctx.fillStyle='#f6f1e7'; ctx.fillRect(0,0,w,h);
@@ -3927,14 +3946,14 @@ const Engine3D = {
     swGeo: new THREE.RingGeometry(1, 1.5, 32),
     init() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0xdfe9f5); 
+        this.scene.background = new THREE.Color(0xc6d7e8); 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         this.camera.position.set(0, 150, 190);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.65; 
+        this.renderer.toneMappingExposure = 0.82;  // 適度調降曝光，防止高光溢出與泛白
         this.renderer.outputEncoding = THREE.sRGBEncoding; 
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -3958,15 +3977,20 @@ const Engine3D = {
         };
         if (typeof THREE.EffectComposer !== 'undefined') {
             this.composer = new THREE.EffectComposer(this.renderer);
+            this.composer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+            this.composer.setSize(window.innerWidth, window.innerHeight);
             const renderPass = new THREE.RenderPass(this.scene, this.camera);
             this.composer.addPass(renderPass);
             this.bloomPass = new THREE.UnrealBloomPass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.35, 
-                0.65, 
-                0.95  
+                0.15,  // strength ↓ 降低泛光強度避免霧白感
+                0.35,  // radius
+                0.96   // threshold ↑ 提升泛光門檻，僅極亮處發光
             );
             this.composer.addPass(this.bloomPass);
+            // ⚠️ 不要額外加 GammaCorrectionShader：renderer.outputEncoding = sRGBEncoding
+            // 已對最終 framebuffer 做 sRGB 轉換，Composer 路徑下再疊一次會把暗部
+            // 反向放大而「白白一片」。Bloom 已是 linear pass 寫入 render target。
         }
         this.terrainGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, CONFIG.tSeg, CONFIG.tSeg);
         this.terrainGeo.rotateX(-Math.PI/2);
@@ -3979,11 +4003,15 @@ const Engine3D = {
         this.heatTex.wrapS = this.heatTex.wrapT = THREE.ClampToEdgeWrapping;
         this.heatTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); 
         const terrainMat = new THREE.MeshStandardMaterial({
-            vertexColors: true, 
-            roughness: 0.96, 
-            metalness: 0.03, 
+            vertexColors: true,
+            roughness: 0.96,
+            metalness: 0.03,
             flatShading: false
         });
+        // 修正#2：MeshStandardMaterial 在無 map 時不會注入 vUv，需以 1×1 透明貼圖強制啟用 USE_UV 通道
+        const _uvDummyTex = new THREE.DataTexture(new Uint8Array([255,255,255,255]), 1, 1, THREE.RGBAFormat);
+        _uvDummyTex.needsUpdate = true;
+        terrainMat.map = _uvDummyTex;
         terrainMat.defines = { USE_UV: '' };
         terrainMat.onBeforeCompile = (shader) => {
             shader.uniforms.heatmap = { value: this.heatTex };
@@ -4009,11 +4037,11 @@ const Engine3D = {
                     vec4 heatColor = texture2D(heatmap, vUv);
                     float heatMag = length(heatColor.rgb);
                     if (heatMag > 0.03) {
-                        // 1. 將熱力圖顏色強勢混入地表色彩，確保陽光直射下依然鮮明透亮
-                        float blendFactor = clamp(heatMag * 1.2, 0.0, 0.85);
-                        diffuseColor.rgb = mix(diffuseColor.rgb, heatColor.rgb * 1.6, blendFactor);
-                        // 2. 注入能量自發光與 Bloom 光暈
-                        totalEmissiveRadiance += heatColor.rgb * 1.5; 
+                        // 1. 將熱力圖顏色柔和混入地表色彩
+                        float blendFactor = clamp(heatMag * 0.8, 0.0, 0.65);
+                        diffuseColor.rgb = mix(diffuseColor.rgb, heatColor.rgb, blendFactor);
+                        // 2. 注入溫和的自發光 (降至 0.22 防止發光過曝)
+                        totalEmissiveRadiance += heatColor.rgb * 0.22; 
                     }
                 #endif
                 `
@@ -4039,6 +4067,10 @@ const Engine3D = {
         this.wTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); 
         const waterGeo = new THREE.PlaneGeometry(CONFIG.tSize, CONFIG.tSize, 100, 100); waterGeo.rotateX(-Math.PI/2); 
         const waterMat = new THREE.MeshStandardMaterial({ color: 0x1d758f, map: this.wTex, transparent: true, opacity: 0.85, roughness: 0.35, metalness: 0.2 });
+        // 修正#3：polygonOffset 把水面往後推，避免與河床 Z-Fighting
+        waterMat.polygonOffset = true;
+        waterMat.polygonOffsetFactor = 1;
+        waterMat.polygonOffsetUnits = 1;
         // 水面 D8 流向紋理（64×64 RG）與三維落差
         this.flowDirTex = new THREE.DataTexture(new Uint8Array(64*64*4), 64, 64, THREE.RGBAFormat);
         this.flowDirTex.needsUpdate = true;
@@ -4182,15 +4214,15 @@ const Engine3D = {
                     if (riverType == 8 || riverType == 13 || riverType == 14) { // 割腳水/凶水 (渾濁泥漿急流)
                         deepColor = vec3(0.42, 0.28, 0.15);
                         shallowColor = vec3(0.65, 0.48, 0.28);
-                        foamIntensity = 2.2; // 劇烈衝刷浪花
+                        foamIntensity = 1.1; // 劇烈衝刷浪花 (調降避免過曝)
                     } else if (riverType == 4) { // 伏流水 (暗伏清淺，透出底下地質)
                         deepColor = vec3(0.05, 0.18, 0.22);
                         shallowColor = vec3(0.12, 0.35, 0.38);
-                        foamIntensity = 0.1; // 無浪無聲
+                        foamIntensity = 0.05; // 無浪無聲
                     }
                     
                     vec3 baseWaterColor = mix(shallowColor, deepColor, depthFactor);
-                    diffuseColor.rgb = baseWaterColor + (tex1.rgb + tex2.rgb) * 0.15 + vec3(foam * foamIntensity) + (fresnel * 0.4);
+                    diffuseColor.rgb = baseWaterColor + (tex1.rgb + tex2.rgb) * 0.08 + vec3(foam * foamIntensity * 0.5) + (fresnel * 0.18);
                     diffuseColor.a *= mix(0.0, 1.0, smoothstep(0.0, 0.2, depthFactor));
                 #endif
                 `
@@ -4200,22 +4232,22 @@ const Engine3D = {
         this.waterMesh = new THREE.Mesh(waterGeo, waterMat); this.waterMesh.position.y = -10;
         this.waterMesh.receiveShadow = true;  
         this.scene.add(this.waterMesh);
-        this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445544, 0.7); 
+        this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x445544, 0.4); 
         this.scene.add(this.hemiLight);
-        this.dirLight = new THREE.DirectionalLight(0xfff5e6, 1.2); 
+        this.dirLight = new THREE.DirectionalLight(0xfff5e6, 0.85); 
         this.dirLight.position.set(70, 140, 60);
         this.dirLight.castShadow = true;
         this.dirLight.shadow.mapSize.width = 1024; 
         this.dirLight.shadow.mapSize.height = 1024;
-        const d = 200; 
+        const d = CONFIG.tSize * 0.72;  // 修正#5：陰影相機涵蓋 ≈72% 地形，邊界區域也有陰影
         this.dirLight.shadow.camera.left = -d;
         this.dirLight.shadow.camera.right = d;
         this.dirLight.shadow.camera.top = d;
         this.dirLight.shadow.camera.bottom = -d;
         this.dirLight.shadow.camera.near = 0.5;
         this.dirLight.shadow.camera.far = 800;
-        this.dirLight.shadow.bias = -0.0005; 
-        this.dirLight.shadow.normalBias = 0.025; 
+        this.dirLight.shadow.bias = -0.0008;  // 修正#5：微調避免大場景 shadow acne
+        this.dirLight.shadow.normalBias = 0.03;  // 修正#5：法線偏移抑制表面自影
         this.dirLight.shadow.radius = 2.2; 
         this.scene.add(this.dirLight);
         this.obsGroup = new THREE.Group(); this.scene.add(this.obsGroup);
@@ -4224,7 +4256,7 @@ const Engine3D = {
         const markerGeo = new THREE.CylinderGeometry(0.3, 4.0, 150, 16);
         markerGeo.translate(0, 75, 0); 
         const markerMat = new THREE.MeshBasicMaterial({
-            color: 0xffd700, transparent: true, opacity: 0.0, 
+            color: 0xcda240, transparent: true, opacity: 0.0, 
             blending: THREE.AdditiveBlending, depthWrite: false
         });
         this.lairMarker = new THREE.Mesh(markerGeo, markerMat);
@@ -4232,7 +4264,7 @@ const Engine3D = {
         const taijiDecalGeo = new THREE.RingGeometry(0.5, 12, 32);
         taijiDecalGeo.rotateX(-Math.PI/2);
         const taijiDecalMat = new THREE.MeshBasicMaterial({
-            color: 0xffd700, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            color: 0xcda240, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
         });
         this.taijiDecalMesh = new THREE.Mesh(taijiDecalGeo, taijiDecalMat);
         this.scene.add(this.taijiDecalMesh);
@@ -4271,10 +4303,10 @@ const Engine3D = {
         this.zhihuaGroup = new THREE.Group();
         const zhGeo = new THREE.RingGeometry(18, 24, 64);
         zhGeo.rotateX(-Math.PI/2);
-        const zhMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+        const zhMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.22, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
         this.zhihuaMesh1 = new THREE.Mesh(zhGeo, zhMat);
         const shieldGeo = new THREE.SphereGeometry(24, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true, side: THREE.DoubleSide });
+        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true, side: THREE.DoubleSide });
         this.zhihuaMesh2 = new THREE.Mesh(shieldGeo, shieldMat);
         // #88 制化有形：照壁實體
         const wallGeo = new THREE.BoxGeometry(22, 7, 1.2);
@@ -4308,7 +4340,11 @@ const Engine3D = {
             `.replace(
                 `#include <project_vertex>`,
                 `
+                #ifdef USE_INSTANCING
                 vec4 treeWorldPos = instanceMatrix * vec4(transformed, 1.0);
+                #else
+                vec4 treeWorldPos = modelMatrix * vec4(transformed, 1.0);
+                #endif
                 float sway = sin(treeWorldPos.x * 0.1 + time * 1.5) * cos(treeWorldPos.z * 0.1 + time * 1.2) * 0.12;
                 transformed.x += sway * clamp(position.y, 0.0, 4.0); 
                 transformed.z += sway * clamp(position.y, 0.0, 4.0) * 0.5;
@@ -4557,7 +4593,8 @@ const Engine3D = {
                     }
                     const mesh=new THREE.Mesh(shaGeo, shaMat);
                     mesh.position.copy(p); mesh.position.y+=0.8;
-                    try{ const [sxA,szA]=effLairAnchor(); const ang=Math.atan2(szA-p.z,sxA-p.x); mesh.rotation.y=-ang; }catch(e){}
+                    // 正確使煞氣物體朝向穴心衝射
+                    try{ const [sxA,szA]=effLairAnchor(); mesh.rotation.y = Math.atan2(sxA - p.x, szA - p.z); }catch(e){}
                     mesh.castShadow=true;
                     Engine3D.obsGroup.add(mesh);
                     AppState.obstacles.push({mesh, type, geo:shaGeo});
@@ -4621,7 +4658,7 @@ const Engine3D = {
                         this.inspectMarker.position.y += 0.5; // 稍微抬高避免 Z-Fighting
                         let safeNx = Math.max(-1.0, Math.min(1.0, t.nx * 0.08));
                         let safeNz = Math.max(-1.0, Math.min(1.0, t.nz * 0.08));
-                        this.inspectMarker.rotation.set(-safeNz, -safeNx, 0);
+                        this.inspectMarker.rotation.set(-safeNz, 0, safeNx);
                         this.inspectMarker.material.opacity = 0.85;
                     }
                     if (hudEl) {
@@ -4664,8 +4701,12 @@ const Engine3D = {
                         }
 
                         hudEl.style.display = 'block';
-                        hudEl.style.left = `${e.clientX}px`;
-                        hudEl.style.top = `${e.clientY}px`;
+                        let hudX = e.clientX + 15;
+                        let hudY = e.clientY + 15;
+                        if (hudX + 260 > window.innerWidth) hudX = e.clientX - 275;
+                        if (hudY + 160 > window.innerHeight) hudY = e.clientY - 170;
+                        hudEl.style.left = `${hudX}px`;
+                        hudEl.style.top = `${hudY}px`;
                         // #100 探針視域封閉度 + 日照量化
                         let _betti = (AppState.sensors.betti1Closure*100).toFixed(0);
                         let _sun = (AppState.sensors.sunlight*100).toFixed(0);
@@ -4731,22 +4772,22 @@ const Engine3D = {
             const intersects = this.raycaster.intersectObject(this.terrainMesh);
             if (intersects.length > 0) {
                 const p = intersects[0].point;
-                for (let i = 0; i < 400; i++) {
+                for (let i = 0; i < 120; i++) {
                     let idx = Math.floor(Math.random() * Physics.pCount);
-                    Physics.pPos[idx*3] = p.x + (Math.random()-0.5)*5;
-                    Physics.pPos[idx*3+1] = p.y + 2 + Math.random()*5;
-                    Physics.pPos[idx*3+2] = p.z + (Math.random()-0.5)*5;
+                    Physics.pPos[idx*3] = p.x + (Math.random()-0.5)*12;
+                    Physics.pPos[idx*3+1] = p.y + 1.5 + Math.random()*3.5;
+                    Physics.pPos[idx*3+2] = p.z + (Math.random()-0.5)*12;
                     let smokeAngle = Math.random() * Math.PI * 2;
-                    Physics.pVel[idx].set(Math.cos(smokeAngle)*3.5, 0, Math.sin(smokeAngle)*3.5);
+                    Physics.pVel[idx].set(Math.cos(smokeAngle)*2.2, 0.2, Math.sin(smokeAngle)*2.2);
                     Physics.pState[idx] = 0; 
-                    Physics.pCol[idx*3] = 0.2; Physics.pCol[idx*3+1] = 1.0; Physics.pCol[idx*3+2] = 0.5; 
-                    Physics.pLife[idx] = 600;
+                    Physics.pCol[idx*3] = 0.25; Physics.pCol[idx*3+1] = 0.75; Physics.pCol[idx*3+2] = 0.45; 
+                    Physics.pLife[idx] = 400;
                 }
-                this.createShockwave(p.x, p.y, p.z, 0x22ff44);
+                this.createShockwave(p.x, p.y, p.z, 0x5a8a69);
             }
         });
         window.addEventListener('keydown', (e) => {
-            if (e.target && (e.target.tagName === 'TEXTAREA' || (e.target.tagName === 'INPUT' && e.target.type !== 'range'))) return;
+            if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON')) return;
             const k = e.key.toLowerCase();
             if (k === 'c') {
 				const [lx, lz] = effLairAnchor();
@@ -4757,7 +4798,7 @@ const Engine3D = {
 				let humanY = groundY + 1.8; 
 				this.controls.minDistance = 0.1;
 				Engine3D.targetCamPos = new THREE.Vector3(lx, humanY, lz);
-				Engine3D.targetLookAt = new THREE.Vector3(lx + _cvx2 * 0.5, humanY, lz + _cvz2 * 0.5); 
+				Engine3D.targetLookAt = new THREE.Vector3(lx + _cvx2 * 80.0, humanY, lz + _cvz2 * 80.0); 
 				Engine3D.targetFov = 95; 
 				Engine3D.isTransitioning = true;
 			} else if (k === 'r') {
@@ -4924,18 +4965,18 @@ const Engine3D = {
 
                 if (score > 0.2) {
                     let intensity = Math.min(1.0, (score - 0.2) / 0.8);
-                    let alpha = 0.20 + intensity * 0.45;
-                    grad.addColorStop(0, `rgba(255, 215, 30, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(210, 160, 10, ${(alpha * 0.5).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(255, 215, 30, 0)');
+                    let alpha = 0.10 + intensity * 0.22;
+                    grad.addColorStop(0, `rgba(225, 185, 45, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(180, 135, 20, ${(alpha * 0.4).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(225, 185, 45, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 } else if (score < -0.2) {
                     let intensity = Math.min(1.0, (-score - 0.2) / 0.8);
-                    let alpha = 0.22 + intensity * 0.50;
-                    grad.addColorStop(0, `rgba(240, 35, 25, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(180, 20, 15, ${(alpha * 0.5).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(240, 35, 25, 0)');
+                    let alpha = 0.12 + intensity * 0.25;
+                    grad.addColorStop(0, `rgba(215, 45, 35, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(160, 25, 20, ${(alpha * 0.4).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(215, 45, 35, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 }
@@ -6581,10 +6622,10 @@ const Engine3D = {
                     c.setHSL(0.27 - t * 0.15, 0.30 - t * 0.20, 0.28 + t * 0.12);
                 } else if (nH < 0.88) {
                     let t = (nH - 0.65) / 0.23;
-                    c.setHSL(0.10, 0.15 - t * 0.10, 0.40 + t * 0.10);
+                    c.setHSL(0.10, 0.15 - t * 0.10, 0.34 + t * 0.08);
                 } else {
                     let t = (nH - 0.88) / 0.12;
-                    c.setHSL(0.6, 0.05, 0.50 + t * 0.45);
+                    c.setHSL(0.6, 0.05, 0.42 + t * 0.26);
                 }
                 if (slope > 2.5) {
                     let rockFactor = Math.min(1.0, (slope - 2.5) / 3.0);
@@ -6634,8 +6675,8 @@ const Engine3D = {
                         tempSoilColor.setRGB(0.06, 0.08, 0.06);
                         c.lerp(tempSoilColor, soilCenterFactor * 0.96);
                     } else if (state.soil === 'wanshi') {
-                        // 死硬頑石：呈現斑駁蒼白的碎裂白堊岩石色
-                        tempSoilColor.setRGB(0.75, 0.73, 0.70);
+                        // 死硬頑石：呈現風化岩石與青灰色碎石色（避免高反射泛白）
+                        tempSoilColor.setRGB(0.48, 0.46, 0.44);
                         c.lerp(tempSoilColor, soilCenterFactor * 0.96);
                     }
                 }
@@ -6659,8 +6700,8 @@ const Engine3D = {
             } else {
                 this.waterMesh.material.color.setHex(0x0a91a1); 
                 this.waterMesh.material.opacity = 0.75; 
-                this.waterMesh.material.roughness = 0.02; 
-                this.waterMesh.material.metalness = 0.65; 
+                this.waterMesh.material.roughness = 0.22; // 適度粗糙避免鏡面強反光
+                this.waterMesh.material.metalness = 0.05; // 恢復自然水體電介質特性，消除金屬白斑
             }
         }
         this.terrainGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cols), 3));
@@ -6918,58 +6959,20 @@ const Engine3D = {
             let zLair = -135 + t*(5 - (-135));
             let bestX=-999,bestH=-999;
             let bestFlow=-1;
-            if(this.flowMap){
-                // 先按flowMap分水脊加權
-                for(let dx=-40;dx<=40;dx+=1){
-                    let wx=lx+dx, wz=lz+zLair;
-                    if(state.degree){ const _r=rotDeg(dx,zLair,-state.degree); wx=lx+_r[0]; wz=lz+_r[1]; }
-                    const gx=Math.round((wx+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
-                    const gz=Math.round((wz+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
-                    const flow = this.flowMap[gz*(CONFIG.tSeg+1)+gx]||0;
-                    let h=this.getTerrainY(wx,wz).y;
-                    let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12)>0.68? 6:0;
-                    let hL=this.getTerrainY(wx-2,wz).y, hR=this.getTerrainY(wx+2,wz).y;
-                    let hU=this.getTerrainY(wx,wz-2).y, hD=this.getTerrainY(wx,wz+2).y;
-                    let hLU=this.getTerrainY(wx-2,wz-2).y, hLD=this.getTerrainY(wx-2,wz+2).y;
-                    let hRU=this.getTerrainY(wx+2,wz-2).y, hRD=this.getTerrainY(wx+2,wz+2).y;
-                    let fxx = hL -2*h + hR;
-                    let fyy = hU -2*h + hD;
-                    let fxy = (hRD - hRU - hLD + hLU)/4;
-                    let tr = fxx + fyy, de = fxx*fyy - fxy*fxy;
-                    let disc2 = Math.sqrt(Math.max(0, tr*tr/4 - de));
-                    let eigA = tr/2 + disc2, eigB = tr/2 - disc2;
-                    let ridgeHessian = (eigA < -0.8 && Math.abs(eigB) < 0.5) || (eigB < -0.8 && Math.abs(eigA) < 0.5) ? 8 : 0;
-                    let score = h - flow*0.5 + ridgeW + ridgeHessian;
-                    if(score>bestH){bestH=score; bestX=wx; bestFlow=flow;}
+            for(let dx=-40; dx<=40; dx+=2){
+                let wx = lx + dx, wz = lz + zLair;
+                let h = this.getTerrainY(wx, wz).y;
+                let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12) > 0.68 ? 4 : 0;
+                let score = h + ridgeW;
+                if(this.flowMap){
+                    const gx = Math.round((wx+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                    const gz = Math.round((wz+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                    score -= (this.flowMap[gz*(CONFIG.tSeg+1)+gx] || 0) * 0.4;
                 }
-            } else {
-                for(let dx=-40;dx<=40;dx+=1){
-                    let wx=lx+dx, wz=lz+zLair;
-                    if(state.degree){ const _r=rotDeg(dx,zLair,-state.degree); wx=lx+_r[0]; wz=lz+_r[1]; }
-                    let h=this.getTerrainY(wx,wz).y;
-                    let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12)>0.68? 4:0;
-                    let hL2=this.getTerrainY(wx-2,wz).y, hR2=this.getTerrainY(wx+2,wz).y;
-                    let hU2=this.getTerrainY(wx,wz-2).y, hD2=this.getTerrainY(wx,wz+2).y;
-                    let hLU2=this.getTerrainY(wx-2,wz-2).y, hLD2=this.getTerrainY(wx-2,wz+2).y;
-                    let hRU2=this.getTerrainY(wx+2,wz-2).y, hRD2=this.getTerrainY(wx+2,wz+2).y;
-                    let fxx2 = hL2 -2*h + hR2;
-                    let fyy2 = hU2 -2*h + hD2;
-                    let fxy2 = (hRD2 - hRU2 - hLD2 + hLU2)/4;
-                    let tr2 = fxx2 + fyy2, de2 = fxx2*fyy2 - fxy2*fxy2;
-                    let disc2b = Math.sqrt(Math.max(0, tr2*tr2/4 - de2));
-                    let eigA2 = tr2/2 + disc2b, eigB2 = tr2/2 - disc2b;
-                    let ridgeHessian2 = (eigA2 < -0.8 && Math.abs(eigB2) < 0.5) || (eigB2 < -0.8 && Math.abs(eigA2) < 0.5) ? 8 : 0;
-                    let score = h + ridgeW + ridgeHessian2;
-                    if(score>bestH){bestH=score; bestX=wx;}
-                }
+                if(score > bestH){ bestH = score; bestX = wx; }
             }
-            let wx=bestX, wz=lz+zLair;
-            if(state.degree){
-                const dx=wx-lx, dz=wz-lz;
-                const _r=rotDeg(dx, dz, state.degree);
-                wx=lx+_r[0]; wz=lz+_r[1];
-            }
-            let h=this.getTerrainY(wx,wz).y;
+            let wx = bestX, wz = lz + zLair;
+            let h = this.getTerrainY(wx, wz).y;
             raw.push(new THREE.Vector3(wx, h+0.8, wz));
         }
         // Catmull-Rom平滑
@@ -7151,7 +7154,7 @@ const Physics = {
                     vec2 rotatedUV = rot * uv;
                     
                     // 依速度方向拉長粒子，形成流暢的「彗星拖尾」
-                    float stretch = max(1.0, vSpeed * 1.8);
+                    float stretch = min(max(1.0, vSpeed * 1.8), 4.0); // 修正#8：上限 4 避免高速時過度裁剪消失
                     rotatedUV.x /= stretch; 
                     rotatedUV += 0.5;
                     
@@ -7161,9 +7164,9 @@ const Physics = {
                     
                     // 增加頭部亮核＋尾部漸變衰減，一眼看出粒子「往哪裡流」
                     float headToTail = clamp(rotatedUV.x, 0.0, 1.0);
-                    float intensity = pow(headToTail, 1.5) * (1.0 + vSpeed * 0.4);
+                    float intensity = pow(headToTail, 1.5) * (1.0 + vSpeed * 0.3);
                     
-                    gl_FragColor = vec4(vColor * (1.2 + intensity * 0.8), texColor.a * clamp(0.4 + intensity * 0.6, 0.2, 1.0));
+                    gl_FragColor = vec4(vColor * (0.65 + intensity * 0.25), texColor.a * clamp(0.12 + intensity * 0.28, 0.08, 0.45));
                 }
             `,
             transparent: true,
@@ -7217,7 +7220,7 @@ const Physics = {
 					tz = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
 					tx = Math.max(-125, Math.min(125, (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset));
 				}
-				if (state.degree) { const _pr = rotDeg(tx - xueXOffset, tz - xueZOffset, state.degree); tx = _pr[0] + xueXOffset; tz = _pr[1] + xueZOffset; }
+				// 移除對大地形生成點的錯誤旋轉，確保粒子始終從祖山山脊源頭生成
 				let ty = Engine3D.getTerrainY(tx, tz).y;
 				let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
 				this.pPos[i*3] = tx;
@@ -7312,8 +7315,6 @@ const Physics = {
             // 效能：dt 與 frames 在本次更新內為常數，冪運算與相位外提（數值完全等價）
             const windBlockDecay = Math.pow(0.5, dt);
             const windPropDecay = Math.pow(0.94, dt);
-            const framePhase = AppState.frames * 0.02;
-            const absBaseWindHalf = Math.abs(baseWind) * 0.5;
             for (let gz = 0; gz < 64; gz++) {
                 for (let gx = 0; gx < 64; gx++) {
                     let idx = gz * 64 + gx;
@@ -7324,13 +7325,14 @@ const Physics = {
                     let worldX = (gx / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let worldZ = (gz / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let t = Engine3D.getTerrainY(worldX, worldZ);
-                    let blockingThreshold = (state.d === 'pingyang') ? 999.0 : 5.0;
+                    let blockingThreshold = (state.d === 'pingyang') ? 999.0 : 8.0;
                     if (t.y > blockingThreshold) { 
                         this.windGridX[idx] *= windBlockDecay; 
                         this.windGridZ[idx] *= windBlockDecay;
                     } else { 
+                        // 平滑注入主風向，消除無意義的 Z 軸全域雜波
                         this.windGridX[idx] += (baseWind - this.windGridX[idx]) * 0.08 * dt;
-                        this.windGridZ[idx] += (Math.sin(worldX * 0.05 + framePhase) * absBaseWindHalf - this.windGridZ[idx]) * 0.08 * dt;
+                        this.windGridZ[idx] += (0.0 - this.windGridZ[idx]) * 0.08 * dt;
                         const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
                         if (t.y <= waterLevel + 0.5) {
                             const waterWindDamping = Math.pow(0.85, dt);
@@ -7348,41 +7350,22 @@ const Physics = {
                     this.windGridZ_next[idx] = (avgZ - div * 0.014 * protDamp * dt - curl * 0.025 * curlDamping * dt) * windPropDecay;
                     this.windGridX_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridX_next[idx]));
                     this.windGridZ_next[idx] = Math.max(-5.0, Math.min(5.0, this.windGridZ_next[idx]));
-                    // 背風坡下洗：僅強風(≥4級)且落差陡峭處注入，微風不擾穴場
-                    const _hsA = Engine3D.hMap, _hsN = CONFIG.tSeg;
-                    const _hxI = (gx * _hsN / 63) | 0, _hzI = (gz * _hsN / 63) | 0;
-                    const _hC = _hsA[_hzI * (_hsN + 1) + _hxI] || 0;
-                    const _hD = _hsA[_hzI * (_hsN + 1) + Math.min(_hsN, _hxI + 2)] || 0;
-                    if (Math.abs(baseWind) > 1.2 && _hC > 8 && _hD < _hC - 20) {
-                        this.windGridX_next[idx] *= 0.7;
-                        this.windGridZ_next[idx] += ((gz % 2 === 0) ? 1 : -1) * Math.abs(baseWind) * 0.25 * dt;
-                    }
                     // P2-1 制化照壁實體障壁：grid 實體不透風（非腳本係數）
                     if(state.zhihua && state.xia && state.xue!=='none' && AppState.sensors){
-                        // 照壁位於穴前 12m，寬 22，高 7
                         let wallX = Physics.bestLairPos.x, wallZ = Physics.bestLairPos.z - 12;
                         let distWall = Math.hypot(worldX - wallX, worldZ - wallZ);
                         if(distWall < 7.5){
-                            // 直面擋風：風速衰至 12%
                             let wallAtten = Math.max(0.12, distWall/7.5 * 0.55);
                             this.windGridX_next[idx] *= wallAtten;
                             this.windGridZ_next[idx] *= wallAtten;
-                            // 繞流：側向分流
-                            if(Math.abs(worldX-wallX) > 3.5 && distWall < 9){
-                                this.windGridX_next[idx] += (worldX>wallX?1:-1)*Math.abs(baseWind)*0.22*dt;
-                                this.windGridZ_next[idx] += Math.sin(worldZ*0.08)*Math.abs(baseWind)*0.08*dt;
-                            }
                         }
                     }
-                    // P2-2 背風渦旋回流：山脊背風腳低壓捲吸（藏風聚氣物理）
+                    // P2-2 背風區適度減速（藏風聚氣）
                     if(Math.abs(baseWind) > 0.7 && t.y < 5){
                         let upWindH = Engine3D.getTerrainY(worldX - Math.sign(baseWind||1)*18, worldZ).y;
                         if(upWindH > 12 && upWindH - t.y > 14){
-                            // 背風腳渦旋：逆向回流 + 橫向捲吸
-                            this.windGridX_next[idx] += -baseWind * 0.38 * dt;
-                            this.windGridZ_next[idx] += Math.cos(worldX*0.09 + worldZ*0.07)*Math.abs(baseWind)*0.16*dt;
-                            // 渦旋內風速衰但非零，維持緩慢聚氣
-                            this.windGridX_next[idx] *= 0.82;
+                            this.windGridX_next[idx] *= 0.45;
+                            this.windGridZ_next[idx] *= 0.45;
                         }
                     }
                 }
@@ -7400,33 +7383,7 @@ const Physics = {
                         const atten=Math.pow(1 - drag*0.42, dt);
                         this.windGridX[idx]*=atten;
                         this.windGridZ[idx]*=atten;
-                        this.windGridY[idx]+=td*0.035*dt;
                     }
-                }
-            }
-            const sun=AppState.sensors.sunlight ?? 1.0;
-            const thermalSign=(sun>0.52?1:-1);
-            const thermalMag=Math.abs(sun-0.5)*2;
-            for(let idx=0; idx<4096; idx++){
-                const gx=idx%64, gz=Math.floor(idx/64);
-                const wx=(gx/64)*CONFIG.tSize - CONFIG.tSize/2;
-                const wz=(gz/64)*CONFIG.tSize - CONFIG.tSize/2;
-                const t=Engine3D.getTerrainY(wx,wz);
-                const slope=Math.sqrt(t.nx*t.nx + t.nz*t.nz);
-                if(slope >= 1.2) {
-                    let vert=thermalSign * thermalMag * Math.max(0, slope-1.2) * 0.085 * dt;
-                    if(t.y>10) vert*=1.25;
-                    const h=t.y+5;
-                    if(h>32) vert*=Math.max(0, 1 - (h-32)/38);
-                    this.windGridY[idx]+=vert;
-                }
-                this.windGridY[idx]*=Math.pow(0.945, dt);
-            }
-            // 垂直耦合回水平（質量守恆近似）
-            for(let idx=0; idx<4096; idx++){
-                if(Math.abs(this.windGridY[idx])>0.6){
-                    this.windGridX[idx]+=this.windGridY[idx]*0.04*dt;
-                    this.windGridZ[idx]+=this.windGridY[idx]*0.015*dt;
                 }
             }
         }catch(e){}
@@ -7490,7 +7447,6 @@ const Physics = {
         const tempNormal = Physics._tempNormalScratch;
         // ===== 效能：迴圈不變量外提（僅依賴 state/dt，逐粒子數值完全不變）=====
         const pVelAttrArr = this.pGeom.attributes.velocity.array;
-        const cosCor = Math.cos(0.08 * dt), sinCor = Math.sin(0.08 * dt);
         const POW_0995 = Math.pow(0.995, dt);
         const waterSensorLevelL = (state.d === 'pingyang') ? -3.5 : -12.0;
         const isBadWaterTypeW = ['gejiao','fan','ji','tfork','juanlian','pubu','liulei','jiaojian'].includes(state.w);
@@ -8243,10 +8199,7 @@ const Physics = {
                 vel.x += (Math.random()-0.5)*0.8*thermalDraft*dt;
                 vel.z += (Math.random()-0.5)*0.8*thermalDraft*dt;
             }
-            let corVelX = vel.x * cosCor + vel.z * sinCor;
-            let corVelZ = -vel.x * sinCor + vel.z * cosCor;
-            vel.x = corVelX;
-            vel.z = corVelZ;
+            // 移除強制角速度偏轉，保持流線自然前行
             if (dxTaiji > 10 && dxTaiji < 35 && dzTaiji > 0 && t.nx < -1.5 && vel.x > 0) {
                 frameCoriolisCrash++; 
             }
@@ -8275,14 +8228,14 @@ const Physics = {
                 
                 let grad = Engine3D.hCtx.createRadialGradient(hx, hz, 0, hx, hz, radius);
                 if (st === 2) {
-                    // 聚氣融結：燦金核心 ➔ 翡翠光暈
-                    grad.addColorStop(0.0, 'rgba(255, 230, 80, 0.85)');
-                    grad.addColorStop(0.4, 'rgba(218, 165, 32, 0.45)');
+                    // 聚氣融結：燦金核心 ➔ 翡翠光暈（柔和化）
+                    grad.addColorStop(0.0, 'rgba(235, 195, 65, 0.45)');
+                    grad.addColorStop(0.4, 'rgba(185, 138, 46, 0.20)');
                     grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
                 } else if (st === 1) {
-                    // 形煞衝射：烈焰赤紅 ➔ 煞氣邊緣
-                    grad.addColorStop(0.0, 'rgba(255, 40, 40, 0.90)');
-                    grad.addColorStop(0.5, 'rgba(180, 20, 20, 0.40)');
+                    // 形煞衝射：柔和絳紅 ➔ 煞氣邊緣
+                    grad.addColorStop(0.0, 'rgba(220, 50, 40, 0.50)');
+                    grad.addColorStop(0.5, 'rgba(160, 30, 25, 0.20)');
                     grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
                 } else if (st === 3) {
                     // 風吹氣散：冰藍冷光（被風剝離的氣流）
@@ -8431,7 +8384,6 @@ const Physics = {
                 if(state.d === 'pingyang') {
                     z = Math.max(-160, -35 - Math.random()*10 + xueZOffset);
                     x = Math.max(-125, Math.min(125, (Math.random()-0.5)*20 + xueXOffset));
-                    if (state.degree) { const _rp1 = rotDeg(x - xueXOffset, z - xueZOffset, state.degree); x = _rp1[0] + xueXOffset; z = _rp1[1] + xueZOffset; }
                     let spawnGroundY = Engine3D.getTerrainY(x, z).y;
                     let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
                     y = Math.max(spawnGroundY + 3.5, waterLevel + 2.5, spawnGroundY + 2.5 + Math.random()*3.0);
@@ -8458,7 +8410,6 @@ const Physics = {
                         z = Math.max(-160, -35 + (Math.random()-0.5)*10 + xueZOffset);
                         x = Math.max(-125, Math.min(125, (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random()*25) + xueXOffset));
                     }
-                    if (state.degree) { const _rp2 = rotDeg(x - xueXOffset, z - xueZOffset, state.degree); x = _rp2[0] + xueXOffset; z = _rp2[1] + xueZOffset; }
                     let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
                     y = Math.max(Engine3D.getTerrainY(x, z).y + 5.5 + Math.random()*3.0, waterLevel + 4.5);
                     vel.set((Math.random()-0.5)*0.5, 0.0, 3.5);
@@ -8497,23 +8448,18 @@ const Physics = {
         
         Engine3D.windGroup.visible = state.vWind;
         if(state.vWind && AppState.frames % 2 === 0 && Engine3D.windSegments) {
-            let time = AppState.frames * 0.05;
             let posArr = Engine3D.windSegments.geometry.attributes.position.array;
             let ptr = 0;
             for (let k = 0; k < Engine3D.windGridPoints.length; k++) {
                 let w = Engine3D.windGridPoints[k];
                 let ty = Engine3D.getTerrainY(w.bx, w.bz, this._ptTFinal).y;
-                let wf = baseWind;
-                if(Math.abs(wf) > 0.01) {
-                    let sh = Engine3D.getTerrainY(w.bx - Math.sign(wf) * 20, w.bz, this._ptT).y;
-                    if(sh > ty) wf *= Math.max(0, 1.0 - Math.min(1.0, (sh - ty) / 15.0));
-                }
-                if (state.tianzhan && Math.abs(w.bx) < 20 && w.bz > -20 && w.bz < 20) wf *= 3.0;
-                if (state.ao && Math.abs(w.bx) < 30 && w.bz > -10 && w.bz < 30) wf *= 2.0;
-                let dyn = Math.sin(w.bx * 0.05 + time) * Math.cos(w.bz * 0.05 + time) * 0.5;
-                let totalWind = wf + (dyn * Math.max(0.5, Math.abs(wf)));
-                let endX = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bx + totalWind * 60));
-                let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + Math.sin(w.bx * 0.1 + time * 1.5) * Math.abs(totalWind) * 15));
+                let gx = Math.max(0, Math.min(63, Math.floor((w.bx + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+                let gz = Math.max(0, Math.min(63, Math.floor((w.bz + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+                let idx = gz * 64 + gx;
+                let vx = this.windGridX[idx] || 0;
+                let vz = this.windGridZ[idx] || 0;
+                let endX = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bx + vx * 22.0));
+                let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + vz * 22.0));
                 let endY = Engine3D.getTerrainY(endX, endZ, this._ptT).y;
                 
                 posArr[ptr++] = w.bx; posArr[ptr++] = ty > -5 ? ty + 1.5 : -100; posArr[ptr++] = w.bz;
@@ -8598,11 +8544,12 @@ const Physics = {
         const MIN_QI_FOR_ENTROPY = 1.0;
         if (totalQi > MIN_QI_FOR_ENTROPY) {
             for (let j = 0; j < 4096; j++) {
-                if (this.qiGrid[j] > 0) {
+                if (this.qiGrid[j] > 1e-6) {
                     let prob = this.qiGrid[j] / totalQi;
-                    spatialEntropy -= prob * Math.log2(prob);
+                    if (prob > 1e-7) spatialEntropy -= prob * Math.log2(prob);
                 }
             }
+            if (!Number.isFinite(spatialEntropy)) spatialEntropy = 4.0;
         } else {
             spatialEntropy = 4.0;
         }
@@ -8628,7 +8575,7 @@ const Physics = {
                 let tLair = Engine3D.getTerrainY(this.bestLairPos.x, this.bestLairPos.z);
                 let safeNx = Math.max(-1.0, Math.min(1.0, tLair.nx * 0.08));
                 let safeNz = Math.max(-1.0, Math.min(1.0, tLair.nz * 0.08));
-                Engine3D.taijiDecalMesh.rotation.set(-safeNz, -safeNx, 0);
+                Engine3D.taijiDecalMesh.rotation.set(-safeNz, 0, safeNx);
                 let energyDensity = 0;
                 if (AppState.sensors.shannonEntropy > 0) {
                     const totalQiForEnergy = AppState.gatherAcc + AppState.scatterAcc;
@@ -8640,11 +8587,11 @@ const Physics = {
                     let heartBeat = Math.pow(Math.sin(AppState.frames * 0.08), 64.0); 
                     let spacetimeWarp = 1.0 + (heartBeat * Math.min(0.8, energyDensity * 0.01));
                     Engine3D.taijiDecalMesh.scale.set(spacetimeWarp, spacetimeWarp, 1.0);
-                    if (heartBeat > 0.8) Engine3D.taijiDecalMesh.material.color.setHex(0xffffff);
-                    else Engine3D.taijiDecalMesh.material.color.setHex(0xffd700);
+                    if (heartBeat > 0.8) Engine3D.taijiDecalMesh.material.color.setHex(0xffe599);
+                    else Engine3D.taijiDecalMesh.material.color.setHex(0xcda240);
                 } else {
                     Engine3D.taijiDecalMesh.scale.set(1.0, 1.0, 1.0);
-                    Engine3D.taijiDecalMesh.material.color.setHex(0xffd700);
+                    Engine3D.taijiDecalMesh.material.color.setHex(0xcda240);
                 }
             }
             if (Engine3D.compassGroup) {
@@ -8672,7 +8619,7 @@ const Physics = {
                 Engine3D.zhihuaGroup.position.set(this.bestLairPos.x, this.bestLairPos.y + 0.5, this.bestLairPos.z);
                 Engine3D.zhihuaMesh2.rotation.y += 0.2 * dt; 
             }
-            let targetOpacity = (hasRealXue && maxQi > 5.0) ? Math.min(0.5, maxQi / 60.0) : 0.0;
+            let targetOpacity = (hasRealXue && maxQi > 5.0) ? Math.min(0.2, maxQi / 150.0) : 0.0;
             Engine3D.lairMarker.material.opacity += (targetOpacity - Engine3D.lairMarker.material.opacity) * 0.05;
         }
         if (typeof AppState.sensors.sunlight === 'undefined') AppState.sensors.sunlight = 1.0;
@@ -8757,7 +8704,10 @@ const Physics = {
                 const wb=document.getElementById('wind-base-val');
                 if(wb) wb.innerText=(AppState.current.wind>0?'+':'')+AppState.current.wind+'級';
                 const wd=document.getElementById('wind-dir-val');
-                if(wd) wd.innerText=((AppState.current.degree||0)+'°');
+                if(wd) {
+                    const wVal = AppState.current.wind || 0;
+                    wd.innerText = wVal > 0 ? '西風 (吹向東)' : (wVal < 0 ? '東風 (吹向西)' : '靜風');
+                }
                 const wt=document.getElementById('wind-turb-val');
                 if(wt) wt.innerText=AppState.sensors.turbulence.toFixed(2);
                 const wv=document.getElementById('wind-venturi-val');
@@ -8837,10 +8787,10 @@ function animate() {
     let delta = clock.getDelta();
     if (delta > 0.1) delta = 0.1;
     if (Engine3D.dirLight) {
-        Engine3D.dirLight.intensity = 1.3;
-        Engine3D.dirLight.color.setHSL(0.1, 0.2, 0.98);
-        Engine3D.hemiLight.color.setHSL(0.6, 0.3, 0.85);
-        Engine3D.hemiLight.intensity = 0.85;
+        Engine3D.dirLight.intensity = 0.82;
+        Engine3D.dirLight.color.setHSL(0.1, 0.2, 0.92);
+        Engine3D.hemiLight.color.setHSL(0.6, 0.3, 0.75);
+        Engine3D.hemiLight.intensity = 0.38;
         // 使粒子熱效太陽向量跟隨当前光源方向 (原本硬编码不跟滑块)
         if (Physics._sunVecScratch) {
             Physics._sunVecScratch.setFromMatrixPosition(Engine3D.dirLight.matrixWorld).normalize();
