@@ -4006,7 +4006,14 @@ const Engine3D = {
                 #include <emissivemap_fragment>
                 #ifdef USE_UV
                     vec4 heatColor = texture2D(heatmap, vUv);
-                    totalEmissiveRadiance += clamp(heatColor.rgb * 0.35, 0.0, 0.6); 
+                    float heatMag = length(heatColor.rgb);
+                    if (heatMag > 0.03) {
+                        // 1. 將熱力圖顏色強勢混入地表色彩，確保陽光直射下依然鮮明透亮
+                        float blendFactor = clamp(heatMag * 1.2, 0.0, 0.85);
+                        diffuseColor.rgb = mix(diffuseColor.rgb, heatColor.rgb * 1.6, blendFactor);
+                        // 2. 注入能量自發光與 Bloom 光暈
+                        totalEmissiveRadiance += heatColor.rgb * 1.5; 
+                    }
                 #endif
                 `
             ).replace(
@@ -7118,11 +7125,15 @@ const Physics = {
                     vColor = color;
                     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
                     gl_Position = projectionMatrix * mvPosition;
-                    vec4 targetPos = modelViewMatrix * vec4(position + velocity * 0.15, 1.0);
+                    
+                    // 計算螢幕空間運動方向
+                    vec4 targetPos = modelViewMatrix * vec4(position + velocity * 0.25, 1.0);
                     vVel = (projectionMatrix * targetPos).xy / (projectionMatrix * targetPos).w - gl_Position.xy / gl_Position.w;
                     vSpeed = length(velocity);
+                    
                     float safeDist = max(0.5, -mvPosition.z);
-                    gl_PointSize = clamp((75.0 / safeDist) * (1.0 + vSpeed * 0.25), 1.8, 64.0);
+                    // 速度越快粒子拉伸越大、尺寸更明顯
+                    gl_PointSize = clamp((110.0 / safeDist) * (1.2 + vSpeed * 0.35), 3.5, 80.0);
                 }
             `,
             fragmentShader: `
@@ -7137,12 +7148,21 @@ const Physics = {
                     float c = cos(-angle);
                     mat2 rot = mat2(c, -s, s, c);
                     vec2 rotatedUV = rot * uv;
-                    float stretch = max(1.0, vSpeed * 1.5);
+                    
+                    // 依速度方向拉長粒子，形成流暢的「彗星拖尾」
+                    float stretch = max(1.0, vSpeed * 1.8);
                     rotatedUV.x /= stretch; 
                     rotatedUV += 0.5;
+                    
                     if (rotatedUV.x < 0.0 || rotatedUV.x > 1.0 || rotatedUV.y < 0.0 || rotatedUV.y > 1.0) discard;
+                    
                     vec4 texColor = texture2D(pointTexture, rotatedUV);
-                    gl_FragColor = vec4(vColor, texColor.a * clamp(1.2 - vSpeed*0.1, 0.2, 0.9));
+                    
+                    // 增加頭部亮核＋尾部漸變衰減，一眼看出粒子「往哪裡流」
+                    float headToTail = clamp(rotatedUV.x, 0.0, 1.0);
+                    float intensity = pow(headToTail, 1.5) * (1.0 + vSpeed * 0.4);
+                    
+                    gl_FragColor = vec4(vColor * (1.2 + intensity * 0.8), texColor.a * clamp(0.4 + intensity * 0.6, 0.2, 1.0));
                 }
             `,
             transparent: true,
@@ -8230,13 +8250,39 @@ const Physics = {
                     }
                 }
             }
-            if (heatDrawFrame && y > -8 && (st === 1 || st === 2 || (i % 8 === 0))) {
-				let hx = (x / CONFIG.tSize + 0.5) * 256; 
-				let hz = (z / CONFIG.tSize + 0.5) * 256;
-				let heatSize = (st === 2) ? 5.0 : (st === 1 ? 6.0 : 2.0);
-				Engine3D.hCtx.fillStyle = (st === 1) ? HEAT_STYLE_SHA : ((st === 2) ? HEAT_STYLE_QI : HEAT_STYLE_ENV);
-				Engine3D.hCtx.fillRect(hx - heatSize * 0.5, hz - heatSize * 0.5, heatSize, heatSize);
-			}
+            if (heatDrawFrame && y > -8 && (st === 1 || st === 2 || (i % 4 === 0))) {
+                let hx = (x / CONFIG.tSize + 0.5) * 256; 
+                let hz = (z / CONFIG.tSize + 0.5) * 256;
+                let radius = (st === 2) ? 14.0 : (st === 1 ? 16.0 : (st === 3 ? 10.0 : 8.0));
+                
+                let grad = Engine3D.hCtx.createRadialGradient(hx, hz, 0, hx, hz, radius);
+                if (st === 2) {
+                    // 聚氣融結：燦金核心 ➔ 翡翠光暈
+                    grad.addColorStop(0.0, 'rgba(255, 230, 80, 0.85)');
+                    grad.addColorStop(0.4, 'rgba(218, 165, 32, 0.45)');
+                    grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
+                } else if (st === 1) {
+                    // 形煞衝射：烈焰赤紅 ➔ 煞氣邊緣
+                    grad.addColorStop(0.0, 'rgba(255, 40, 40, 0.90)');
+                    grad.addColorStop(0.5, 'rgba(180, 20, 20, 0.40)');
+                    grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
+                } else if (st === 3) {
+                    // 風吹氣散：冰藍冷光（被風剝離的氣流）
+                    grad.addColorStop(0.0, 'rgba(80, 180, 255, 0.60)');
+                    grad.addColorStop(0.5, 'rgba(30, 100, 200, 0.25)');
+                    grad.addColorStop(1.0, 'rgba(0, 50, 150, 0.0)');
+                } else {
+                    // 隨龍行度：溫潤青玉色
+                    grad.addColorStop(0.0, 'rgba(40, 220, 140, 0.35)');
+                    grad.addColorStop(0.6, 'rgba(20, 160, 100, 0.12)');
+                    grad.addColorStop(1.0, 'rgba(10, 100, 60, 0.0)');
+                }
+                
+                Engine3D.hCtx.fillStyle = grad;
+                Engine3D.hCtx.beginPath();
+                Engine3D.hCtx.arc(hx, hz, radius, 0, Math.PI * 2);
+                Engine3D.hCtx.fill();
+            }
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < taijiRadiusSqL && y > t.y - 5 && y < t.y + 15);
             if (inTaiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng') { // 藏風聚氣由地形湧現，不繫於太極開關
                 let distToTaijiEdge = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
