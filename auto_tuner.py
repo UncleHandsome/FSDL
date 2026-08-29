@@ -231,19 +231,33 @@ def extract_json_from_text(text):
     if not text:
         return None
 
+    def _normalize_dict(obj):
+        """保證回傳 dict，防止 AI 回傳 list 結構導致 .get() 崩潰"""
+        if isinstance(obj, dict):
+            return obj
+        if isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, dict) and "status" in item:
+                    return item
+            if any(isinstance(item, dict) and "search" in item for item in obj):
+                return {"status": "MODIFIED", "reason": "AI 回傳陣列形式之修改建議", "changes": obj}
+            if len(obj) > 0 and isinstance(obj[0], dict):
+                return obj[0]
+        return None
+
     def _parse_candidate(raw_cand):
         if not raw_cand:
             return None
         cand = raw_cand.strip()
         # 1. 優先嘗試非嚴格解析 (容許字串內有未跳脫的換行符與控制字元)
         try:
-            return json.loads(cand, strict=False)
+            return _normalize_dict(json.loads(cand, strict=False))
         except Exception:
             pass
         # 2. 自動修復常見的尾隨逗號 (Trailing Commas)
         try:
             cleaned = re.sub(r',\s*([\]}])', r'\1', cand)
-            return json.loads(cleaned, strict=False)
+            return _normalize_dict(json.loads(cleaned, strict=False))
         except Exception:
             pass
         return None
@@ -628,7 +642,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
     elif "nvidia" in str(getattr(client, "base_url", "")).lower():
         max_tokens_val = 16384
     elif "glm-5.2" in m_lower or "glm" in m_lower:
-        max_tokens_val = 150000
+        max_tokens_val = 65536
     elif "muse" in m_lower or "spark" in m_lower:
         max_tokens_val = 256000
     elif "ox" in m_lower or "preview" in m_lower or "alpha" in m_lower:
