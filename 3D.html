@@ -1057,7 +1057,7 @@ const Rules = {
             waterBonus = Math.max(0, waterBonus - 10); 
         }
         let zeroGodBonus = 0;
-        let deg = (state.degree !== undefined) ? ((state.degree % 360) + 360) % 360;
+        let deg = (state.degree !== undefined) ? ((state.degree % 360) + 360) % 360 : 0;
         const _gods = this.godFlags(tianDeg, state.yun || '9');
         let isZeroGodWater = (state.w !== 'none') && (state.face === '1') && (_gods.idx === _gods.zero);
         let isZhaoGodWater = (state.w !== 'none') && (state.face === '1') && (_gods.idx === _gods.zhao);
@@ -3997,9 +3997,9 @@ const Engine3D = {
             this.composer.addPass(renderPass);
             this.bloomPass = new THREE.UnrealBloomPass(
                 new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.15,  // strength ↓ 降低泛光強度避免霧白感
-                0.35,  // radius
-                0.96   // threshold ↑ 提升泛光門檻，僅極亮處發光
+                0.25,  // strength 適度微光
+                0.40,  // radius
+                0.75   // threshold 適當門檻，讓彩色高亮粒子正常泛光
             );
             this.composer.addPass(this.bloomPass);
             // ⚠️ 不要額外加 GammaCorrectionShader：renderer.outputEncoding = sRGBEncoding
@@ -4052,10 +4052,10 @@ const Engine3D = {
                     float heatMag = length(heatColor.rgb);
                     if (heatMag > 0.03) {
                         // 1. 將熱力圖顏色柔和混入地表色彩
-                        float blendFactor = clamp(heatMag * 0.8, 0.0, 0.65);
+                        float blendFactor = clamp(heatMag * 1.1, 0.0, 0.80);
                         diffuseColor.rgb = mix(diffuseColor.rgb, heatColor.rgb, blendFactor);
-                        // 2. 注入溫和的自發光 (降至 0.22 防止發光過曝)
-                        totalEmissiveRadiance += heatColor.rgb * 0.22; 
+                        // 2. 注入適度自發光，強化地表熱力光斑清晰度
+                        totalEmissiveRadiance += heatColor.rgb * 0.45; 
                     }
                 #endif
                 `
@@ -4278,7 +4278,7 @@ const Engine3D = {
         const taijiDecalGeo = new THREE.RingGeometry(0.5, 12, 32);
         taijiDecalGeo.rotateX(-Math.PI/2);
         const taijiDecalMat = new THREE.MeshBasicMaterial({
-            color: 0xcda240, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+            color: 0xebb838, transparent: true, opacity: 0.60, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
         });
         this.taijiDecalMesh = new THREE.Mesh(taijiDecalGeo, taijiDecalMat);
         this.scene.add(this.taijiDecalMesh);
@@ -4288,7 +4288,7 @@ const Engine3D = {
         const compassBase = new THREE.Mesh(compassBaseGeo, compassBaseMat);
         const compassRingGeo = new THREE.RingGeometry(2, 7.5, 32);
         compassRingGeo.rotateX(-Math.PI/2);
-        const compassRingMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.2, metalness: 0.9, side: THREE.DoubleSide }); 
+        const compassRingMat = new THREE.MeshStandardMaterial({ color: 0xc49a2c, roughness: 0.42, metalness: 0.45, side: THREE.DoubleSide }); // 緞面古銅金質感，消除鏡面強光斑
         const compassRing = new THREE.Mesh(compassRingGeo, compassRingMat);
         compassRing.position.y = 0.32;
         const needleGeo = new THREE.ConeGeometry(0.4, 6, 4);
@@ -4317,10 +4317,10 @@ const Engine3D = {
         this.zhihuaGroup = new THREE.Group();
         const zhGeo = new THREE.RingGeometry(18, 24, 64);
         zhGeo.rotateX(-Math.PI/2);
-        const zhMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.22, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+        const zhMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
         this.zhihuaMesh1 = new THREE.Mesh(zhGeo, zhMat);
         const shieldGeo = new THREE.SphereGeometry(24, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true, side: THREE.DoubleSide });
+        const shieldMat = new THREE.MeshBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, wireframe: true, side: THREE.DoubleSide });
         this.zhihuaMesh2 = new THREE.Mesh(shieldGeo, shieldMat);
         // #88 制化有形：照壁實體
         const wallGeo = new THREE.BoxGeometry(22, 7, 1.2);
@@ -4337,10 +4337,10 @@ const Engine3D = {
         const cursorMat = new THREE.MeshBasicMaterial({color: 0x22ff44, transparent: true, opacity: 0.0, depthTest: false});
         this.brushCursor = new THREE.Mesh(cursorGeo, cursorMat);
         this.scene.add(this.brushCursor);
-        // 隨處探針 3D 地表羅盤光環
-        const inspectRingGeo = new THREE.RingGeometry(3.0, 3.8, 32);
+        // 隨處探針 3D 地表羅盤光環（加寬並採用亮青色提高辨識度）
+        const inspectRingGeo = new THREE.RingGeometry(3.2, 4.6, 32);
         inspectRingGeo.rotateX(-Math.PI / 2);
-        const inspectRingMat = new THREE.MeshBasicMaterial({ color: 0x0a91a1, transparent: true, opacity: 0.0, depthTest: false, side: THREE.DoubleSide });
+        const inspectRingMat = new THREE.MeshBasicMaterial({ color: 0x00d2d3, transparent: true, opacity: 0.0, depthTest: false, side: THREE.DoubleSide });
         this.inspectMarker = new THREE.Mesh(inspectRingGeo, inspectRingMat);
         this.scene.add(this.inspectMarker);
         const treeGeo = new THREE.ConeGeometry(1.2, 4, 5);
@@ -4376,7 +4376,7 @@ const Engine3D = {
         const windLinePos = new Float32Array(windLineCount * 2 * 3);
         const windLineGeo = new THREE.BufferGeometry();
         windLineGeo.setAttribute('position', new THREE.BufferAttribute(windLinePos, 3));
-        const windLineMat = new THREE.LineBasicMaterial({ color: 0x448844, transparent: true, opacity: 0.6 });
+        const windLineMat = new THREE.LineBasicMaterial({ color: 0x2dd4bf, transparent: true, opacity: 0.85 });
         this.windSegments = new THREE.LineSegments(windLineGeo, windLineMat);
         this.windSegments.frustumCulled = false;
         this.windGroup.add(this.windSegments);
@@ -4979,18 +4979,18 @@ const Engine3D = {
 
                 if (score > 0.2) {
                     let intensity = Math.min(1.0, (score - 0.2) / 0.8);
-                    let alpha = 0.05 + intensity * 0.12; // 調降 Alpha 避免網格重疊過亮
-                    grad.addColorStop(0, `rgba(210, 165, 35, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(160, 115, 15, ${(alpha * 0.35).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(210, 165, 35, 0)');
+                    let alpha = 0.18 + intensity * 0.32; 
+                    grad.addColorStop(0, `rgba(225, 175, 45, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(175, 125, 25, ${(alpha * 0.45).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(225, 175, 45, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 } else if (score < -0.2) {
                     let intensity = Math.min(1.0, (-score - 0.2) / 0.8);
-                    let alpha = 0.06 + intensity * 0.14; // 調降 Alpha 避免網格重疊過亮
-                    grad.addColorStop(0, `rgba(195, 35, 25, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(140, 20, 15, ${(alpha * 0.35).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(195, 35, 25, 0)');
+                    let alpha = 0.20 + intensity * 0.35; 
+                    grad.addColorStop(0, `rgba(215, 45, 35, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(155, 30, 20, ${(alpha * 0.45).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(215, 45, 35, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 }
@@ -6963,41 +6963,82 @@ const Engine3D = {
     _findT: { y: 0, nx: 0, nz: 0 },
     dragonRidge: null,
     buildDragonRidge(){
-        // 龍脊全連續驅動（修復 1/7/50/125）：分水線+流量脊+三角脊權重，1m精度+Catmull-Rom平滑
+        // P0-A 龍脈六段幾何鏈：祖山→開帳→束氣→蜂腰→跌斷→入首
+        // 每段都記錄：起訖座標、寬度、高程、星體形狀
+        // 後續 dragonContinuityCheck 對每段逐一驗證
         if(!this.hMap) return null;
         const state = AppState.current;
         const [lx, lz] = effLairAnchor();
-        const raw=[];
-        for(let i=0;i<=90;i++){
-            let t = i/90;
-            let zLair = -135 + t*(5 - (-135));
-            let bestX=-999,bestH=-999;
-            let bestFlow=-1;
-            for(let dx=-40; dx<=40; dx+=2){
-                let wx = lx + dx, wz = lz + zLair;
-                let h = this.getTerrainY(wx, wz).y;
-                let ridgeW = this.ridgeNoise(wx*0.12, wz*0.12) > 0.68 ? 4 : 0;
-                let score = h + ridgeW;
-                if(this.flowMap){
-                    const gx = Math.round((wx+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
-                    const gz = Math.round((wz+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
-                    score -= (this.flowMap[gz*(CONFIG.tSeg+1)+gx] || 0) * 0.4;
-                }
-                if(score > bestH){ bestH = score; bestX = wx; }
-            }
-            let wx = bestX, wz = lz + zLair;
-            let h = this.getTerrainY(wx, wz).y;
-            raw.push(new THREE.Vector3(wx, h+0.8, wz));
+        const isHui = (state.d === 'huilong' && state.zutai && state.face === '0');
+        const segments = [
+            {name:'祖山', z0:-150, z1:-120, W:32, H:28, form:'mu',  curve:0},
+            {name:'開帳', z0:-118, z1:-90,  W:78, H:14, form:'mu',  curve:0},
+            {name:'束氣', z0:-88,  z1:-66,  W:14, H:18, form:'mu',  curve:0},
+            {name:'蜂腰', z0:-64,  z1:-42,  W:6,  H:22, form:'mu',  curve:0},
+            {name:'跌斷', z0:-40,  z1:-20,  W:18, H:16, form:'tu',  curve:0},
+            {name:'入首', z0:-18,  z1:0,    W:24, H:12, form:'jin', curve:0}
+        ];
+        if(isHui){
+            segments.forEach(s=> s.curve = 0.025 * (s.z0 + 75));
         }
-        // Catmull-Rom平滑
+        const segRecords = [];
+        const raw=[];
+        for(const seg of segments){
+            const n = 16;
+            const dzSpan = seg.z1 - seg.z0;
+            for(let i=0; i<=n; i++){
+                const t = i/n;
+                const zLair = seg.z0 + t * dzSpan;
+                const baseX = 0;
+                const curveX = seg.curve * Math.pow(zLair + 75, 2);
+                const wx = lx + baseX + curveX;
+                const wz = lz + zLair;
+                const wHalf = seg.W * (0.5 + 0.5 * Math.cos(t * Math.PI * 2 - Math.PI)) * 0.5;
+                let bestX = wx, bestScore = -9999;
+                for(let dx = -wHalf*1.3; dx <= wHalf*1.3; dx += 1.5){
+                    const cx = wx + dx;
+                    const cz = wz;
+                    const h = this.getTerrainY(cx, cz, this._ptT).y;
+                    let flowW = 0;
+                    if(this.flowMap){
+                        const gx = Math.round((cx+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                        const gz = Math.round((cz+CONFIG.tSize/2)/(CONFIG.tSize/CONFIG.tSeg));
+                        flowW = (this.flowMap[gz*(CONFIG.tSeg+1)+gx] || 0) * 0.5;
+                    }
+                    const ridgeNoise = this.ridgeNoise(cx*0.12, cz*0.12) * 4;
+                    const heightGuide = (seg.name === '開帳' ? Math.sin(t*Math.PI) * seg.H * 0.4
+                                          : seg.name === '束氣' ? -Math.sin(t*Math.PI) * 4
+                                          : seg.name === '跌斷' ? (1-t) * 8
+                                          : seg.name === '入首' ? t * 6
+                                          : seg.H * 0.5);
+                    const score = h + ridgeNoise - flowW + heightGuide;
+                    if(score > bestScore){ bestScore = score; bestX = cx; }
+                }
+                if(state.degree){
+                    const dx2 = bestX - lx, dz2 = wz - lz;
+                    const _r = rotDeg(dx2, dz2, state.degree);
+                    bestX = lx + _r[0];
+                }
+                const finalZ = lz + zLair;
+                const h = this.getTerrainY(bestX, finalZ, this._ptT).y;
+                raw.push(new THREE.Vector3(bestX, h+0.8, finalZ));
+            }
+            segRecords.push({
+                name: seg.name, z0: seg.z0, z1: seg.z1, W: seg.W, H: seg.H,
+                form: seg.form, curve: seg.curve, samples: n+1
+            });
+        }
         const smooth=[];
         for(let i=0;i<raw.length;i++){
             if(i===0||i===raw.length-1){ smooth.push(raw[i].clone()); continue; }
             let p0=raw[i-1], p1=raw[i], p2=raw[i+1];
-            let x=(p0.x + 4*p1.x + p2.x)/6, z=(p0.z + 4*p1.z + p2.z)/6, y=(p0.y + 4*p1.y + p2.y)/6;
+            const x=(p0.x + 4*p1.x + p2.x)/6;
+            const z=(p0.z + 4*p1.z + p2.z)/6;
+            const y=(p0.y + 4*p1.y + p2.y)/6;
             smooth.push(new THREE.Vector3(x,y,z));
         }
         this.dragonRidge = smooth;
+        this.dragonSegments = segRecords;
         return smooth;
     },
     extractDragonRidge(steps=90){
@@ -7151,7 +7192,7 @@ const Physics = {
                     
                     float safeDist = max(0.5, -mvPosition.z);
                     // 速度越快粒子拉伸越大、尺寸更明顯
-                    gl_PointSize = clamp((110.0 / safeDist) * (1.2 + vSpeed * 0.35), 3.5, 80.0);
+                    gl_PointSize = clamp((105.0 / safeDist) * (1.0 + vSpeed * 0.22), 3.2, 42.0);
                 }
             `,
             fragmentShader: `
@@ -7178,9 +7219,9 @@ const Physics = {
                     
                     // 增加頭部亮核＋尾部漸變衰減，一眼看出粒子「往哪裡流」
                     float headToTail = clamp(rotatedUV.x, 0.0, 1.0);
-                    float intensity = pow(headToTail, 1.5) * (1.0 + vSpeed * 0.3);
+                    float intensity = pow(headToTail, 1.3) * (1.0 + vSpeed * 0.35);
                     
-                    gl_FragColor = vec4(vColor * (0.65 + intensity * 0.25), texColor.a * clamp(0.12 + intensity * 0.28, 0.08, 0.45));
+                    gl_FragColor = vec4(vColor * (0.80 + intensity * 0.30), texColor.a * clamp(0.18 + intensity * 0.42, 0.12, 0.72));
                 }
             `,
             transparent: true,
@@ -7251,7 +7292,7 @@ const Physics = {
 				this.pVel[i].set((Math.random()-0.5)*0.5, 0, 3.5);
 			} else {
 				this.pState[i] = 0; this.colorDirty = true;
-				this.pCol[i*3]=0.4; this.pCol[i*3+1]=0.8; this.pCol[i*3+2]=0.6; 
+				this.pCol[i*3]=0.38; this.pCol[i*3+1]=0.78; this.pCol[i*3+2]=0.58; // 統一初始與循環青氣明度
 			}
 			// 錯峰離散化：打破 600 幀同步共振，維持時間流連續性
 			this.pLife[i] = Math.random() * 600;
@@ -7427,8 +7468,8 @@ const Physics = {
                 Engine3D.updateProbeField();
             }
             if (state.vHeat && AppState.frames % 4 === 0) {
-                // 將探測圖以 15% 透明度畫上去，作為粒子拖影的 fade 背景！
-                Engine3D.hCtx.globalAlpha = 0.15;
+                // 提升探測底圖疊加透明度至 45%，使全域吉凶網格清晰顯現
+                Engine3D.hCtx.globalAlpha = 0.45;
                 Engine3D.hCtx.drawImage(Engine3D.probeCanvas, 0, 0);
                 Engine3D.hCtx.globalAlpha = 1.0;
             } else if (!state.vHeat && AppState.frames % 4 === 0) {
@@ -7442,13 +7483,13 @@ const Physics = {
             Engine3D.hCtx.fillRect(0, 0, 256, 256);
             // 疊加 qiGrid 熱力（每 4 幀一次）
             if (Physics.qiGrid && Physics.maxQi > 0) {
-                for (let _gy=0; _gy<64; _gy+=4) {
-                    for (let _gx=0; _gx<64; _gx+=4) {
+                for (let _gy=0; _gy<64; _gy+=2) {
+                    for (let _gx=0; _gx<64; _gx+=2) {
                         let _qi = Physics.qiGrid[_gy*64+_gx] / Physics.maxQi;
-                        if (_qi > 0.08) {
-                            let _alpha = Math.min(0.35, _qi * 0.6);
+                        if (_qi > 0.05) {
+                            let _alpha = Math.min(0.55, _qi * 0.85);
                             Engine3D.hCtx.fillStyle = `rgba(255, 215, 0, ${_alpha.toFixed(2)})`;
-                            Engine3D.hCtx.fillRect(_gx*4, _gy*4, 4, 4);
+                            Engine3D.hCtx.fillRect(_gx*4, _gy*4, 8, 8);
                         }
                     }
                 }
@@ -8238,28 +8279,28 @@ const Physics = {
             if (heatDrawFrame && y > -8 && (st === 1 || st === 2 || (i % 4 === 0))) {
                 let hx = (x / CONFIG.tSize + 0.5) * 256; 
                 let hz = (z / CONFIG.tSize + 0.5) * 256;
-                let radius = (st === 2) ? 14.0 : (st === 1 ? 16.0 : (st === 3 ? 10.0 : 8.0));
+                let radius = (st === 2) ? 18.0 : (st === 1 ? 20.0 : (st === 3 ? 13.0 : 10.0));
                 
                 let grad = Engine3D.hCtx.createRadialGradient(hx, hz, 0, hx, hz, radius);
                 if (st === 2) {
                     // 聚氣融結：柔金核心 ➔ 翡翠光暈
-                    grad.addColorStop(0.0, 'rgba(215, 175, 55, 0.22)');
-                    grad.addColorStop(0.4, 'rgba(170, 125, 35, 0.10)');
+                    grad.addColorStop(0.0, 'rgba(225, 185, 55, 0.40)');
+                    grad.addColorStop(0.45, 'rgba(175, 130, 35, 0.18)');
                     grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
                 } else if (st === 1) {
                     // 形煞衝射：絳紅 ➔ 煞氣邊緣
-                    grad.addColorStop(0.0, 'rgba(200, 45, 35, 0.25)');
-                    grad.addColorStop(0.5, 'rgba(140, 25, 20, 0.10)');
+                    grad.addColorStop(0.0, 'rgba(215, 45, 35, 0.45)');
+                    grad.addColorStop(0.5, 'rgba(150, 30, 20, 0.20)');
                     grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
                 } else if (st === 3) {
                     // 風吹氣散：淡青冷光
-                    grad.addColorStop(0.0, 'rgba(70, 150, 220, 0.25)');
-                    grad.addColorStop(0.5, 'rgba(25, 80, 160, 0.10)');
+                    grad.addColorStop(0.0, 'rgba(75, 160, 235, 0.42)');
+                    grad.addColorStop(0.5, 'rgba(30, 90, 175, 0.18)');
                     grad.addColorStop(1.0, 'rgba(0, 50, 150, 0.0)');
                 } else {
                     // 隨龍行度：淡雅青玉色
-                    grad.addColorStop(0.0, 'rgba(35, 180, 115, 0.16)');
-                    grad.addColorStop(0.6, 'rgba(15, 130, 80, 0.06)');
+                    grad.addColorStop(0.0, 'rgba(40, 195, 125, 0.28)');
+                    grad.addColorStop(0.6, 'rgba(18, 140, 85, 0.12)');
                     grad.addColorStop(1.0, 'rgba(10, 100, 60, 0.0)');
                 }
                 
@@ -8362,15 +8403,15 @@ const Physics = {
                 this.pState[i] = 2; this.colorDirty = true;
                 this.pSettleLife[i] = 0.0;
                    if (state.xing === 'jin') {
-                       this.pCol[i*3]=0.5; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.6; 
+                       this.pCol[i*3]=0.85; this.pCol[i*3+1]=0.82; this.pCol[i*3+2]=0.95; 
                    } else if (state.xing === 'mu') {
-                       this.pCol[i*3]=0.2; this.pCol[i*3+1]=0.6; this.pCol[i*3+2]=0.3; 
+                       this.pCol[i*3]=0.30; this.pCol[i*3+1]=0.85; this.pCol[i*3+2]=0.45; 
                    } else if (state.xing === 'shui') {
-                       this.pCol[i*3]=0.1; this.pCol[i*3+1]=0.4; this.pCol[i*3+2]=0.8; 
+                       this.pCol[i*3]=0.25; this.pCol[i*3+1]=0.70; this.pCol[i*3+2]=1.00; 
                    } else if (state.xing === 'tu') {
-                       this.pCol[i*3]=0.8; this.pCol[i*3+1]=0.5; this.pCol[i*3+2]=0.1; 
+                       this.pCol[i*3]=0.95; this.pCol[i*3+1]=0.68; this.pCol[i*3+2]=0.18; 
                    } else {
-                       this.pCol[i*3]=0.8; this.pCol[i*3+1]=0.2; this.pCol[i*3+2]=0.4; 
+                       this.pCol[i*3]=0.95; this.pCol[i*3+1]=0.35; this.pCol[i*3+2]=0.45; 
                    }
                }
            }
@@ -8476,8 +8517,8 @@ const Physics = {
                 let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + vz * 22.0));
                 let endY = Engine3D.getTerrainY(endX, endZ, this._ptT).y;
                 
-                posArr[ptr++] = w.bx; posArr[ptr++] = ty > -5 ? ty + 1.5 : -100; posArr[ptr++] = w.bz;
-                posArr[ptr++] = endX; posArr[ptr++] = endY > -5 ? endY + 1.5 : -100; posArr[ptr++] = endZ;
+                posArr[ptr++] = w.bx; posArr[ptr++] = ty > -5 ? ty + 2.2 : -100; posArr[ptr++] = w.bz;
+                posArr[ptr++] = endX; posArr[ptr++] = endY > -5 ? endY + 2.2 : -100; posArr[ptr++] = endZ;
             }
             Engine3D.windSegments.geometry.attributes.position.needsUpdate = true;
         }
@@ -8605,7 +8646,7 @@ const Physics = {
                     else Engine3D.taijiDecalMesh.material.color.setHex(0xa67c24);
                 } else {
                     Engine3D.taijiDecalMesh.scale.set(1.0, 1.0, 1.0);
-                    Engine3D.taijiDecalMesh.material.color.setHex(0xa67c24);
+                    Engine3D.taijiDecalMesh.material.color.setHex(0xdfab35);
                 }
             }
             if (Engine3D.compassGroup) {
@@ -8633,7 +8674,7 @@ const Physics = {
                 Engine3D.zhihuaGroup.position.set(this.bestLairPos.x, this.bestLairPos.y + 0.5, this.bestLairPos.z);
                 Engine3D.zhihuaMesh2.rotation.y += 0.2 * dt; 
             }
-            let targetOpacity = (hasRealXue && maxQi > 5.0) ? Math.min(0.2, maxQi / 150.0) : 0.0;
+            let targetOpacity = (hasRealXue && maxQi > 5.0) ? Math.min(0.18, maxQi / 250.0) : 0.0; // 呈現清透柔和的靈氣光柱
             Engine3D.lairMarker.material.opacity += (targetOpacity - Engine3D.lairMarker.material.opacity) * 0.05;
         }
         if (typeof AppState.sensors.sunlight === 'undefined') AppState.sensors.sunlight = 1.0;
