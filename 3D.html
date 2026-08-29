@@ -133,7 +133,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         </div>
         <div class="ctrl-row"><span class="ctrl-label" title="龍勢非單一標籤，需由祖脈→迎送→過峽束氣→跌斷→穿帳→入首連續生成；此處僅決定起伏傾向，吉凶由地形與水口驗證">龍勢傾向*</span><div class="seg" data-k="d"><button data-v="sheng">躍龍</button><button data-v="huilong">迴龍顧祖</button><button data-v="heng">橫龍</button><button data-v="ji">急龍</button><button data-v="huan">緩龍</button><button data-v="gufeng" class="danger" title="孤峰無護八風吹穴，非正穴">孤峰(凶)</button><button data-v="si" class="danger" title="枯槁無起伏、草木不生">死龍(枯)</button><button data-v="po" class="danger">破碎(崩)</button></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px; line-height:1.4;">＊龍脈由地形連續推導（祖山→開帳→束氣→跌斷→入首），選項僅為行度傾向；平洋以水為龍請切「平洋水龍」</div>
-        <div class="ctrl-row" style="background:rgba(10,145,161,0.08);border:1px dashed #0a91a1;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#0a91a1;">平洋局</span><div class="seg" data-k="d_pingyang"><button data-v="pingyang" id="btn-pingyang-env" onclick="(function(){let b=document.querySelector(&quot;.seg[data-k=d] button[data-v=pingyang]&quot;); if(!b){let seg=document.querySelector(&quot;.seg[data-k=d]&quot;); let nb=document.createElement(&quot;button&quot;); nb.dataset.v=&apos;pingyang&apos;; nb.style.display=&apos;none&apos;; seg.appendChild(nb); b=nb;} b.click();})()" title="平洋以水為龍，高一寸山低一寸水，需微高差與水網">平洋水龍(獨立環境)</button><span style="font-size:10px;color:#0a91a1;line-height:1.2;">低平水繞・微高為穴・非山龍一項</span></div></div>
+        <div class="ctrl-row" style="background:rgba(10,145,161,0.08);border:1px dashed #0a91a1;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#0a91a1;">平洋局</span><div class="seg" data-k="d_pingyang"><button data-v="pingyang" id="btn-pingyang-env" title="平洋以水為龍，高一寸山低一寸水，需微高差與水網">平洋水龍(獨立環境)</button><span style="font-size:10px;color:#0a91a1;line-height:1.2;">低平水繞・微高為穴・非山龍一項</span></div></div>
         <div class="ctrl-row" style="background:rgba(63,107,82,0.08);border:1px dashed #3f6b52;border-radius:6px;padding:6px; margin-top:6px;"><span class="ctrl-label" style="color:#3f6b52;" title="沿主脊採樣星體(金圓/木直/水波/火尖/土方)形態變換次數，<3次=老硬未化">龍脈·行度(剝換)</span><div class="seg" data-k="bohuan"><button data-v="full" class="erod-btn">完全剝換≥3</button><button data-v="partial">部分1-2</button><button data-v="no" class="danger">未剝換(凶)</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="玄武後靠：垂頭有情/屏風端正/拒屍僵直凶">玄武後靠</span><div class="seg" data-k="mn"><button data-v="you">垂頭(有情)</button><button data-v="pingfeng">屏風(端正)</button><button data-v="kang" class="danger" title="僵直無情如屍橫拒">拒屍(凶)</button><button data-v="po" class="danger">破碎(凶)</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="四象不刻板：青龍亦可抬頭凶惡，白虎亦可低伏有情；此處列舉為常見俗語對照，實際以形態與相對穴位判定">左砂（青龍）</span><div class="seg" data-k="ml"><button data-v="you">有情環抱</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="ya" class="danger">逼壓(示例)</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
@@ -1070,17 +1070,18 @@ const Rules = {
             Wa = Math.min(Wa, 20); // 正神下水直接摧毀水法有效性，不可再得高分
         } 
         if (state.face === '0' && state.d === 'pingyang' && !isBadWaterZero) zeroGodBonus += 10; 
-        let dToBoundary15 = Math.abs((((deg % 15) + 15) % 15) - 7.5);
-        let dToBoundary45 = Math.abs((((deg % 45) + 45) % 45) - 22.5);
-        let dToCenter15 = 7.5 - dToBoundary15;
+        let dToCenter15 = Math.abs((((deg % 15) + 15) % 15) - 7.5);
+        let dToCenter45 = Math.abs((((deg % 45) + 45) % 45) - 22.5);
+        let dToBoundary15 = 7.5 - dToCenter15;
+        let dToBoundary45 = 22.5 - dToCenter45;
         // 120分金/72穿山/60透地：每山 5° 分三，丙丁庚辛可用线微调
-        let fenjinBonus = (dToCenter15 < 2.0) ? 2 : (dToCenter15 > 5.5 ? -2 : 0);
+        let fenjinBonus = (dToBoundary15 < 2.0 ? -2 : (dToBoundary15 > 5.5 ? 2 : 0)); 
         zeroGodBonus += fenjinBonus;
-        let chuanshanBonus = (dToCenter15 < 1.0) ? 1.5 : (dToCenter15 < 2.8 ? 0.5 : 0);
+        let chuanshanBonus = (dToBoundary15 < 1.0 ? -1.5 : (dToBoundary15 < 2.8 ? -0.5 : 0)); 
         zeroGodBonus += chuanshanBonus;
         let dToToudi = Math.abs((((deg % 6)+6)%6)-3);
-        let toudiBonus = (dToCenter15 < 1.5) ? 1 : 0;
-        let toudi60Bonus = (dToToudi < 0.8) ? 0.8 : 0;
+        let toudiBonus = (dToBoundary15 < 1.5 ? -1 : 0);
+        let toudi60Bonus = (dToToudi < 0.8 ? -0.8 : 0);
         zeroGodBonus += toudiBonus + toudi60Bonus;
         let shanKongRaw = Math.max(0, 1.0 - dToBoundary15 / 3.0);
         shanKongRaw = shanKongRaw * shanKongRaw * (3.0 - 2.0 * shanKongRaw);
@@ -3162,6 +3163,19 @@ const UI = {
                 AppState.resetTo(b.dataset.p);
             });
         });
+        document.getElementById('btn-pingyang-env')?.addEventListener('click', (e) => {
+            e.target.blur();
+            let b = document.querySelector('.seg[data-k=d] button[data-v=pingyang]');
+            if (!b) {
+                let seg = document.querySelector('.seg[data-k=d]');
+                let nb = document.createElement('button');
+                nb.dataset.v = 'pingyang';
+                nb.style.display = 'none';
+                seg.appendChild(nb);
+                b = nb;
+            }
+            b.click();
+        });
         document.getElementById('btn-auto-spot')?.addEventListener('click', (e) => {
             e.target.blur();
             Engine3D.autoFindBestLair();
@@ -4965,18 +4979,18 @@ const Engine3D = {
 
                 if (score > 0.2) {
                     let intensity = Math.min(1.0, (score - 0.2) / 0.8);
-                    let alpha = 0.10 + intensity * 0.22;
-                    grad.addColorStop(0, `rgba(225, 185, 45, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(180, 135, 20, ${(alpha * 0.4).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(225, 185, 45, 0)');
+                    let alpha = 0.05 + intensity * 0.12; // 調降 Alpha 避免網格重疊過亮
+                    grad.addColorStop(0, `rgba(210, 165, 35, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(160, 115, 15, ${(alpha * 0.35).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(210, 165, 35, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 } else if (score < -0.2) {
                     let intensity = Math.min(1.0, (-score - 0.2) / 0.8);
-                    let alpha = 0.12 + intensity * 0.25;
-                    grad.addColorStop(0, `rgba(215, 45, 35, ${alpha.toFixed(2)})`);
-                    grad.addColorStop(0.7, `rgba(160, 25, 20, ${(alpha * 0.4).toFixed(2)})`);
-                    grad.addColorStop(1, 'rgba(215, 45, 35, 0)');
+                    let alpha = 0.06 + intensity * 0.14; // 調降 Alpha 避免網格重疊過亮
+                    grad.addColorStop(0, `rgba(195, 35, 25, ${alpha.toFixed(2)})`);
+                    grad.addColorStop(0.7, `rgba(140, 20, 15, ${(alpha * 0.35).toFixed(2)})`);
+                    grad.addColorStop(1, 'rgba(195, 35, 25, 0)');
                     ctx.fillStyle = grad;
                     ctx.beginPath(); ctx.arc(px, pz, rad, 0, Math.PI * 2); ctx.fill();
                 }
@@ -6666,9 +6680,9 @@ const Engine3D = {
                 if (inTaijiVisual && slope < 1.8 && y > waterLvlCheck) {
                     let soilCenterFactor = Math.exp(-(Math.pow(x - lxColor, 2) + Math.pow(z - dynTaijiZ_visual, 2))/80);
                     if (state.soil === 'wuse') {
-                        // 五色土：呈現金紅黃紫微帶玉色的溫潤五彩暈
+                        // 五色土：呈現溫潤赭黃與赭石五彩暈（降低飽和與明度，顯現厚重土質）
                         let hueShift = 0.08 + Math.sin(x * 0.5 + z * 0.5) * 0.08;
-                        tempSoilColor.setHSL(hueShift, 0.85, 0.52); 
+                        tempSoilColor.setHSL(hueShift, 0.55, 0.40); 
                         c.lerp(tempSoilColor, soilCenterFactor * 0.92);
                     } else if (state.soil === 'yuni') {
                         // 陰濕淤泥：呈現漆黑帶深綠的黏滯爛泥色
@@ -8228,24 +8242,24 @@ const Physics = {
                 
                 let grad = Engine3D.hCtx.createRadialGradient(hx, hz, 0, hx, hz, radius);
                 if (st === 2) {
-                    // 聚氣融結：燦金核心 ➔ 翡翠光暈（柔和化）
-                    grad.addColorStop(0.0, 'rgba(235, 195, 65, 0.45)');
-                    grad.addColorStop(0.4, 'rgba(185, 138, 46, 0.20)');
+                    // 聚氣融結：柔金核心 ➔ 翡翠光暈
+                    grad.addColorStop(0.0, 'rgba(215, 175, 55, 0.22)');
+                    grad.addColorStop(0.4, 'rgba(170, 125, 35, 0.10)');
                     grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
                 } else if (st === 1) {
-                    // 形煞衝射：柔和絳紅 ➔ 煞氣邊緣
-                    grad.addColorStop(0.0, 'rgba(220, 50, 40, 0.50)');
-                    grad.addColorStop(0.5, 'rgba(160, 30, 25, 0.20)');
+                    // 形煞衝射：絳紅 ➔ 煞氣邊緣
+                    grad.addColorStop(0.0, 'rgba(200, 45, 35, 0.25)');
+                    grad.addColorStop(0.5, 'rgba(140, 25, 20, 0.10)');
                     grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
                 } else if (st === 3) {
-                    // 風吹氣散：冰藍冷光（被風剝離的氣流）
-                    grad.addColorStop(0.0, 'rgba(80, 180, 255, 0.60)');
-                    grad.addColorStop(0.5, 'rgba(30, 100, 200, 0.25)');
+                    // 風吹氣散：淡青冷光
+                    grad.addColorStop(0.0, 'rgba(70, 150, 220, 0.25)');
+                    grad.addColorStop(0.5, 'rgba(25, 80, 160, 0.10)');
                     grad.addColorStop(1.0, 'rgba(0, 50, 150, 0.0)');
                 } else {
-                    // 隨龍行度：溫潤青玉色
-                    grad.addColorStop(0.0, 'rgba(40, 220, 140, 0.35)');
-                    grad.addColorStop(0.6, 'rgba(20, 160, 100, 0.12)');
+                    // 隨龍行度：淡雅青玉色
+                    grad.addColorStop(0.0, 'rgba(35, 180, 115, 0.16)');
+                    grad.addColorStop(0.6, 'rgba(15, 130, 80, 0.06)');
                     grad.addColorStop(1.0, 'rgba(10, 100, 60, 0.0)');
                 }
                 
@@ -8587,11 +8601,11 @@ const Physics = {
                     let heartBeat = Math.pow(Math.sin(AppState.frames * 0.08), 64.0); 
                     let spacetimeWarp = 1.0 + (heartBeat * Math.min(0.8, energyDensity * 0.01));
                     Engine3D.taijiDecalMesh.scale.set(spacetimeWarp, spacetimeWarp, 1.0);
-                    if (heartBeat > 0.8) Engine3D.taijiDecalMesh.material.color.setHex(0xffe599);
-                    else Engine3D.taijiDecalMesh.material.color.setHex(0xcda240);
+                    if (heartBeat > 0.8) Engine3D.taijiDecalMesh.material.color.setHex(0xd49b28); // 沉穩溫潤金，避免加法混色閃白
+                    else Engine3D.taijiDecalMesh.material.color.setHex(0xa67c24);
                 } else {
                     Engine3D.taijiDecalMesh.scale.set(1.0, 1.0, 1.0);
-                    Engine3D.taijiDecalMesh.material.color.setHex(0xcda240);
+                    Engine3D.taijiDecalMesh.material.color.setHex(0xa67c24);
                 }
             }
             if (Engine3D.compassGroup) {
