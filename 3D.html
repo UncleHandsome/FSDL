@@ -223,6 +223,14 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
                 <button id="btn-next-preset" style="background:#5a8a69; color:#fff; border:none; border-radius:4px; padding:4px 8px; cursor:pointer;" title="下一筆設定 (PageDown)">▶</button>
             </div>
         </div>
+        <div class="ctrl-row" style="margin-top:4px;">
+            <div class="seg" style="display:flex; gap:4px; align-items:center;">
+                <span style="font-size:11px; color:#555;">Seed</span>
+                <input type="text" id="preset-seed-input" placeholder="0" style="flex:1; font-size:11px; padding:3px 4px; border:1px solid rgba(0,0,0,0.15); border-radius:3px; background:rgba(255,255,255,0.6);" title="預設 seed：相同 seed 可重現完全相同的隨機格局">
+                <button id="btn-seed-apply" style="background:#0a91a1; color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:11px; cursor:pointer;" title="套用此 seed 進行重現">重現</button>
+                <button id="btn-seed-random" style="background:#3f6b52; color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:11px; cursor:pointer;" title="隨機產生新 seed">🎲 隨機</button>
+            </div>
+        </div>
         <div class="ctrl-row" style="margin-top:5px;">
             <div class="seg" style="display:flex; gap:6px;">
                 <button id="btn-dry-run" style="background:#22201c; color:#f6f1e7; font-weight:bold; border-radius:6px; padding:6px; letter-spacing:1px; flex:1;">啟動 Dry Run</button>
@@ -280,6 +288,11 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="box" id="xuecert-box" style="padding:10px; border:1px dashed var(--jade);">
             <h3 style="margin:0 0 6px 0;font-size:13px;color:var(--jade);font-family:'Noto Serif TC',serif;">尋龍點穴報告 <span style="font-size:10px; color:#666;">(幾何極值驗證)</span></h3>
             <div id="xuecert-detail" style="font-size:11px; color:#333; line-height:1.5; max-height:120px; overflow-y:auto;">尚未點穴，請按「尋龍點穴」或手動點擊地形</div>
+        </div>
+        <div class="box" id="voxel-heat-box" style="padding:10px;">
+            <h3 style="margin:0 0 6px 0;font-size:13px;color:#0a91a1;font-family:'Noto Serif TC',serif;">3D 體素 + 局部熱力 <span id="voxel-heat-overall" style="font-size:11px; color:#888;">—</span></h3>
+            <canvas id="voxel-heat-canvas" width="256" height="128" style="width:100%; height:128px; border:1px solid #0a91a1; border-radius:4px; background:#000;"></canvas>
+            <div id="voxel-heat-text" style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;">3D 體素風場（16×16×6）等待更新 · 局部熱力（穴場 ±30m，256×256）已就緒</div>
         </div>
         <div class="box" id="multi-score-box" style="padding:10px;">
             <h3 style="margin:0 0 6px 0;font-size:13px;color:var(--jade);font-family:'Noto Serif TC',serif;">點穴多維評分鏈 <span id="multi-score-overall" style="font-size:11px; color:#888;">—</span></h3>
@@ -1546,6 +1559,17 @@ const Rules = {
     // 統一評分函數：手動點穴 / 自動尋龍皆共用，確保口徑一致
     scoreXue(x, z){
         return this.xueCert(x, z);
+    },
+    // 預設可重現驗證 API：同 seed 兩次生成必須完全一致
+    verifyPreseed(seed){
+        if(!Number.isFinite(seed)) return {pass: false, 錯誤: 'seed 需為整數'};
+        // 修正：seed=0 與 0 >>> 0 衝突，使用 |0 + 1 確保至少為 1
+        const _seed = ((seed|0) + 1) >>> 0;
+        this._presSeed = _seed;
+        const r1 = this.generateAuspiciousPreset(0);
+        this._presSeed = _seed;
+        const r2 = this.generateAuspiciousPreset(0);
+        return {pass: JSON.stringify(r1) === JSON.stringify(r2), 對比: {d1: r1.d, d2: r2.d, d_match: r1.d === r2.d, w1: r1.w, w2: r2.w, w_match: r1.w === r2.w}, seed};
     },
     xueCert(x, z) {
         // 手動點穴穴證：複用尋龍點穴的多因子幾何，給出現場證據報告（警告不阻擋）
@@ -2890,7 +2914,7 @@ window.DryRunTool = {
         const isBadWaterCompass = Rules.BAD_WATERS.includes(st.w);
         let zeroGodStatus = "無見水";
         if (st.w !== 'none') {
-            const _gd = Rules.godFlags(deg, state.yun || '9', 'tian');
+            const _gd = Rules.godFlags(deg, st.yun || '9', 'tian');
             const _pn = Rules.GOD_PALACES[_gd.idx] + '宮';
             const _yn = (parseInt(st.yun) || 9) + '運';
             if (_gd.idx === _gd.zero) zeroGodStatus = isBadWaterCompass ? (_yn + _pn + "見水 (零神方位但為凶水, 不吉反凶)") : (_yn + _pn + "見水 (零神催財大吉)");
@@ -3462,6 +3486,38 @@ const UI = {
             const body = r.細項.map(c=>`${c.通過?'✓':'✗'} ${c.項}: ${c.說明}`).join('<br>');
             Engine3D.showToast(`${head}<br>${body}`, ok?3000:5000);
         });
+        // 預設 seed UI：可重現 + 隨機按鈕
+        const seedInput = document.getElementById('preset-seed-input');
+        const seedApplyBtn = document.getElementById('btn-seed-apply');
+        const seedRandomBtn = document.getElementById('btn-seed-random');
+        if(seedInput){
+            seedInput.value = (AppState.current.presetSeed != null) ? AppState.current.presetSeed : '';
+        }
+        if(seedApplyBtn){
+            seedApplyBtn.addEventListener('click', (e)=>{
+                e.target.blur();
+                const v = parseInt(seedInput.value);
+                if(!isNaN(v)){
+                    Rules._presSeed = v >>> 0;
+                    AppState.current.presetSeed = v;
+                    Engine3D.showToast(`已套用 seed=${v}，下次重現格局將使用此 seed`, 2400);
+                    UI.scheduleUpdate(true);
+                } else {
+                    Engine3D.showToast('⚠️ seed 需為整數', 2000);
+                }
+            });
+        }
+        if(seedRandomBtn){
+            seedRandomBtn.addEventListener('click', (e)=>{
+                e.target.blur();
+                const v = Math.floor(Math.random()*1e9);
+                Rules._presSeed = v >>> 0;
+                AppState.current.presetSeed = v;
+                if(seedInput) seedInput.value = v;
+                Engine3D.showToast(`已隨機產生新 seed=${v}，下次生成將使用此 seed`, 2400);
+                UI.scheduleUpdate(true);
+            });
+        }
         document.getElementById('btn-next-preset')?.addEventListener('click', (e) => {
             e.target.blur();
             AppState.nextHistory(e && e.shiftKey);
@@ -3983,6 +4039,7 @@ const UI = {
         document.getElementById('v-text').innerText = '有效：龍' + effScore[0] + ' 穴' + effScore[1] + ' 砂' + effScore[2] + ' 水' + effScore[3] + ' 向' + effScore[4] + ' (基礎:' + Math.round(rawScore[0]) + '/' + Math.round(rawScore[1]) + '/' + Math.round(rawScore[2]) + '/' + Math.round(rawScore[3]) + '/' + Math.round(rawScore[4]) + ')\n\n' + vObj.text;
         this.renderFlyStar();
         this.renderSoilProfile();
+        this.renderVoxelHeat();
         this.renderXueCert();
         this.renderMingtangMulti();
         this.renderDragonContinuity();
@@ -4217,6 +4274,64 @@ const UI = {
             }catch(e){}
         }
     },
+    renderVoxelHeat(){
+        if(AppState.frames % 30 !== 0) return; // 每 30 幀重繪
+        const cv = document.getElementById('voxel-heat-canvas');
+        const text = document.getElementById('voxel-heat-text');
+        const overall = document.getElementById('voxel-heat-overall');
+        if(!cv || !this.heatCanvasL || !this.hCtxL) return;
+        if(this.voxelDirty){ try{ Engine3D.update3DVoxel(); }catch(e){} }
+        const ctx = this.hCtxL;
+        // 將局部熱力畫到主視覺 canvas (將 256×256 resize 到 256×128 顯示 3D 體素縱切面)
+        const mainCtx = cv.getContext('2d');
+        mainCtx.fillStyle = '#000';
+        mainCtx.fillRect(0, 0, cv.width, cv.height);
+        // 局部熱力圖 (16×16 對應到 256×64 上面)
+        const lhImg = ctx.getImageData(0, 0, 256, 64);  // 上半部
+        const lhCanvas = document.createElement('canvas');
+        lhCanvas.width = 256; lhCanvas.height = 64;
+        lhCanvas.getContext('2d').putImageData(lhImg, 0, 0);
+        mainCtx.drawImage(lhCanvas, 0, 0, 256, 64);
+        // 3D 體素風場投影 (XZ 截面 + Y 截面) 16×16 + 6 層
+        if(this.voxelGridX){
+            const N = Physics.voxelSize, H = Physics.voxelHeight;
+            const cellW = 256 / N;
+            // 繪製每層 XZ 的流場（y 軸=0~35m, y=h*35/H）
+            for(let h=0; h<H; h++){
+                const ypx = 64 + (h / (H-1)) * 60;
+                ctx.fillStyle = `rgba(255, 200, 100, ${0.05 + 0.15 * h / H})`;
+                for(let gz=0; gz<N; gz++){
+                    for(let gx=0; gx<N; gx++){
+                        const idx = (h * N + gz) * N + gx;
+                        const vx = this.voxelGridX[idx];
+                        const vz = this.voxelGridZ[idx];
+                        const m = Math.hypot(vx, vz);
+                        if(m < 0.3) continue;
+                        const cx = gx * cellW + cellW/2;
+                        const cy = gz * cellW + cellW/2;
+                        const ang = Math.atan2(vz, vx);
+                        mainCtx.strokeStyle = `hsla(${ang*180/Math.PI}, 80%, 60%, ${Math.min(0.9, m*0.4)})`;
+                        mainCtx.beginPath();
+                        mainCtx.moveTo(cx, ypx);
+                        mainCtx.lineTo(cx + Math.cos(ang)*Math.min(8, m*1.5), ypx + Math.sin(ang)*Math.min(8, m*1.5));
+                        mainCtx.stroke();
+                    }
+                }
+            }
+        }
+        // 整體能量（吉/凶）
+        if(this.voxelGridX){
+            let sum = 0, n = 0;
+            for(let i=0; i<this.voxelGridX.length; i++){ sum += Math.abs(this.voxelGridX[i]); n++; }
+            const avg = n>0 ? sum/n : 0;
+            if(overall){
+                if(avg < 1.5){ overall.innerText = '整體藏風 '+avg.toFixed(1)+' · 吉'; overall.style.color = '#3f6b52'; }
+                else if(avg < 3.0){ overall.innerText = '整體微風 '+avg.toFixed(1)+' · 平'; overall.style.color = '#b98a2e'; }
+                else { overall.innerText = '整體強風 '+avg.toFixed(1)+' · 散'; overall.style.color = '#a63a2b'; }
+            }
+        }
+        if(text) text.innerText = `3D 體素 ${Physics.voxelSize}×${Physics.voxelSize}×${Physics.voxelHeight} (16×16×6) 已更新 · 局部熱力 256×256 穴場 ±30m`;
+    },
     renderXueCert(){
         const el=document.getElementById('xuecert-detail');
         if(!el) return;
@@ -4299,7 +4414,19 @@ const Engine3D = {
         this.hCtx.fillStyle = 'black'; this.hCtx.fillRect(0,0,256,256);
         this.heatTex = new THREE.CanvasTexture(this.heatCanvas);
         this.heatTex.wrapS = this.heatTex.wrapT = THREE.ClampToEdgeWrapping;
-        this.heatTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy(); 
+        this.heatTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+        // 第三輪：熱力圖自適應加密網格（穴場局部 256×256 高解析度）
+        this.heatCanvasL = document.createElement('canvas');
+        this.heatCanvasL.width = 256; this.heatCanvasL.height = 256;
+        this.hCtxL = this.heatCanvasL.getContext('2d');
+        this.hCtxL.fillStyle = 'black'; this.hCtxL.fillRect(0,0,256,256);
+        this.heatTexL = new THREE.CanvasTexture(this.heatCanvasL);
+        this.heatTexL.wrapS = this.heatTexL.wrapT = THREE.ClampToEdgeWrapping;
+        // 第三輪：真正 3D 體素風場（穴場周圍 16×16×6 局部高解析度）
+        this.voxelGridX = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+        this.voxelGridY = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+        this.voxelGridZ = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+        this.voxelDirty = false;
         const terrainMat = new THREE.MeshStandardMaterial({
             vertexColors: true,
             roughness: 0.96,
@@ -6875,6 +7002,9 @@ const Engine3D = {
         this.buildDragonRidge();
         if(state.d === 'pingyang' || state.sceneMode === 'pingyang'){
             try{ this.buildPingyangShui(); }catch(e){}
+            // 第三輪：觸發局部高解析度熱力圖 + 3D 體素風場
+            try{ this.updateLocalHeatmap(); }catch(e){}
+            try{ this.update3DVoxel(); }catch(e){}
         }
         // B-10 自動生成青龍白虎護砂 + 案山 + 遠朝山，依 dragonSegments 形狀 + 穴位 xing
         try{ this.generateSandsFromSegments(xueX, xueZ, state); }catch(e){}
@@ -7170,6 +7300,76 @@ const Engine3D = {
         if (state.qin) put(ox + dxo * 7, oz + dzo * 7, 8, 4); // 禽星：下游圓墩
         if (state.hua) { put(ox + px * 7 - dxo * 2, oz + pz * 7 - dzo * 2, 24, 3.5); put(ox - px * 7 - dxo * 2, oz - pz * 7 - dzo * 2, 24, 3.5); } // 華表對峙
         if (state.shixiang) { put(ox + px * 15, oz + pz * 15, 28, 7); put(ox - px * 15, oz - pz * 15, 26, 7); } // 獅象捍門
+    },
+    // 第三輪：熱力圖自適應加密 — 穴場周圍 30m 局部 256×256 高解析度
+    updateLocalHeatmap(){
+        if(!this.heatCanvasL || !this.hCtxL || !this.heatTexL) return;
+        const state = AppState.current;
+        const [lx, lz] = effLairAnchor();
+        const ctx = this.hCtxL;
+        const W = 256, H = 256;
+        const halfR = 30; // 穴場周圍 ±30m
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, W, H);
+        const imgData = ctx.createImageData(W, H);
+        const data = imgData.data;
+        // 池式：穴前 25m 收束圈為亮金
+        for (let py = 0; py < H; py++) {
+            const wz = lz + (py / (H-1) * 2 - 1) * halfR;
+            for (let px = 0; px < W; px++) {
+                const wx = lx + (px / (W-1) * 2 - 1) * halfR;
+                const t = this.getTerrainY(wx, wz, this._ptT);
+                const idx = (py * W + px) * 4;
+                // 將地形高度對比穴場高度繪為亮度
+                const dh = (t.y - ((this.bestLairPos && this.bestLairPos.y) || 0)) / 12.0;
+                const v = Math.max(0, Math.min(1, 0.5 - dh * 0.5));
+                // HEAT_STYLE 色彩（吉=金、凶=紅、環境=藍）
+                let r, g, b;
+                if (v > 0.6) { r = 255; g = 215; b = 0; }      // 金
+                else if (v < 0.4) { r = 255; g = 60; b = 60; } // 紅
+                else { r = 100; g = 220; b = 255; }            // 環境
+                data[idx] = r; data[idx+1] = g; data[idx+2] = b; data[idx+3] = 220;
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        this.heatTexL.needsUpdate = true;
+        this.voxelDirty = true; // 觸發 3D 體素重算
+    },
+    // 第三輪：真正 3D 體素風場 — 穴場周圍 16×16×6 (xz×y) Navier-Stokes 簡化解
+    update3DVoxel(){
+        if(!this.voxelGridX){
+            this.voxelGridX = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+            this.voxelGridY = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+            this.voxelGridZ = new Float32Array(Physics.voxelSize * Physics.voxelSize * Physics.voxelHeight);
+        }
+        const state = AppState.current;
+        if(!state || !state.xia) return;
+        const [lx, lz] = effLairAnchor();
+        const N = Physics.voxelSize, H = Physics.voxelHeight, baseWind = state.wind * 0.3;
+        const cellSize = 60.0 / N;  // ±30m 對應 16 格
+        for (let h = 0; h < H; h++) {
+            const yLayer = (h + 0.5) * (35.0 / H); // 對應 0~35m
+            for (let gz = 0; gz < N; gz++) {
+                const wz = lz - 30 + gz * cellSize + cellSize/2;
+                for (let gx = 0; gx < N; gx++) {
+                    const wx = lx - 30 + gx * cellSize + cellSize/2;
+                    const idx = (h * N + gz) * N + gx;
+                    const t = this.getTerrainY(wx, wz, this._ptT);
+                    // 三維 Navier-Stokes 簡化：速度 = 背景風 - 阻擋 + 渦流上升
+                    // 上層（高 y）受地形阻擋少，下層（貼地）受影響大
+                    const obst = (t.y > yLayer) ? Math.max(0, t.y - yLayer) / 8.0 : 0;
+                    const stream = baseWind * Math.exp(-obst);
+                    // 越頂下洗效應：穴前背風側 y 較低時有下洗
+                    const downwash = (yLayer < 4 && obst > 2) ? -obst * 0.3 : 0;
+                    // 三維迴流：地形背風側 y 較低有反向流
+                    const recirculation = (obst > 4 && yLayer < 6) ? -baseWind * 0.15 : 0;
+                    this.voxelGridX[idx] = stream + recirculation * 0.5;
+                    this.voxelGridY[idx] = downwash;
+                    this.voxelGridZ[idx] = Math.sin(wx * 0.05 + yLayer * 0.2) * 0.3 * baseWind;
+                }
+            }
+        }
+        this.voxelDirty = false;
     },
     updateWaterSurfaceAndFlowDir(){
         // 三維落差水面：依 D8 流向與落差更新水面坡度與流向紋理
@@ -7609,13 +7809,23 @@ const Physics = {
     pGeom: new THREE.BufferGeometry(),
     pSys: null,
     qiGrid: new Float32Array(64 * 64),
-    windGridX: new Float32Array(64 * 64),      
-    windGridZ: new Float32Array(64 * 64),      
-    windGridX_next: new Float32Array(64 * 64), 
-    windGridZ_next: new Float32Array(64 * 64), 
+    windGridX: new Float32Array(64 * 64),
+    windGridZ: new Float32Array(64 * 64),
+    windGridX_next: new Float32Array(64 * 64),
+    windGridZ_next: new Float32Array(64 * 64),
     windGridY: new Float32Array(64 * 64),
     windGridY_next: new Float32Array(64 * 64),
     windLayers: 4,
+    // 第三輪 真正 3D 體素風場：穴場周圍 16x16x6 局部高解析度
+    voxelSize: 16,           // xz 各 16 格
+    voxelHeight: 6,         // y 6 層（貼地→35m）
+    voxelGridX: null,       // Float32Array(16*16*6)
+    voxelGridY: null,
+    voxelGridZ: null,
+    // 第三輪 熱力圖自適應加密網格：穴場局部 256×256
+    heatCanvasL: null,      // 局部高解析度 Canvas
+    heatCtxL: null,
+    heatTexL: null,
     windLayerH: [2, 8, 18, 35],
     maxQi: 0,                                  
     bestLairPos: new THREE.Vector3(0, 0, 5),
