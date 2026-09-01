@@ -317,7 +317,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="box" id="voxel-heat-box" style="padding:10px;">
             <h3 style="margin:0 0 6px 0;font-size:13px;color:#0a91a1;font-family:'Noto Serif TC',serif;">3D 體素 + 局部熱力 <span id="voxel-heat-overall" style="font-size:11px; color:#888;">—</span></h3>
             <canvas id="voxel-heat-canvas" width="256" height="128" style="width:100%; height:128px; border:1px solid #0a91a1; border-radius:4px; background:#000;"></canvas>
-            <div id="voxel-heat-text" style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;">3D 體素風場（16×16×6）等待更新 · 局部熱力（穴場 ±30m，256×256）已就緒</div>
+            <div id="voxel-heat-text" style="font-size:10px; color:#666; margin-top:4px; line-height:1.4;">3D 體素全域：32×32×4 Navier-Stokes (3D 包含 downwash/回流) · 穴場 ±30m 256×256 高解析熱力</div>
         </div>
         <div class="box" id="multi-score-box" style="padding:10px;">
             <h3 style="margin:0 0 6px 0;font-size:13px;color:var(--jade);font-family:'Noto Serif TC',serif;">點穴多維評分鏈 <span id="multi-score-overall" style="font-size:11px; color:#888;">—</span></h3>
@@ -832,6 +832,16 @@ const Rules = {
         if(state.d !== 'si' && state.d !== 'po' && state.xia && (state.xing === 'jin' || state.xing === 'mu' || state.xing === 'shui') && state.ml === 'you' && state.mr === 'you' && (state.w === 'you' || state.w === 'jiuqu') && state.an) m *= 1.15;
         if(state.d === 'huilong' && state.d !== 'si' && state.d !== 'po' && !isBadWater && state.zutai && state.face === '0') m *= 1.2;
         if (state.fengyao && state.hulong && state.zutai && state.d !== 'si' && state.d !== 'po') m *= 1.1;
+        // #1 5 軸節律：势強弱+峰谷交替+星體變換+迎送+護送疏密（取代單一 CV 偵直）
+        //     axesScore 0-100；低於 50 為呆龍/偵直；高於 80 為有機活龍
+        try{
+            if(this._lastRhythmMetrics && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng'){
+                const _ax = this._lastRhythmMetrics.axesScore || 0;
+                if(_ax < 30) m *= 0.72;
+                else if(_ax < 50) m *= 0.88;
+                else if(_ax >= 80) m *= 1.12;
+            }
+        }catch(e){}
         let deg = (state.degree !== undefined) ? ((state.degree % 360) + 360) % 360 : 0;
         let dCenterGuaLiQi = Math.abs((((deg % 45) + 45) % 45) - 22.5);
         if (Rules.isFatalSha(state)) {
@@ -2349,6 +2359,89 @@ const Rules = {
         // 死龍判定：CV<0.15 表示脊線平滑無骨（僵直），即使距離連續也算凶
         const isStiff = slopeCV < 0.15 && pts.length > 20;
         const mainOk = (gaps <= 1) && !isStiff;
+
+        // ───────────────────────────────
+        // 軸 2：峰谷交替 — 連續單調=呆龍（不同於僵直：僵直=完全均匀；呆龍=完全單調）
+        // ───────────────────────────────
+        const segHeights = [];
+        for (let i=1; i<pts.length; i++){
+            segHeights.push(pts[i].y);
+        }
+        let heightSignChanges = 0;
+        let lastSign = 0;
+        for (let i = 1; i < segHeights.length; i++) {
+            const dH = segHeights[i] - segHeights[i-1];
+            const s = dH > 0.05 ? 1 : (dH < -0.05 ? -1 : 0);
+            if (s !== 0 && lastSign !== 0 && s !== lastSign) heightSignChanges++;
+            if (s !== 0) lastSign = s;
+        }
+        const peakValleyRatio = segHeights.length > 0 ? heightSignChanges / Math.max(1, segHeights.length - 1) : 0;
+        const isDull = peakValleyRatio < 0.05 && pts.length > 20;
+        // ───────────────────────────────
+        // 軸 3：星體形態變換密度 — segments.form 序列轉換頻率
+        // ───────────────────────────────
+        const formSeq = (segs.length ? segs.map(s => s.form || s.name || 'normal') : []);
+        let formChanges = 0;
+        const formSet = new Set();
+        for (let i = 1; i < formSeq.length; i++) {
+            if (formSeq[i] !== formSeq[i-1]) formChanges++;
+            if (formSeq[i]) formSet.add(formSeq[i]);
+        }
+        const formChangeRate = formSeq.length > 1 ? formChanges / (formSeq.length - 1) : 0;
+        const hasFormRhythm = formChangeRate >= 0.2 || formSet.size >= 3;
+        // ───────────────────────────────
+        // 軸 4：迎送對称度 — 過峽左右谷深差異
+        // ───────────────────────────────
+        let valleyAsymAcc = 0, valleyPairCount = 0;
+        const asymStep = Math.max(2, Math.floor(pts.length / 24));
+        for (let i = 4; i < pts.length - 4; i += asymStep) {
+            const p = pts[i];
+            const lDepth = Math.abs(Engine3D.getTerrainY(p.x - 16, p.z, this._ptT).y - p.y);
+            const rDepth = Math.abs(Engine3D.getTerrainY(p.x + 16, p.z, this._ptT).y - p.y);
+            const avgD = (lDepth + rDepth) * 0.5;
+            if (avgD < 0.2) continue;
+            const asym = Math.abs(lDepth - rDepth) / avgD;
+            valleyAsymAcc += asym;
+            valleyPairCount++;
+        }
+        const valleyAsymAvg = valleyPairCount > 0 ? valleyAsymAcc / valleyPairCount : 0;
+        const hasYingSong = valleyAsymAvg >= 0.05;
+        // ───────────────────────────────
+        // 軸 5：護送密度梯度 — 護送應「時疏時密」
+        // ───────────────────────────────
+        const escortBin = [];
+        const escortStep = Math.max(4, Math.floor(pts.length / 12));
+        for (let i = escortStep; i < pts.length - escortStep; i += escortStep) {
+            const p = pts[i];
+            const lH = Engine3D.getTerrainY(p.x - 22, p.z, this._ptT).y;
+            const rH = Engine3D.getTerrainY(p.x + 22, p.z, this._ptT).y;
+            const escortLocal = ((lH > p.y + 1.0 ? 1 : 0) + (rH > p.y + 1.0 ? 1 : 0)) / 2;
+            escortBin.push(escortLocal);
+        }
+        const escortMean = escortBin.length > 0 ? escortBin.reduce((a,b)=>a+b,0) / escortBin.length : 0;
+        let escortVarAcc = 0;
+        for (const e of escortBin) escortVarAcc += (e - escortMean) * (e - escortMean);
+        const escortCV = escortMean > 0 ? Math.sqrt(escortVarAcc / Math.max(1, escortBin.length)) / escortMean : 0;
+        const hasEscortRhythm = escortCV >= 0.05;
+        // ───────────────────────────────
+        // 綜合判定：5 軸加權（势 30% + 峰谷 20% + 星體 20% + 迎送 15% + 護送 15%）
+        // 主脊連續通過：除距離連續外，还必須不是僵直死龍 + 不是呆龍
+        // ───────────────────────────────
+        const axesScore = (
+            (slopeCV >= 0.15 ? 30 : Math.max(0, slopeCV / 0.15 * 15)) +
+            (peakValleyRatio >= 0.05 ? 20 : Math.max(0, peakValleyRatio / 0.05 * 10)) +
+            (hasFormRhythm ? 20 : 0) +
+            (hasYingSong ? 15 : 0) +
+            (hasEscortRhythm ? 15 : 0)
+        );
+        // 主脊連續通過：加上呆龍判定
+        const mainOkStrict = (gaps <= 1) && !isStiff && !isDull;
+        // 將 5 軸節律数據寫入全域供報告/評分使用
+        this._lastRhythmMetrics = {
+            slopeCV, peakValleyRatio, formChangeRate, valleyAsymAvg, escortCV,
+            axesScore, isStiff, isDull, hasFormRhythm, hasYingSong, hasEscortRhythm,
+            gapCount: gaps
+        };
         // 2. 過峽：脊寬（脊兩側谷深比）最小處
         let minValleyRatio = 999, hasGap = false;
         for (let i=4; i<pts.length-4; i++){
@@ -2437,7 +2530,9 @@ const Rules = {
         let chainAuto = null;
         try{ chainAuto = (typeof Engine3D !== 'undefined' && Engine3D.detectChainFeatures) ? Engine3D.detectChainFeatures() : null; }catch(e){}
         const items = [
-            {項:'主脊連續', 通過: mainOk, 說明: isStiff ? `死龍僵直（坡度變化係數 ${slopeCV.toFixed(2)} < 0.15）` : (mainOk ? `脊線連續 + 節律有度（CV=${slopeCV.toFixed(2)}）` : `偵測到 ${gaps} 段中斷`)},
+            {項:'主脊連續', 通過: mainOkStrict, 說明: isStiff ? `死龍僵直（坡度變化係數 ${slopeCV.toFixed(2)} < 0.15）` : (isDull ? `呆龍單調（峰谷比 ${peakValleyRatio.toFixed(2)} < 0.05）` : (mainOkStrict ? `脊線連續 + 5軸節律有度（CV=${slopeCV.toFixed(2)}）` : `偵測到 ${gaps} 段中斷`))},
+            {項:'呆龍驟律', 通過: !isDull, 說明: isDull ? `呆龍：峰谷交替 ${(peakValleyRatio*100).toFixed(1)}% < 5%（連續單調）` : `峰谷交替 ${(peakValleyRatio*100).toFixed(1)}% ≥ 5%`},
+            {項:'5軸節律', 通過: axesScore >= 50, 說明: `綜分${axesScore}/100（势${slopeCV>=0.15?30:Math.round(slopeCV/0.15*15)}/峰谷${peakValleyRatio>=0.05?20:Math.round(peakValleyRatio/0.05*10)}/星體${hasFormRhythm?20:0}/迎送${hasYingSong?15:0}/護送${hasEscortRhythm?15:0}）`},
             {項:'過峽', 通過: hasGap, 說明: hasGap?'存在收束':`未見明顯收束（寬度比 ${minValleyRatio.toFixed(2)}）`},
             {項:'束氣', 通過: passShu, 說明: passShu?'束氣有效':`谷/脊比 ${minValleyRatio.toFixed(2)} < 1.0`},
             {項:'開帳', 通過: passDazhang, 說明: passDazhang?'存在開帳':`未見帳翼展寬 > 1.4x`},
@@ -8793,6 +8888,20 @@ const Physics = {
     windPressure: new Float32Array(64 * 64),
     windPressure_next: new Float32Array(64 * 64),
     windLayers: 4,
+    // #43 真正 3D Navier-Stokes 全域網格：32×32×4 體素 (xz 各 32 + y 4 層)
+    //     除局 64×64 水平壓力反化[46\]外，包含竹會的🜍全壁回流/over-the-top 下洗、凹面瀟到、夾窍疏穿、邊頑回流/衜流/over-the-top downwash
+    wind3DSize: 32,           // xz 各 32 格（蓋盖 350m×350m）
+    wind3DLayers: 4,         // y 4 層（y: 2 / 8 / 18 / 35 m）
+    wind3DN: 32 * 32 * 4,    // 總 4096 碤
+    wind3DX: new Float32Array(32 * 32 * 4),
+    wind3DY: new Float32Array(32 * 32 * 4),
+    wind3DZ: new Float32Array(32 * 32 * 4),
+    wind3DX_next: new Float32Array(32 * 32 * 4),
+    wind3DY_next: new Float32Array(32 * 32 * 4),
+    wind3DZ_next: new Float32Array(32 * 32 * 4),
+    wind3DPressure: new Float32Array(32 * 32 * 4),
+    wind3DPressure_next: new Float32Array(32 * 32 * 4),
+    wind3DStep: 0,           // 只有 1/2 平只處理 3D (60fps / 2 = 30Hz)
     // 第三輪 真正 3D 體素風場：穴場周圍 32×32×8 局部高解析度 (#24 真實Navier 體素加密)
     voxelSize: 32,           // xz 各 32 格
     voxelHeight: 8,         // y 8 層（貼地→35m）
@@ -8921,6 +9030,112 @@ const Physics = {
                 wX[idx] -= gradPx * relax;
                 wZ[idx] -= gradPz * relax;
             }
+        }
+    },
+    // #43 真正 3D Navier-Stokes 全域網格：32×32×4 = 4096 碤
+    //    這域包含：浸力降低（viscous drag）、· 包含竹會的 downwash/over-the-top
+    //    下洗 及的动量交换（Y 轴邊/over-the-top 回流/邊頑回流）
+    //    原有 64×64 2D 动量團接網格 開展[46\]；3D 版本持續模擬 真實氣流效應
+    _pressurePoissonSolve3D(dt, iterations=3){
+        const NX = this.wind3DSize, NY = this.wind3DLayers;
+        const idx3 = (h, gz, gx) => (h * NX + gz) * NX + gx;
+        const wX = this.wind3DX, wY = this.wind3DY, wZ = this.wind3DZ;
+        const wPx = this.wind3DPressure, wPxn = this.wind3DPressure_next;
+        // 1. 計算散度 ∇·u (3D)
+        for(let h=1; h<NY-1; h++){
+            for(let gz=1; gz<NX-1; gz++){
+                for(let gx=1; gx<NX-1; gx++){
+                    const i = idx3(h, gz, gx);
+                    const div = (wX[i+1] - wX[i-1] + wZ[i+NX] - wZ[i-NX] + wY[i+NX*NX] - wY[i-NX*NX]) * 0.5;
+                    wPxn[i] = -div * 1.2;
+                }
+            }
+        }
+        // 2. Jacobi 迭代 3 次求壓力/divergence-free 域
+        for(let it=0; it<iterations; it++){
+            for(let h=1; h<NY-1; h++){
+                for(let gz=1; gz<NX-1; gz++){
+                    for(let gx=1; gx<NX-1; gx++){
+                        const i = idx3(h, gz, gx);
+                        wPx[i] = (wPxn[i-1] + wPxn[i+1] + wPxn[i-NX] + wPxn[i+NX] + wPxn[i-NX*NX] + wPxn[i+NX*NX]) * (1/6);
+                    }
+                }
+            }
+            const tmp = wPx; this.wind3DPressure = wPxn; this.wind3DPressure_next = tmp;
+        }
+        // 3. 回溶修正：u -= ∇p ÷ dt (3D)
+        const relax = Math.min(0.5, dt * 0.6);
+        for(let h=1; h<NY-1; h++){
+            for(let gz=1; gz<NX-1; gz++){
+                for(let gx=1; gx<NX-1; gx++){
+                    const i = idx3(h, gz, gx);
+                    const gpX = (this.wind3DPressure[i+1] - this.wind3DPressure[i-1]) * 0.5;
+                    const gpZ = (this.wind3DPressure[i+NX] - this.wind3DPressure[i-NX]) * 0.5;
+                    const gpY = (this.wind3DPressure[i+NX*NX] - this.wind3DPressure[i-NX*NX]) * 0.5;
+                    wX[i] -= gpX * relax;
+                    wZ[i] -= gpZ * relax;
+                    wY[i] -= gpY * relax;
+                }
+            }
+        }
+    },
+    _updateWindGrid3D(dt, baseWind){
+        const NX = this.wind3DSize, NY = this.wind3DLayers;
+        const idx3 = (h, gz, gx) => (h * NX + gz) * NX + gx;
+        const state = AppState.current;
+        const cellSize = CONFIG.tSize / NX;  // 350/32 ≈ 10.9m
+        const layerH = [2, 8, 18, 35];       // 4 層 Y 高度
+        // 熱流动量反化（）及 downwash 綸换
+        const windPropDecay = Math.pow(0.95, dt);
+        for(let h=0; h<NY; h++){
+            const yL = layerH[h];
+            for(let gz=0; gz<NX; gz++){
+                for(let gx=0; gx<NX; gx++){
+                    const i = idx3(h, gz, gx);
+                    const wx = (gx / (NX-1)) * CONFIG.tSize - CONFIG.tSize / 2;
+                    const wz = (gz / (NX-1)) * CONFIG.tSize - CONFIG.tSize / 2;
+                    const t = Engine3D.getTerrainY(wx, wz);
+                    // 地形阻塎：對黑出的 y 層大幅液叙
+                    const obst = (t.y > yL) ? Math.max(0, t.y - yL) / 8.0 : 0;
+                    const stream = baseWind * Math.exp(-obst * 1.2);
+                    // 域四方通風：upwind 高離地面有 压力差 => 越頂 downwash
+                    if(h === 0){
+                        const upwindH = Engine3D.getTerrainY(wx - Math.sign(baseWind||1) * cellSize * 3, wz).y;
+                        const drop = Math.max(0, upwindH - t.y);
+                        // 仿有高度随 downwash 綸换經上層 Y 递减
+                        this.wind3DY_next[i] = Math.min(0, this.wind3DY_next[i] - drop * 0.04);
+                    }
+                    // 集成 X / Z 向分量 (弦量造)
+                    this.wind3DX_next[i] = stream;
+                    this.wind3DZ_next[i] = this.wind3DZ[i] * windPropDecay;
+                }
+            }
+        }
+        // 邊頑回流：地形衜風低层反转 (Y 納入)
+        const recirculation = -baseWind * 0.15;
+        for(let gz=0; gz<NX; gz++){
+            for(let gx=0; gx<NX; gx++){
+                const t = Engine3D.getTerrainY((gx/(NX-1))*CONFIG.tSize - CONFIG.tSize/2,
+                                               (gz/(NX-1))*CONFIG.tSize - CONFIG.tSize/2);
+                if(t.y < layerH[0]){
+                    const i = idx3(0, gz, gx);
+                    this.wind3DX_next[i] = Math.min(this.wind3DX_next[i], recirculation);
+                    this.wind3DY_next[i] = Math.min(0, this.wind3DY_next[i]);
+                }
+            }
+        }
+        // 交換（ping-pong）
+        const tX = this.wind3DX, tXn = this.wind3DX_next;
+        const tY = this.wind3DY, tYn = this.wind3DY_next;
+        const tZ = this.wind3DZ, tZn = this.wind3DZ_next;
+        this.wind3DX = tXn; this.wind3DX_next = tX;
+        this.wind3DY = tYn; this.wind3DY_next = tY;
+        this.wind3DZ = tZn; this.wind3DZ_next = tZ;
+        // clamp
+        for(let i=0; i<this.wind3DN; i++){
+            this.wind3DX[i] = Math.max(-5, Math.min(5, this.wind3DX[i]));
+            this.wind3DY[i] = Math.max(-3, Math.min(3, this.wind3DY[i]));
+            this.wind3DZ[i] = Math.max(-5, Math.min(5, this.wind3DZ[i]));
         }
     },
     resetParticles() {
@@ -9067,6 +9282,12 @@ const Physics = {
             //    每 2 幀跑一次（壓力場收斂已足夠穴場評分）
             try{
                 this._pressurePoissonSolve(dt, 4);
+            }catch(e){}
+            // #43 真正 3D Navier-Stokes：32×32×4 全域網格 包含 Y 向分量
+            //    覆蓋 over-the-top downwash（他人這郎回流）、疏穿 downwash/邊頑回流
+            try{
+                this._updateWindGrid3D(dt, baseWind);
+                this._pressurePoissonSolve3D(dt, 3);
             }catch(e){}
             // 效能：dt 與 frames 在本次更新內為常數，冪運算與相位外提（數值完全等價）
             const windBlockDecay = Math.pow(0.5, dt);
