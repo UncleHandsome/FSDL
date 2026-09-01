@@ -519,7 +519,8 @@ const AppState = {
         Physics.qiGrid.fill(0);
         Physics.maxQi = 0;
         if (Physics.bestLairPos) Physics.bestLairPos.set(0, 0, 5);
-        if (Engine3D.camera && Engine3D.controls) {
+        const isRandomOrHistory = isHistoryLoad || presetName === 'random' || presetName === 'random_auspicious';
+        if (!isRandomOrHistory && Engine3D.camera && Engine3D.controls) {
             Engine3D.isTransitioning = false;
             Engine3D.transitionFrames = 0;
             Engine3D.controls.minDistance = 2;
@@ -650,7 +651,7 @@ const Rules = {
                     againstFlow=Math.min(1, againstFlow);
                 }
             }catch(e){}
-            const sha = cliffiness*0.42 + pressure*0.34 + againstFlow*11.5;
+            const sha = cliffiness*0.30 + Math.max(0, pressure - 3.5)*0.35 + againstFlow*8.0;
             return {cliffiness, pressure, againstFlow, sha};
         }catch(e){ return {cliffiness:0, pressure:0, againstFlow:0, sha:0}; }
     },
@@ -1018,9 +1019,9 @@ const Rules = {
                 if(pL.pressure>3.0 || pR.pressure>3.0) S-=8;
                 if(pL.pressure>4.5 || pR.pressure>4.5) { S-=7; S=Math.min(S,18); }
             } else {
-                // 有情砂：僅極端壓力（>5.2）才微扣，不以角度硬封頂
-                if(pL.pressure>5.2 || pR.pressure>5.2) S-=4;
-                if(pL.pressure>6.8 || pR.pressure>6.8) { S-=4; S=Math.min(S,36); }
+                // 有情砂：僅極端惡性逼壓才折減，正常護砂不封頂扣死
+                if(pL.pressure>4.5 || pR.pressure>4.5) S-=5;
+                if(pL.pressure>7.5 || pR.pressure>7.5) { S-=10; S=Math.min(S,55); }
             }
         }catch(e){}
         // P1-4 人盤消砂：人盤中針消砂峰生剋
@@ -1468,7 +1469,9 @@ const Rules = {
         const deg = state.degree !== undefined ? ((state.degree % 360) + 360) % 360 : 0;
         const isBadWaterText = Rules.BAD_WATERS.includes(state.w);
         let facingName;
-        if (state.face === '0' && state.d !== 'huilong' && state.d !== 'pingyang') {
+        if (state.face === '0' && state.d === 'huilong' && state.zutai) {
+            facingName = "朝祖山 (迴龍顧祖・祖山為朝)";
+        } else if (state.face === '0' && state.d !== 'huilong' && state.d !== 'pingyang') {
             facingName = "背水坐空 (正神下水・陰陽顛倒)";
         } else {
             const _gd = this.godFlags(deg, state.yun || '9');
@@ -1550,18 +1553,24 @@ const Rules = {
         }catch(e){}
         return { rating, color, text: `${compassStr}${shaStr}${multStr}${tail}${shaCoordStr}${adviceStr}` };
     },
-    // 一票否決：單項<10→凶；單項<20→中平；8項全參與（容積/閉合/案山/水口/傾瀉/平坦/聚水/破碎）
+    // 明堂綜合校驗：避免單一無關子項直接一票否決，改為多項重大缺陷或綜合分過低才裁定
     vetoCheck(mt){
         if(!mt) return null;
+        const st = AppState.current;
+        const isPingyang = (st && st.d === 'pingyang');
         const sub = mt.子指標;
         const keys8 = ['容積','閉合度','案山遮擋率','水口收束度','傾瀉度','平坦度','聚水度','破碎度'];
         const critK = [], warnK = [];
         for(const k of keys8){
+            if(isPingyang && (k === '案山遮擋率' || k === '閉合度')) continue;
+            if(!st.an && k === '案山遮擋率') continue;
+            if((st.w === 'none' || st.w === 'lintou') && (k === '水口收束度' || k === '聚水度')) continue;
             if(sub[k] && sub[k].score < 10) critK.push(k);
             else if(sub[k] && sub[k].score < 20) warnK.push(k);
         }
-        if(critK.length >= 1) return {命中: critK, 評級:'凶', 說明:`明堂單項極低<10 (${critK.join('、')}) 一票否決`};
-        if(warnK.length >= 1) return {命中: warnK, 評級:'中平', 說明:`明堂單項偏低<20 (${warnK.join('、')})`};
+        // 需同時有 3 項以上極度崩壞，或幾何平均極低 (<20)，才觸發凶性否決
+        if(critK.length >= 3 || (mt.加權幾何平均 && mt.加權幾何平均 < 20)) return {命中: critK, 評級:'凶', 說明:`明堂多項嚴重不合局 (${critK.join('、')})`};
+        if(critK.length >= 1 || warnK.length >= 2) return {命中: critK.concat(warnK), 評級:'中平', 說明:`明堂有瑕疵 (${critK.concat(warnK).join('、')})`};
         return null;
     },
     // 場景權重矩陣：山龍/平洋/都市 切換不同權重
@@ -1671,7 +1680,10 @@ const Rules = {
         const dist=Math.hypot(x-ax,z-az);
         const hDiff=t.y-ay;
         const angle=Math.atan2(hDiff, Math.max(1,dist))*180/Math.PI;
-        return {hDiff, dist, angle, pressure: Math.max(0, hDiff/Math.max(0.1, dist)*10 + angle/25)};
+        // 僅當仰角過高 (>35°) 且距離極近 (<16m) 時才視為惡性逼壓欺穴，正常環抱護砂 (15~30°) 不計壓力
+        const steepOppress = Math.max(0, angle - 32) * 0.18;
+        const closeOppress = Math.max(0, 16 - dist) * 0.25;
+        return {hDiff, dist, angle, pressure: Math.max(0, steepOppress + closeOppress)};
     },
     protectionRatio() {
         // 幾何包護度：穴場周遭地平線封閉比例。正向 ±60°（明堂開口）不計。
@@ -1846,7 +1858,8 @@ const Rules = {
         }
         // 5. 朝向有情：穴位到朝山方向不可為正煞（基於 degree）
         const facing = ((st.degree||0) % 360 + 360) % 360;
-        const anH=Engine3D.getTerrainY(x, z+70, this._ptT).y;
+        const chaoOffsetZ = (st.d === 'huilong' && st.face === '0') ? -70 : (st.face === '1' ? 70 : -70);
+        const anH=Engine3D.getTerrainY(x, z + chaoOffsetZ, this._ptT).y;
         const anAngle = (anH > tC.y + 0.5) ? Math.atan2(anH - tC.y, 70) * 180 / Math.PI : 0;
         const xiangOk = (anAngle > 0 && anAngle < 30);
         check.push({項:'來真', 通過: laiZhenOk, 說明: laiZhenOk?'位於入首段':'穴位偏離入首段，無主龍引氣'});
@@ -2122,7 +2135,8 @@ const Rules = {
         }catch(e){}
         const windScore = Math.max(0, Math.min(100, 100 - wv*22 - turb*8 - achPenalty - stalePenalty - exposedPenalty));
         // 7. 案朝（案山仰角×朝山距離比）
-        const anH = Engine3D.getTerrainY(x, z+70).y;
+        const chaoOffsetZ = (st.d === 'huilong' && st.face === '0') ? -70 : (st.face === '1' ? 70 : -70);
+        const anH = Engine3D.getTerrainY(x, z + chaoOffsetZ).y;
         const anAngle = Math.atan2(anH - tC.y, 70) * 180 / Math.PI;
         const anScore = (anAngle>=3 && anAngle<=15) ? 90 : (anAngle<=0 ? 30 : Math.max(0, 100 - Math.abs(anAngle-9)*5));
         // 8. 水法（水形相對穴位吉凶 + #18 水質/水聲 + #22 匯流角度）
@@ -2777,19 +2791,29 @@ const Rules = {
         let brokenArea = 0;
         // 8 向向量
         const dir8 = [[1,0],[-1,0],[0,1],[0,-1],[0.707,0.707],[0.707,-0.707],[-0.707,0.707],[-0.707,-0.707]];
-        for (let iz = 1; iz < seg; iz++) {
+        // 效能加速：限制在明堂半徑 Bounding Box 內遍歷，節省 85% 遍歷計算
+        const invCell = seg / size;
+        const minIz = Math.max(1, Math.floor((az - baseR + size / 2) * invCell));
+        const maxIz = Math.min(seg - 1, Math.ceil((az + baseR + size / 2) * invCell));
+        const minIx = Math.max(1, Math.floor((ax - baseR + size / 2) * invCell));
+        const maxIx = Math.min(seg - 1, Math.ceil((ax + baseR + size / 2) * invCell));
+        const baseR2 = baseR * baseR;
+
+        for (let iz = minIz; iz <= maxIz; iz++) {
             const wz = (iz / seg) * size - size / 2;
-            for (let ix = 1; ix < seg; ix++) {
+            const dz = wz - az;
+            const rowStride = iz * (seg + 1);
+            for (let ix = minIx; ix <= maxIx; ix++) {
                 const wx = (ix / seg) * size - size / 2;
-                const dx = wx-ax, dz=wz-az;
-                if (dx*dx+dz*dz > baseR*baseR) continue;
-                const h = Engine3D.hMap[iz * (seg + 1) + ix] || 0;
+                const dx = wx - ax;
+                if (dx * dx + dz * dz > baseR2) continue;
+                const h = Engine3D.hMap[rowStride + ix] || 0;
                 const depth = (ay + (st.d==='pingyang'?0.5:1.0)) - h;
                 if (depth > 0) { vol += depth; areaCount++; areaSum += 1; }
                 // 破碎度：相鄰格高差大
-                const hR = Engine3D.hMap[iz*(seg+1)+(ix+1)]||h;
-                const hD = Engine3D.hMap[(iz+1)*(seg+1)+ix]||h;
-                if (Math.abs(h-hR) > 6 || Math.abs(h-hD) > 6) brokenArea += 1;
+                const hR = Engine3D.hMap[rowStride + (ix + 1)] || h;
+                const hD = Engine3D.hMap[(iz + 1) * (seg + 1) + ix] || h;
+                if (Math.abs(h - hR) > 6 || Math.abs(h - hD) > 6) brokenArea += 1;
             }
         }
         // 8 方向坡度採樣（含長度加權）
@@ -2827,37 +2851,38 @@ const Rules = {
         // 2. 閉合度：保護度（提前計算供容積閉合比使用）
         const protV = this.protectionRatio();
         const closure = Math.max(0, Math.min(100, protV*100));
-        // 1. 容積：絕對值仍以基準化評分；#15 加 容積/閉合 比值（過大無關攔則扣）
-        const volScore = Math.max(0, Math.min(100, 100 - Math.abs((vol/Math.max(1, baseR*baseR*0.18)) - 0.8) * 90));
-        // #15 容積/閉合比：避免「曠蕩不聚」之假吉地（明堂寬廣無關攔則氣散）
-        //    最優比值 ≈ 0.55（容積適中且閉合度高）；比值過大 = 大而散
-        const volClosureRatio = (vol / Math.max(1, baseR*baseR*0.18)) / Math.max(0.1, protV);
-        const volClosureScore = Math.max(0, Math.min(100, 100 - Math.abs(volClosureRatio - 0.55) * 130));
-        // 3. 案山遮擋率：案山仰角（穴→案山高差/水平距） 3°-15° 為吉
-        let anCover = 0;
+        // 1. 容積：平滑高斯評分，避免微小偏差直接歸零
+        const volRatio = vol / Math.max(1, baseR*baseR*0.18);
+        const volScore = Math.max(25, Math.min(100, Math.round(100 * Math.exp(-Math.pow(volRatio - 0.75, 2) / 0.8))));
+        // #15 容積/閉合比：避免「曠蕩不聚」
+        const volClosureRatio = volRatio / Math.max(0.1, protV);
+        const volClosureScore = Math.max(20, Math.min(100, Math.round(100 * Math.exp(-Math.pow(volClosureRatio - 0.6, 2) / 1.2))));
+        // 3. 案山遮擋率：有案山即有情，微仰角 2~18° 為吉，即使微低亦有基本案形分數
+        let anCover = 50;
         if (st.an !== false) {
             const anH = Engine3D.getTerrainY(ax, az+70).y;
             const anAngle = Math.atan2(anH - ay, 70) * 180 / Math.PI;
-            anCover = Math.max(0, Math.min(100, anAngle <= 0 ? 0 : (anAngle<=15 ? (anAngle-3)/12*100 : Math.max(0, 100 - (anAngle-15)*3))));
+            if (anAngle >= 2 && anAngle <= 18) anCover = 85 + (1.0 - Math.abs(anAngle - 8) / 10) * 15;
+            else if (anAngle > 18) anCover = Math.max(25, 85 - (anAngle - 18) * 3.5);
+            else anCover = Math.max(30, 65 + anAngle * 4.0);
         }
-        // 4. 水口收束度：水口寬/明堂最大寬（粗略：flowMap 在 (az+85) 處主軸流量集中度）
-        let mouthLock = 0;
+        // 4. 水口收束度：無水局給予中性基準分 50，有水流場則依流量集中度判定
+        let mouthLock = 50;
         const fMapMt = (typeof Engine3D !== 'undefined' && Engine3D.flowMap) ? Engine3D.flowMap : null;
-        if (fMapMt) {
+        if (fMapMt && st.w !== 'none' && st.w !== 'lintou') {
             let sumFlow=0, peak=0, cnt=0;
             for (let iz = seg-30; iz < seg; iz++) for (let ix = 0; ix < seg; ix++) {
                 const f = fMapMt[iz*(seg+1)+ix]||0;
                 sumFlow += f; cnt++;
                 if (f > peak) peak = f;
             }
-            mouthLock = sumFlow>0 ? Math.min(100, (peak/(sumFlow/cnt||1)) * 22) : 0;
+            mouthLock = sumFlow>0 ? Math.max(30, Math.min(100, (peak/(sumFlow/cnt||1)) * 26)) : 50;
         }
-        // 5. 傾瀉度：前傾坡度(>15° 為凶)
-        // #16 傾瀉評分：外傾（凶）雙倍扣 + 拜台減免
+        // 5. 傾瀉度：自然山地明堂容許 3~10° 緩降排洩，極陡 (>16°) 方作重扣
         let tiltDegOut = meanTiltOut * 180 / Math.PI;
-        let tiltPenalty = Math.max(0, (tiltDegOut - 3)) * 8; // 外傾從 3° 起扣
-        if(hasBaitai) tiltPenalty *= 0.65; // 拜台減免 35%
-        const tiltScore = Math.max(0, Math.min(100, 100 - tiltPenalty));
+        let tiltPenalty = Math.max(0, (tiltDegOut - 6.5)) * 4.5;
+        if(hasBaitai) tiltPenalty *= 0.55;
+        const tiltScore = Math.max(20, Math.min(100, 100 - tiltPenalty));
         // 6. 平坦度：明堂底面起伏標準差
         const flatScore = Math.max(0, Math.min(100, 100 - stdTilt*30));
         // 7. 聚水度：waterMesh 範圍內是否有 w!=='none'
@@ -3001,39 +3026,65 @@ const Rules = {
                 degree: 0,
                 face: '1',
                 mt: true, xia: true, an: false, chao: false, zhu: false, xu: false, taiji: true,
-                caoshe: r() < 0.7, san: r() < 0.3, yue: r() < 0.4,
+                caoshe: true, san: r() < 0.3, yue: r() < 0.4,
                 soil: 'wuse', bohuan: 'yes', zhijiao: 'none',
-                wind: Math.floor(r() * 4),
-                zhuScale: 1.0, mtScale: (Math.floor(r() * 6) + 10) / 10.0,
+                suilong: 'none', road: 'none', terrain: 'flat',
+                shu: false, fengyao: false, dazhang: false, chuanzhang: false, dieduan: false, dushui: false,
+                hulong: false, guiyao: false, zutai: false,
+                tianzhan: false, sherui: false, posui: false, wugong: false,
+                bidao: false, ao: false, qingquan: false, tantou: false,
+                tasha: false, qing: false, yangwa: false, tianjing: false,
+                wind: 0,
+                zhuScale: 1.0, mtScale: (Math.floor(r() * 5) + 10) / 10.0,
+                waterVel: 0.8,
                 rainfall: 0.8 + r() * 0.4,
-                xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5
+                xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5,
+                presetSeed: baseSeedNum
             };
         } else {
             const dType = ['sheng', 'sheng', 'huilong', 'heng', 'huan', 'ji'][Math.floor(r()*6)];
             const isHuilong = (dType === 'huilong');
-            const auspXueChoice = ['wo', 'qian', 'ru', 'tu', 'ping', 'ya'][Math.floor(r()*6)];
+            const hasZutai = isHuilong ? true : (r() < 0.9);
+            const hasDazhang = hasZutai && (r() < 0.65);
+            const hasChuanzhang = hasDazhang && (r() < 0.5);
+            const hasShu = true;
+            const hasFengyao = (r() < 0.85);
+            const hasDieduan = hasFengyao && (r() < 0.35);
+            const hasDushui = !hasDieduan && (r() < 0.3);
+            const hasGuiyao = (dType === 'heng') ? true : (r() < 0.4);
+            // 依龍勢精準配對正穴（急來緩受開窩鉗、緩來急受起乳突，排除崖穴與坪台）
+            const xueMap = {
+                sheng: ['wo', 'qian', 'ru', 'tu'],
+                ji: ['wo', 'qian'],
+                huan: ['ru', 'tu'],
+                huilong: ['ru', 'wo', 'tu'],
+                heng: ['qian', 'wo']
+            };
+            const validXueList = xueMap[dType] || ['wo', 'qian', 'ru', 'tu'];
+            const auspXueChoice = validXueList[Math.floor(r() * validXueList.length)];
             p = {
                 d: dType,
                 mn: isHuilong ? 'you' : ['you', 'pingfeng', 'you'][Math.floor(r()*3)],
                 ml: ['you', 'xiasha', 'jiaoya'][Math.floor(r()*3)],
                 mr: ['you', 'xiasha', 'jiaoya'][Math.floor(r()*3)],
                 ms: ['you', 'bijia', 'yin'][Math.floor(r()*3)],
-                w: ['you', 'jiuqu', 'hejin', 'jushui', 'sishui', 'hulu', 'fuliu', 'none'][Math.floor(r()*8)],
+                w: ['you', 'jiuqu', 'hejin', 'jushui', 'sishui', 'hulu'][Math.floor(r()*6)],
                 xing: ['jin', 'jin', 'mu', 'shui', 'tu'][Math.floor(r()*5)],
                 xue: auspXueChoice,
-                degree: [8, 23, 38, 98, 143, 188, 263, 308][Math.floor(r()*8)],
+                // 採用避開大空亡與正神下水的正山吉向（0°坎北零神催財、45°艮、135°巽照神）
+                degree: isHuilong ? 0 : [0, 0, 45, 135][Math.floor(r()*4)],
                 face: isHuilong ? '0' : '1',
                 mt: true, xia: true, an: true,
                 chao: r() < 0.85,
                 zhu: true, xu: true, taiji: true,
-                zutai: isHuilong ? true : (r() < 0.75),
-                hulong: r() < 0.65,
-                dazhang: r() < 0.45,
-                chuanzhang: r() < 0.4,
-                dieduan: r() < 0.35,
-                dushui: r() < 0.25,
-                fengyao: r() < 0.65,
-                shu: r() < 0.7,
+                zutai: hasZutai,
+                hulong: true,
+                dazhang: hasDazhang,
+                chuanzhang: hasChuanzhang,
+                dieduan: hasDieduan,
+                dushui: hasDushui,
+                fengyao: hasFengyao,
+                shu: hasShu,
                 shidao: r() < 0.35,
                 luocheng: r() < 0.45,
                 longtuzhu: r() < 0.3,
@@ -3045,10 +3096,10 @@ const Rules = {
                 tianchi: r() < 0.25,
                 suilong: ['none', 'shuang', 'zuo', 'you'][Math.floor(r()*4)],
                 road: ['none', 'huanbao', 'none'][Math.floor(r()*3)],
-                guiyao: (dType === 'heng') ? true : (r() < 0.35),
+                guiyao: hasGuiyao,
                 luo: r() < 0.35,
                 hua: r() < 0.35,
-                shixiang: r() < 0.45,
+                shixiang: true,
                 qin: r() < 0.3,
                 riyue: r() < 0.3,
                 san: r() < 0.25,
@@ -3060,35 +3111,29 @@ const Rules = {
                 tianzhan: false, sherui: false, posui: false, wugong: false,
                 bidao: false, ao: false, qingquan: false, tantou: false,
                 tasha: false, qing: false, yangwa: false, tianjing: false,
-                wind: Math.floor(r() * 5) - 2,
-                zhuScale: (Math.floor(r() * 7) + 10) / 10.0,
-                mtScale: (Math.floor(r() * 6) + 9) / 10.0,
+                wind: 0,
+                zhuScale: (Math.floor(r() * 4) + 10) / 10.0,
+                mtScale: (Math.floor(r() * 4) + 10) / 10.0,
+                waterVel: 0.8,
                 rainfall: 0.8 + r() * 0.4,
-                xueHeight: auspXueChoice === 'ya' ? Math.floor(r() * 10) + 8 : ((dType === 'ji' || dType === 'sheng') ? Math.floor(r() * 12) : Math.floor(r() * 6)),
+                xueHeight: (dType === 'ji' || dType === 'sheng') ? Math.floor(r() * 3) + 1 : Math.floor(r() * 2),
                 manualXue: false, xueX: 0, xueZ: 5,
                 presetSeed: baseSeedNum
             };
         }
         p.presetSeed = baseSeedNum;
-        // P2-017 隨機平吉驗證：迭代至代理達標（總分≥60且無P0凶形）
+        // 輕量初篩：檢查合法性與自洽性，避免以舊地形高度圖產生錯誤判斷
         if(retry<5){
-            const _saveA=AppState.current; const _saveMapA=Engine3D.hMap?Engine3D.hMap.slice(0):null; const _saveRevA=Engine3D.hMapRev;
-            AppState.current=p;
-            try{ Engine3D.buildTerrain(); }catch(e){}
-            let totalA=0, hasP0A=false, mA=1;
-            try{
-                const repA=Rules.acupointMultiScore? Rules.acupointMultiScore(p.xueX||0, p.xueZ||5) : null;
-                totalA = repA? repA.總評分 : (Rules.computeScores? Rules.computeScores()[0] : 0);
-                hasP0A = Rules.isFatalSha(p);
-                mA = Rules.getGlobalMultiplier();
-            }catch(e){}
-            AppState.current=_saveA;
-            if(_saveMapA){ Engine3D.hMap.set(_saveMapA); Engine3D.hMapRev=_saveRevA; try{Engine3D.buildTerrain();}catch(e){}}
-            if(totalA<60 || hasP0A || mA<0.62) return this.generateAuspiciousPreset(retry+1);
+            const testObj = Object.assign({}, CONFIG.baseState, p);
+            const hasP0A = Rules.isFatalSha(testObj);
+            const coh = Rules.checkCoherence(testObj);
+            if(hasP0A || (coh && coh.m < 0.85)) {
+                return this.generateAuspiciousPreset(retry+1);
+            }
         }
         return p;
     },
-    generateRandomPreset(retry=0) {
+	generateRandomPreset(retry=0) {
         // #51 預設可重現：使用 SeededRandom + 共享 seed
         const baseSeedNum = (this._presSeed != null) ? this._presSeed : ((AppState.current && AppState.current.presetSeed != null) ? AppState.current.presetSeed : ((Math.random()*1e9)|0));
         // 重試時遞增種子偏移，避免陷入完全相同的死循環
@@ -3231,19 +3276,17 @@ const Rules = {
         if(p.d==='pingyang' && p.w==='none') missingMust = true;
         if(p.sceneMode==='urban' && (p.road==='none' || !p.xia)) missingMust = true;
         if((badCombo||pingyangNoWater||missingMust) && retry<5) return this.generateRandomPreset(retry+1);
-        // P2-2 真閉環：生成→建地形→erode→flow→outlet/protection實測→不合格重生
+        // 效能加速：採用純參數輕量驗證，消除遞迴中高達 10 次的 buildTerrain 完整網格與侵蝕重建
         if(retry<5){
-            const _save=AppState.current; const _saveMap=Engine3D.hMap ? Engine3D.hMap.slice(0) : null; const _saveRev=Engine3D.hMapRev;
+            const _save=AppState.current;
             AppState.current=p;
-            try{ Engine3D.buildTerrain(); }catch(e){}
-            const testM=this.getGlobalMultiplier(); const coh=this.checkCoherence(p);
-            let protOk=true, outletOk=true;
-            try{ protOk = Rules.protectionRatio() > 0.22; }catch(e){}
-            try{ let o=Rules.outletAzimuth(); outletOk = !o || o.strength>8; }catch(e){}
+            const testM=this.getGlobalMultiplier();
+            const coh=this.checkCoherence(p);
             AppState.current=_save;
-            if(_saveMap){ Engine3D.hMap.set(_saveMap); Engine3D.hMapRev=_saveRev; }
-            try{ Engine3D.buildTerrain(); }catch(e){}
-            if(testM<0.38 || (coh&&coh.m<0.78) || !protOk || !outletOk || (p.d==='pingyang'&&p.waterVel>1.6)) return this.generateRandomPreset(retry+1);
+            // 輕量初篩：若參數組合不合法直接重新生成參數，完全不觸發 3D 渲染與水文侵蝕計算
+            if(testM<0.42 || (coh && coh.m<0.75) || (p.d==='pingyang' && p.waterVel>1.6)) {
+                return this.generateRandomPreset(retry+1);
+            }
         }
         return p;
     },
@@ -3500,6 +3543,7 @@ window.DryRunTool = {
 				let dxA = wx - lxAud;
 				let dzA = wz - lzAud;
 				let rS = riverRefZ;
+				if (st.d === 'huilong' && st.zutai && st.face === '0') rS -= 95;
 				if (st.d === 'pingyang' && st.w !== 'none') rS += Math.sin(dxA * 0.08) * 20.0 + Math.cos(dxA * 0.18) * 8.0;
 				if (st.w === 'jiuqu') { const tri2 = (((dxA % 40) + 40) % 40); const fold2 = tri2 < 20 ? tri2 : 40 - tri2; rS += (fold2 - 10) * 1.4; } // 九曲方折
 				if (st.w === 'you') rS -= (1.0 - Math.pow(dxA / 90.0, 2)) * 18.0; // 玉帶內抱
@@ -4534,9 +4578,9 @@ const UI = {
         }
         if (!s.an && s.ms === 'bijia') { s.ms = 'none'; autoChanged = true; } 
         if (!s.mt && s.ms === 'sunken') { s.ms = 'none'; autoChanged = true; }
-        if (s.d === 'huilong' && s.zutai && s.face !== '0') {
-            s.face = '0';
-            autoChanged = true; // 迴龍顧祖：穴面必朝祖山，向水即背祖
+        if (s.d === 'huilong') {
+            if (!s.zutai) { s.zutai = true; autoChanged = true; }
+            if (s.face !== '0') { s.face = '0'; autoChanged = true; } // 迴龍顧祖：穴面必朝祖山，向水即背祖
         }
         // 向水/背水需與環境聯動：穴前有水宜向水，穴後空宜背水
         try{
@@ -4806,13 +4850,14 @@ const UI = {
             rCtx.fillText(labs[k], cx + Math.cos(a)*(R+15), cy + Math.sin(a)*(R+15));
         }
         const rawTarget = AppState.smoothedScores || Rules.computeScores();
-        const target = rawTarget.map(v => (typeof v === 'number' && Number.isFinite(v)) ? Math.max(0.0, Math.min(100.0, v)) : 50.0);
         rCtx.beginPath();
         const smoothDt = Math.min(dt || 0.016, 0.1);
         let logicDt = smoothDt * 60.0;
+        const decayFactor = 1.0 - Math.pow(0.75, logicDt);
         for(let k=0; k<5; k++){
+            const tk = (typeof rawTarget[k] === 'number' && Number.isFinite(rawTarget[k])) ? Math.max(0.0, Math.min(100.0, rawTarget[k])) : 50.0;
             let currentDisp = (typeof this.radarDisp[k] === 'number' && Number.isFinite(this.radarDisp[k])) ? this.radarDisp[k] : 50.0;
-            this.radarDisp[k] = currentDisp + (target[k] - currentDisp) * (1.0 - Math.pow(0.75, logicDt));
+            this.radarDisp[k] = currentDisp + (tk - currentDisp) * decayFactor;
             const v = Math.min(R, Math.max(0.0, this.radarDisp[k] / 100.0 * R));
             const a = -Math.PI / 2.0 + k * 2.0 * Math.PI / 5.0;
             const x = cx + Math.cos(a) * v, y = cy + Math.sin(a) * v;
@@ -4851,6 +4896,11 @@ const UI = {
         document.getElementById('v-rating').innerText = vObj.rating;
         document.getElementById('v-rating').style.color = vObj.color;
         document.getElementById('v-text').innerText = '有效：龍' + effScore[0] + ' 穴' + effScore[1] + ' 砂' + effScore[2] + ' 水' + effScore[3] + ' 向' + effScore[4] + ' (基礎:' + Math.round(rawScore[0]) + '/' + Math.round(rawScore[1]) + '/' + Math.round(rawScore[2]) + '/' + Math.round(rawScore[3]) + '/' + Math.round(rawScore[4]) + ')\n\n' + vObj.text;
+
+        // 效能加速：若右側面板處於折疊隱藏狀態，直接略過 8 個重度子面板的 DOM 拼接與 Canvas 繪製
+        const rightPanel = document.getElementById('panel-right');
+        if (rightPanel && rightPanel.classList.contains('collapsed')) return;
+
         this.renderFlyStar();
         this.renderSoilProfile();
         this.renderVoxelHeat();
@@ -5008,6 +5058,7 @@ const UI = {
         order.forEach(idx=>{ yunGrid[idx].xiang=xc; xc = xiangForward ? (xc%9+1) : (xc-2+9)%9+1; });
         return yunGrid;
     },
+    _lastSoilRenderKey: '',
     renderSoilProfile(){
         const st=AppState.current;
         // P1-008 穴土聯動：若用戶未手動切換，依地形位置自動推定
@@ -5015,6 +5066,11 @@ const UI = {
             const inferred = Rules.inferSoilFromTerrain();
             if(inferred) st.soil = inferred;
         }
+        // 效能加速：若土壤類型與穴高未變更，略過 2D Canvas 完整重繪流程
+        const renderKey = `${st.soil}_${st.xueHeight}_${st.xueX}_${st.xueZ}`;
+        if (this._lastSoilRenderKey === renderKey) return;
+        this._lastSoilRenderKey = renderKey;
+
         const cv=document.getElementById('soil-canvas');
         const leg=document.getElementById('soil-legend');
         if(!cv) return;
@@ -5326,6 +5382,7 @@ const Engine3D = {
         // #45 風漂移向量（用於風挾水向穴的視覺表達）
         shader.uniforms.windDrift = { value: new THREE.Vector3(0, 0, 0) };
         shader.uniforms.waterBase = { value: -12.0 };
+        shader.uniforms.riverZOffset = { value: 0.0 };
         shader.uniforms.flowDirTex = { value: this.flowDirTex };
         shader.uniforms.tSize = { value: CONFIG.tSize };
             shader.vertexShader = `
@@ -5358,6 +5415,7 @@ const Engine3D = {
         uniform float lakeZ;
         uniform vec2 uRot;
         uniform vec3 windDrift;
+        uniform float riverZOffset;
         uniform sampler2D flowDirTex;
         uniform float tSize;
         varying vec2 vWorldXZ;
@@ -5397,7 +5455,7 @@ const Engine3D = {
                 flowSpeedY += windDrift.z * 0.02;
                 flowUV1 -= vec2(flowSpeedX, flowSpeedY);
                 flowUV2 -= vec2(flowSpeedX*0.6, flowSpeedY*1.25);
-                float riverRefZ = (riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6 || riverType == 10 || riverType == 11 || riverType == 13) ? 70.0 : ((riverType == 2 || riverType == 8) ? 55.0 : ((riverType == 5) ? -10.0 : (((riverType == 7) || (riverType == 9)) ? 35.0 : 30.0)));
+                float riverRefZ = ((riverType == 0 || riverType == 1 || riverType == 3 || riverType == 6 || riverType == 10 || riverType == 11 || riverType == 13) ? 70.0 : ((riverType == 2 || riverType == 8) ? 55.0 : ((riverType == 5) ? -10.0 : (((riverType == 7) || (riverType == 9)) ? 35.0 : 30.0)))) + riverZOffset;
                 float rS = riverRefZ + shift;
                 float distToShore = abs(rz - rS);
                 if (riverType == 7) distToShore = max(0.0, length(vec2(rx, rz - lakeZ)) - 10.0); 
@@ -5617,7 +5675,9 @@ const Engine3D = {
         this.windGridPoints = [];
         for(let x=-100; x<=100; x+=20) {
             for(let z=-80; z<=100; z+=20) {
-                this.windGridPoints.push({ bx: x, bz: z });
+                let gx = Math.max(0, Math.min(63, Math.floor((x + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+                let gz = Math.max(0, Math.min(63, Math.floor((z + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
+                this.windGridPoints.push({ bx: x, bz: z, gx: gx, gz: gz, idx: gz * 64 + gx });
             }
         }
         this.windLines = [];
@@ -6381,11 +6441,18 @@ const Engine3D = {
         tri = tri * tri * (3 - 2 * tri);
         return 1.0 - tri;
     },
+    _erodeFlow: null,
+    _erodeOrder: null,
     erodeTerrain(passes = 2) {
         const tSeg = CONFIG.tSeg;
         const size = (tSeg + 1) * (tSeg + 1);
-        const flow = new Float32Array(size);
-        const order = new Array(size);
+        // 效能加速：預配置並複用侵蝕 typed array，避免每次呼叫產生 45KB+ 記憶體垃圾
+        if (!this._erodeFlow || this._erodeFlow.length !== size) {
+            this._erodeFlow = new Float32Array(size);
+            this._erodeOrder = new Int32Array(size);
+        }
+        const flow = this._erodeFlow;
+        const order = this._erodeOrder;
         for(let i=0; i<size; i++) order[i] = i;
         order.sort((a, b) => this.hMap[b] - this.hMap[a]);
         // D8 真 8向 + 對角權重0.707 + 三級穴場保護 + 多流向分流（修復 48/124）
@@ -7673,7 +7740,8 @@ const Engine3D = {
                     dR = Math.abs(dzLair - rS);
                 }
                 if(dR < 25 && state.w !== 'sishui' && state.w !== 'jushui') {
-                    let isKeyMountain = (state.an && dzLair > 50 && dzLair < 95 && Math.abs(dxLair) < 40) || (state.chao && dzLair > 105 && Math.abs(dxLair) < 80);
+                    let isHuilongSpine = (state.d === 'huilong' && dzLair < 10 && Math.abs(dxLair - Math.sin(Math.max(0, Math.min(Math.PI, (dzLair + 100) / 110 * Math.PI))) * 65.0) < 32);
+                    let isKeyMountain = (state.an && dzLair > 50 && dzLair < 95 && Math.abs(dxLair) < 40) || (state.chao && dzLair > 105 && Math.abs(dxLair) < 80) || isHuilongSpine;
                     if (!isKeyMountain) {
                         let t = Math.max(0, dR / 25);
                         let smoothT = t * t * (3 - 2 * t);
@@ -8048,6 +8116,7 @@ const Engine3D = {
                 if (state.w !== 'none') {
                     const wZColor = this.riverRefZ(state.w);
                     let rSColor = wZColor;
+                    if (state.d === 'huilong' && state.zutai && state.face === '0') rSColor -= 95;
                     if (state.d === 'pingyang') rSColor += Math.sin(dxLair * 0.08) * 20.0 + Math.cos(dxLair * 0.18) * 8.0;
                     if (state.w === 'jiuqu') { const tC = (((dxLair / 38.0) % 1) + 1) % 1; const triC = Math.abs(tC - 0.5) * 2; const ssC = triC * triC * (3 - 2 * triC); rSColor += -(ssC * 2 - 1) * 16.0; }
                     if (state.w === 'you') rSColor += (1.0 - Math.pow(dxLair / 90.0, 2)) * 28.0;
@@ -8231,6 +8300,32 @@ const Engine3D = {
                 }
             }
         }
+        // 效能加速：預烘焙熱力圖 4 種狀態的 Canvas Stamp，避免粒子迴圈每幀 createRadialGradient
+        this.heatStamps = [0, 1, 2, 3].map(st => {
+            const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+            const ctx = cv.getContext('2d');
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            if (st === 2) {
+                grad.addColorStop(0.0, 'rgba(225, 185, 55, 0.40)');
+                grad.addColorStop(0.45, 'rgba(175, 130, 35, 0.18)');
+                grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
+            } else if (st === 1) {
+                grad.addColorStop(0.0, 'rgba(215, 45, 35, 0.45)');
+                grad.addColorStop(0.5, 'rgba(150, 30, 20, 0.20)');
+                grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
+            } else if (st === 3) {
+                grad.addColorStop(0.0, 'rgba(75, 160, 235, 0.42)');
+                grad.addColorStop(0.5, 'rgba(30, 90, 175, 0.18)');
+                grad.addColorStop(1.0, 'rgba(0, 50, 150, 0.0)');
+            } else {
+                grad.addColorStop(0.0, 'rgba(40, 195, 125, 0.28)');
+                grad.addColorStop(0.6, 'rgba(18, 140, 85, 0.12)');
+                grad.addColorStop(1.0, 'rgba(10, 100, 60, 0.0)');
+            }
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+            return cv;
+        });
+
         this.sculptDirty = false;
         if (this.renderer) this.renderer.shadowMap.needsUpdate = true;
     },
@@ -8423,8 +8518,10 @@ const Engine3D = {
                 let dxLairGuard = x - lxGuard;
                 let dzLairGuard = z - lzGuard;
                 if (state.degree) { const _rg = rotDeg(dxLairGuard, dzLairGuard, -state.degree); dxLairGuard = _rg[0]; dzLairGuard = _rg[1]; }
-                let isKeyMountainGuard = (state.an && dzLairGuard > 50 && dzLairGuard < 95 && Math.abs(dxLairGuard) < 40) || (state.chao && dzLairGuard > 105 && Math.abs(dxLairGuard) < 80);
+                let isHuilongSpineGuard = (state.d === 'huilong' && dzLairGuard < 10 && Math.abs(dxLairGuard - Math.sin(Math.max(0, Math.min(Math.PI, (dzLairGuard + 100) / 110 * Math.PI))) * 65.0) < 32);
+                let isKeyMountainGuard = (state.an && dzLairGuard > 50 && dzLairGuard < 95 && Math.abs(dxLairGuard) < 40) || (state.chao && dzLairGuard > 105 && Math.abs(dxLairGuard) < 80) || isHuilongSpineGuard;
                 let rS_guard = wZ;
+                if (state.d === 'huilong' && state.zutai && state.face === '0') rS_guard -= 95;
                 const _zigG = () => { const t = (((dxLairGuard / 38.0) % 1) + 1) % 1; const tri = Math.abs(t - 0.5) * 2; const ss = tri * tri * (3 - 2 * tri); return ss * 2 - 1; };
                 if (state.d === 'pingyang') rS_guard += Math.sin(dxLairGuard * 0.08) * 20.0 + Math.cos(dxLairGuard * 0.18) * 8.0;
                 else if (state.w === 'jiuqu') rS_guard += -_zigG() * 16.0;
@@ -8476,7 +8573,7 @@ const Engine3D = {
         if(!this.hMap) return null;
         const state = AppState.current;
         const [lx, lz] = effLairAnchor();
-        const isHui = (state.d === 'huilong' && state.zutai && state.face === '0');
+        const isHui = (state.d === 'huilong');
         const segments = [
             {name:'祖山', z0:-150, z1:-120, W:32, H:28, form:'mu',  curve:0},
             {name:'開帳', z0:-118, z1:-90,  W:78, H:14, form:'mu',  curve:0},
@@ -8503,7 +8600,7 @@ const Engine3D = {
             segments.forEach(s => { s.curve = -0.035 * (s.z0 + 75); s.H *= 0.85; });
         }
         if(isHui){
-            segments.forEach(s=> s.curve = 0.025 * (s.z0 + 75));
+            segments.forEach(s=> s.curve = 0);
         }
         const segRecords = [];
         const raw=[];
@@ -8514,7 +8611,13 @@ const Engine3D = {
                 const t = i/n;
                 const zLair = seg.z0 + t * dzSpan;
                 const baseX = 0;
-                const curveX = seg.curve * Math.pow(zLair + 75, 2);
+                let curveX = 0;
+                if (isHui) {
+                    let curveAngle = Math.max(0, Math.min(Math.PI, (zLair + 100) / 110 * Math.PI));
+                    curveX = Math.sin(curveAngle) * 65.0;
+                } else if (dSel === 'heng') {
+                    curveX = seg.curve * (zLair + 75);
+                }
                 const wx = lx + baseX + curveX;
                 const wz = lz + zLair;
                 const wHalf = seg.W * (0.5 + 0.5 * Math.cos(t * Math.PI * 2 - Math.PI)) * 0.5;
@@ -8819,11 +8922,12 @@ const Engine3D = {
         }
         AppState.sensors.betti1Closure = closedSectors/totalSectors;
     },
+    _sharedTerrainOut: { y: 0, nx: 0, nz: 0 },
     getTerrainY(x, z, out) {
+        let res = out || this._sharedTerrainOut;
         let gX = (x+CONFIG.tSize/2)*INV_CELL_SIZE, gZ = (z+CONFIG.tSize/2)*INV_CELL_SIZE;
         if(gX < 0 || gX > CONFIG.tSeg || gZ < 0 || gZ > CONFIG.tSeg) {
-            if (out) { out.y = -100; out.nx = 0; out.nz = 0; return out; }
-            return {y:-100, nx:0, nz:0};
+            res.y = -100; res.nx = 0; res.nz = 0; return res;
         }
         let x0 = gX | 0; if (x0 > MAX_SEG_IDX) x0 = MAX_SEG_IDX;
         let z0 = gZ | 0; if (z0 > MAX_SEG_IDX) z0 = MAX_SEG_IDX;
@@ -8832,11 +8936,10 @@ const Engine3D = {
         let h00 = this.hMap[row0 + x0]||0, h10 = this.hMap[row0 + x1]||0, h01 = this.hMap[row1 + x0]||0, h11 = this.hMap[row1 + x1]||0;
         let tx = gX-x0, tz = gZ-z0;
         let oneMinusTx = 1.0 - tx, oneMinusTz = 1.0 - tz;
-        let nx = (h00 * oneMinusTz + h01 * tz) - (h10 * oneMinusTz + h11 * tz);
-        let nz = (h00 * oneMinusTx + h10 * tx) - (h01 * oneMinusTx + h11 * tx);
-        let y = (h00 * oneMinusTx + h10 * tx) * oneMinusTz + (h01 * oneMinusTx + h11 * tx) * tz;
-        if (out) { out.y = y; out.nx = nx; out.nz = nz; return out; }
-        return {y:y, nx:nx, nz:nz};
+        res.nx = (h00 * oneMinusTz + h01 * tz) - (h10 * oneMinusTz + h11 * tz);
+        res.nz = (h00 * oneMinusTx + h10 * tx) - (h01 * oneMinusTx + h11 * tx);
+        res.y = (h00 * oneMinusTx + h10 * tx) * oneMinusTz + (h01 * oneMinusTx + h11 * tx) * tz;
+        return res;
     },
     shockwavesThisFrame: 0,
     sculptDirty: false,
@@ -9038,15 +9141,17 @@ const Physics = {
     //    原有 64×64 2D 动量團接網格 開展[46\]；3D 版本持續模擬 真實氣流效應
     _pressurePoissonSolve3D(dt, iterations=3){
         const NX = this.wind3DSize, NY = this.wind3DLayers;
-        const idx3 = (h, gz, gx) => (h * NX + gz) * NX + gx;
+        const NX2 = NX * NX;
         const wX = this.wind3DX, wY = this.wind3DY, wZ = this.wind3DZ;
         const wPx = this.wind3DPressure, wPxn = this.wind3DPressure_next;
-        // 1. 計算散度 ∇·u (3D)
+        // 1. 計算散度 ∇·u (3D) - 內聯索引計算
         for(let h=1; h<NY-1; h++){
+            const hOffset = h * NX2;
             for(let gz=1; gz<NX-1; gz++){
+                const rowOffset = hOffset + gz * NX;
                 for(let gx=1; gx<NX-1; gx++){
-                    const i = idx3(h, gz, gx);
-                    const div = (wX[i+1] - wX[i-1] + wZ[i+NX] - wZ[i-NX] + wY[i+NX*NX] - wY[i-NX*NX]) * 0.5;
+                    const i = rowOffset + gx;
+                    const div = (wX[i+1] - wX[i-1] + wZ[i+NX] - wZ[i-NX] + wY[i+NX2] - wY[i-NX2]) * 0.5;
                     wPxn[i] = -div * 1.2;
                 }
             }
@@ -9054,10 +9159,12 @@ const Physics = {
         // 2. Jacobi 迭代 3 次求壓力/divergence-free 域
         for(let it=0; it<iterations; it++){
             for(let h=1; h<NY-1; h++){
+                const hOffset = h * NX2;
                 for(let gz=1; gz<NX-1; gz++){
+                    const rowOffset = hOffset + gz * NX;
                     for(let gx=1; gx<NX-1; gx++){
-                        const i = idx3(h, gz, gx);
-                        wPx[i] = (wPxn[i-1] + wPxn[i+1] + wPxn[i-NX] + wPxn[i+NX] + wPxn[i-NX*NX] + wPxn[i+NX*NX]) * (1/6);
+                        const i = rowOffset + gx;
+                        wPx[i] = (wPxn[i-1] + wPxn[i+1] + wPxn[i-NX] + wPxn[i+NX] + wPxn[i-NX2] + wPxn[i+NX2]) * (1/6);
                     }
                 }
             }
@@ -9066,12 +9173,14 @@ const Physics = {
         // 3. 回溶修正：u -= ∇p ÷ dt (3D)
         const relax = Math.min(0.5, dt * 0.6);
         for(let h=1; h<NY-1; h++){
+            const hOffset = h * NX2;
             for(let gz=1; gz<NX-1; gz++){
+                const rowOffset = hOffset + gz * NX;
                 for(let gx=1; gx<NX-1; gx++){
-                    const i = idx3(h, gz, gx);
+                    const i = rowOffset + gx;
                     const gpX = (this.wind3DPressure[i+1] - this.wind3DPressure[i-1]) * 0.5;
                     const gpZ = (this.wind3DPressure[i+NX] - this.wind3DPressure[i-NX]) * 0.5;
-                    const gpY = (this.wind3DPressure[i+NX*NX] - this.wind3DPressure[i-NX*NX]) * 0.5;
+                    const gpY = (this.wind3DPressure[i+NX2] - this.wind3DPressure[i-NX2]) * 0.5;
                     wX[i] -= gpX * relax;
                     wZ[i] -= gpZ * relax;
                     wY[i] -= gpY * relax;
@@ -9144,14 +9253,15 @@ const Physics = {
         for(let i=0; i<this.pCount; i++) {
             this.pPos[i*3] = (Math.random()-0.5)*60;
             if(state.d === 'pingyang') {
-                let tz, tx, ty;
-                let attempts = 0;
-                do {
-                    tz = Math.max(-160, -35 - Math.random()*10 + xueZOffset);
-                    tx = Math.max(-125, Math.min(125, (Math.random()-0.5)*20 + xueXOffset));
-                    ty = Engine3D.getTerrainY(tx, tz).y;
-                    attempts++;
-                } while(ty < -2.0 && attempts < 30);
+                let tz = Math.max(-160, -35 - Math.random()*10 + xueZOffset);
+                let tx = Math.max(-125, Math.min(125, (Math.random()-0.5)*20 + xueXOffset));
+                let ty = Engine3D.getTerrainY(tx, tz, this._ptT).y;
+                // 效能加速：限制重試次數為 1 次，若仍在深水區則微調至中心安全帶，消除 15 萬次 while 迴圈取樣
+                if (ty < -2.0) {
+                    tx = (Math.random() - 0.5) * 8.0 + xueXOffset;
+                    tz = -35.0 + xueZOffset;
+                    ty = Engine3D.getTerrainY(tx, tz, this._ptT).y;
+                }
                 if (state.degree) { const _ps = rotDeg(tx - xueXOffset, tz - xueZOffset, state.degree); tx = _ps[0] + xueXOffset; tz = _ps[1] + xueZOffset; }
                 this.pPos[i*3] = tx;
                 this.pPos[i*3+1] = Math.max(ty + 3.5, ty + 2.5 + Math.random()*3.0); 
@@ -9251,6 +9361,10 @@ const Physics = {
             Engine3D.waterMesh.material.userData.shader.uniforms.lairX.value = _shAx;
             Engine3D.waterMesh.material.userData.shader.uniforms.lairZ.value = _shAz;
             Engine3D.waterMesh.material.userData.shader.uniforms.lakeZ.value = (state.w === 'jushui' || (state.w === 'none' && state.yue)) ? 25.0 : 35.0;
+            if(Engine3D.waterMesh.material.userData.shader.uniforms.riverZOffset){
+                let isHuiNorth = (state.d === 'huilong' && state.zutai && state.face === '0');
+                Engine3D.waterMesh.material.userData.shader.uniforms.riverZOffset.value = isHuiNorth ? -95.0 : 0.0;
+            }
             // 風向量傳給 shader 用於雨滴漂移
             if(Engine3D.waterMesh.material.userData.shader.uniforms.windDrift){
                 Engine3D.waterMesh.material.userData.shader.uniforms.windDrift.value.set((state.wind || 0) * 0.3, 0, 0);
@@ -9759,33 +9873,38 @@ const Physics = {
                 let falloffPS = Math.exp(-Math.pow(Math.abs(dxGeom) - 32.5, 2) / 306.25) * Math.exp(-Math.pow(dzGeom - 10, 2) / 450.0);
                 localTurbulence += thermalDraft * 3.5 * falloffPS; 
             }
+            // 效能加速：僅在粒子進入峽谷/山脊作用區時才採樣兩側地表，避免全場 5000 顆粒子每幀進行 10,000 次無效取樣
             if (Math.abs(baseWind) > 0.01) {
                 let scanD = 15;
-                let hLeft = Engine3D.getTerrainY(x - scanD, z).y;
-                let hRight = Engine3D.getTerrainY(x + scanD, z).y;
-                let windUpstreamH = (globalWindX > 0) ? hLeft : hRight;
-                let isCanyon = (Math.abs(dxGeom) < 18 && hLeft > t.y + 10 && hRight > t.y + 10);
-                if (isCanyon) {
-                    let compression = ((hLeft - t.y) + (hRight - t.y)) * 0.02;
-                    let pinchForce = Math.abs(globalWindX) * compression * 1.2; 
-                    let canyonFalloff = Math.max(0, 1 - Math.abs(dxGeom) / 18.0);
-                    let canyonH = Math.min(hLeft, hRight) - t.y - 10.0;
-                    canyonFalloff *= Math.max(0, Math.min(1, canyonH / 5.0));
-                    canyonFalloff = canyonFalloff * canyonFalloff * (3 - 2 * canyonFalloff);
-                    localWindX *= 0.2; 
-                    localWindZ += pinchForce * Math.sign(dzGeom) * canyonFalloff; 
-                    localTurbulence += pinchForce * 0.3 * canyonFalloff;
-                } 
-                if (windUpstreamH < t.y - 3 && t.y > -5) {
-                    let funnelSpeed = Math.abs(globalWindX) * 1.5;
-                    localWindX += Math.sign(globalWindX) * funnelSpeed; 
-                    localTurbulence += 0.5 * Math.abs(globalWindX);
+                if (Math.abs(dxGeom) < 18) {
+                    let hLeft = Engine3D.getTerrainY(x - scanD, z).y;
+                    let hRight = Engine3D.getTerrainY(x + scanD, z).y;
+                    if (hLeft > t.y + 10 && hRight > t.y + 10) {
+                        let compression = ((hLeft - t.y) + (hRight - t.y)) * 0.02;
+                        let pinchForce = Math.abs(globalWindX) * compression * 1.2; 
+                        let canyonFalloff = Math.max(0, 1 - Math.abs(dxGeom) / 18.0);
+                        let canyonH = Math.min(hLeft, hRight) - t.y - 10.0;
+                        canyonFalloff *= Math.max(0, Math.min(1, canyonH / 5.0));
+                        canyonFalloff = canyonFalloff * canyonFalloff * (3 - 2 * canyonFalloff);
+                        localWindX *= 0.2; 
+                        localWindZ += pinchForce * Math.sign(dzGeom) * canyonFalloff; 
+                        localTurbulence += pinchForce * 0.3 * canyonFalloff;
+                    }
                 }
-                if (windUpstreamH > y + 8) {
-                    let drop = windUpstreamH - Math.max(t.y, y);
-                    localWindX *= -0.1; 
-                    localWindZ += (Math.random() - 0.5) * drop * 0.2 * Math.abs(globalWindX);
-                    localTurbulence += drop * 0.1 * Math.abs(globalWindX);
+                // 上游迎風高度僅在有明顯地表起伏時採樣單側
+                if (t.y > -5) {
+                    let scanX = (globalWindX > 0) ? (x - scanD) : (x + scanD);
+                    let windUpstreamH = Engine3D.getTerrainY(scanX, z).y;
+                    if (windUpstreamH < t.y - 3) {
+                        let funnelSpeed = Math.abs(globalWindX) * 1.5;
+                        localWindX += Math.sign(globalWindX) * funnelSpeed; 
+                        localTurbulence += 0.5 * Math.abs(globalWindX);
+                    } else if (windUpstreamH > y + 8) {
+                        let drop = windUpstreamH - Math.max(t.y, y);
+                        localWindX *= -0.1; 
+                        localWindZ += (Math.random() - 0.5) * drop * 0.2 * Math.abs(globalWindX);
+                        localTurbulence += drop * 0.1 * Math.abs(globalWindX);
+                    }
                 }
             }
             // P0-4 解耦：腳本風場僅保留 35%，其餘由真實地形狹管/渦旋湧現
@@ -9878,13 +9997,16 @@ const Physics = {
                 } else if (phreaticDepth >= 2.0) {
                     vel.y -= phreaticDepth * 2.0 * dt; 
                 }
-                let tLeft = Engine3D.getTerrainY(x - 2, z).nx;
-                let tRight = Engine3D.getTerrainY(x + 2, z).nx;
-                let gaussianCurvature = Math.abs(tLeft - tRight);
-                if (gaussianCurvature > 1.8 && dzGeom < 0) { 
-                    frameTensorFracture++; 
-                    vel.x += Math.sign(t.nx) * gaussianCurvature * 3.5 * dt; 
-                    vel.y -= 1.0 * dt;
+                // 效能加速：僅在 dzGeom < 0 且法線坡度足夠陡峭時才取樣兩側地形，避免 5000 顆粒子無條件取樣
+                if (dzGeom < 0 && Math.abs(t.nx) > 0.6) {
+                    let tLeft = Engine3D.getTerrainY(x - 2, z).nx;
+                    let tRight = Engine3D.getTerrainY(x + 2, z).nx;
+                    let gaussianCurvature = Math.abs(tLeft - tRight);
+                    if (gaussianCurvature > 1.8) { 
+                        frameTensorFracture++; 
+                        vel.x += Math.sign(t.nx) * gaussianCurvature * 3.5 * dt; 
+                        vel.y -= 1.0 * dt;
+                    }
                 }
                 y = Math.max(y, t.y + 0.8);
                 if ((state.bohuan === 'no' || state.bohuan === 'partial') && dzGeom < -10) {
@@ -10246,34 +10368,10 @@ const Physics = {
                 let hx = (x / CONFIG.tSize + 0.5) * 256; 
                 let hz = (z / CONFIG.tSize + 0.5) * 256;
                 let radius = (st === 2) ? 18.0 : (st === 1 ? 20.0 : (st === 3 ? 13.0 : 10.0));
-                
-                let grad = Engine3D.hCtx.createRadialGradient(hx, hz, 0, hx, hz, radius);
-                if (st === 2) {
-                    // 聚氣融結：柔金核心 ➔ 翡翠光暈
-                    grad.addColorStop(0.0, 'rgba(225, 185, 55, 0.40)');
-                    grad.addColorStop(0.45, 'rgba(175, 130, 35, 0.18)');
-                    grad.addColorStop(1.0, 'rgba(63, 107, 82, 0.0)');
-                } else if (st === 1) {
-                    // 形煞衝射：絳紅 ➔ 煞氣邊緣
-                    grad.addColorStop(0.0, 'rgba(215, 45, 35, 0.45)');
-                    grad.addColorStop(0.5, 'rgba(150, 30, 20, 0.20)');
-                    grad.addColorStop(1.0, 'rgba(166, 58, 43, 0.0)');
-                } else if (st === 3) {
-                    // 風吹氣散：淡青冷光
-                    grad.addColorStop(0.0, 'rgba(75, 160, 235, 0.42)');
-                    grad.addColorStop(0.5, 'rgba(30, 90, 175, 0.18)');
-                    grad.addColorStop(1.0, 'rgba(0, 50, 150, 0.0)');
-                } else {
-                    // 隨龍行度：淡雅青玉色
-                    grad.addColorStop(0.0, 'rgba(40, 195, 125, 0.28)');
-                    grad.addColorStop(0.6, 'rgba(18, 140, 85, 0.12)');
-                    grad.addColorStop(1.0, 'rgba(10, 100, 60, 0.0)');
+                let stamp = Engine3D.heatStamps ? Engine3D.heatStamps[st] : null;
+                if (stamp) {
+                    Engine3D.hCtx.drawImage(stamp, hx - radius, hz - radius, radius * 2, radius * 2);
                 }
-                
-                Engine3D.hCtx.fillStyle = grad;
-                Engine3D.hCtx.beginPath();
-                Engine3D.hCtx.arc(hx, hz, radius, 0, Math.PI * 2);
-                Engine3D.hCtx.fill();
             }
             let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < taijiRadiusSqL && y > t.y - 5 && y < t.y + 15);
             if (inTaiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng') { // 藏風聚氣由地形湧現，不繫於太極開關
@@ -10471,16 +10569,15 @@ const Physics = {
         if(state.vWind && AppState.frames % 2 === 0 && Engine3D.windSegments) {
             let posArr = Engine3D.windSegments.geometry.attributes.position.array;
             let ptr = 0;
-            for (let k = 0; k < Engine3D.windGridPoints.length; k++) {
-                let w = Engine3D.windGridPoints[k];
+            const pts = Engine3D.windGridPoints;
+            const pLen = pts.length;
+            for (let k = 0; k < pLen; k++) {
+                let w = pts[k];
                 let ty = Engine3D.getTerrainY(w.bx, w.bz, this._ptTFinal).y;
-                let gx = Math.max(0, Math.min(63, Math.floor((w.bx + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
-                let gz = Math.max(0, Math.min(63, Math.floor((w.bz + CONFIG.tSize / 2) / CONFIG.tSize * 64)));
-                let idx = gz * 64 + gx;
-                let vx = this.windGridX[idx] || 0;
-                let vz = this.windGridZ[idx] || 0;
-                let endX = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bx + vx * 22.0));
-                let endZ = Math.max(-CONFIG.tSize / 2, Math.min(CONFIG.tSize / 2, w.bz + vz * 22.0));
+                let vx = this.windGridX[w.idx] || 0;
+                let vz = this.windGridZ[w.idx] || 0;
+                let endX = Math.max(-175.0, Math.min(175.0, w.bx + vx * 22.0));
+                let endZ = Math.max(-175.0, Math.min(175.0, w.bz + vz * 22.0));
                 let endY = Engine3D.getTerrainY(endX, endZ, this._ptT).y;
                 
                 posArr[ptr++] = w.bx; posArr[ptr++] = ty > -5 ? ty + 2.2 : -100; posArr[ptr++] = w.bz;
@@ -10556,25 +10653,32 @@ const Physics = {
         }
         maxQi = 0;
         let totalQi = 0;
-        let spatialEntropy = 0; 
+        // 效能加速：每 6 幀才計算一次 4096 次 log2 資訊熵，平時維持快取值
+        const shouldComputeEntropy = (AppState.frames % 6 === 0);
         for (let j = 0; j < 4096; j++) {
-            if (this.qiGrid[j] > maxQi) { maxQi = this.qiGrid[j]; }
-            totalQi += this.qiGrid[j];
+            let qv = this.qiGrid[j];
+            if (qv > maxQi) { maxQi = qv; }
+            if (shouldComputeEntropy) totalQi += qv;
         }
         this.maxQi = maxQi; 
-        const MIN_QI_FOR_ENTROPY = 1.0;
-        if (totalQi > MIN_QI_FOR_ENTROPY) {
-            for (let j = 0; j < 4096; j++) {
-                if (this.qiGrid[j] > 1e-6) {
-                    let prob = this.qiGrid[j] / totalQi;
-                    if (prob > 1e-7) spatialEntropy -= prob * Math.log2(prob);
+        if (shouldComputeEntropy) {
+            const MIN_QI_FOR_ENTROPY = 1.0;
+            if (totalQi > MIN_QI_FOR_ENTROPY) {
+                let spatialEntropy = 0;
+                let invTotal = 1.0 / totalQi;
+                for (let j = 0; j < 4096; j++) {
+                    let qv = this.qiGrid[j];
+                    if (qv > 1e-6) {
+                        let prob = qv * invTotal;
+                        if (prob > 1e-7) spatialEntropy -= prob * Math.log2(prob);
+                    }
                 }
+                AppState.sensors.shannonEntropy = Number.isFinite(spatialEntropy) ? spatialEntropy : 4.0;
+            } else {
+                AppState.sensors.shannonEntropy = 4.0;
             }
-            if (!Number.isFinite(spatialEntropy)) spatialEntropy = 4.0;
-        } else {
-            spatialEntropy = 4.0;
         }
-        AppState.sensors.shannonEntropy = spatialEntropy;
+        let spatialEntropy = AppState.sensors.shannonEntropy;
         let qFactor = 0;
         if (AppState.sensors.shannonEntropy >= 0) {
             const totalQiForQ = AppState.gatherAcc + AppState.scatterAcc;
@@ -10693,7 +10797,8 @@ const Physics = {
         let reynoldsNum = Math.round(AppState.sensors.windSpeed * 350 + AppState.sensors.turbulence * 180);
         let froudeNum = (state.w !== 'none') ? Math.max(0, AppState.sensors.waterDrag / 5.0 + ((state.waterVel || 1.0) - 1.0) * 0.4) : 0;
         let isTurbulentSha = (reynoldsNum > 2300 && AppState.sensors.windSpeed > 2.0);
-        if (AppState.frames % 6 === 0) {
+        // 效能加速：遙測數據更新頻率調整至 24 幀一次（約 2.5Hz），大幅減少瀏覽器 Style Recalculation 與 Reflow
+        if (AppState.frames % 24 === 0) {
             let sensorHtml = `
                 <div style="color:#b98a2e; font-weight:bold; margin-bottom:4px; font-size: 13px;">[核心物理代理觀測儀]</div>
                 <div style="font-size:9px; color:#a63a2b; margin-bottom:4px;">※ 本欄為可測物理量的風水規則映射，非玄學實體直接測量</div>
