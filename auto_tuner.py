@@ -639,7 +639,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
 
     m_lower = model.lower()
     if "dots" in m_lower:
-        max_tokens_val = 200000
+        max_tokens_val = 131072
     elif "minimax" in m_lower or "m3" in m_lower:
         max_tokens_val = 131072
     elif "nvidia" in str(getattr(client, "base_url", "")).lower():
@@ -674,18 +674,19 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
         if pool and len(pool.active_keys) > 0:
             pool.next_key_for_request(client)
 
+        is_openrouter_call = "openrouter" in str(getattr(client, "base_url", "")).lower()
         create_kwargs = {
             "model": model,
             "messages": conversation_history,
             "temperature": 1.0,
             "max_tokens": max_tokens_val,
-            "reasoning_effort": "high",
-            "extra_body": {
-                "reasoning": {
-                    "effort": "max"
-                }
-            },
         }
+
+        # 針對 OpenRouter 與原生端點分別傳遞正確的推理參數格式，避免發送頂層衝突參數導致 400 Bad Request
+        if is_openrouter_call:
+            create_kwargs["extra_body"] = {"reasoning": {"effort": "high"}}
+        elif "api.deepseek.com" in str(getattr(client, "base_url", "")).lower():
+            create_kwargs["reasoning_effort"] = "high"
 
         is_opencode_responses = "opencode.ai/zen" in str(getattr(client, "base_url", "")).lower() and (
             "muse" in model.lower() or "spark" in model.lower()
@@ -760,6 +761,8 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                         raw_response = f"<think>\n{reasoning_text.strip()}\n</think>\n\n{raw_response}"
                 except Exception:
                     # 容錯回退至標準 Chat Completions 端點
+                    create_kwargs.pop("reasoning_effort", None)
+                    create_kwargs.pop("extra_body", None)
                     response = client.chat.completions.create(**create_kwargs)
                     usage = getattr(response, "usage", None)
                     msg_obj = response.choices[0].message
@@ -772,13 +775,13 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                     response = client.chat.completions.create(**create_kwargs)
                 except Exception as api_err:
                     err_str = str(api_err).lower()
-                    if "max_tokens" in err_str or "maximum allowed" in err_str:
-                        create_kwargs["max_tokens"] = 8192
-                    if "reasoning_effort" in err_str or "extra" in err_str:
+                    # 捕捉 400 Bad Request、provider 報錯或非標準參數，徹底清除推理欄位重新發送
+                    if any(kw in err_str for kw in ["400", "bad request", "provider returned error", "reasoning", "extra", "unrecognized", "invalid"]):
                         create_kwargs.pop("reasoning_effort", None)
-                    if "extra_body" in create_kwargs:
                         create_kwargs.pop("extra_body", None)
-                    response = client.chat.completions.create(**create_kwargs)
+                        response = client.chat.completions.create(**create_kwargs)
+                    else:
+                        raise api_err
 
                 usage = getattr(response, "usage", None)
                 msg_obj = response.choices[0].message
@@ -1241,12 +1244,8 @@ def run_static_review(target_file, client, model, logger, report_path, max_round
             should_reset_next = True
         
         if not ai_json:
-            logger.error("解析 AI 回覆失敗，準備下一輪硬重置。")
-            # 智慧硬重置：避免 Append-Only 爆 Context
-            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
-            needs_full_snapshot = True
-            time.sleep(2)
-            continue
+            logger.critical("🛑 AI 請求已耗盡所有重試次數（連線異常或 API 全面中斷），靜態審查任務終止！")
+            break
             
         # ⚡ [Cache 優化] 保留助理原始回覆 (raw_text)，觸發 API 端 100% KV Cache 完全命中
         conversation_history.append({"role": "assistant", "content": raw_text})
@@ -1779,12 +1778,8 @@ def main():
             should_reset_next = True
         
         if not ai_json:
-            logger.error("解析 AI 回覆失敗，準備硬重置對話。")
-            conversation_history = [{"role": "system", "content": UNIFIED_SYSTEM_PROMPT}]
-            needs_full_snapshot = True
-            consecutive_perfects = BASE_PROGRESS
-            time.sleep(3)
-            continue
+            logger.critical("🛑 AI 請求已耗盡所有重試次數（連線異常或 API 全面中斷），調校任務終止！")
+            break
             
         # ⚡ [Cache 優化] 保留助理原始回覆 (raw_text)，觸發 API 端 100% KV Cache 完全命中
         conversation_history.append({"role": "assistant", "content": raw_text})

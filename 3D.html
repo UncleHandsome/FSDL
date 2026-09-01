@@ -2370,9 +2370,15 @@ const Rules = {
         const slopeMean = segSlopes.reduce((a,b)=>a+b, 0) / Math.max(1, segSlopes.length);
         const slopeVar = segSlopes.reduce((a,b)=>a+(b-slopeMean)*(b-slopeMean), 0) / Math.max(1, segSlopes.length);
         const slopeCV = slopeMean > 0 ? Math.sqrt(slopeVar) / slopeMean : 0;
-        // 死龍判定：CV<0.15 表示脊線平滑無骨（僵直），即使距離連續也算凶
-        const isStiff = slopeCV < 0.15 && pts.length > 20;
-        const mainOk = (gaps <= 1) && !isStiff;
+        const firstPt = pts[0];
+        const lastPt = pts[pts.length - 1];
+        const spineDx = lastPt.x - firstPt.x;
+        const spineDz = lastPt.z - firstPt.z;
+        const isTransverse = Math.abs(spineDx) > Math.abs(spineDz);
+        const stiffThreshold = isTransverse ? 0.05 : 0.15;
+        const isStiff = slopeCV < stiffThreshold && pts.length > 20;
+        const dullThreshold = isTransverse ? 0.01 : 0.05;
+        const isDull = peakValleyRatio < dullThreshold && pts.length > 20;
 
         // ───────────────────────────────
         // 軸 2：峰谷交替 — 連續單調=呆龍（不同於僵直：僵直=完全均匀；呆龍=完全單調）
@@ -9392,11 +9398,7 @@ const Physics = {
         let framePhreatic = 0, frameTensorFracture = 0, frameHelicity = 0, frameThermalShear = 0, frameWaveletSpike = 0;
         let frameCoriolisCrash = 0, frameDarcyDrag = 0, frameBoundarySep = 0; 
         if (AppState.frames % 2 === 0 && Math.abs(baseWind) > 0.001) {
-            // #24 真實 Navier-Stokes：Pressure-Poisson Jacobi 4 次迭代 + 黏性擴散
-            //    每 2 幀跑一次（壓力場收斂已足夠穴場評分）
-            try{
-                this._pressurePoissonSolve(dt, 4);
-            }catch(e){}
+
             // #43 真正 3D Navier-Stokes：32×32×4 全域網格 包含 Y 向分量
             //    覆蓋 over-the-top downwash（他人這郎回流）、疏穿 downwash/邊頑回流
             try{
@@ -9532,11 +9534,13 @@ const Physics = {
         for(let i=AppState.shockwaves.length-1; i>=0; i--) {
             let sw = AppState.shockwaves[i];
             sw.life -= 0.02 * dt;
-            sw.mesh.scale.set(1 + (1-sw.life)*10, 1 + (1-sw.life)*10, 1);
-            sw.mesh.material.opacity = sw.life;
+            if (sw && sw.mesh.parent === Engine3D.swGroup) {
+                sw.mesh.scale.set(1 + (1-sw.life)*10, 1 + (1-sw.life)*10, 1);
+                sw.mesh.material.opacity = sw.life;
+            }
             if(sw.life <= 0) {
-                Engine3D.swGroup.remove(sw.mesh);
-                sw.mesh.material.dispose();
+                if (sw.mesh.parent) Engine3D.swGroup.remove(sw.mesh);
+                if (sw.mesh.material && sw.mesh.material.dispose) sw.mesh.material.dispose();
                 AppState.shockwaves.splice(i, 1);
             }
         }
@@ -9731,11 +9735,17 @@ const Physics = {
                     localTurbulence += thermalDraft * 6.0 * sickleFalloff;
                 }
             }
-            if (state.w === 'tfork' && Math.abs(dxTaiji) < 20 && dzTaiji > -20 && dzTaiji < 68) {
+            // 檢測局部流場散度以判斷是否有水流分叉（如 tfork）
+            let divFlow = 0;
+            if (sampleX > 0 && sampleX < 63 && sampleZ > 0 && sampleZ < 63) {
+                divFlow = (this.windGridX[sampleZ * 64 + sampleX + 1] - this.windGridX[sampleZ * 64 + sampleX - 1] + 
+                           this.windGridZ[(sampleZ + 1) * 64 + sampleX] - this.windGridZ[(sampleZ - 1) * 64 + sampleX]) * 0.5;
+            }
+            if (Math.abs(divFlow) > 0.5 && Math.abs(dxTaiji) < 20 && dzTaiji > -20 && dzTaiji < 68) {
                 let falloffTF_X = Math.max(0, 1.0 - Math.abs(dxTaiji) / 20.0);
                 let falloffTF_Z = Math.exp(-Math.pow(dzTaiji - 5, 2) / 800.0);
                 let falloffTF = Math.min(falloffTF_X, falloffTF_Z);
-                let tforkDrive = (state.waterVel || 1.0);
+                let tforkDrive = Math.abs(divFlow) * 2.0; // 將散度轉換為驅動強度
                 localWindZ -= tforkDrive * 8.5 * falloffTF; 
                 localTurbulence += tforkDrive * 5.0 * falloffTF;
             }
@@ -10463,7 +10473,7 @@ const Physics = {
                     let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;
                     let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone && (state.d === 'pingyang' || dzTaiji > -15));
                     let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5 && y <= t.y + 3.0);
-                  if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && Math.random() < Math.min(1, 0.85 * dt)) {
+                  if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && !isTrapZone && !hasFatalShaZone && Math.random() < Math.min(1, 0.85 * dt)) {
                 this.pState[i] = 2; this.colorDirty = true;
                 this.pSettleLife[i] = 0.0;
                    if (state.xing === 'jin') {
