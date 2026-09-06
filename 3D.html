@@ -820,7 +820,8 @@ const Rules = {
                 const protR=Rules.protectionRatio();
                 const velF=(state.waterVel||1)*0.08;
                 const _a=(state.degree||0)*Math.PI/180, _sx=Math.sin(_a), _cx=Math.cos(_a);
-                const rx=lxR - _sx*1.5, rz=lzR + _cx*12;
+                const _lkR=(state.face === '1' ? 1 : -1);
+                const rx=lxR - _sx*_lkR*1.5, rz=lzR + _cx*_lkR*12;
                 const dxLair=rx-lxR, dzLair=rz-lzR;
                 const hDiffR=Math.abs(Engine3D.getTerrainY(lxR,lzR).y - Engine3D.getTerrainY(rx,rz).y) + (state.road==='lanyao'? 6 : 0) + (Engine3D.flowMap? Math.abs(Rules.flowDrivenShift(dxLair,dzLair))*0.04 : 0);
                 let roadM = 0.72 + 0.18*protR - velF*0.25 - hDiffR*0.015 - Rules.sandPressure(lxR,lzR).pressure*0.005;
@@ -1223,9 +1224,9 @@ const Rules = {
         } 
         if (state.face === '0' && state.d === 'pingyang' && !isBadWaterZero) zeroGodBonus += 10; 
         let _m15 = (((deg % 15) + 15) % 15);
-        let dToCenter15 = Math.abs(_m15 - 7.5);
+        let dToCenter15 = Math.min(_m15, 15 - _m15);
         let _m45 = (((deg % 45) + 45) % 45);
-        let dToCenter45 = Math.abs(_m45 - 22.5);
+        let dToCenter45 = Math.min(_m45, 45 - _m45);
         let dToBoundary15 = 7.5 - dToCenter15;
         let dToBoundary45 = 22.5 - dToCenter45;
         // 120分金/72穿山/60透地：每山 5° 分三，丙丁庚辛可用线微调
@@ -2463,10 +2464,13 @@ const Rules = {
         // ───────────────────────────────
         let valleyAsymAcc = 0, valleyPairCount = 0;
         const asymStep = Math.max(2, Math.floor(pts.length / 24));
+        const _radVA = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
+        const _cosVA = Math.cos(_radVA);
+        const _sinVA = Math.sin(_radVA);
         for (let i = 4; i < pts.length - 4; i += asymStep) {
             const p = pts[i];
-            const lDepth = Math.abs(Engine3D.getTerrainY(p.x - 16, p.z, this._ptT).y - p.y);
-            const rDepth = Math.abs(Engine3D.getTerrainY(p.x + 16, p.z, this._ptT).y - p.y);
+            const lDepth = Math.abs(Engine3D.getTerrainY(p.x - _cosVA * 16, p.z - _sinVA * 16, this._ptT).y - p.y);
+            const rDepth = Math.abs(Engine3D.getTerrainY(p.x + _cosVA * 16, p.z + _sinVA * 16, this._ptT).y - p.y);
             const avgD = (lDepth + rDepth) * 0.5;
             if (avgD < 0.2) continue;
             const asym = Math.abs(lDepth - rDepth) / avgD;
@@ -2589,10 +2593,13 @@ const Rules = {
         const entrySkew = Math.abs(((entryAng % 180) + 180) % 180 - 90);
         const passEntry = (entrySkew < 30);
         // 6. 護送：主脊兩側是否有次脊
+        const _radE = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
+        const _cosE = Math.cos(_radE);
+        const _sinE = Math.sin(_radE);
         let escort = 0;
         for (let i=Math.floor(pts.length/2); i<pts.length-2; i++){
-            const sideL = Engine3D.getTerrainY(pts[i].x-22, pts[i].z).y;
-            const sideR = Engine3D.getTerrainY(pts[i].x+22, pts[i].z).y;
+            const sideL = Engine3D.getTerrainY(pts[i].x - _cosE * 22, pts[i].z - _sinE * 22).y;
+            const sideR = Engine3D.getTerrainY(pts[i].x + _cosE * 22, pts[i].z + _sinE * 22).y;
             if (sideL > pts[i].y+1.5 || sideR > pts[i].y+1.5) escort++;
         }
         const escortRatio = escort / Math.max(1, pts.length-2);
@@ -2697,9 +2704,9 @@ const Rules = {
     jianXiangPenalty(deg){
         const d = ((deg%360)+360)%360;
         const _m15 = ((d%15)+15)%15;
-        const dToCenter15 = Math.abs(_m15 - 7.5);
+        const dToCenter15 = Math.min(_m15, 15 - _m15);
         const _m45 = ((d%45)+45)%45;
-        const dToCenter45 = Math.abs(_m45 - 22.5);
+        const dToCenter45 = Math.min(_m45, 45 - _m45);
         const dToBoundary15 = 7.5 - dToCenter15;
         const dToBoundary45 = 22.5 - dToCenter45;
         let pen = 0;
@@ -2825,17 +2832,26 @@ const Rules = {
         const sideR = {...Engine3D.getTerrainY(ax + _cosShe * 25, az + _sinShe * 25)};
         const fSheRaw = (Math.min(sideL.y, sideR.y) > tC.y + 2 && Math.abs(sideL.y-sideR.y) < 1) ?
                         Math.min(100, (Math.min(sideL.y, sideR.y)-tC.y)*30) : 0;
-        const fSheScore = Math.round(fSheRaw * distAttn(14, 14));
+        const sideL_out = {...Engine3D.getTerrainY(ax - _cosShe * 28, az - _sinShe * 28)};
+        const sideR_out = {...Engine3D.getTerrainY(ax + _cosShe * 28, az + _sinShe * 28)};
+        const sideL_in = {...Engine3D.getTerrainY(ax - _cosShe * 22, az - _sinShe * 22)};
+        const sideR_in = {...Engine3D.getTerrainY(ax + _cosShe * 22, az + _sinShe * 22)};
+        const ridgeDrop = Math.min(Math.abs(sideL.y - sideL_out.y) + Math.abs(sideL.y - sideL_in.y), Math.abs(sideR.y - sideR_out.y) + Math.abs(sideR.y - sideR_in.y));
+        const sheIntent = ridgeDrop > 3.0 ? 1.2 : (ridgeDrop < 1.2 ? 0.35 : 0.7);
+        const fSheScore = Math.round(fSheRaw * sheIntent * distAttn(14, 14));
         // ──────────────────────────────────────────────────────────────────
         // 8. 蜈蚣脊：脊線兩側等距凸齒數 + 意態破碎
+        const _radWu = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
+        const _cosWu = Math.cos(_radWu);
+        const _sinWu = Math.sin(_radWu);
         let ribs = 0, ribCurvSum = 0;
         if(Engine3D.dragonRidge){
             for (let i=8; i<Engine3D.dragonRidge.length-8; i++){
                 const p = Engine3D.dragonRidge[i];
-                const sideLhY = Engine3D.getTerrainY(p.x-12, p.z).y;
-                const sideRhY = Engine3D.getTerrainY(p.x+12, p.z).y;
-                const sideLhNx = Engine3D.getTerrainY(p.x-12, p.z).nx;
-                const sideRhNx = Engine3D.getTerrainY(p.x+12, p.z).nx;
+                const sideLhY = Engine3D.getTerrainY(p.x - _cosWu * 12, p.z - _sinWu * 12).y;
+                const sideRhY = Engine3D.getTerrainY(p.x + _cosWu * 12, p.z + _sinWu * 12).y;
+                const sideLhNx = Engine3D.getTerrainY(p.x - _cosWu * 12, p.z - _sinWu * 12).nx;
+                const sideRhNx = Engine3D.getTerrainY(p.x + _cosWu * 12, p.z + _sinWu * 12).nx;
                 const t = Math.max(sideLhY, sideRhY) - p.y;
                 if (t > 1.5){
                     ribs++;
@@ -4515,6 +4531,8 @@ const UI = {
         Rules._mtMulCache = null;
         Rules._volCache = null;
         Rules._outletCache = null;
+        AppState._bettiCacheDirty = true;
+        Rules._lastRhythmMetrics = null;
         let autoChanged = forceBuild;
         let s = AppState.current;
         const noWater = s.w === 'none' || s.w === 'lintou';
@@ -9984,8 +10002,8 @@ const Physics = {
             if (Math.abs(baseWind) > 0.01) {
                 let scanD = 15;
                 if (Math.abs(dxGeom) < 18) {
-                    let hLeft = Engine3D.getTerrainY(x - scanD, z).y;
-                    let hRight = Engine3D.getTerrainY(x + scanD, z).y;
+                    let hLeft = Engine3D.getTerrainY(x - degCos * scanD, z + degSin * scanD).y;
+                    let hRight = Engine3D.getTerrainY(x + degCos * scanD, z - degSin * scanD).y;
                     if (hLeft > t.y + 10 && hRight > t.y + 10) {
                         let compression = ((hLeft - t.y) + (hRight - t.y)) * 0.02;
                         let pinchForce = Math.abs(globalWindX) * compression * 1.2; 
@@ -10106,8 +10124,8 @@ const Physics = {
                 }
                 // 效能加速：僅在 dzGeom < 0 且法線坡度足夠陡峭時才取樣兩側地形，避免 5000 顆粒子無條件取樣
                 if (dzGeom < 0 && Math.abs(t.nx) > 0.6) {
-                    let tLeft = Engine3D.getTerrainY(x - 2, z).nx;
-                    let tRight = Engine3D.getTerrainY(x + 2, z).nx;
+                    let tLeft = Engine3D.getTerrainY(x - degCos * 2, z + degSin * 2).nx;
+                    let tRight = Engine3D.getTerrainY(x + degCos * 2, z - degSin * 2).nx;
                     let gaussianCurvature = Math.abs(tLeft - tRight);
                     if (gaussianCurvature > 1.8) { 
                         frameTensorFracture++; 
@@ -10296,8 +10314,8 @@ const Physics = {
                     if (Math.abs(dxGeom) < 40 && dzGeom > -20 && dzGeom < 40) {
                         let thermalDeltaP = (solarFlux - 0.5) * 3.5; 
                         vel.y += thermalDeltaP * dt;
-                        let leftH = Engine3D.getTerrainY(x - 20, z).y;
-                        let rightH = Engine3D.getTerrainY(x + 20, z).y;
+                        let leftH = Engine3D.getTerrainY(x - degCos * 20, z + degSin * 20).y;
+                        let rightH = Engine3D.getTerrainY(x + degCos * 20, z - degSin * 20).y;
                         if (Math.abs(leftH - rightH) > 25.0) {
                             frameThermalShear++; 
                             vel.x += Math.sign(rightH - leftH) * Math.abs(thermalDeltaP) * 1.5 * dt;
@@ -10402,8 +10420,8 @@ const Physics = {
                     if (dzGeom > -72 && dzGeom < -13) {
                         let passFalloff = Math.max(0, Math.min(1, (dzGeom + 72) / 8.0)) * Math.max(0, Math.min(1, (-13 - dzGeom) / 8.0));
                         passFalloff = passFalloff * passFalloff * (3 - 2 * passFalloff);
-                        let widthLeft = Engine3D.getTerrainY(x - 12, z).y;
-                        let widthRight = Engine3D.getTerrainY(x + 12, z).y;
+                        let widthLeft = Engine3D.getTerrainY(x - degCos * 12, z + degSin * 12).y;
+                        let widthRight = Engine3D.getTerrainY(x + degCos * 12, z - degSin * 12).y;
                         if (widthLeft > t.y + 5 && widthRight > t.y + 5) {
                             vel.x += (lx - x) * 0.8 * thermalDraft * dt * passFalloff; 
                         if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
