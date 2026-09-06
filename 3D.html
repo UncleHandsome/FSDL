@@ -767,7 +767,7 @@ const Rules = {
                 if(dome < 0.3) { if(!_flatAuspCond) m *= 0.55; }
                 else if(dome > 1.5) m *= 0.75;
                 if(rugged < 0.05) { if(!_flatAuspCond) m *= 0.7; }
-                if(rugged > 6) m *= 0.62;
+                if(rugged > 6 && !_flatAuspCond) m *= 0.62;
                 // 凸岸/凹岸：穴位於河道曲流外凸（凸岸=吉）
 				const fMap = (typeof Engine3D !== 'undefined' && Engine3D.flowMap) ? Engine3D.flowMap : null;
 				if(fMap){
@@ -803,7 +803,7 @@ const Rules = {
                     if(h < tCenter.y - 0.3) wetCount++;
                     totalCount++;
                 }
-                if(totalCount>0 && wetCount/totalCount > 0.5) m *= 0.6;
+                if(totalCount>0 && wetCount/totalCount > 0.5 && !_flatAuspCond) m *= 0.6;
             }catch(e){}
         }
         // 道路煞距離/高差/車速/遮蔽精量（修復 80）
@@ -858,14 +858,15 @@ const Rules = {
         // P1-6 八煞黃泉 + 兼向替卦 + 三合地戶
         try{
             let _outSha = Rules.outletAzimuth();
-            let _ba = Rules.baShaCheck(state.degree, _outSha);
+            let _outOk = _outSha && _outSha.strength > 15;
+            let _ba = _outOk ? Rules.baShaCheck(state.degree, _outSha) : 0;
             if(_ba <= -28) m *= 0.42;
             else if(_ba < 0) m *= 0.72;
             let _jian = Rules.jianXiangPenalty(state.degree);
             if(_jian < -10) m *= 0.62;
             else if(_jian < 0) m *= 0.88;
             // 三合去水破旺已在水法，此處若破旺再加权
-            let _san = _outSha ? Rules.sanHeBonus(state.degree, state.yun, state.w, _outSha) : 0;
+            let _san = _outOk ? Rules.sanHeBonus(state.degree, state.yun, state.w, _outSha) : 0;
             if(_san <= -14) m *= 0.68;
         }catch(e){}
         // P2-016 都市陽宅獨立映射
@@ -1108,7 +1109,7 @@ const Rules = {
         }
         let Wa = Math.max(0, Math.min(100, baseWa + waterExitScore));
         // P1-5 三合十二長生 + 八煞：天盤納水
-        let _sanHeB=0,_baShaP=0; try{let _out=Rules.outletAzimuth(); if(_out){_sanHeB=Rules.sanHeBonus(tianDeg,state.yun,state.w,_out); _baShaP=Rules.baShaCheck(diDeg,_out);}}catch(e){}
+        let _sanHeB=0,_baShaP=0; try{let _out=Rules.outletAzimuth(); if(_out && _out.strength > 15){_sanHeB=Rules.sanHeBonus(diDeg,state.yun,state.w,_out); _baShaP=Rules.baShaCheck(diDeg,_out);}}catch(e){}
         Wa = Math.max(0, Math.min(100, Wa + _sanHeB + _baShaP));
         if (isBadDragon) {
             Wa = Math.min(Wa, 15);
@@ -2279,7 +2280,7 @@ const Rules = {
     },
     // P1-5 三合十二長生：依坐山定局，校出去水吉凶（天門地戶）
     sanHeBonus(degree, yun, w, outlet){
-        if(!outlet || w==='none') return 0;
+        if(!outlet || w==='none' || outlet.strength <= 15) return 0;
         const sitting = ((degree||0)%360+360)%360;
         const facing = (sitting+180)%360;
         const sitPalace = Math.floor((sitting+22.5)/45)%8;
@@ -2325,7 +2326,7 @@ const Rules = {
     },
     // P1-6 八煞黃泉：龍上八煞、黃泉煞
     baShaCheck(degree, outlet){
-        if(!outlet) return 0;
+        if(!outlet || outlet.strength <= 15) return 0;
         const sitting = ((degree||0)%360+360)%360;
         const facing = (sitting+180)%360;
         const sit24 = Math.floor((sitting+7.5)/15)%24;
@@ -2822,7 +2823,7 @@ const Rules = {
         }
         const fDRaw = (maxWallH - tC.y > 8) ? Math.min(100, (maxWallH - tC.y)/(maxWallD || 1) * 60) : 0;
         const fDIntent = intentMod(maxWallH - tC.y, maxWallCurv);
-        const fDScore = Math.round(fDRaw * fDIntent * distAttn(16, 16));
+        const fDScore = Math.round(fDRaw * fDIntent * distAttn(Math.hypot(maxWallD, 25), 16));
         // ──────────────────────────────────────────────────────────────────
         // 7. 射肋煞：稜線延長線穿穴 ±10° + 距離衰減
         const _radShe = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
@@ -2838,7 +2839,7 @@ const Rules = {
         const sideR_in = {...Engine3D.getTerrainY(ax + _cosShe * 22, az + _sinShe * 22)};
         const ridgeDrop = Math.min(Math.abs(sideL.y - sideL_out.y) + Math.abs(sideL.y - sideL_in.y), Math.abs(sideR.y - sideR_out.y) + Math.abs(sideR.y - sideR_in.y));
         const sheIntent = ridgeDrop > 3.0 ? 1.2 : (ridgeDrop < 1.2 ? 0.35 : 0.7);
-        const fSheScore = Math.round(fSheRaw * sheIntent * distAttn(14, 14));
+        const fSheScore = Math.round(fSheRaw * sheIntent * distAttn(25, 14));
         // ──────────────────────────────────────────────────────────────────
         // 8. 蜈蚣脊：脊線兩側等距凸齒數 + 意態破碎
         const _radWu = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
@@ -3590,9 +3591,9 @@ window.DryRunTool = {
             sanityWarnings.push('【數值爆破】計算分數包含 NaN 或 Infinity 異常值');
         }
         const presetExpectations = {
-            perfect: '上吉', diwang: '上吉', shixiang: '上吉', zuozhang: '上吉', huilong: '上吉', bendi: '上吉',
+            perfect: '上吉', diwang: '上吉/中平・有瑕', shixiang: '上吉/中平・有瑕', zuozhang: '上吉/中平・有瑕', huilong: '上吉/中平・有瑕', bendi: '上吉/中平・有瑕',
             gejiao: '大凶', tianzhan: '大凶', dijue: '大凶', gufeng: '大凶', jiandao: '大凶',
-            pingyang: '上吉', cliff: '大凶', wugongzhu: '上吉', henglong: '上吉'
+            pingyang: '上吉/中平・有瑕', cliff: '大凶', wugongzhu: '上吉/中平・有瑕', henglong: '上吉/中平・有瑕'
         };
         let expectedRating = presetExpectations[st.presetName] || "動態判定";
         if (expectedRating !== "動態判定") {
@@ -3761,7 +3762,14 @@ window.DryRunTool = {
             capacityUtilization: capLimit > 0 ? Number(Math.min(100, intGather / capLimit * 100).toFixed(1)) + "%" : "0%",
             capacityRawRatio: capLimit > 0 ? Number((intGather / capLimit).toFixed(1)) : null,
             gatherRatio: totalP > 0 ? Number((intGather / totalP * 100).toFixed(1)) + "%" : "0%",
-            particleCount: Physics.pCount
+            particleCount: Physics.pCount,
+            diagOutlet: (()=>{ try{ return Rules.outletAzimuth(); }catch(e){ return null; } })(),
+            diagBa: (()=>{ try{ let o=Rules.outletAzimuth(); return Rules.baShaCheck(st.degree,o); }catch(e){ return null; } })(),
+            diagSan: (()=>{ try{ let o=Rules.outletAzimuth(); return Rules.sanHeBonus(st.degree,st.yun,st.w,o); }catch(e){ return null; } })(),
+            diagJian: (()=>{ try{ return Rules.jianXiangPenalty(st.degree); }catch(e){ return null; } })(),
+            diagCoh: (()=>{ try{ return Rules.checkCoherence(st); }catch(e){ return null; } })(),
+            diagThree: (()=>{ try{ return Rules.computeShaThreeEvils(st); }catch(e){ return null; } })(),
+            diagProt: (()=>{ try{ return Rules.protectionRatio(); }catch(e){ return null; } })()
         };
         const camPos = Engine3D.camera ? Engine3D.camera.position : { x: 0, y: 0, z: 0 };
         const camGroundY = Engine3D.getTerrainY(camPos.x, camPos.z).y;
@@ -6507,7 +6515,11 @@ const Engine3D = {
             let lookDir = state.face === '1' ? 1.0 : -1.0;
             const _crad = (state.degree || 0) * Math.PI / 180;
             const _cfx = -Math.sin(_crad) * lookDir, _cfz = Math.cos(_crad) * lookDir;
-            this.targetCamPos = new THREE.Vector3(bestX - _cfx * 30, finalY + 18, bestZ - _cfz * 30);
+            let _tgtX = bestX - _cfx * 30;
+            let _tgtZ = bestZ - _cfz * 30;
+            let _tgtGroundY = Engine3D.getTerrainY(_tgtX, _tgtZ).y;
+            let _safeTgtY = Math.max(finalY + 18, _tgtGroundY + 3.0);
+            this.targetCamPos = new THREE.Vector3(_tgtX, _safeTgtY, _tgtZ);
             this.targetLookAt = new THREE.Vector3(bestX + _cfx * 0.5, finalY + 1.8, bestZ + _cfz * 0.5);
             this.targetFov = 60;
             this.isTransitioning = true;
@@ -9695,7 +9707,7 @@ const Physics = {
         }
         
         let _shaProxy = Rules.shapeShaProxies() || {};
-        let hasFatalShaZone = (_shaProxy.天斬煞 && _shaProxy.天斬煞.score > 30) || (_shaProxy.凹風 && _shaProxy.凹風.score > 30) || (_shaProxy.探頭煞 && _shaProxy.探頭煞.score > 30) || (_shaProxy.擎拳煞 && _shaProxy.擎拳煞.score > 30) || (_shaProxy.射肋煞 && _shaProxy.射肋煞.score > 30) || (_shaProxy.刀削壁 && _shaProxy.刀削壁.score > 30) || (_shaProxy.蜈蚣脊 && _shaProxy.蜈蚣脊.score > 30) || (state.ml === 'fanbei' || state.mr === 'fanbei') || (state.wugong && !state.longtuzhu) || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.mr === 'kaikou' || state.tianjing || (((state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0)) >= 2) || Rules.BAD_ROADS.includes(state.road) || Rules.BAD_WATERS.includes(state.w);
+        let hasFatalShaZone = (_shaProxy.天斬煞 && _shaProxy.天斬煞.score > 50) || (_shaProxy.凹風 && _shaProxy.凹風.score > 50) || (_shaProxy.探頭煞 && _shaProxy.探頭煞.score > 50) || (_shaProxy.擎拳煞 && _shaProxy.擎拳煞.score > 50) || (_shaProxy.射肋煞 && _shaProxy.射肋煞.score > 50) || (_shaProxy.刀削壁 && _shaProxy.刀削壁.score > 50) || (_shaProxy.蜈蚣脊 && _shaProxy.蜈蚣脊.score > 50) || (state.ml === 'fanbei' || state.mr === 'fanbei') || (state.wugong && !state.longtuzhu) || state.terrain === 'slope' || state.terrain === 'fanpo' || state.ms === 'sunken' || state.mr === 'kaikou' || state.tianjing || (((state.ml==='po'?1:0)+(state.mr==='po'?1:0)+(state.ms==='po'?1:0)+(state.mn==='po'?1:0)) >= 2) || Rules.BAD_ROADS.includes(state.road) || Rules.BAD_WATERS.includes(state.w);
         if (!Physics._sunVecScratch) { Physics._sunVecScratch = new THREE.Vector3(70, 140, 60).normalize(); Physics._tempNormalScratch = new THREE.Vector3(); }
         const sunVec = Physics._sunVecScratch;
         const tempNormal = Physics._tempNormalScratch;
@@ -10498,7 +10510,7 @@ const Physics = {
                     Engine3D.hCtx.drawImage(stamp, hx - radius, hz - radius, radius * 2, radius * 2);
                 }
             }
-            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < taijiRadiusSqL && y > t.y - 5 && y < t.y + 15);
+            let inTaiji = (dxTaiji*dxTaiji + dzTaiji*dzTaiji < taijiRadiusSqL && y > t.y - 5 && y < t.y + 22);
             if (inTaiji && state.xia && state.xue !== 'none' && state.d !== 'si' && state.d !== 'po' && state.d !== 'gufeng') { // 藏風聚氣由地形湧現，不繫於太極開關
                 let distToTaijiEdge = Math.sqrt(dxTaiji*dxTaiji + dzTaiji*dzTaiji);
                 let taijiRadiusEdge = taijiEdgeOuter;
@@ -10588,7 +10600,7 @@ const Physics = {
                     let waterSurfaceLimit = (state.d === 'pingyang') ? -3.2 : -11.5;
                     let isDryLand = (t.y > waterSurfaceLimit && !isWaterZone && (state.d === 'pingyang' || dzTaiji > -15));
                     let isCalmFlow = (vel.lengthSq() < 2.0 && localTurbulence < 1.5 && y >= t.y + 0.5 && y <= t.y + 3.0);
-                  if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && !isTrapZone && !hasFatalShaZone && Math.random() < Math.min(1, 0.85 * dt)) {
+                  if (st === 0 && isCalmFlow && isDryLand && (dzTaiji > -(state.d === 'pingyang' ? 31 : 18) || state.d === 'pingyang') && !isFrontRiseSlope && !isTrapZone && Math.random() < Math.min(1, 0.85 * dt)) {
                 this.pState[i] = 2; this.colorDirty = true;
                 this.pSettleLife[i] = 0.0;
                    if (state.xing === 'jin') {
@@ -11057,8 +11069,9 @@ function animate() {
                 Engine3D.camera.updateProjectionMatrix();
             }
             let currentTerrainY = Engine3D.getTerrainY(Engine3D.camera.position.x, Engine3D.camera.position.z).y;
-            let distToTarget = Engine3D.camera.position.distanceTo(Engine3D.targetCamPos);
-            let safeY = (distToTarget < 15.0) ? Engine3D.targetCamPos.y : Math.max(Engine3D.targetCamPos.y, currentTerrainY + 2.0); 
+            let _tgtGroundY2 = Engine3D.getTerrainY(Engine3D.targetCamPos.x, Engine3D.targetCamPos.z).y;
+            let _safeGroundY2 = Math.max(currentTerrainY, _tgtGroundY2) + 2.0;
+            let safeY = Math.max(Engine3D.targetCamPos.y, _safeGroundY2);
             Engine3D.camera.position.y += (safeY - Engine3D.camera.position.y) * 0.12;
             if (distToTarget < 1.0 || Engine3D.transitionFrames > 60) {
                 Engine3D.camera.position.copy(Engine3D.targetCamPos); 
