@@ -336,16 +336,19 @@ def run_browser_simulations(html_path, num_runs, logger, is_exam=False, capture_
         if capture_screens and shots_dir:
             os.makedirs(shots_dir, exist_ok=True)
         shot_seq = [0]
+        max_shots_limit = 18  # 放寬至 18 張，配合 720P 確保大考兼顧高視野覆蓋與傳輸安全
 
         def snap(page_ref, res=None, label="sample"):
             if not capture_screens or not shots_dir:
+                return None
+            if shot_seq[0] >= max_shots_limit:
                 return None
             try:
                 page_ref.wait_for_timeout(500)  # 等待渲染迴圈繪出最新模擬狀態
                 shot_seq[0] += 1
                 fname = f"{label}_{shot_seq[0]:02d}.jpg"
                 fpath = os.path.join(shots_dir, fname)
-                page_ref.screenshot(path=fpath, type="jpeg", quality=80)
+                page_ref.screenshot(path=fpath, type="jpeg", quality=75)
                 logger.info(f"    📸 已擷取畫面: {fname}")
                 if isinstance(res, dict):
                     res["_shot"] = fname
@@ -647,7 +650,7 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
     elif "glm-5.2" in m_lower or "glm" in m_lower:
         max_tokens_val = 65536
     elif "muse" in m_lower or "spark" in m_lower:
-        max_tokens_val = 256000
+        max_tokens_val = 131072
     elif "ox" in m_lower or "preview" in m_lower or "alpha" in m_lower:
         max_tokens_val = 131072
     elif "gemini" in m_lower or "googleapis" in str(getattr(client, "base_url", "")).lower():
@@ -694,82 +697,113 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
 
         try:
             if is_opencode_responses:
-                # OpenCode Zen / Go 專屬 Responses API 協議轉發 (開啟高強度思考並適配多模態圖片輸入)
-                try:
-                    responses_input = []
-                    for msg in conversation_history:
-                        role = msg.get("role", "user")
-                        content = msg.get("content")
-                        if isinstance(content, list):
-                            new_content = []
-                            for part in content:
-                                if isinstance(part, dict):
-                                    p_type = part.get("type", "")
-                                    if p_type == "text":
-                                        new_content.append({"type": "input_text", "text": part.get("text", "")})
-                                    elif p_type == "image_url":
-                                        img_val = part.get("image_url", "")
-                                        img_url = img_val.get("url", "") if isinstance(img_val, dict) else str(img_val)
-                                        new_content.append({"type": "input_image", "image_url": img_url})
-                                    elif p_type in ["input_text", "input_image"]:
-                                        new_content.append(part)
-                                    else:
-                                        new_content.append(part)
+                # OpenCode Zen / Go 專屬 Responses API 協議轉發 (啟用 max 極限思考檔位並適配多模態)
+                instructions_text = None
+                responses_input = []
+                for msg in conversation_history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content")
+                    if role == "system":
+                        instructions_text = content
+                        continue
+                    if role == "assistant":
+                        # ⚡ 移除人工包裝的 <think> 標籤，還原乾淨的輸出文字，確保 KV Cache 精確比對
+                        clean_text = re.sub(r"<think>[\s\S]*?</think>", "", str(content), flags=re.IGNORECASE).strip()
+                        responses_input.append({
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [{"type": "output_text", "text": clean_text}]
+                        })
+                    elif isinstance(content, list):
+                        new_content = []
+                        for part in content:
+                            if isinstance(part, dict):
+                                p_type = part.get("type", "")
+                                if p_type == "text":
+                                    new_content.append({"type": "input_text", "text": part.get("text", "")})
+                                elif p_type == "image_url":
+                                    img_val = part.get("image_url", "")
+                                    img_url = img_val.get("url", "") if isinstance(img_val, dict) else str(img_val)
+                                    new_content.append({"type": "input_image", "image_url": img_url})
+                                elif p_type in ["input_text", "input_image"]:
+                                    new_content.append(part)
                                 else:
                                     new_content.append(part)
-                            responses_input.append({"role": role, "content": new_content})
-                        else:
-                            responses_input.append(msg)
+                            else:
+                                new_content.append(part)
+                        responses_input.append({"type": "message", "role": "user", "content": new_content})
+                    else:
+                        responses_input.append({
+                            "type": "message",
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": str(content)}]
+                        })
 
-                    resp_data = client.post(
-                        "responses",
-                        cast_to=object,
-                        body={
-                            "model": model,
-                            "input": responses_input,
-                            "temperature": 1.0,
-                            "max_output_tokens": min(max_tokens_val, 65536),
-                            "reasoning": {"effort": "xhigh"},
-                            "reasoning_effort": "xhigh",
-                        }
-                    )
-                    raw_response = ""
-                    usage = None
-                    reasoning_text = ""
-                    if isinstance(resp_data, dict):
-                        raw_response = resp_data.get("output_text", "")
-                        usage = resp_data.get("usage")
-                        if "reasoning_content" in resp_data:
-                            reasoning_text = resp_data.get("reasoning_content", "")
-                        if not raw_response and "output" in resp_data:
-                            for item in resp_data.get("output", []):
-                                if isinstance(item, dict):
-                                    item_type = item.get("type", "")
-                                    if item_type in ["reasoning", "thought", "thinking"]:
-                                        for c in item.get("content", []):
-                                            if isinstance(c, dict) and c.get("text"):
-                                                reasoning_text += c.get("text")
-                                    elif "content" in item:
-                                        for c in item.get("content", []):
-                                            if isinstance(c, dict) and c.get("text"):
-                                                raw_response += c.get("text")
-                    elif hasattr(resp_data, "output_text"):
-                        raw_response = getattr(resp_data, "output_text", "")
-                        usage = getattr(resp_data, "usage", None)
+                # ⚡ 直接使用 xhigh（端點未解鎖 max 會引發 400 報錯，重試會破壞連線會話快取）
+                effort_level = "xhigh"
+                req_body = {
+                    "model": model,
+                    "input": responses_input,
+                    "temperature": 1.0,
+                    "max_output_tokens": min(max_tokens_val, 131072),
+                    "reasoning": {"effort": effort_level},
+                }
+                if instructions_text:
+                    req_body["instructions"] = instructions_text
 
-                    if reasoning_text and "<think>" not in raw_response:
-                        raw_response = f"<think>\n{reasoning_text.strip()}\n</think>\n\n{raw_response}"
-                except Exception:
-                    # 容錯回退至標準 Chat Completions 端點
-                    create_kwargs.pop("reasoning_effort", None)
-                    create_kwargs.pop("extra_body", None)
-                    response = client.chat.completions.create(**create_kwargs)
-                    usage = getattr(response, "usage", None)
-                    msg_obj = response.choices[0].message
-                    raw_response = msg_obj.content or ""
-                    r_content = getattr(msg_obj, "reasoning_content", None) or getattr(msg_obj, "reasoning", None) or getattr(msg_obj, "thought", None)
-                    if r_content and "<think>" not in raw_response:
-                        raw_response = f"<think>\n{r_content.strip()}\n</think>\n\n{raw_response}"
+                # 透過 client.post 發送至 Responses API 端點 (依序退避: max -> xhigh -> high)
+                try:
+                    resp_data = client.post("responses", cast_to=object, body=req_body)
+                except Exception as post_err:
+                    err_str = str(post_err).lower()
+                    # 容錯機制：若端點未解鎖 max，優先切至 xhigh；若 xhigh 仍受限才退至 high
+                    if "max" in effort_level and any(kw in err_str for kw in ["effort", "400", "invalid", "unsupported"]):
+                        logger.warning("  ⚠️ 該端點未解鎖 max 思考檔位，自動切換至 xhigh 重試...")
+                        req_body["reasoning"] = {"effort": "xhigh"}
+                        try:
+                            resp_data = client.post("responses", cast_to=object, body=req_body)
+                        except Exception as xh_err:
+                            xh_str = str(xh_err).lower()
+                            if any(kw in xh_str for kw in ["effort", "400", "invalid", "unsupported"]):
+                                logger.warning("  ⚠️ 該端點未解鎖 xhigh 思考檔位，降階至 high 重試...")
+                                req_body["reasoning"] = {"effort": "high"}
+                                resp_data = client.post("responses", cast_to=object, body=req_body)
+                            else:
+                                raise xh_err
+                    elif hasattr(client, "_client") and hasattr(client._client, "post"):
+                        endpoint_url = f"{str(client.base_url).rstrip('/')}/responses"
+                        resp_raw = client._client.post(endpoint_url, json=req_body, headers={"Content-Type": "application/json"})
+                        resp_data = resp_raw.json()
+                    else:
+                        raise post_err
+
+                raw_response = ""
+                usage = None
+                reasoning_text = ""
+                if isinstance(resp_data, dict):
+                    raw_response = resp_data.get("output_text", "")
+                    usage = resp_data.get("usage")
+                    if "reasoning_content" in resp_data:
+                        reasoning_text = resp_data.get("reasoning_content", "")
+                    if not raw_response and "output" in resp_data:
+                        for item in resp_data.get("output", []):
+                            if isinstance(item, dict):
+                                item_type = item.get("type", "")
+                                if item_type in ["reasoning", "thought", "thinking"]:
+                                    for c in item.get("content", []):
+                                        if isinstance(c, dict) and c.get("text"):
+                                            reasoning_text += c.get("text")
+                                elif "content" in item:
+                                    for c in item.get("content", []):
+                                        if isinstance(c, dict) and c.get("text"):
+                                            raw_response += c.get("text")
+                elif hasattr(resp_data, "output_text"):
+                    raw_response = getattr(resp_data, "output_text", "")
+                    usage = getattr(resp_data, "usage", None)
+
+                if reasoning_text and "<think>" not in raw_response:
+                    # 僅在終端展示時加上提示，避免污染下輪對話前綴
+                    raw_response = f"<think>\n{reasoning_text.strip()}\n</think>\n\n{raw_response}"
             else:
                 try:
                     response = client.chat.completions.create(**create_kwargs)
@@ -806,11 +840,16 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 total_prompt = _get_val(usage, "prompt_tokens", "input_tokens", default=0)
                 completion_tokens = _get_val(usage, "completion_tokens", "output_tokens", default=0)
                 
-                # 提取快取命中
-                hit_tokens = _get_val(usage, "prompt_cache_hit_tokens", "cache_read_input_tokens", default=0)
-                prompt_details = _get_val(usage, "prompt_tokens_details", "input_token_details", default=None)
+                # 提取快取命中（同時兼顧單複數 input_token(s)_details 與各類 cached_tokens 鍵名）
+                hit_tokens = _get_val(
+                    usage, 
+                    "prompt_cache_hit_tokens", "cache_read_input_tokens", 
+                    "cached_tokens", "cached_prompt_tokens", "cache_read_tokens", 
+                    default=0
+                )
+                prompt_details = _get_val(usage, "prompt_tokens_details", "prompt_token_details", "input_tokens_details", "input_token_details", default=None)
                 if prompt_details and hit_tokens == 0:
-                    hit_tokens = _get_val(prompt_details, "cached_tokens", "cache_read", default=0)
+                    hit_tokens = _get_val(prompt_details, "cached_tokens", "cache_read", "cache_read_tokens", "cached_prompt_tokens", default=0)
                 
                 miss_tokens = _get_val(usage, "prompt_cache_miss_tokens", "cache_creation_input_tokens", default=0)
                 if miss_tokens == 0 and total_prompt > hit_tokens:
@@ -840,7 +879,8 @@ def get_ai_correction_multiturn(client, model, conversation_history, logger):
                 time.sleep(2)
                 continue
 
-            history_text = re.sub(r"<think>[\s\S]*?</think>", "", raw_response, flags=re.IGNORECASE).strip()
+            # ⚡ 思考模型的多輪對話必須完整保留助理輸出（含思考鏈），否則破壞 KV Cache 前綴導致快取全失效
+            history_text = raw_response.strip()
             prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
             return extracted_json, history_text, prompt_tokens
 
@@ -1390,6 +1430,7 @@ def main():
     parser.add_argument("--glm", "--glm53", nargs="?", const="glm-5.3", type=str, default=None, help="使用 OpenCode GLM 模型 (預設 glm-5.3，自動啟用 OpenCode Go)")
     parser.add_argument("--kimi", nargs="?", const="kimi-k3", type=str, default=None, help="使用 OpenCode Kimi 模型 (預設 kimi-k3，自動啟用 OpenCode Go)")
     parser.add_argument("--muse", "--spark", nargs="?", const="muse-spark-1.2-contributor-free", type=str, default=None, help="★ 使用 OpenCode Muse Spark 1.2 模型 (預設 muse-spark-1.2-contributor-free)")
+    parser.add_argument("--muse13", "--spark13", "--spark-1.3", "--muse-spark-1.3", nargs="?", const="muse-spark-1.3-contributor", type=str, default=None, help="★ 使用 OpenCode Muse Spark 1.3 Contributor 模型 (預設 muse-spark-1.3-contributor，自動啟用 OpenCode Go)")
     parser.add_argument("--ox", "--ox-opencode", nargs="?", const="x-preview-f-free", type=str, default=None, help="★ 使用 OpenCode Zen / Go Ox Alpha 模型 (預設 x-preview-f-free)")
     parser.add_argument("--ox-stealth", "--ox-or", "--ox-alpha", "--alpha", nargs="?", const="stealth/ox-alpha", type=str, default=None, help="★ 使用 OpenRouter Stealth Ox-Alpha 模型 (預設 stealth/ox-alpha，端點走 OpenRouter)")
     parser.add_argument("--base-url", type=str, default=None, help="自訂 API Base URL")
@@ -1418,8 +1459,17 @@ def main():
         args.model = args.glm
     elif args.kimi:
         args.model = args.kimi
+    elif args.muse13:
+        m13_val = args.muse13.strip()
+        if m13_val in ["1.3", "spark13", "muse13", "contributor"]:
+            m13_val = "muse-spark-1.3-contributor"
+        args.model = m13_val
     elif args.muse:
-        args.model = args.muse
+        m_val = args.muse.strip()
+        if m_val in ["1.3", "1.3-contributor", "spark13", "muse13"]:
+            args.model = "muse-spark-1.3-contributor"
+        else:
+            args.model = m_val
     elif args.ox_stealth:
         ox_val = args.ox_stealth.strip()
         if not ("/" in ox_val):
@@ -1455,7 +1505,7 @@ def main():
     is_gemini_provider = args.gemini
     is_nvidia_provider = args.nvidia
     is_openrouter_provider = bool(args.dots) or bool(args.m3) or ("minimax" in args.model.lower()) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
-    is_opencode_provider = (args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or bool(args.ox)) and not is_openrouter_provider
+    is_opencode_provider = (args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or bool(args.muse13) or bool(args.ox)) and not is_openrouter_provider
 
     if args.gemini:
         base_url = args.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
@@ -1475,7 +1525,7 @@ def main():
     elif is_openrouter_provider:
         base_url = args.base_url or "https://openrouter.ai/api/v1"
         provider_name = f"OpenRouter ({args.model})"
-    elif args.zen or (bool(args.muse) and not args.opencode) or (bool(args.ox) and not is_openrouter_provider and not args.opencode):
+    elif args.zen or (bool(args.muse) and "1.3" not in str(args.muse) and not args.opencode) or (bool(args.ox) and not is_openrouter_provider and not args.opencode):
         base_url = args.base_url or "https://opencode.ai/zen/v1"
         provider_name = f"OpenCode Zen ({args.model})"
     elif is_opencode_provider:
@@ -1733,11 +1783,18 @@ def main():
                 )
             
             if IMAGE_MODE:
-                # 📸 圖片模式：文字請求 + 依序附加每筆樣本的渲染畫面截圖 (OpenAI Vision 多模態格式)
+                # 📸 圖片模式：文字請求 + 依序附加最具代表性的渲染畫面截圖 (上限 18 張，防止超限)
+                MAX_ATTACH_LIMIT = 18
+                candidates = [r for r in unique_results if isinstance(r, dict) and r.get("_shot")]
+                # 優先挑選帶有警告/異常的樣本，其餘均勻補足至 18 張
+                priority_shots = [r for r in candidates if (r.get("sanityWarnings") or r.get("lairInfo", {}).get("spatialProfile", {}).get("geometryAnomalies"))]
+                normal_shots = [r for r in candidates if r not in priority_shots]
+                selected_results = (priority_shots + normal_shots)[:MAX_ATTACH_LIMIT]
+                selected_shot_names = {r["_shot"] for r in selected_results}
+
                 shot_note = (
-                    "\n【畫面截圖】緊接於本文字之後，依序附上本輪各筆樣本 Dry Run 完成後的模擬器實際渲染畫面"
-                    "（張數順序與上方 JSON 陣列一致，檔名對應各筆數據的 _shot 欄位）。"
-                    "請依【視覺畫面審查協議】逐張檢查渲染合理性，並與對應 JSON 數據交叉驗證。"
+                    f"\n【畫面截圖】緊接於本文字之後，附上本輪最具代表性之渲染畫面截圖（上限 {MAX_ATTACH_LIMIT} 張，"
+                    "檔名對應數據中的 _shot 欄位）。請依【視覺畫面審查協議】逐張檢查渲染合理性，並與對應 JSON 數據交叉驗證。"
                 )
                 if CORE_RULES_REMINDER in user_msg:
                     text_out = user_msg.replace(CORE_RULES_REMINDER, shot_note + "\n" + CORE_RULES_REMINDER)
@@ -1747,7 +1804,7 @@ def main():
                 img_attached = 0
                 for res in unique_results:
                     shot_name = res.get("_shot") if isinstance(res, dict) else None
-                    if not shot_name:
+                    if not shot_name or shot_name not in selected_shot_names:
                         continue
                     shot_file = os.path.join(SHOTS_DIR, shot_name)
                     if not os.path.exists(shot_file):
@@ -1762,7 +1819,7 @@ def main():
                         img_attached += 1
                     except Exception as img_err:
                         logger.warning(f"  ⚠️ 截圖編碼失敗 ({shot_name}): {img_err}")
-                logger.info(f"  🖼️ 已附上 {img_attached}/{len(unique_results)} 張畫面截圖供 AI 視覺判讀。")
+                logger.info(f"  🖼️ 已附上 {img_attached}/{len(unique_results)} 張代表性畫面截圖供 AI 視覺判讀。")
                 conversation_history.append({"role": "user", "content": content_parts})
             else:
                 conversation_history.append({"role": "user", "content": user_msg})

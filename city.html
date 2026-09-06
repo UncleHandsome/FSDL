@@ -660,7 +660,7 @@ class FengShuiEngine {
         let noonSun = sunAngles[1];
         let nsX = BK ? -noonSun.x : noonSun.x;
         let nsZ = BK ? -noonSun.z : noonSun.z;
-        let t = dzTaiji / Math.max(0.001, nsZ);
+        let t = dzTaiji / (Math.abs(nsZ) < 0.001 ? (nsZ >= 0 ? 0.001 : -0.001) : nsZ);
         if (t > 0 && t < 200) {
             let hitX = t * nsX;
             let hitY = (hMain/2) + t * noonSun.y;
@@ -752,8 +752,8 @@ class FengShuiEngine {
       reynoldsNum = Math.round(stateManager.wind * 500);
       froudeNum = stateManager.wind / Math.sqrt(9.8 * 10.0); 
       const fzWall = BK ? -1 : 1;
-      let leftWalls = leftBuildings.filter(b => ((b.z - (stateManager.taijiZ || 0)) * fzWall) > 10 && ((b.z - (stateManager.taijiZ || 0)) * fzWall) < 80 && (b.x - (stateManager.taijiX || 0)) < 20 && b.h > hMain);
-      let rightWalls = rightBuildings.filter(b => ((b.z - (stateManager.taijiZ || 0)) * fzWall) > 10 && ((b.z - (stateManager.taijiZ || 0)) * fzWall) < 80 && (b.x - (stateManager.taijiX || 0)) > -20 && b.h > hMain);
+      let leftWalls = leftBuildings.filter(b => ((b.z - (stateManager.taijiZ || 0)) * fzWall) > 10 && ((b.z - (stateManager.taijiZ || 0)) * fzWall) < 80 && ((b.x - (stateManager.taijiX || 0)) * fzWall) < 20 && b.h > hMain);
+      let rightWalls = rightBuildings.filter(b => ((b.z - (stateManager.taijiZ || 0)) * fzWall) > 10 && ((b.z - (stateManager.taijiZ || 0)) * fzWall) < 80 && ((b.x - (stateManager.taijiX || 0)) * fzWall) > -20 && b.h > hMain);
       for (let lw of leftWalls) {
           for (let rw of rightWalls) {
               const gap = Math.abs(lw.x - rw.x) - (lw.w + rw.w) * 0.5; 
@@ -1247,6 +1247,48 @@ class FengShuiEngine {
           }
         }
       }
+    }
+    if (builder && builder.curves) {
+      let minBadD = 1e9;
+      let bestBadX = 0;
+      let bestBadZ = 0;
+      for (const cv of builder.curves) {
+        if (!cv.bad) continue;
+        const qpts = cv.pts;
+        for (let qi = 0; qi < qpts.length; qi += 4) {
+          const bdx = qpts[qi].x - (stateManager.taijiX || 0);
+          const bdz = qpts[qi].z - sensorFrontZ;
+          const bd = Math.hypot(bdx, bdz);
+          if (bd < minBadD) {
+            minBadD = bd;
+            bestBadX = qpts[qi].x;
+            bestBadZ = qpts[qi].z;
+          }
+        }
+      }
+      let minSrcD = 1e9;
+      for (const sc of stateManager.sources) {
+        if (sc.isTantou) continue;
+        if (sc.len === 0) {
+          const sd = Math.hypot(bestBadX - sc.x, bestBadZ - sc.z);
+          if (sd < minSrcD) minSrcD = sd;
+        } else {
+          const slen = Math.hypot(sc.dx, sc.dz) || 1.0;
+          const ndx = sc.dx / slen;
+          const ndz = sc.dz / slen;
+          const tProj = (bestBadX - sc.x) * ndx + (bestBadZ - sc.z) * ndz;
+          const tCl = Math.max(0, Math.min(sc.len, tProj));
+          const cdx = (bestBadX - sc.x) - ndx * tCl;
+          const cdz = (bestBadZ - sc.z) - ndz * tCl;
+          const cd = Math.hypot(cdx, cdz);
+          if (cd < minSrcD) minSrcD = cd;
+        }
+      }
+      const wScale = Math.max(0, extWindSpeed) / 5.0;
+      const gFall = Math.exp(-(minBadD * minBadD) / 800);
+      let srcW = Util.clamp((minSrcD - 15) / 20, 0, 1);
+      srcW = srcW * srcW * (3 - 2 * srcW);
+      kineticSha += (50 + 120 * wScale) * gFall * srcW;
     }
     // ── 化煞指向效力：制化物須與煞源配對命中才算全額 ──
     const shaSourcePts = [];
@@ -2999,22 +3041,22 @@ void main() {
             v *= max(0.0, 1.0 - 0.35 * exp(-d * d / 288.0) * dt);
         }
         isWater = false; isWind = false;
-        float wJade = exp(-pow((sz-80.0)/22.0,2.0) - pow(sx/80.0,2.0));
+        float wJade = exp(-((sz-80.0)/22.0)*((sz-80.0)/22.0) - (sx/80.0)*(sx/80.0));
         if(u_waterJade && wJade > 0.37) { isWater = true; }
         float wNineD = sz - (62.0 + 22.0*sin(sx*0.045));
-        float wNine = exp(-pow(wNineD/10.0,2.0)) * exp(-pow(sx/140.0,2.0));
+        float wNine = exp(-(wNineD/10.0)*(wNineD/10.0)) * exp(-(sx/140.0)*(sx/140.0));
         if(u_waterNine && wNine > 0.37) isWater = true;
-        float wBanyue = exp(-pow((sz-52.0)/15.0,2.0) - pow(sx/20.0,2.0));
+        float wBanyue = exp(-((sz-52.0)/15.0)*((sz-52.0)/15.0) - (sx/20.0)*(sx/20.0));
         if(u_shuifaBanyue && wBanyue > 0.37) isWater = true;
-        float wPool = exp(-pow((sz-24.0)/12.0,2.0) - pow(sx/15.0,2.0));
+        float wPool = exp(-((sz-24.0)/12.0)*((sz-24.0)/12.0) - (sx/15.0)*(sx/15.0));
         if(u_curePool && wPool > 0.37) isWater = true;
-        float wRush = exp(-pow(sx/20.0,2.0)) * clamp((sz-25.0)/20.0, 0.0, 1.0);
+        float wRush = exp(-(sx/20.0)*(sx/20.0)) * clamp((sz-25.0)/20.0, 0.0, 1.0);
         if(hasWind && u_isRushWind && wRush > 0.37) isWind = true;
-        float tianFx = exp(-pow(sx / 4.0, 2.0)); float tianFz = exp(-pow((sz - 55.0) / 25.0, 2.0)); float tianW = tianFx * tianFz;
+        float tianFx = exp(-(sx / 4.0)*(sx / 4.0)); float tianFz = exp(-((sz - 55.0) / 25.0)*((sz - 55.0) / 25.0)); float tianW = tianFx * tianFz;
         if(hasWind && u_shaTianzhan && tianW > 0.37) {
             v.z -= (u_flipBack ? -45.0 : 45.0) * u_envWind * tianW * dt; v.x *= max(0.0, 1.0 - 5.0 * tianW * dt); isWind = true;
         }
-        float fFountainW = exp(-pow((sz - 18.0) / 15.0, 2.0) - pow(sx / 15.0, 2.0));
+        float fFountainW = exp(-((sz - 18.0) / 15.0)*((sz - 18.0) / 15.0) - (sx / 15.0)*(sx / 15.0));
         if(u_cureFountain && fFountainW > 0.37) {
             v *= max(0.0, 1.0 - 0.8 * fFountainW * dt);
         }
@@ -3134,7 +3176,7 @@ void main() {
         if(i >= steps) break;
         float sx = u_flipBack ? -p.x : p.x;
         float sz = u_flipBack ? -p.z : p.z;
-        float tianFx2 = exp(-pow(sx / 4.0, 2.0)); float tianFz2 = exp(-pow((sz - 55.0) / 25.0, 2.0)); float tianW2 = tianFx2 * tianFz2;
+        float tianFx2 = exp(-(sx / 4.0)*(sx / 4.0)); float tianFz2 = exp(-((sz - 55.0) / 25.0)*((sz - 55.0) / 25.0)); float tianW2 = tianFx2 * tianFz2;
         if(u_shaTianzhan && tianW2 > 0.37) {
             float windFactor = max(0.0, u_envWind) * tianW2;
             v.z -= (u_flipBack ? -60.0 : 60.0) * windFactor * dt; v.x *= max(0.0, 1.0 - 5.0 * tianW2 * dt);
@@ -3143,12 +3185,12 @@ void main() {
                 v.x += resonance * windFactor * dt;
             }
         }
-        float wTrees = exp(-pow((sz - 22.0) / 8.0, 2.0) - pow(sx / 30.0, 2.0)); if(u_cureTrees && wTrees > 0.37) { v *= max(0.0, 1.0 - 2.0 * wTrees * dt); }
-        float wMirror = exp(-pow((sz - 20.0) / 5.0, 2.0) - pow(sx / 12.0, 2.0)); if(u_cureMirror && wMirror > 0.37) { v.z += (u_flipBack ? -10.0 : 10.0) * max(0.0, u_envWind) * wMirror * dt; v.y += max(0.0, u_envWind) * 5.0 * wMirror * dt; }
-        float wPool = exp(-pow((sz - 24.0) / 12.0, 2.0) - pow(sx / 15.0, 2.0)); if(u_curePool && wPool > 0.37) { v *= max(0.0, 1.0 - 4.0 * wPool * dt); }
-        float wFoun2 = exp(-pow((sz - 18.0) / 15.0, 2.0) - pow(sx / 15.0, 2.0)); if(u_cureFountain && wFoun2 > 0.37) { v *= max(0.0, 1.0 - 2.0 * wFoun2 * dt); }
-        float wStoneFx = exp(-pow(sx / 15.0, 2.0)); float wStoneFz = exp(-pow((sz - 16.0) / 6.0, 2.0)); float wStone = wStoneFx * wStoneFz; if(u_cureStone && wStone > 0.37) { v.z += (u_flipBack ? -5.0 : 5.0) * max(0.0, u_envWind) * wStone * dt; v.y += max(0.0, u_envWind) * 4.0 * wStone * dt; }
-        float wGourd = exp(-pow((sz - 7.5) / 7.5, 2.0) - pow((sx - 8.0) / 12.0, 2.0)); if(u_cureGourd && wGourd > 0.37) {
+        float wTrees = exp(-((sz - 22.0) / 8.0)*((sz - 22.0) / 8.0) - (sx / 30.0)*(sx / 30.0)); if(u_cureTrees && wTrees > 0.37) { v *= max(0.0, 1.0 - 2.0 * wTrees * dt); }
+        float wMirror = exp(-((sz - 20.0) / 5.0)*((sz - 20.0) / 5.0) - (sx / 12.0)*(sx / 12.0)); if(u_cureMirror && wMirror > 0.37) { v.z += (u_flipBack ? -10.0 : 10.0) * max(0.0, u_envWind) * wMirror * dt; v.y += max(0.0, u_envWind) * 5.0 * wMirror * dt; }
+        float wPool = exp(-((sz - 24.0) / 12.0)*((sz - 24.0) / 12.0) - (sx / 15.0)*(sx / 15.0)); if(u_curePool && wPool > 0.37) { v *= max(0.0, 1.0 - 4.0 * wPool * dt); }
+        float wFoun2 = exp(-((sz - 18.0) / 15.0)*((sz - 18.0) / 15.0) - (sx / 15.0)*(sx / 15.0)); if(u_cureFountain && wFoun2 > 0.37) { v *= max(0.0, 1.0 - 2.0 * wFoun2 * dt); }
+        float wStoneFx = exp(-(sx / 15.0)*(sx / 15.0)); float wStoneFz = exp(-((sz - 16.0) / 6.0)*((sz - 16.0) / 6.0)); float wStone = wStoneFx * wStoneFz; if(u_cureStone && wStone > 0.37) { v.z += (u_flipBack ? -5.0 : 5.0) * max(0.0, u_envWind) * wStone * dt; v.y += max(0.0, u_envWind) * 4.0 * wStone * dt; }
+        float wGourd = exp(-((sz - 7.5) / 7.5)*((sz - 7.5) / 7.5) - ((sx - 8.0) / 12.0)*((sx - 8.0) / 12.0)); if(u_cureGourd && wGourd > 0.37) {
             v *= max(0.0, 1.0 - 1.5 * wGourd * dt);
         }
         if (mod(float(i), 2.0) < 1.0) {
