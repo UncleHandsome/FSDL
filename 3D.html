@@ -153,7 +153,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label" title="龍勢非單一標籤，需由祖脈→迎送→過峽束氣→跌斷→穿帳→入首連續生成；此處僅決定起伏傾向，吉凶由地形與水口驗證">龍勢傾向*</span><div class="seg" data-k="d"><button data-v="sheng">躍龍</button><button data-v="huilong">迴龍顧祖</button><button data-v="heng">橫龍</button><button data-v="ji">急龍</button><button data-v="huan">緩龍</button><button data-v="gufeng" class="danger" title="孤峰無護八風吹穴，非正穴">孤峰(凶)</button><button data-v="si" class="danger" title="枯槁無起伏、草木不生">死龍(枯)</button><button data-v="po" class="danger">破碎(崩)</button></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px; line-height:1.4;">＊龍脈由地形連續推導（祖山→開帳→束氣→跌斷→入首），選項僅為行度傾向；平洋以水為龍請切「平洋水龍」</div>
         <div class="ctrl-row" style="background:rgba(10,145,161,0.08);border:1px dashed #0a91a1;border-radius:6px;padding:6px;"><span class="ctrl-label" style="color:#0a91a1;">平洋局</span><div class="seg" data-k="d_pingyang"><button data-v="pingyang" id="btn-pingyang-env" title="平洋以水為龍，高一寸山低一寸水，需微高差與水網">平洋水龍(獨立環境)</button><span style="font-size:10px;color:#0a91a1;line-height:1.2;">低平水繞・微高為穴・非山龍一項</span></div></div>
-        <div class="ctrl-row" style="background:rgba(63,107,82,0.08);border:1px dashed #3f6b52;border-radius:6px;padding:6px; margin-top:6px;"><span class="ctrl-label" style="color:#3f6b52;" title="沿主脊採樣星體(金圓/木直/水波/火尖/土方)形態變換次數，<3次=老硬未化">龍脈·行度(剝換)</span><div class="seg" data-k="bohuan"><button data-v="full" class="erod-btn">完全剝換≥3</button><button data-v="partial">部分1-2</button><button data-v="no" class="danger">未剝換(凶)</button></div></div>
+        <div class="ctrl-row" style="background:rgba(63,107,82,0.08);border:1px dashed #3f6b52;border-radius:6px;padding:6px; margin-top:6px;"><span class="ctrl-label" style="color:#3f6b52;" title="生成傾向：引導主脊星體變換序列之生成（粗糙度/形態序列）；實際吉凶由龍脈驗證之形態變換積分（窄/跌/寬實測）裁定，選項不直接計分（P0-R1d）">龍脈·行度(剝換)</span><div class="seg" data-k="bohuan"><button data-v="full" class="erod-btn">完全剝換≥3</button><button data-v="partial">部分1-2</button><button data-v="no" class="danger">未剝換(凶)</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="玄武後靠：垂頭有情/屏風端正/拒屍僵直凶">玄武後靠</span><div class="seg" data-k="mn"><button data-v="you">垂頭(有情)</button><button data-v="pingfeng">屏風(端正)</button><button data-v="kang" class="danger" title="僵直無情如屍橫拒">拒屍(凶)</button><button data-v="po" class="danger">破碎(凶)</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="四象不刻板：青龍亦可抬頭凶惡，白虎亦可低伏有情；此處列舉為常見俗語對照，實際以形態與相對穴位判定">左砂（青龍）</span><div class="seg" data-k="ml"><button data-v="you">有情環抱</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="ya" class="danger">逼壓(示例)</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="四象不刻板：白虎抬頭/開口僅為常見凶格示例，非專屬；青龍高壓低陷亦常見">右砂（白虎）</span><div class="seg" data-k="mr"><button data-v="you">有情馴伏</button><button data-v="xiasha" style="color:#b98a2e;font-weight:bold;">下砂收水</button><button data-v="jiaoya">交牙</button><button data-v="tai" class="danger">抬頭(示例)</button><button data-v="kaikou" class="danger">開口(示例)</button><button data-v="fanbei" class="danger">反背</button><button data-v="po" class="danger">破碎</button><button data-v="none">無</button></div></div>
@@ -353,6 +353,15 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
                 <details class="rp-note"><summary>判定方法·通過條件</summary>
                   <div style="margin-top:3px; line-height:1.4;">主脊連續: 相鄰脊點距&gt;3×均值=中斷, 斷點≤1通過（量化：CV節律）<br>過峽: 脊寬收束比&lt;0.5（量化：收束比）<br>束氣: 谷深/脊寬≥1.0（量化：谷脊比）<br>開帳: 前後脊寬比&gt;1.4<br>入首: 最後脊到穴連線歪斜&lt;30°（量化：角度）<br>護送: 兩側次脊&gt;40%（量化：比例×130）<br>剝換: 形態變換積分（窄/跌/寬實測量，取代次數制）</div>
                 </details>
+            </div>
+        </details>
+
+        <details class="box" id="dragon-chain-box" data-rp="dragonchain" open>
+            <summary><span style="color:var(--jade);">◈ 龍脈證據鏈</span><span class="rp-badge" id="dragon-chain-overall">—</span><span class="rp-arrow">▶</span></summary>
+            <div class="rp-body">
+                <div id="dragon-chain-list"></div>
+                <details class="rp-note" id="dragon-chain-defects"><summary>缺陷警告</summary><div id="dragon-chain-defect-list" style="margin-top:3px; line-height:1.4; color:#a63a2b;">—</div></details>
+                <div class="rp-hint">十項證據＋龍力/龍止（山龍：祖山→…→水界→龍力→龍止）全由地形/水文實測；平洋自動切換水龍版（水網/微高/界水/交會/去水/洪泛/排水）。龍勢選項僅為生成傾向。可信度：證據計分。</div>
             </div>
         </details>
 
@@ -799,6 +808,18 @@ const Rules = {
             s._hazardReasons = hazardReasons;
             return true;
         }
+        // P0-R1e（T3 修復）：水口直洩否決上移——原位於 _sp 分支之後，被提前 return 遮蔽而不可達；
+        // 場證據否決（積水/割腳/淋頭/凹風/洪泛）之後立即檢查，確保收束度<15 的去水直洩確實硬否決。
+        try{
+            if(this.mingtangMulti && s.w && s.w !== 'none'){
+                const _mtF = (this._mtMulCache && this._mtMulCache.val) ? this._mtMulCache.val : this.mingtangMulti();
+                const _lock = _mtF && _mtF.子指標 && _mtF.子指標.水口收束度 ? _mtF.子指標.水口收束度.score : null;
+                if(_lock !== null && _lock < 15){
+                    s._hazardReasons = ['水口直洩(收束度' + Math.round(_lock) + ' < 15)'];
+                    return true;
+                }
+            }
+        }catch(e3m){}
         // P0-R1 水法場證據門檻（v3.1）：BAD_WATERS 標籤不再直接硬否決——
         // 場量測(waterFieldScore)確認凶形已成（場證≤35）才否決；形未成（場證>35）降為軟煞記錄；
         // 吉水標籤但場證≤25（吉水失形）同樣僅記錄，分數層由場量主導（baseWa 0.25/0.75）。
@@ -828,26 +849,17 @@ const Rules = {
                 return s.tantou || s.qingquan || s.sherui || s.qing || s.posui || s.yaSha ||
                     (s.wugong && !s.longtuzhu) || s.bidao ||
                     s.terrain === 'slope' || s.terrain === 'fanpo' || s.ms === 'sunken' || s.tasha ||
-                    s.mr === 'kaikou' || s.d === 'si' || s.d === 'po' || s.d === 'gufeng' ||
+                    s.mr === 'kaikou' || this.dragonIsBad(s.d) ||
                     s.yangwa || s.tianjing || s.ml === 'fanbei' || s.mr === 'fanbei' || brokenCount3 >= 2 ||
                     _badWaterHard || this.BAD_ROADS.includes(s.road);
             }
         }catch(eS){}
         const brokenCount2 = (s.ml==='po'?1:0)+(s.mr==='po'?1:0)+(s.ms==='po'?1:0)+(s.mn==='po'?1:0);
-        try{
-            if(this.mingtangMulti && s.w && s.w !== 'none'){
-                const _mtF = (this._mtMulCache && this._mtMulCache.val) ? this._mtMulCache.val : this.mingtangMulti();
-                const _lock = _mtF && _mtF.子指標 && _mtF.子指標.水口收束度 ? _mtF.子指標.水口收束度.score : null;
-                if(_lock !== null && _lock < 15){
-                    s._hazardReasons = ['水口直洩(收束度' + Math.round(_lock) + ' < 15)'];
-                    return true;
-                }
-            }
-        }catch(e3){}
+        // （水口直洩檢查已上移至場證據否決之後，見 P0-R1e）
         return s.tianzhan || s.tantou || s.ao || s.qingquan || s.sherui || s.qing || s.posui || s.yaSha ||
             (s.wugong && !s.longtuzhu) || s.bidao ||
             s.terrain === 'slope' || s.terrain === 'fanpo' || s.ms === 'sunken' || s.tasha ||
-            s.mr === 'kaikou' || s.d === 'si' || s.d === 'po' || s.d === 'gufeng' ||
+            s.mr === 'kaikou' || this.dragonIsBad(s.d) ||
             s.yangwa || s.tianjing || s.ml === 'fanbei' || s.mr === 'fanbei' || brokenCount2 >= 2 ||
             _badWaterHard || this.BAD_ROADS.includes(s.road);
     },
@@ -856,7 +868,7 @@ const Rules = {
         if (!this.isFatalSha(s)) return false;
         const brokenCount = (s.ml==='po'?1:0)+(s.mr==='po'?1:0)+(s.ms==='po'?1:0)+(s.mn==='po'?1:0);
         const hard = s.tianzhan || s.tasha || s.bidao || s.posui || s.tianjing ||
-            s.ms === 'sunken' || s.mr === 'kaikou' || s.d === 'si' || s.d === 'po' || s.d === 'gufeng' ||
+            s.ms === 'sunken' || s.mr === 'kaikou' || this.dragonIsBad(s.d) ||
             (s.wugong && !s.longtuzhu) || s.terrain === 'slope' || s.terrain === 'fanpo' ||
             s.ml === 'fanbei' || s.mr === 'fanbei' || brokenCount >= 2 ||
             (this.BAD_WATERS.includes(s.w) && (()=>{ let _g=null; try{ _g=this.waterFieldGate?this.waterFieldGate():null; }catch(e){} return (!_g || !_g.有場 || _g.凶水成形); })()) || this.BAD_ROADS.includes(s.road);
@@ -943,27 +955,32 @@ const Rules = {
     getGlobalMultiplier() {
         const state = AppState.current;
         let m = 1.0;
-        if(state.d === 'si' || state.d === 'po' || state.d === 'gufeng') m *= 0.15;
+        const _shG = this.dragonShiLevel ? this.dragonShiLevel() : null; // P0-R2b 實測龍勢（null=回退標籤）
+        if(this.dragonIsBad(state.d)) m *= 0.15;
         if(!state.xia) m *= 0.4;
         if(!state.mt) m *= 0.6;
-        if(state.d === 'huan' && state.xue !== 'ru' && state.xue !== 'tu' && !state.bendi) m *= 0.65;
-        if(state.d === 'ji' && state.xue !== 'qian' && state.xue !== 'wo' && !state.an && !state.mt && !state.guan) m *= 0.7;
+        if((_shG ? _shG==='huan' : state.d==='huan') && state.xue !== 'ru' && state.xue !== 'tu' && !state.bendi) m *= 0.65;
+        if((_shG ? _shG==='ji' : state.d==='ji') && state.xue !== 'qian' && state.xue !== 'wo' && !state.an && !state.mt && !state.guan) m *= 0.7;
         if(state.d === 'pingyang' && state.w === 'none') m *= 0.25;
         if(state.d === 'pingyang' && !state.caoshe && state.suilong === 'none') m *= 0.85; 
-        if(state.bohuan === 'no') {
-            let bhM = 0.72;
-            if(state.d==='si' || state.d==='po') bhM = 0.55;
-            else if(state.zutai && state.fengyao) bhM = 0.85;
-            m *= bhM;
-        } else if(state.bohuan === 'partial') {
-            m *= 0.88; 
+        {   // P0-R1d：剝換乘數改實測級別（形態變換積分），UI 標籤僅生成傾向；龍脊不可用才回退標籤
+            const _bh = this.bohuanMeasured ? this.bohuanMeasured() : null;
+            const _bhLvl = _bh ? _bh.級 : ((state.bohuan === 'yes' || state.bohuan === 'full') ? 'full' : (state.bohuan === 'partial' ? 'partial' : 'none'));
+            if(_bhLvl === 'none'){
+                let bhM = 0.72;
+                if(_shG==='si' || _shG==='po' || (!_shG && (state.d==='si' || state.d==='po'))) bhM = 0.55;
+                else if(state.zutai && state.fengyao) bhM = 0.85;
+                m *= bhM;
+            } else if(_bhLvl === 'partial'){
+                m *= 0.88;
+            }
         }
         if(state.zhijiao === 'ni') {
             let zjM = 0.82;
             if(!state.mt || !state.an) zjM = 0.70;
             m *= zjM;
         }
-        if(state.d === 'heng' && !state.guiyao) m *= 0.55; 
+        if((_shG ? _shG==='heng' : state.d==='heng') && !state.guiyao) m *= 0.55;
         if(state.soil === 'yuni') m *= 0.45; 
         if(state.soil === 'wanshi') m *= 0.70; 
         if(state.sherui) m *= 0.4; 
@@ -1155,18 +1172,33 @@ const Rules = {
         const renDeg = (diDeg + renOffFixed + 360) % 360;
         const tianOffDisp = (typeof state.needleTian==='number'?state.needleTian:7.5);
         const renOffDisp = (typeof state.needleRen==='number'?state.needleRen:-7.5);
-        let isBadDragon = (state.d === 'si' || state.d === 'po' || state.d === 'gufeng'); 
+        let isBadDragon = this.dragonIsBad(state.d);
         const capacityLimitSc = this.getCapacityLimit();
         const isCapacityFullSc = capacityLimitSc > 20 && AppState.gatherAcc >= capacityLimitSc * 0.9 && AppState.gatherAcc > AppState.scatterAcc;
-        let D_raw = {sheng:90, si:35, po:20, pingyang:70, huilong:95, heng:85, ji:55, huan:45, gufeng:15}[state.d] || 50;
-        if(state.d === 'heng' && !state.guiyao) D_raw -= 40; 
+        // P0-R2a（審計三輪·清單2）：龍勢基底改「實測反推」——由分水嶺圖量反推之龍勢（watershedDragonMetrics）
+        // 決定基底分，UI 龍勢傾向僅為生成傾向；平洋獨立（不走山龍量測）；龍脊不可用才回退標籤。
+        let D_raw = null;
+        if(state.d !== 'pingyang'){
+            try{
+                const _wmD = this.watershedDragonMetrics ? this.watershedDragonMetrics() : null;
+                if(_wmD && _wmD.shi) D_raw = ({sheng:90, huilong:95, heng:85, ji:55, huan:45, gufeng:15, si:35, po:20})[_wmD.shi] ?? null;
+            }catch(eWD){}
+        } else {
+            D_raw = 70;
+        }
+        if(D_raw === null) D_raw = {sheng:90, si:35, po:20, pingyang:70, huilong:95, heng:85, ji:55, huan:45, gufeng:15}[state.d] || 50;
+        const _shL = this.dragonShiLevel ? this.dragonShiLevel() : null;
+        if((_shL ? _shL==='heng' : state.d==='heng') && !state.guiyao) D_raw -= 40;
         let isPingyang = (state.d === 'pingyang');
         if(state.shu && !isBadDragon && !isPingyang) D_raw += 10;
         else if(state.shu && isBadDragon) D_raw -= 15;
+        let _bhLvlJ = null;
+        try{ const _bmJ = this.bohuanMeasured ? this.bohuanMeasured() : null; _bhLvlJ = _bmJ ? _bmJ.級 : null; }catch(eBJ){}
+        if(!_bhLvlJ) _bhLvlJ = (state.bohuan === 'yes' || state.bohuan === 'full') ? 'full' : (state.bohuan === 'partial' ? 'partial' : 'none'); // P0-R1d 龍脊不可用回退標籤
         if (state.jiuxing && state.jiuxing !== 'none') {
             const jxBase = { tanlang: 15, jumen: 15, wuqu: 15, zuofu: 12, youbi: 10, lucun: -5, wenqu: -3, lianzhen: -8, pojun: -10 }[state.jiuxing] ?? 0;
             D_raw += jxBase;
-            if (jxBase < 0 && (state.bohuan === 'yes' || state.bohuan === 'full')) D_raw -= jxBase * 0.6; 
+            if (jxBase < 0 && _bhLvlJ === 'full') D_raw -= jxBase * 0.6;
         }
         if(state.zutai) D_raw += 15; 
         if(state.fengyao && !isPingyang) D_raw += 12; 
@@ -1174,10 +1206,10 @@ const Rules = {
         if(state.suilong === 'shuang' && !isPingyang && !isBadDragon) D_raw += 18; 
         if((state.suilong === 'zuo' || state.suilong === 'you') && !isPingyang && !isBadDragon) D_raw += 10; 
         if(!isPingyang) {
-            if(state.bohuan === 'yes' || state.bohuan === 'full') {
+            if(_bhLvlJ === 'full') {
                 let bhBonus = 15;
                 if(!state.shu || !state.fengyao) bhBonus *= 0.5;
-                if(state.d==='ji' || state.d==='si') bhBonus *= 0.3;
+                if(_shL ? (_shL==='ji' || _shL==='si') : (state.d==='ji' || state.d==='si')) bhBonus *= 0.3;
                 D_raw += bhBonus;
             } else if(state.bohuan === 'partial') {
                 D_raw += 6; 
@@ -1241,17 +1273,18 @@ const Rules = {
         if(state.emei) baseS += 12;   
         let isShidaoIntact = state.shidao && state.an && state.zhu && !state.tianzhan && state.ml !== 'po' && state.mr !== 'po' && state.ml !== 'fanbei' && state.mr !== 'fanbei';
         if(isShidaoIntact) baseS += 35; 
+        const _shSand = Rules.dragonShiLevel ? Rules.dragonShiLevel() : null; // P0-R2b
         if(state.guiyao) {
-            if(['po','si'].includes(state.d)) {
+            if(_shSand ? (_shSand==='po'||_shSand==='si') : ['po','si'].includes(state.d)) {
                 baseS -= 25;
-            } else if (state.d === 'ji') {
-                baseS -= 30; 
-            } else if (state.d === 'heng') {
+            } else if (_shSand ? _shSand==='ji' : state.d==='ji') {
+                baseS -= 30;
+            } else if (_shSand ? _shSand==='heng' : state.d==='heng') {
                 baseS += 35;
             } else {
                 if(state.xing === 'shui') baseS += 5; else if(state.xing === 'huo') baseS += 18; else baseS += 12;
             }
-        } else if (state.d === 'heng') {
+        } else if (_shSand ? _shSand==='heng' : state.d==='heng') {
             baseS -= 25;
         }
         let S = Math.max(0, Math.min(100, baseS));
@@ -1404,12 +1437,13 @@ const Rules = {
                     xueScore -= 30; 
                 }
             }
+            const _shX = Rules.dragonShiLevel ? Rules.dragonShiLevel() : null; // P0-R2b 形穴配實測
             if(state.xue === 'wo') {
-                xueScore = (state.d === 'ji' || state.d === 'sheng') ? 18 : 5;
+                xueScore = (_shX ? (_shX==='ji'||_shX==='sheng') : (state.d==='ji'||state.d==='sheng')) ? 18 : 5;
                 if(state.xing === 'jin' || state.xing === 'shui') xueScore += 18;
                 if(state.xing === 'mu') xueScore -= 18; if(state.xing === 'huo') xueScore -= 15;
             } else if(state.xue === 'ru') {
-                xueScore = (state.d === 'pingyang' || state.d === 'huan') ? 22 : 12;
+                xueScore = (state.d === 'pingyang' || (_shX ? _shX==='huan' : state.d==='huan')) ? 22 : 12;
                 if(state.xing === 'mu' || state.xing === 'tu' || state.xing === 'jin' || state.xing === 'shui') xueScore += 18; 
                 if(state.xing === 'huo') xueScore -= 25;
             } else if(state.xue === 'qian') {
@@ -1432,14 +1466,14 @@ const Rules = {
                 if(state.xing === 'mu') xueScore -= 20; 
                 if(state.xing === 'huo') xueScore -= 20;
             } else if(state.xue === 'ping') {
-                xueScore = (state.d === 'pingyang' || state.d === 'huan') ? 22 : 12;
+                xueScore = (state.d === 'pingyang' || (_shX ? _shX==='huan' : state.d==='huan')) ? 22 : 12;
                 if(state.xing === 'tu' || state.xing === 'shui') xueScore += 18;
                 if(state.xing === 'huo') xueScore -= 15;
             } else if(state.xue === 'ya') {
                 if (state.ml === 'none' || state.mr === 'none') {
                     xueScore = -30; 
                 } else {
-                    xueScore = (state.d === 'ji' || state.d === 'sheng') ? 25 : 5; 
+                    xueScore = (_shX ? (_shX==='ji'||_shX==='sheng') : (state.d==='ji'||state.d==='sheng')) ? 25 : 5;
                 }
                 if(state.xing === 'mu' || state.xing === 'jin') xueScore += 15;
                 if(state.xing === 'tu') xueScore -= 15;
@@ -2055,7 +2089,7 @@ const Rules = {
         if(state.ms === 'sunken') cap -= 25;
         if(state.terrain === 'slope' || state.terrain === 'fanpo') cap -= 20;
         if(Rules.BAD_ROADS.includes(state.road)) cap -= 30;
-        if(state.d === 'si' || state.d === 'po' || state.d === 'gufeng') cap = Math.min(cap, 10);
+        if(Rules.dragonIsBad(state.d)) cap = Math.min(cap, 10);
         if(state.ms === 'sunken') cap = Math.min(cap, 10);
         if(state.tasha || state.mr === 'kaikou' || state.yangwa) cap -= 25;
         if (Rules.isFatalSha(state)) cap = Math.min(cap, 30);
@@ -2190,7 +2224,7 @@ const Rules = {
         const msgs = [];
         let score = 60;
         if (this.isFatalSha(st)) { msgs.push('全局犯硬煞／凶水：局部有穴亦虛花'); score = Math.min(score, 28); }
-        if (st.d === 'si' || st.d === 'po' || st.d === 'gufeng') { msgs.push('來龍枯潰／孤露無護：無龍便無穴'); score = Math.min(score, 18); }
+        if (this.dragonIsBad(st.d)) { msgs.push('來龍枯潰／孤露無護：無龍便無穴'); score = Math.min(score, 18); }
         if (t.y <= waterLevel + 0.5) { msgs.push('落水面：界水雖止，浸則氣壞'); score -= 45; }
         const slope = Math.sqrt(t.nx * t.nx + t.nz * t.nz);
         if (slope > 2.5) { msgs.push('坡度過陡(' + slope.toFixed(1) + ')：氣不能駐'); score -= 18; }
@@ -2780,6 +2814,20 @@ const Rules = {
                      說明: '貼身' + _wfs.貼身距離 + 'm·彎向' + _wfs.彎向 + '·流速' + _wfs.流速 + 'm/s·場證' + q };
         }catch(e){ return null; }
     },
+    // P0-R1d（審計二輪）剝換實測級別：由龍脈驗證之「形態變換積分」（窄/跌/寬實測）反推
+    // full≥70／partial 45-69／none<45。UI 剝換選項僅為生成傾向（引導 roughFactor/形態序列），
+    // 一切計分（全域乘數/龍維/凶星脫煞/sha 標示）以此實測級別為準；龍脊不可用時才回退標籤保守路徑。
+    bohuanMeasured(){
+        try{
+            if(typeof Engine3D==='undefined' || !Engine3D.dragonRidge || !Engine3D.dragonRidge.length) return null;
+            const dchk = this.dragonContinuityCheck();
+            const item = dchk && dchk.細項 ? dchk.細項.find(it => it.項 === '剝換') : null;
+            if(!item || typeof item.分 !== 'number') return null;
+            const q = item.分;
+            const 級 = q >= 70 ? 'full' : (q >= 45 ? 'partial' : 'none');
+            return { 級, 分: q, 說明: item.說明 || ('剝換實測 ' + q) };
+        }catch(e){ return null; }
+    },
     pingyangWaterScore(){
         try{
             if(typeof Engine3D==='undefined' || !Engine3D.getTerrainY || !Engine3D.flowMap) return null;
@@ -3206,6 +3254,18 @@ const Rules = {
         const auxRate = auxItems.length ? auxItems.filter(it=>it.通過).length/auxItems.length : 1;
         let score = Math.round(core7*0.8 + auxRate*100*0.2);
         if(!mainOkStrict) score = Math.min(score, 45);
+        // P0-4（審計二輪）域尺度限定：350m 模擬域僅足以判定入首/近龍；
+        // 脊網總長 <180m 時祖山/大開帳/遠勢證據不足 → 綜合上限 65，並輸出尺度聲明。
+        let _ridgeLenM = 0;
+        try{ const _rp = Engine3D.dragonRidge; for(let _i=1; _i<_rp.length; _i++) _ridgeLenM += Math.hypot(_rp[_i].x-_rp[_i-1].x, _rp[_i].z-_rp[_i-1].z); }catch(eRL){}
+        let _scaleNote = '脊網總長 ' + Math.round(_ridgeLenM) + 'm（模擬域 350m）';
+        if(_ridgeLenM > 0 && _ridgeLenM < 180){
+            score = Math.min(score, 65);
+            _scaleNote += '｜祖山/大開帳/遠勢證據不足：本域僅足判定入首與近龍，綜合上限 65，宜現場覆核大局';
+        } else if(_ridgeLenM > 0){
+            _scaleNote += '｜近龍/入首證據充分；大局仍建議現場覆核';
+        }
+        items.push({項:'域尺度', 通過: !(_ridgeLenM > 0 && _ridgeLenM < 180), 說明: _scaleNote});
         const _dchkVal = {細項: items, 綜合: score, 通過: score>=70, 七項量化: {加權: Math.round(core7), 輔助通過率: Math.round(auxRate*100)}};
         try{ this._dchkCache = { key: (function(){ const _ck2 = ['d','bohuan','zutai','chuanzhang','dazhang','dieduan','shu','fengyao','suilong','hulong','guiyao','dushui','fenzhi','manualXue','xueX','xueZ','presetSeed']; return _ck2.map(k => String((AppState.current||{})[k])).join('|') + '#' + ((typeof Engine3D!=='undefined' && Engine3D.hMapRev)||0); })(), val: _dchkVal }; }catch(e){}
         return _dchkVal;
@@ -3232,7 +3292,10 @@ const Rules = {
             const brokenness = Math.min(1, (g.saddles.length / Math.max(1, g.peaks.length)) / 4);
             const escortDensity = Math.min(1, (g.ridgeCellCount / Math.max(1, g.basinCount)) / 60);
             let shi, explain;
-            if(brokenness > 0.6 && g.basinCount > 14){ shi='po'; explain='分水嶺破碎（鞍/峰比 ' + (g.saddles.length/Math.max(1,g.peaks.length)).toFixed(2) + '/盆地' + g.basinCount + '）→ 破碎態'; }
+            const _yMinW = Math.min.apply(null, ys), _yMaxW = Math.max.apply(null, ys), _reliefAll = _yMaxW - _yMinW;
+            if(cv < 0.05 && _reliefAll < 8){ shi='si'; explain='幾無起伏（CV=' + cv.toFixed(2) + '·總落差' + Math.round(_reliefAll) + 'm）→ 死龍態'; }
+            else if(g.peaks.length <= 1 && escortDensity < 0.2 && _reliefAll >= 8){ shi='gufeng'; explain='單峰無護（峰' + g.peaks.length + '·護從密度' + escortDensity.toFixed(2) + '）→ 孤露態'; }
+            else if(brokenness > 0.6 && g.basinCount > 14){ shi='po'; explain='分水嶺破碎（鞍/峰比 ' + (g.saddles.length/Math.max(1,g.peaks.length)).toFixed(2) + '/盆地' + g.basinCount + '）→ 破碎態'; }
             else if(turn > 72 && dchkCompat()){ shi='huilong'; explain='末端回折 ' + Math.round(turn) + '° → 迴龍顧祖態'; }
             else if(ortho > 55){ shi='heng'; explain='脊走向與立向正交 ' + Math.round(ortho) + '° → 橫龍態'; }
             else if(cv > 0.30){ shi='ji'; explain='起伏 CV=' + cv.toFixed(2) + ' 高急 → 急龍態'; }
@@ -3240,6 +3303,356 @@ const Rules = {
             else { shi='sheng'; explain='起伏 CV=' + cv.toFixed(2) + ' 有度 + 護從密度 ' + escortDensity.toFixed(2) + ' → 躍龍態'; }
             function dchkCompat(){ return true; } 
             return { shi, explain, metrics: { cv: Math.round(cv*100)/100, 回折角: Math.round(turn), 正交角: Math.round(ortho), 鞍部: g.saddles.length, 盆地: g.basinCount, 脊線格: g.ridgeCellCount, 破碎度: Math.round(brokenness*100)/100, 護從密度: Math.round(escortDensity*100)/100 }, peaks: g.peaks.length };
+        }catch(e){ return null; }
+    },
+    // P0-R2b（審計三輪·清單2）：龍勢凶格（死/破/孤）與形穴配（緩/急/橫）改實測 shi；
+    // 龍脊不可用時才回退 UI 標籤。生成層（buildTerrain/preset）仍用標籤。
+    dragonShiLevel(){
+        try{
+            if(typeof Engine3D==='undefined' || !Engine3D.dragonRidge || !Engine3D.dragonRidge.length) return null;
+            const _wm = this.watershedDragonMetrics ? this.watershedDragonMetrics() : null;
+            return _wm ? _wm.shi : null;
+        }catch(e){ return null; }
+    },
+    dragonIsBad(dLabel){
+        const _sh = this.dragonShiLevel ? this.dragonShiLevel() : null;
+        if(_sh) return (_sh === 'si' || _sh === 'po' || _sh === 'gufeng');
+        return dLabel === 'si' || dLabel === 'po' || dLabel === 'gufeng';
+    },
+    dragonShiIs(shiLabel, dLabel){
+        const _sh = this.dragonShiLevel ? this.dragonShiLevel() : null;
+        if(_sh) return _sh === shiLabel;
+        return dLabel === shiLabel;
+    },
+    // ===== 平洋水龍證據鏈（審計三輪·四節）：完全獨立於山脊邏輯 =====
+    // 水網成絡／微高為穴／界水夾送／水脈交會／去水水口／洪泛風險／排水有路——高一寸山低一寸水。
+    pingyangEvidenceChain(){
+        try{
+            if(typeof Engine3D==='undefined' || !Engine3D.getTerrainY) return null;
+            const st = AppState.current;
+            const _ck = ['d','riverDir','poolEnabled','mouthWidth','manualXue','xueX','xueZ','presetSeed','waterVel'];
+            const _ckv = _ck.map(k => String(st[k])).join('|') + '#' + ((Engine3D.hMapRev)||0);
+            if(this._pyChainCache && this._pyChainCache.key === _ckv) return this._pyChainCache.val;
+            const [ax, az] = effLairAnchor();
+            const lair = Engine3D.getTerrainY(ax, az);
+            const seg = CONFIG.tSeg, size = CONFIG.tSize;
+            const flowAt = (x, z) => {
+                try{
+                    const gx = Math.max(0, Math.min(seg, Math.round((x+size/2)/(size/seg))));
+                    const gz = Math.max(0, Math.min(seg, Math.round((z+size/2)/(size/seg))));
+                    return Engine3D.flowMap ? (Engine3D.flowMap[gz*(seg+1)+gx]||0) : 0;
+                }catch(e){ return 0; }
+            };
+            const chains = Engine3D.pingyangChains || [];
+            const items = []; const defects = [];
+
+            // 1. 水網成絡
+            let netNodes = 0; for(const ch of chains) netNodes += (ch.pts ? ch.pts.length : 0);
+            const netOk = chains.length >= 2 && netNodes >= 8;
+            items.push({ 項:'水網', 成立: netOk, 值: `水脈${chains.length}條·節點${netNodes}`, 說明: netOk ? '水網成絡' : '水網稀疏（平洋以水為龍）' });
+            if(!netOk) defects.push('水網不足（' + chains.length + ' 條水脈）');
+
+            // 2. 微高為穴：穴場微凸（環帶多數低於穴＋高於最低點 ≥0.3m）
+            let lowerCnt = 0, ringN = 0, ringMin = 999;
+            for(let k2=0; k2<16; k2++){
+                const rr = k2*22.5*Math.PI/180;
+                const h = Engine3D.getTerrainY(ax + Math.sin(rr)*10, az - Math.cos(rr)*10).y;
+                ringN++; if(h < lair.y - 0.05) lowerCnt++; if(h < ringMin) ringMin = h;
+            }
+            const weiGao = ringN>0 && lowerCnt/ringN >= 0.55 && (lair.y - ringMin) >= 0.3;
+            items.push({ 項:'微高為穴', 成立: weiGao, 值: `環帶低於穴${ringN?Math.round(lowerCnt/ringN*100):0}%·高差${(lair.y-ringMin).toFixed(2)}m`, 說明: weiGao ? '高一寸即山' : '穴場不微凸（平沉或反陷）' });
+            if(!weiGao) defects.push('穴場無微高（高一寸為山不成立）');
+
+            // 3. 界水夾送：30m 內近水脈 ≥2 條
+            const nearCh = [];
+            chains.forEach((ch, ci) => {
+                let dBest = 999, bBest = 0;
+                if(ch.pts) for(const p of ch.pts){
+                    const d = Math.hypot(p.x-ax, p.z-az);
+                    if(d < dBest){ dBest = d; bBest = ((Math.atan2(p.x-ax, -(p.z-az))*180/Math.PI)+360)%360; }
+                }
+                if(dBest <= 30) nearCh.push({ ci, d: Math.round(dBest), b: Math.round(bBest) });
+            });
+            const jiaSong = nearCh.length >= 2;
+            items.push({ 項:'界水夾送', 成立: jiaSong, 值: `近水脈${nearCh.length}條` + (nearCh.length ? `（${nearCh.slice(0,3).map(c2=>c2.d+'m@'+c2.b+'°').join('、')}）` : ''), 說明: jiaSong ? '水繞有界' : '界水不足' });
+            if(!jiaSong) defects.push('界水夾送不足（<2 條近水脈）');
+
+            // 4. 水脈交會：最近兩條水脈方位差 ≥50°
+            let jiaoHui = false, jiaoInfo = '—';
+            if(nearCh.length >= 2){
+                let dDiff = 0;
+                for(let a2=0; a2<nearCh.length-1; a2++) for(let b2=a2+1; b2<nearCh.length; b2++){
+                    const diff = Math.abs(((nearCh[b2].b - nearCh[a2].b + 540)%360)-180);
+                    if(diff > dDiff){ dDiff = diff; }
+                }
+                jiaoHui = dDiff >= 50;
+                jiaoInfo = `最大夾角${Math.round(dDiff)}°`;
+            }
+            items.push({ 項:'水脈交會', 成立: jiaoHui, 值: jiaoInfo, 說明: jiaoHui ? '水會龍止' : '水脈平行無交（龍不止）' });
+            if(!jiaoHui) defects.push('水脈無交會（水會龍止不成立）');
+
+            // 5. 去水/水口
+            let outletStr = 0;
+            try{ const ot = this.outletAzimuth ? this.outletAzimuth() : null; outletStr = ot ? (ot.strength||0) : 0; }catch(e){}
+            const quShui = outletStr >= 10;
+            items.push({ 項:'去水·水口', 成立: quShui, 值: `去水勢${Math.round(outletStr)}`, 說明: quShui ? '去水有路' : '無明確去水口' });
+            if(!quShui) defects.push('去水/水口不明');
+
+            // 6. 洪泛
+            let floodR = 0;
+            try{ const _hyP = Engine3D.hydroField ? Engine3D.hydroField(ax, az) : null; floodR = _hyP ? (_hyP.floodRisk||0) : 0; }catch(e){}
+            const noFlood = floodR <= 0.35;
+            items.push({ 項:'洪泛', 成立: noFlood, 值: `洪水風險${Math.round(floodR*100)}%`, 說明: noFlood ? '低地不淹' : '低地洪泛風險' });
+            if(!noFlood) defects.push('洪泛風險 ' + Math.round(floodR*100) + '%');
+
+            // 7. 排水有路
+            let drainOk = false;
+            if(Engine3D.flowMap){
+                if(flowAt(ax, az) > 0.25){ drainOk = true; }
+                else {
+                    for(let dz2=-8; dz2<=8 && !drainOk; dz2+=2) for(let dx2=-8; dx2<=8; dx2+=2){
+                        if(flowAt(ax+dx2, az+dz2) > 0.4){ drainOk = true; break; }
+                    }
+                }
+            }
+            items.push({ 項:'排水', 成立: drainOk, 值: drainOk ? '穴域有排水路' : '穴域無排水路', 說明: drainOk ? '不積不滯' : '死水滯聚之虞' });
+            if(!drainOk) defects.push('穴域無排水路（死水之虞）');
+
+            let credScore = 0;
+            credScore += netOk?1:0; credScore += weiGao?1:0; credScore += jiaSong?1:0;
+            credScore += jiaoHui?1:0; credScore += quShui?1:0; credScore += noFlood?1:0; credScore += drainOk?1:0;
+            const 可信度 = credScore >= 6 ? '高' : (credScore >= 4 ? '中' : '低');
+            const val = { 項目: items, 缺陷警告: defects, 可信度, 可信計分: credScore + '/7', 脊網長: netNodes, 位置: null, 平洋: true };
+            this._pyChainCache = { key: _ckv, val };
+            return val;
+        }catch(e){ return null; }
+    },
+    // ===== 龍脈證據鏈（審計三輪·七節）：祖山→主龍→開帳→過峽→束氣→跌斷→入首→穴星→護從→水界 =====
+    // 每項輸出量測值＋成立性＋缺陷；末尾輸出缺陷警告與龍脈可信度（高/中/低）。
+    // 選項（龍勢傾向/護從開關）僅為生成傾向——本鏈全部由地形/水文實測。
+    dragonEvidenceChain(){
+        try{
+            const _stTop = AppState.current;
+            if(_stTop && _stTop.d === 'pingyang') return this.pingyangEvidenceChain(); // P0-R2c：平洋走獨立水龍證據鏈
+            if(typeof Engine3D==='undefined' || !Engine3D.dragonRidge || !Engine3D.dragonRidge.length) return null;
+            const _ck = ['d','bohuan','zutai','chuanzhang','dazhang','dieduan','shu','fengyao','suilong','hulong','manualXue','xueX','xueZ','presetSeed'];
+            const _ckv = _ck.map(k => String((AppState.current||{})[k])).join('|') + '#' + ((Engine3D.hMapRev)||0);
+            if(this._evChainCache && this._evChainCache.key === _ckv) return this._evChainCache.val;
+            const st = AppState.current;
+            const pts = Engine3D.dragonRidge;
+            const n = pts.length;
+            const [ax, az] = effLairAnchor();
+            const lair = Engine3D.getTerrainY(ax, az);
+            const feats = (Engine3D.detectChainFeatures ? Engine3D.detectChainFeatures() : null);
+            const featList = (feats && Array.isArray(feats.features)) ? feats.features : null; // detectChainFeatures 回傳物件，features 才是事件陣列
+            const wsm = this.watershedDragonMetrics ? this.watershedDragonMetrics() : null;
+            const seg = CONFIG.tSeg, size = CONFIG.tSize;
+            const flowAt = (x, z) => {
+                try{
+                    const gx = Math.max(0, Math.min(seg, Math.round((x+size/2)/(size/seg))));
+                    const gz = Math.max(0, Math.min(seg, Math.round((z+size/2)/(size/seg))));
+                    return Engine3D.flowMap ? (Engine3D.flowMap[gz*(seg+1)+gx]||0) : 0;
+                }catch(e){ return 0; }
+            };
+            const windAtC = (wx, wz) => {
+                try{
+                    const gi = Math.max(0, Math.min(63, Math.floor((wx + CONFIG.tSize/2)/CONFIG.tSize*64)));
+                    const gj = Math.max(0, Math.min(63, Math.floor((wz + CONFIG.tSize/2)/CONFIG.tSize*64)));
+                    return Math.hypot(Physics.windGridX[gj*64+gi]||0, Physics.windGridZ[gj*64+gi]||0);
+                }catch(e){ return 0; }
+            };
+            const segLen = (a,b) => Math.hypot(pts[b].x-pts[a].x, pts[b].z-pts[a].z);
+            const bearingOf = (a,b) => Math.atan2(pts[b].x-pts[a].x, -(pts[b].z-pts[a].z))*180/Math.PI;
+            const norm180 = (d) => ((d+540)%360)-180;
+            const items = [];
+            const defects = [];
+
+            // 1. 祖山：脊首段最高峰與脊中位數高差（氣勢來源）
+            const headEnd = Math.max(3, Math.floor(n*0.18));
+            let zuMax = -999, zuPt = pts[0];
+            for(let i=0;i<headEnd;i++){ if(pts[i].y > zuMax){ zuMax = pts[i].y; zuPt = pts[i]; } }
+            const ysAll = pts.map(p=>p.y).sort((a,b)=>a-b);
+            const medianY = ysAll[Math.floor(n/2)];
+            const zuProm = zuMax - medianY;
+            const zuDist = Math.hypot(zuPt.x-ax, zuPt.z-az);
+            const zuOk = zuProm >= 8;
+            items.push({ 項:'祖山', 成立: zuOk, 值: `高${Math.round(zuMax)}m·勢差${Math.round(zuProm)}m·距穴${Math.round(zuDist)}m`, 說明: zuOk ? '來勢有祖' : '祖山氣勢不足（<8m 勢差）' });
+            if(!zuOk) defects.push('未偵測到明確祖山（首段勢差<8m）');
+
+            // 2. 主龍：總長／平均坡度／方向連續性／中斷點
+            let mainLen = 0, breaks = 0, bearDevi = 0, bearCnt = 0;
+            for(let i=1;i<n;i++){
+                const d = segLen(i-1,i); mainLen += d;
+                if(d > 3*(mainLen/i)) breaks++;
+                if(i>=2 && i<n-1){
+                    const b1 = bearingOf(i-1,i), b2 = bearingOf(i,i+1);
+                    bearDevi += Math.abs(norm180(b2-b1)); bearCnt++;
+                }
+            }
+            const dirCont = bearCnt>0 ? Math.max(0, 100 - (bearDevi/bearCnt)*1.2) : 50; // 逐段山脊自然擺動，1.2/度（過苛會誤判真龍為散亂）
+            const mainSlope = (pts[n-1].y - pts[0].y) >= 0 ? 0 : Math.abs(pts[n-1].y-pts[0].y)/Math.max(1,mainLen);
+            const mainOk = breaks <= 1 && dirCont >= 45;
+            items.push({ 項:'主龍', 成立: mainOk, 值: `長${Math.round(mainLen)}m·坡${(mainSlope*100).toFixed(0)}%·向續${Math.round(dirCont)}%·斷${breaks}`, 說明: mainOk ? '行度有勢' : (breaks>1 ? '主脊中斷' : '方向散亂') });
+            if(breaks > 1) defects.push('主脊中斷 ' + breaks + ' 處');
+            if(dirCont < 45) defects.push('主脊方向連續性不足（' + Math.round(dirCont) + '%）');
+
+            // 3. 開帳：展開事件＋帳翼橫寬（垂直主脊取樣 ±30m）
+            const widens = featList ? featList.filter(f=>f.feature==='widen') : [];
+            let kaiWidth = 0, kaiPt = null;
+            for(const w of widens){
+                const i = w.i;
+                const bx = pts[Math.min(n-1,i+2)].x - pts[Math.max(0,i-2)].x, bz = pts[Math.min(n-1,i+2)].z - pts[Math.max(0,i-2)].z;
+                const bl = Math.hypot(bx,bz)||1; const px = -bz/bl, pz = bx/bl;
+                let wdt = 0;
+                for(let off=-30; off<=30; off+=3){
+                    const h = Engine3D.getTerrainY(w.x+px*off, w.z+pz*off).y;
+                    if(h > w.ratio*0 + (Engine3D.getTerrainY(w.x,w.z).y - 2)) wdt += 3;
+                }
+                if(wdt > kaiWidth){ kaiWidth = wdt; kaiPt = w; }
+            }
+            const kaiOk = widens.length >= 2 && kaiWidth >= 24;
+            items.push({ 項:'開帳', 成立: kaiOk, 值: `展開${widens.length}處·帳翼寬${Math.round(kaiWidth)}m`, 說明: kaiOk ? '帳幕展開' : '開帳不足（需≥2處且帳翼≥24m）' });
+            if(!kaiOk) defects.push('開帳範圍不足');
+
+            // 4. 過峽：收束＋護峽（兩肩高起）＋水切（峽口流量）
+            const narrows = featList ? featList.filter(f=>f.feature==='narrow') : [];
+            let guaOk = false, guaBest = null;
+            for(const g of narrows){
+                // 護峽取樣改用脊向橫斷面（垂直主脊 ±18m），斜向山脊不再取錯兩肩
+                const _i2 = g.i;
+                const _bx2 = pts[Math.min(n-1,_i2+2)].x - pts[Math.max(0,_i2-2)].x, _bz2 = pts[Math.min(n-1,_i2+2)].z - pts[Math.max(0,_i2-2)].z;
+                const _bl2 = Math.hypot(_bx2,_bz2)||1;
+                const _px2 = -_bz2/_bl2, _pz2 = _bx2/_bl2;
+                const shoulderL = Engine3D.getTerrainY(g.x - _px2*18, g.z - _pz2*18).y, shoulderR = Engine3D.getTerrainY(g.x + _px2*18, g.z + _pz2*18).y;
+                const saddle = Engine3D.getTerrainY(g.x, g.z).y;
+                const guard = Math.min(shoulderL, shoulderR) - saddle;
+                const waterCut = flowAt(g.x, g.z) > 0.6;
+                if(guard >= 1.5 && !waterCut){ guaOk = true; guaBest = g; break; }
+            }
+            items.push({ 項:'過峽', 成立: guaOk, 值: `收束${narrows.length}處` + (guaBest ? '·護峽✓無水切' : (narrows.length?'·護峽✗或水切':'')), 說明: guaOk ? '低而有意·兩肩有護' : '未見有護峽之過峽' });
+            if(!guaOk && narrows.length) defects.push('過峽收束無護峽或疑水切');
+
+            // 5. 束氣：脊尾 35% 內收束＋軸線對穴
+            const tailStart = Math.floor(n*0.65);
+            let shuFeat = null;
+            if(featList) for(const g of featList){ if(g.feature==='narrow' && g.i >= tailStart){ shuFeat = g; break; } }
+            const tailBear = bearingOf(Math.max(0,n-4), n-1);
+            const lairBear = Math.atan2(ax-pts[n-1].x, -(az-pts[n-1].z))*180/Math.PI;
+            const axisDev = Math.abs(norm180(tailBear - lairBear));
+            const shuOk = !!shuFeat && axisDev <= 35;
+            items.push({ 項:'束氣', 成立: shuOk, 值: (shuFeat ? `尾段收束✓` : '尾段無收束') + `·軸偏${Math.round(axisDev)}°`, 說明: shuOk ? '收而對穴' : (shuFeat ? '束氣未對穴軸' : '入首前無束氣') });
+            if(!shuOk) defects.push(shuFeat ? '束氣未對穴軸（偏 ' + Math.round(axisDev) + '°）' : '入首前無束氣');
+
+            // 6. 跌斷：次數＋跌後再起
+            const drops = featList ? featList.filter(f=>f.feature==='drop') : [];
+            let riseBack = 0;
+            for(const d of drops){ if(d.i+4 < n && pts[d.i+4].y > pts[d.i].y - 1) riseBack++; }
+            const dieOk = drops.length === 0 || riseBack >= Math.ceil(drops.length*0.5);
+            items.push({ 項:'跌斷', 成立: dieOk, 值: `跌${drops.length}處·再起${riseBack}`, 說明: dieOk ? '頓挫有度' : '跌而未起（斷氣）' });
+            if(!dieOk) defects.push('跌斷後未再起');
+
+            // 7. 入首：長度／急緩／承接
+            const tailLen0 = Math.floor(n*0.85);
+            let ruLen = 0; for(let i=tailLen0+1;i<n;i++) ruLen += segLen(i-1,i);
+            let midSlope = 0; for(let i=Math.floor(n*0.3);i<Math.floor(n*0.6);i++) midSlope += Math.abs(pts[i].y-pts[i-1].y)/Math.max(0.5,segLen(i-1,i));
+            midSlope /= Math.max(1, Math.floor(n*0.6)-Math.floor(n*0.3));
+            const tailSlope = Math.abs(pts[n-1].y-pts[tailLen0].y)/Math.max(1, ruLen);
+            const rushRatio = midSlope > 0.02 ? tailSlope/midSlope : 1;
+            const _degB = (((st.degree||0)%360+360)%360)*Math.PI/180;
+            const _lkB = st.face==='1'?1:-1;
+            const _fxB = -Math.sin(_degB)*_lkB, _fzB = Math.cos(_degB)*_lkB;
+            const backH = Engine3D.getTerrainY(ax - _fxB*8, az - _fzB*8).y; // 穴後（玄武向）承托
+            const chengjie = (backH - lair.y) >= 1.5 && ruLen >= 12 && ruLen <= 90;            items.push({ 項:'入首', 成立: chengjie, 值: `長${Math.round(ruLen)}m·急緩比${rushRatio.toFixed(2)}·後靠+${Math.round(backH-lair.y)}m`, 說明: chengjie ? '短緩有承' : (ruLen<12?'入首過短':(ruLen>90?'入首過長':'後靠不足')) });
+            if(!chengjie) defects.push(ruLen<12 ? '入首段過短' : (ruLen>90 ? '入首拖長不止' : '穴後承托不足（玄武低陷）'));
+
+            // 8. 穴星：微地形起伏＋積水/淋頭（場證據）
+            let microMax = -999, microMin = 999;
+            for(let dz2=-8; dz2<=8; dz2+=2) for(let dx2=-8; dx2<=8; dx2+=2){
+                const h = Engine3D.getTerrainY(ax+dx2, az+dz2).y;
+                if(h>microMax) microMax=h; if(h<microMin) microMin=h;
+            }
+            const microRelief = microMax - microMin;
+            const soft = st._softFieldHazards || [];
+            const hasJiShui = soft.some(s2=>/積水|低窪/.test(s2));
+            const xueOk = microRelief >= 1.0 && !hasJiShui;
+            items.push({ 項:'穴星', 成立: xueOk, 值: `微起伏${microRelief.toFixed(1)}m·形${st.xue==='auto'?'自湧現':st.xue}`, 說明: xueOk ? '星體成形' : (hasJiShui ? '穴域積水/低窪' : '穴星微地形不明顯') });
+            if(!xueOk) defects.push(hasJiShui ? '穴域有積水/低窪場證據' : '穴星微地形不明顯（<1m）');
+
+            // 9. 護從：兩水夾送（脊中段兩側流量）＋護從密度
+            let flankL = 0, flankR = 0, flankN = 0;
+            for(let i=Math.floor(n*0.3); i<Math.floor(n*0.8); i+=3){
+                const b = bearingOf(i, Math.min(n-1,i+1))*Math.PI/180;
+                const px = Math.cos(b), pz = Math.sin(b); // 垂直於脊向（perp of (sinβ,-cosβ)）
+                if(flowAt(pts[i].x - px*18, pts[i].z - pz*18) > 0.35) flankL++;
+                if(flowAt(pts[i].x + px*18, pts[i].z + pz*18) > 0.35) flankR++;
+                flankN++;
+            }
+            const twoWater = flankN>0 && flankL >= flankN*0.25 && flankR >= flankN*0.25;
+            const escort = wsm ? wsm.metrics.護從密度 : null;
+            items.push({ 項:'護從·兩水', 成立: twoWater, 值: `左水${flankN?Math.round(flankL/flankN*100):0}%·右水${flankN?Math.round(flankR/flankN*100):0}%` + (escort!=null?`·護從密度${escort}`:''), 說明: twoWater ? '兩水夾龍' : '缺一側夾送水' });
+            if(!twoWater) defects.push('兩水夾送不足（' + (flankL<flankN*0.25?'左':'') + (flankR<flankN*0.25?'右':'') + '側缺水界）');
+
+            // 10. 水界：去水口＋明堂水
+            let outletStr = 0;
+            try{ const ot = this.outletAzimuth ? this.outletAzimuth() : null; outletStr = ot ? (ot.strength||0) : 0; }catch(e){}
+            let mtWaterCov = null;
+            try{ const _mw = this.mingtangWaterScore ? this.mingtangWaterScore() : null; mtWaterCov = _mw ? _mw.覆蓋率 : null; }catch(e){}
+            const shuiOk = outletStr >= 15 || (mtWaterCov != null && mtWaterCov > 5);
+            items.push({ 項:'水界', 成立: shuiOk, 值: `去水勢${Math.round(outletStr)}·堂水覆蓋${mtWaterCov==null?'—':mtWaterCov+'%'}`, 說明: shuiOk ? '水界有會' : '水界不明（無去水亦無堂聚）' });
+            if(!shuiOk) defects.push('水界不明確');
+
+            // 11. 龍力（審計三輪·階段二）：三因子判據（皆為已驗證訊號，可解釋可審計）——
+            // 中後段仍有高度（來脈有勢可承）×尾段完整（無跌斷/水切）×龍體非死破孤（watershed 實測）。
+            const _m08I = Math.floor(n*0.8);
+            const _hMid = pts[_m08I].y - lair.y;
+            const _tailI0 = Math.floor(n*0.8);
+            const _tailDropE = featList ? featList.some(f => f.feature==='drop' && f.i >= _tailI0) : false;
+            const _tailWaterE = featList ? featList.some(f => f.feature==='narrow' && f.i >= _tailI0 && flowAt(f.x, f.z) > 0.6) : false;
+            const _shiBadL = this.dragonIsBad ? this.dragonIsBad(st.d) : (st.d==='si'||st.d==='po'||st.d==='gufeng');
+            const _shiNow = this.dragonShiLevel ? this.dragonShiLevel() : st.d;
+            const longLi = (_hMid >= 3) && !_tailDropE && !_tailWaterE && !_shiBadL;
+            const _whyL = [];
+            if(_hMid < 3) _whyL.push('中後段高差不足(' + _hMid.toFixed(1) + 'm)');
+            if(_tailDropE) _whyL.push('尾段跌斷');
+            if(_tailWaterE) _whyL.push('尾段水切');
+            if(_shiBadL) _whyL.push('龍體死/破/孤');
+            items.push({ 項:'龍力', 成立: longLi, 值: `中後段高${_hMid.toFixed(1)}m·尾段${(_tailDropE||_tailWaterE)?'有傷':'全'}·龍體${_shiNow}`, 說明: longLi ? '來勢有餘·入首有承' : _whyL.join('·') });
+            if(!longLi) defects.push('龍力不足（' + _whyL.join('、') + '）');
+
+            // 12. 龍止（審計三輪·階段二）：坡緩×勢柔×水會×堂展×環抱×風低×星成 → 止指數
+            let stopN = 0, stopHit = 0;
+            const stopAdd = (c) => { stopN++; if(c) stopHit++; };
+            stopAdd(tailSlope <= midSlope*0.9);
+            stopAdd(n>=3 && Math.abs(norm180(bearingOf(n-2,n-1)-bearingOf(n-3,n-2))) < 25);
+            const _bTail = bearingOf(Math.max(0,n-2), n-1)*Math.PI/180;
+            const _pxT = Math.cos(_bTail), _pzT = Math.sin(_bTail);
+            stopAdd(flowAt(pts[n-1].x-_pxT*18, pts[n-1].z-_pzT*18)>0.3 || flowAt(pts[n-1].x+_pxT*18, pts[n-1].z+_pzT*18)>0.3);
+            stopAdd(!!st.mt);
+            stopAdd(this.protectionRatio ? this.protectionRatio() >= 0.45 : false);
+            const _windLairC = windAtC(ax, az), _windHeadC = windAtC(pts[0].x, pts[0].z);
+            stopAdd(_windLairC < 1.2 || _windLairC < _windHeadC*0.85);
+            stopAdd(microRelief >= 1.0);
+            const stopIdx = stopN ? Math.round(stopHit/stopN*100) : 0;
+            const stopOk = stopIdx >= 60;
+            items.push({ 項:'龍止', 成立: stopOk, 值: `止指數${stopIdx}%（${stopHit}/${stopN}：坡緩·勢柔·水會·堂展·環抱·風低·星成）`, 說明: stopOk ? '界止有結' : '龍止不明（行龍未止）' });
+            if(!stopOk) defects.push('龍止不明（止指數 ' + stopIdx + '% < 60%）');
+
+            // 可信度：九項證據計分
+            let credScore = 0;
+            credScore += mainLen >= 180 ? 1 : 0;         // 域尺度
+            credScore += zuOk ? 1 : 0;
+            credScore += mainOk ? 1 : 0;
+            credScore += (escort != null && escort >= 0.4) ? 1 : 0;
+            credScore += twoWater ? 1 : 0;
+            credScore += shuiOk ? 1 : 0;
+            credScore += (st.mt ? 1 : 0);
+            credScore += longLi ? 1 : 0;
+            credScore += stopOk ? 1 : 0;
+            const 可信度 = credScore >= 7 ? '高' : (credScore >= 5 ? '中' : '低');
+            const val = { 項目: items, 缺陷警告: defects, 可信度, 可信計分: credScore + '/7', 脊網長: Math.round(mainLen),
+                位置: { 祖山: zuPt, 過峽: guaBest || null, 束氣: shuFeat || null, 入首: pts[n-1], 穴: {x:ax, y:lair.y, z:az} } };
+            this._evChainCache = { key: _ckv, val };
+            return val;
         }catch(e){ return null; }
     },
     detectDragonShi(pts, segs){
@@ -3326,7 +3739,13 @@ const Rules = {
             tianzhanSamples.push(g);
             if (g < tianzhanGap) tianzhanGap = g;
         }
-        const windRad = ((st.wind || 0) >= 0 ? 0 : Math.PI);
+        // P0-R1f（T7 修復）：windRad 原僅依風強正負（0/π），完全忽略風向 select——
+        // 天斬狹管、凹風對正、孤峰 16方位加權全部被鎖在東西向。改依 st.windDir（來風方位，
+        // 負風強=反向）：fromRad＝來風上游；windRad＝吹入下游（沿用下游採樣語義）。
+        const _wdMapSP = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
+        const _fromDegSP = (_wdMapSP[st.windDir] != null) ? _wdMapSP[st.windDir] : 270;
+        const fromRad = ((_fromDegSP + ((st.wind || 0) < 0 ? 180 : 0)) % 360) * Math.PI / 180; // 來風（上游）
+        const windRad = fromRad + Math.PI;                                                     // 吹入（下游）
         const windAt = (wx, wz) => {
             try{
                 const gi = Math.max(0, Math.min(63, Math.floor((wx + CONFIG.tSize/2)/CONFIG.tSize*64)));
@@ -3381,8 +3800,8 @@ const Rules = {
         } else { var _fqClearNote = ''; }
         const fQScore = Math.round(fQRaw * distAttn(14, 14));
         const fARaw = (Math.abs(tC.nx) > 1.0 || Math.abs(tC.nz) > 1.0) ? Math.min(100, Math.hypot(tC.nx, tC.nz)*38) : 0;
-        const concaveAlign = (Math.sign(tC.nx) === Math.sign(Math.cos(windRad)) ||
-                              Math.sign(tC.nz) === Math.sign(Math.sin(windRad))) ? 1.3 : 0.8; 
+        const concaveAlign = (Math.sign(tC.nx) === Math.sign(Math.cos(fromRad)) ||
+                              Math.sign(tC.nz) === Math.sign(Math.sin(fromRad))) ? 1.3 : 0.8; 
         const _windAtLair = windAt(ax, az);
         const _windRatioA = (windUp > 0.15) ? Math.max(0.6, Math.min(1.5, 0.6 + _windAtLair / windUp * 0.45)) : 1.0;
         const fAScore = Math.round(fARaw * concaveAlign * _windRatioA * distAttn(8, 8));
@@ -3391,7 +3810,7 @@ const Rules = {
             const aRad = a*Math.PI/8;
             const h = Engine3D.getTerrainY(ax+Math.cos(aRad)*35, az+Math.sin(aRad)*35).y;
             if (h < tC.y - 0.5){
-                const windAlign = Math.cos(aRad - windRad);
+                const windAlign = Math.cos(aRad - fromRad); // P0-R1f：對「來風方位」加權（風從該向吹入）
                 exposedWeighted += 0.5 + 0.5*Math.max(0, windAlign);
             }
         }
@@ -3451,7 +3870,7 @@ const Rules = {
             探頭煞: { score: tantouScore, 公式: `仰角=${tMaxDiff.toFixed(1)}m@${tAtD}m；尖削度=${tMaxCurv.toFixed(2)}；意態=${tantouIntent.toFixed(2)}` },
             擎拳煞: { score: fQScore, 公式: `前坡高差=${(tFQ.y-tC.y).toFixed(1)}m；前坡坡度=${slopeFQ.toFixed(2)}；近距放大${_fqClearNote}` },
             凹風: { score: fAScore, 公式: `曲率=${Math.hypot(tC.nx, tC.nz).toFixed(2)}；風向對齊=${concaveAlign}；穴場正下方最凶；風速放大=${_windRatioA.toFixed(2)}（P1-10 實測閉環）` },
-            孤峰: { score: fGScore, 公式: `16方位加權暴露度=${exposedWeighted.toFixed(1)}（風向方位權重高）；遠距衰減` },
+            孤峰: { score: fGScore, 公式: `16方位加權暴露度=${exposedWeighted.toFixed(1)}（風向方位權重高·來風=${st.windDir||'W'}）；遠距衰減` },
             刀削壁: { score: fDScore, 公式: `壁高=${(maxWallH-tC.y).toFixed(1)}m 距=${maxWallD}m；硬壁近穴極凶` },
             射肋煞: { score: fSheScore, 公式: `稜線夾角精準度=${Math.abs(sideL.y-sideR.y).toFixed(2)}` },
             蜈蚣脊: { score: fWScore, 公式: `凸齒=${ribs}個；平均曲率差=${(ribCurvSum/(ribs||1)).toFixed(2)}；意態破碎${wugongIntent.toFixed(2)}` }
@@ -4278,8 +4697,13 @@ window.DryRunTool = {
         if (st.mr === 'kaikou') activeShaList.push('白虎開口煞');
         if (st.ms === 'sunken') activeShaList.push('明堂深坑');
         if (['gejiao', 'lintou', 'fan', 'bazi', 'ji', 'tfork', 'juanlian', 'pubu', 'liulei', 'jiaojian'].includes(st.w)) activeShaList.push(`凶水(${st.w})`);
-        if (st.bohuan === 'no') activeShaList.push('未剝換');
-        if (st.bohuan === 'partial') activeShaList.push('部分剝換');
+        {   // P0-R1d：剝換 sha 標示改實測級別（形態變換積分），非 UI 標籤
+            let _bhS = null;
+            try{ _bhS = Rules.bohuanMeasured ? Rules.bohuanMeasured() : null; }catch(eBS){}
+            const _lvlS = _bhS ? _bhS.級 : ((st.bohuan === 'yes' || st.bohuan === 'full') ? 'full' : (st.bohuan === 'partial' ? 'partial' : 'none'));
+            if(_lvlS === 'none') activeShaList.push('未剝換(實測形態變換不足)');
+            else if(_lvlS === 'partial') activeShaList.push('部分剝換(實測)');
+        }
         if (st.zhijiao === 'ni') activeShaList.push('橈棹逆水反');
         if (st.wugong) activeShaList.push('蜈蚣脊');
         if (st.bidao) activeShaList.push('刀削壁');
@@ -5177,7 +5601,7 @@ const UI = {
                     seed: (typeof Rules._presSeed === 'number') ? Rules._presSeed : (AppState.current.presetSeed != null ? AppState.current.presetSeed : null), 
                     seedName: AppState.history.length? AppState.history[AppState.historyIndex]?.name : 'custom',
                     terrain:{ heightmap_params:{tSize:CONFIG.tSize,tSeg:CONFIG.tSeg}, erosion_cycles:2, hMapRev: Engine3D.hMapRev||0, heightmap: (()=>{ try{ const a=Array.from(Engine3D.hMap||[]); return a.length? a.map(v=>Math.round(v*100)/100) : null; }catch(e){ return null; } })() }, 
-                    dragon:{ ridge_control_points: Engine3D.dragonRidge? Engine3D.dragonRidge.length : 0, tendency: AppState.current.d, bohuan: AppState.current.bohuan, zhijiao: AppState.current.zhijiao },
+                    dragon:{ ridge_control_points: Engine3D.dragonRidge? Engine3D.dragonRidge.length : 0, tendency: AppState.current.d, bohuan: AppState.current.bohuan, bohuanMeasured: (()=>{ try{ return Rules.bohuanMeasured? Rules.bohuanMeasured() : null; }catch(e){ return null; } })(), zhijiao: AppState.current.zhijiao, evidenceChain: (()=>{ try{ const _ec = Rules.dragonEvidenceChain? Rules.dragonEvidenceChain() : null; return _ec ? { 可信度: _ec.可信度, 可信計分: _ec.可信計分, 缺陷: _ec.缺陷警告, 平洋: !!_ec.平洋 } : null; }catch(e){ return null; } })() },
                     water:{ rainfall: AppState.current.pureHydro? 200 : 120, erosion: !!AppState.current.pureHydro, channels: AppState.current.w, pureHydro: !!AppState.current.pureHydro, waterVel: AppState.current.waterVel, fieldGate: (()=>{ try{ return Rules.waterFieldGate? Rules.waterFieldGate() : null; }catch(e){ return null; } })(), mingtangWater: (()=>{ try{ return Rules.mingtangWaterScore? Rules.mingtangWaterScore() : null; }catch(e){ return null; } })() },
                     acupoint:{ coord:[AppState.current.xueX, AppState.current.xueZ, Engine3D.getTerrainY(AppState.current.xueX, AppState.current.xueZ).y], type: AppState.current.xue, soil: AppState.current.soil, report: Rules.acupointMultiScore? Rules.acupointMultiScore(AppState.current.xueX, AppState.current.xueZ) : null, dragonCheck: Rules.dragonContinuityCheck? Rules.dragonContinuityCheck() : null, mingtang: Rules.mingtangMulti? Rules.mingtangMulti() : null },
                     orientation:{ facing: AppState.current.degree, period: AppState.current.yun, face: AppState.current.face, magVar: AppState.current.magVar, flyStar: UI.buildFlyStarGrid? UI.buildFlyStarGrid(parseInt(AppState.current.yun), Math.floor(((AppState.current.degree+180)%360+7.5)/15)%24, Math.floor((AppState.current.degree+7.5)/15)%24) : null },
@@ -5736,6 +6160,7 @@ const UI = {
         this.renderXueCert();
         this.renderMingtangMulti();
         this.renderDragonContinuity();
+        this.renderDragonEvidenceChain();
         this.renderShapeSha();
         this.renderMultiScore();
     },
@@ -5770,6 +6195,27 @@ const UI = {
             html+=`<div class="rp-row"><span class="lbl">${k}</span><span class="val" style="color:${c};">${v.score}</span><span class="raw" title="${v.公式}">${v.公式}</span></div>`;
         }
         el.innerHTML=html;
+    },
+    renderDragonEvidenceChain(){
+        const el = document.getElementById('dragon-chain-list');
+        const oe = document.getElementById('dragon-chain-overall');
+        if(!el) return;
+        const chain = Rules.dragonEvidenceChain ? Rules.dragonEvidenceChain() : null;
+        if(!chain){ el.innerHTML = '<span style="color:#999;">（無龍脊可提取）</span>'; if(oe) oe.innerText = '—'; return; }
+        if(oe){
+            oe.innerText = '可信度 ' + chain.可信度 + '（' + chain.可信計分 + '）';
+            oe.style.color = chain.可信度 === '高' ? '#3f6b52' : chain.可信度 === '中' ? '#b98a2e' : '#a63a2b';
+        }
+        let html = '';
+        for(const it of chain.項目){
+            const c = it.成立 ? '#3f6b52' : '#a63a2b';
+            html += `<div class="rp-row"><span class="val" style="color:${c}; min-width:13px;">${it.成立?'✓':'✗'}</span><span class="lbl">${it.項}</span><span class="raw" title="${it.值}｜${it.說明}">${it.值}</span></div>`;
+        }
+        el.innerHTML = html;
+        const dl = document.getElementById('dragon-chain-defect-list');
+        if(dl) dl.innerHTML = chain.缺陷警告.length ? chain.缺陷警告.map(d => '· ' + d).join('<br>') : '無重大缺陷';
+        const dd = document.getElementById('dragon-chain-defects');
+        if(dd) dd.open = chain.缺陷警告.length > 0;
     },
     renderDragonContinuity(){
         const el=document.getElementById('dragon-check-list');
@@ -9838,13 +10284,18 @@ const Engine3D = {
             for(const p of path) basin[p] = root;
         }
         const ridgeMask = new Uint8Array(W*W);
+        // 脊線性 = 與相異 basin 相鄰的鄰格數（2 = 一般分水嶺，1 = 域邊／偽脊，≥3 = 脊交會）
+        const ridgeCount = new Uint8Array(W*W);
         let ridgeCellCount = 0;
         for(let iz=1; iz<seg; iz++) for(let ix=1; ix<seg; ix++){
             const i0 = iz*W+ix; const b0 = basin[i0];
+            let c = 0;
             for(let k=0;k<8;k++){
                 const nx=ix+DX[k], nz=iz+DZ[k];
-                if(basin[nz*W+nx] !== b0){ ridgeMask[i0]=1; ridgeCellCount++; break; }
+                if(basin[nz*W+nx] !== b0) c++;
             }
+            if(c > 0){ ridgeMask[i0]=1; ridgeCount[i0]=c; }
+            if(c >= 2){ ridgeCellCount++; }
         }
         const peaks = [], saddles = [];
         for(let iz=2; iz<seg-2; iz++) for(let ix=2; ix<seg-2; ix++){
@@ -9866,9 +10317,448 @@ const Engine3D = {
             const diag=[h[(iz+1)*W+ix+1], h[(iz+1)*W+ix-1], h[(iz-1)*W+ix+1], h[(iz-1)*W+ix-1]];
             if(Math.min(...cross) >= h0 && Math.max(...diag) > h0 + 2.5) saddles.push({x:(ix/seg)*size-size/2, z:(iz/seg)*size-size/2, y:h0});
         }
-        const val = { peaks, saddles, basinCount, ridgeCellCount };
+        const val = { peaks, saddles, basinCount, ridgeCellCount, basin, ridgeCount, ridgeMask };
         this._wsGraphCache = { rev: this.hMapRev||0, val };
+        // 供 _ridgeNet() 取用（避免重算分水嶺）
+        this._wsBasin = basin; this._wsRidgeCount = ridgeCount;
         return val;
+    },
+    // ===================================================================================
+    // 湧現龍脈路網（審計要點 #1/#2／二十二節：龍脈不該是手繪脊線，而應由地形湧現）
+    // 問題：buildDragonRidge() 以固定配方（祖山 z=-150／開帳 -118..-90／束氣 -88..-66／
+    //       蜂腰 -64..-42／跌斷 -40..-20／入首 -18..0）沿固定 z 逐層掃描側向極值，
+    //       拓樸為作者先驗 —— 屬「程序化脊線＋規則檢查」。
+    // 本段：由 hMap 實測分水嶺（basin 割集）→ 真實山脊格 → 脊網節點（峰／鞍／脊格）
+    //       → A* 求「祖山→穴場」最小代價路徑（高度損失×水切×轉角×振幅加權）
+    //       → 逐段側向斷面量測脊寬 → 由實測收束/跌斷/轉向標記 過峽/束氣/跌斷/開帳。
+    //       生成層仍用作者配方（保 3D 造型與 Seed 可重現）；分析層改讀實測脈。
+    // ===================================================================================
+    _hbLerpH(gx, gz){
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap;
+        let x0 = gx|0; if(x0 > seg-1) x0 = seg-1; if(x0 < 0) x0 = 0;
+        let z0 = gz|0; if(z0 > seg-1) z0 = seg-1; if(z0 < 0) z0 = 0;
+        const tx = gx - x0, tz = gz - z0;
+        const h00 = h[z0*W+x0], h10 = h[z0*W+x0+1], h01 = h[(z0+1)*W+x0], h11 = h[(z0+1)*W+x0+1];
+        return (h00*(1-tx) + h10*tx)*(1-tz) + (h01*(1-tx) + h11*tx)*tz;
+    },
+    _hbSlopeH(x, z){
+        const w2g = CONFIG.tSeg / CONFIG.tSize;
+        const gx = (x + CONFIG.tSize/2)*w2g, gz = (z + CONFIG.tSize/2)*w2g;
+        const e = 1.2*w2g;
+        const dx = (this._hbLerpH(gx+e, gz) - this._hbLerpH(gx-e, gz)) / 2.4;
+        const dz = (this._hbLerpH(gx, gz+e) - this._hbLerpH(gx, gz-e)) / 2.4;
+        return Math.hypot(dx, dz);
+    },
+    _ridgeNet(){
+        if(!this.hMap){ this.ridgeNet = null; return null; }
+        if(this.ridgeNet && this.ridgeNet.rev === (this.hMapRev||0)) return this.ridgeNet;
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, size = CONFIG.tSize, cell = size/seg;
+        const g = this.extractWatershedGraph();
+        if(!g){ this.ridgeNet = null; return null; }
+        if(g.basin) this._wsBasin = g.basin;
+        if(g.ridgeCount) this._wsRidgeCount = g.ridgeCount;
+        // --- 1. basin 最小高度（R1 脊線性判據）---
+        const basinMin = new Float32Array(g.basinCount).fill(1e9);
+        for(let iz=0; iz<W; iz++) for(let ix=0; ix<W; ix++){
+            const i = iz*W+ix, b = this._wsBasin ? this._wsBasin[i] : -1;
+            if(b >= 0 && b < basinMin.length && h[i] < basinMin[b]) basinMin[b] = h[i];
+        }
+        // --- 2. 脊格候選：basin 邊界 ＋ 高於全體 basin 最低點 ≥3m ＋ R1 脊線性 ---
+        const cand = [];
+        for(let iz=1; iz<seg; iz++) for(let ix=1; ix<seg; ix++){
+            const i = iz*W+ix;
+            const cnt = this._wsRidgeCount ? this._wsRidgeCount[i] : 0;
+            if(cnt < 2) continue;                       // 需與 ≥2 個相異 basin 相鄰 → 真分水嶺（濾孤立噪點）
+            const b0 = this._wsBasin ? this._wsBasin[i] : -1;
+            const bmin = (b0 >= 0 && basinMin[b0] < 1e8) ? basinMin[b0] : h[i];
+            if(h[i] - bmin < 3.0) continue;             // 相對其流域需有顯著抬升
+            if(this._hbSlopeH((ix/seg)*size-size/2, (iz/seg)*size-size/2) < 0.03) continue; // 排除平坦地偽脊
+            cand.push(i);
+        }
+        if(cand.length < 20){ this.ridgeNet = { rev:this.hMapRev||0, mask:null, cellIdx:new Int32Array(0), amp:null, width:null, nodes:[], peaks:g.peaks, saddles:g.saddles, count:0 }; return this.ridgeNet; }
+        // --- 3. 脊寬（垂直脊向斷面，5m 內未降 >3m 的最大半寬）---
+        const mask = new Uint8Array(W*W); for(const i of cand) mask[i] = 1;
+        const width = new Float32Array(W*W);
+        let wSum = 0, wN = 0;
+        for(const i of cand){
+            const ix = i % W, iz = (i-ix)/W;
+            const x = (ix/seg)*size-size/2, z = (iz/seg)*size-size/2;
+            const h0 = h[i];
+            // 脊向：與相鄰脊格之最小變異方向
+            let sxx=0, szz=0, sxz=0;
+            for(let dz=-1; dz<=1; dz++) for(let dx=-1; dx<=1; dx++){
+                const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                if(!mask[nz*W+nx]) continue;
+                sxx += dx*dx; szz += dz*dz; sxz += dx*dz;
+            }
+            const th = 0.5*Math.atan2(2*sxz, sxx-szz);   // 脊向角
+            const px = Math.cos(th), pz = Math.sin(th);  // 垂直脊向
+            let w = 0;
+            for(let d=1; d<=14; d++){
+                const dd = d*cell;
+                const ha = this._hbLerpH((x+px*dd+size/2)*seg/size, (z+pz*dd+size/2)*seg/size);
+                const hb = this._hbLerpH((x-px*dd+size/2)*seg/size, (z-pz*dd+size/2)*seg/size);
+                if(h0 - Math.min(ha, hb) > 3.0) break;
+                w = dd;
+            }
+            width[i] = w; wSum += w; wN++;
+        }
+        const wMed = wN ? wSum/wN : 1;
+        // --- 4. 脊網節點：峰（顯著）／鞍（隘口）---
+        const idxOf = (x, z) => {
+            const ix = Math.round((x+size/2)/cell), iz = Math.round((z+size/2)/cell);
+            if(ix<0||ix>seg||iz<0||iz>seg) return -1;
+            return iz*W+ix;
+        };
+        const nodes = [];
+        const peakNodes = g.peaks.map(p => ({ gi: idxOf(p.x, p.z), x: p.x, z: p.z, y: p.y, type: 'peak' })).filter(n => n.gi >= 0 && mask[n.gi]);
+        const saddleNodes = g.saddles.map(s => {
+            const gi = idxOf(s.x, s.z);
+            const wid = (gi>=0 && mask[gi]) ? width[gi] : wMed;
+            return { gi, x: s.x, z: s.z, y: s.y, type: 'saddle', wide: wid < wMed*0.6, narrow: wid < wMed*0.35 };
+        }).filter(n => n.gi >= 0);
+        for(const n of peakNodes) nodes.push(n);
+        for(const n of saddleNodes) if(!mask[n.gi]) nodes.push(n); // 隘口可不在脊格上
+        this.ridgeNet = { rev:this.hMapRev||0, mask, cellIdx:Int32Array.from(cand), amp:null, width, wMed, nodes, peaks:g.peaks, saddles:g.saddles, count:cand.length, cell };
+        return this.ridgeNet;
+    },
+    // Dijkstra/A*：祖山（域內最高峰）→ 穴場 之最小代價龍脊路徑
+    //   代價 = 高差損失(1.5/m) + 水切流量(6/單位) + 轉角(2/rad) + 非脊格(0.35/步) + 距離(0.05/m)
+    //   坡度上限 3.5 防越崖；起點鎖「最高峰」，故路徑必自祖山行度而下。
+    ridgePath(startGi, goalGi){
+        const net = this._ridgeNet();
+        if(!net || !net.mask) return null;
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, mask = net.mask, width = net.width;
+        const wMed = net.wMed || 1, cell = net.cell, N = W*W;
+        const DX=[1,1,0,-1,-1,-1,0,1], DZ=[0,1,1,1,0,-1,-1,-1];
+        const dist = new Float64Array(N).fill(1e18);
+        const prev = new Int32Array(N).fill(-1);
+        const done = new Uint8Array(N);
+        // 並列二元堆（距離／索引分開存，避免打包精度問題；成本可為浮點）
+        const CAP = 1 << 18;
+        const hd = new Float64Array(CAP), hi = new Int32Array(CAP);
+        let hn = 0;
+        const PUSH = (i, d) => {
+            if(hn >= CAP) return;
+            let c = hn++;
+            hd[c] = d; hi[c] = i;
+            while(c > 0){
+                const par = (c-1) >> 1;
+                if(hd[par] <= hd[c]) break;
+                const td = hd[par]; hd[par] = hd[c]; hd[c] = td;
+                const ti = hi[par]; hi[par] = hi[c]; hi[c] = ti;
+                c = par;
+            }
+        };
+        const POP = () => {
+            const td0 = hd[0], ti0 = hi[0];
+            hn--;
+            if(hn > 0){
+                hd[0] = hd[hn]; hi[0] = hi[hn];
+                let c = 0;
+                for(;;){
+                    const l = c*2+1, r = l+1; let m = c;
+                    if(l < hn && hd[l] < hd[m]) m = l;
+                    if(r < hn && hd[r] < hd[m]) m = r;
+                    if(m === c) break;
+                    const td = hd[m]; hd[m] = hd[c]; hd[c] = td;
+                    const ti = hi[m]; hi[m] = hi[c]; hi[c] = ti;
+                    c = m;
+                }
+            }
+            return { i: ti0, d: td0 };
+        };
+        const gz0 = goalGi / W | 0, gx0 = goalGi % W;
+        const gxw = gx0*cell - CONFIG.tSize/2, gzw = gz0*cell - CONFIG.tSize/2;
+        if(startGi < 0 || goalGi < 0) return null;
+        // flowMap 為匯流量（1…~158，中位 2.34）：以 p88 正規化為 0-1 水切強度，供 A* 與水切計數共用
+        let flRef = null, flScale = 1;
+        if(this.flowMap){
+            flRef = this.flowMap;
+            const samp = [];
+            for(let k=0; k<flRef.length; k+=17) samp.push(flRef[k]);
+            samp.sort((a,b)=>a-b);
+            flScale = samp.length ? Math.max(1, samp[Math.floor(samp.length*0.88)]) : 1;
+            this._flowNorm88 = flScale;
+        }
+        const flNorm = i => flRef ? Math.min(1, (flRef[i]||0)/flScale) : 0;
+        dist[startGi] = 0; PUSH(startGi, 0);
+        let iter = 0, found = false;
+        while(hn > 0 && iter < N*6){
+            iter++;
+            const cur = POP();
+            const i = cur.i;
+            if(done[i]) continue;
+            done[i] = 1;
+            if(i === goalGi){ found = true; break; }
+            const ix = i % W, iz = (i-ix)/W;
+            const h0 = h[i];
+            const pv = prev[i];
+            let dirx = 0, dirz = 0;
+            if(pv >= 0){ const px = pv % W, pz = (pv-px)/W; dirx = ix-px; dirz = iz-pz; }
+            const fl0 = flNorm(i);
+            for(let k=0; k<8; k++){
+                const nx = ix+DX[k], nz = iz+DZ[k];
+                if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                const j = nz*W+nx;
+                if(done[j]) continue;
+                const h1 = h[j];
+                const dh = h1 - h0;
+                const step = (k%2===0) ? cell : cell*1.4142;
+                const slope = Math.abs(dh)/step;
+                if(slope > 3.5) continue;                         // 越崖封鎖
+                let c = step*0.05;
+                c += Math.max(0, -dh)*1.5;                        // 下行能量損失
+                c += ((fl0 + flNorm(j))*0.5)*4.0;                 // 水切（正規化匯流強度）
+                if(!mask[j]) c += 0.35;                           // 非脊格
+                if(mask[j] && width[j] < wMed*0.5) c -= 0.10;     // 收束（過峽/束氣）微獎勵
+                if(dirx || dirz){
+                    const l0 = Math.hypot(dirx, dirz);
+                    const dotv = (dirx*DX[k] + dirz*DZ[k]) / (l0*Math.SQRT2);
+                    const ang = Math.acos(Math.max(-1, Math.min(1, dotv / Math.SQRT1_2)));
+                    c += ang*2.0;                                  // 轉角不順
+                }
+                const nd = dist[i] + c;
+                if(nd < dist[j]){ dist[j] = nd; prev[j] = i; PUSH(j, nd); }
+            }
+        }
+        if(!found) return null;
+        const path = [];
+        let c = goalGi;
+        while(c >= 0 && path.length < 4096){ path.push(c); c = prev[c]; }
+        path.reverse();
+        return path;
+    },
+    // 由脊網湧現之龍脈：節點（峰/鞍）＋ A* 路徑＋逐段側向斷面量測
+    dragonRidgeExtract(){
+        if(this._dragonExtract && this._dragonExtract.rev === (this.hMapRev||0)) return this._dragonExtract.val;
+        const out = (() => {
+            const empty = { ok:false, path:[], segments:[], metrics:null, nodes:[], peaks:0, saddles:0 };
+            try{
+                const net = this._ridgeNet();
+                if(!net || !net.mask){ return empty; }
+                const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell;
+                const g = this.extractWatershedGraph();
+                if(!g || !g.peaks || !g.peaks.length) return empty;
+                const [ax, az] = effLairAnchor();
+                const w2g = v => Math.round((v + size/2)/cell);
+                // 祖山＝域內最高峰（不需在後方；取全域最高）
+                let best = null;
+                for(const p of g.peaks){ if(!best || p.y > best.y) best = p; }
+                if(!best) return empty;
+                const startGi = w2g(best.x)*1 + w2g(best.z)*W;
+                const gxG = Math.max(0, Math.min(seg, w2g(ax))), gzG = Math.max(0, Math.min(seg, w2g(az)));
+                let goalGi = gzG*W + gxG;
+                // 目標吸附至最近脊格（≤18m），避免目標落在谷中而拉出非龍脈段
+                if(!net.mask[goalGi]){
+                    let bd = 1e9, bg = -1;
+                    for(let r=1; r<=8 && bg<0; r++){
+                        for(let dz=-r; dz<=r; dz++) for(let dx=-r; dx<=r; dx++){
+                            if(Math.max(Math.abs(dx),Math.abs(dz)) !== r) continue;
+                            const nx = gxG+dx, nz = gzG+dz;
+                            if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                            const i = nz*W+nx;
+                            if(!net.mask[i]) continue;
+                            const dd = Math.hypot(dx, dz)*cell;
+                            if(dd < bd){ bd = dd; bg = i; }
+                        }
+                    }
+                    if(bg >= 0) goalGi = bg;
+                }
+                if(startGi === goalGi) return empty;
+                const pathGi = this.ridgePath(startGi, goalGi);
+                if(!pathGi || pathGi.length < 8) return empty;
+                const hmRef = this.hMap, flRef = this.flowMap;
+                const pts = pathGi.map(i => {
+                    const ix = i % W, iz = (i-ix)/W;
+                    return { x: ix*cell - size/2, z: iz*cell - size/2, y: hmRef ? hmRef[i] : 0, gi: i };
+                });
+                // ---- 逐段側向斷面量測（多尺度平順，避免單格抖動誤分類）----
+                const n = pts.length;
+                const raws = new Float32Array(n);     // 原始脊半寬
+                const plateau = new Uint8Array(n);    // 高原／台地：35m 內無明顯下切
+                const azOf = (a, b) => Math.atan2(b.x - a.x, -(b.z - a.z)) * 180/Math.PI;
+                for(let i=0; i<n; i++){
+                    const p = pts[i];
+                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
+                    const tx = pts[ib].x - pts[ia].x, tz = pts[ib].z - pts[ia].z;
+                    const tl = Math.hypot(tx, tz) || 1;
+                    const px = -tz/tl, pz = tx/tl;
+                    let w = 0, minDrop = 1e9;
+                    for(let d=1; d<=16; d++){
+                        const dd = d*cell;
+                        const ha = Engine3D.getTerrainY(p.x + px*dd, p.z + pz*dd).y;
+                        const hb = Engine3D.getTerrainY(p.x - px*dd, p.z - pz*dd).y;
+                        const drop = p.y - Math.min(ha, hb);
+                        if(drop < minDrop) minDrop = drop;
+                        if(drop > 3.0) break;
+                        w = dd;
+                    }
+                    raws[i] = w;
+                    plateau[i] = (minDrop < 1.5) ? 1 : 0;
+                }
+                // 脊寬平順曲線（±3 節點移動平均）
+                const widths = new Float32Array(n);
+                for(let i=0; i<n; i++){
+                    let s = 0, c = 0;
+                    for(let k=-3; k<=3; k++){ const j = i+k; if(j<0||j>=n) continue; s += raws[j]; c++; }
+                    widths[i] = c ? s/c : 0;
+                }
+                const wArr = Array.from(widths).filter(v => v > 0).sort((a,b)=>a-b);
+                const wMed = wArr.length ? wArr[Math.floor(wArr.length/2)] : 0;
+                // 坡度／轉向曲線（中央差分，單位 m/m 與 度/7m）
+                const slopeC = new Float32Array(n), turns = new Float32Array(n);
+                for(let i=0; i<n; i++){
+                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
+                    const run = Math.hypot(pts[ib].x-pts[ia].x, pts[ib].z-pts[ia].z) || 1;
+                    slopeC[i] = (pts[ia].y - pts[ib].y) / run;        // 正 = 順龍下行
+                }
+                const slopeMed = (()=>{
+                    const a = Array.from(slopeC).filter(v => v > 0.02).sort((x,y)=>x-y);
+                    return a.length ? a[Math.floor(a.length*0.5)] : 0.1;
+                })();
+                for(let i=0; i<n; i++){
+                    if(i < 3 || i > n-4){ turns[i] = 0; continue; }
+                    const d1 = azOf(pts[i-6] || pts[0], pts[i]), d2 = azOf(pts[i], pts[Math.min(n-1,i+6)]);
+                    turns[i] = Math.abs(((d2-d1+540)%360)-180);
+                }
+                // ---- 由平順曲線分類（多尺度，非單格）----
+                //   跌斷：連續下行坡度為中位數 1.6 倍以上，且跌後 15m 內再起（真跌斷而非順坡）
+                //   束氣：脊寬 < 0.35 中位　過峽：脊寬 < 0.55 中位　開帳：脊寬 > 1.45 中位
+                const segments = [];
+                let cur = null;
+                for(let i=0; i<n; i++){
+                    const w = widths[i], p = pts[i];
+                    let type = null;
+                    if(wMed > 0 && !plateau[i] && w < wMed*0.35) type = '束氣';
+                    else if(wMed > 0 && !plateau[i] && w < wMed*0.55) type = '過峽';
+                    else if(wMed > 0 && w > wMed*1.45) type = '開帳';
+                    else if(!plateau[i] && slopeMed > 0.02 && slopeC[i] > slopeMed*1.6){
+                        // 跌後再起判定：往後 6 節點內出現回升
+                        let rebound = false;
+                        for(let k=1; k<=6 && i+k<n; k++){ if(pts[i+k].y > pts[i].y + 0.5){ rebound = true; break; } }
+                        type = rebound ? '跌斷' : '急落';
+                    }
+                    else if(turns[i] > 30) type = '轉向';
+                    else type = '行龍';
+                    if(cur && cur.type === type){
+                        cur.end = i; cur.len += (i>0 ? Math.hypot(p.x-pts[i-1].x, p.z-pts[i-1].z) : 0);
+                        cur.ws.push(w); cur.turnMax = Math.max(cur.turnMax, turns[i]);
+                        cur.slopeMax = Math.max(cur.slopeMax, slopeC[i]);
+                        cur.plateau = cur.plateau || !!plateau[i];
+                        cur.yEnd = p.y;
+                    } else {
+                        if(cur) segments.push(finish(cur));
+                        cur = { type, start:i, end:i, len:0, ws:[w], turnMax:turns[i], slopeMax:slopeC[i], plateau:!!plateau[i], yStart:p.y, yEnd:p.y };
+                    }
+                }
+                if(cur) segments.push(finish(cur));
+                function finish(c){
+                    const ws = c.ws.slice().sort((a,b)=>a-b);
+                    const wm2 = ws.length ? ws[Math.floor(ws.length/2)] : 0;
+                    return {
+                        type: c.type, startIdx: c.start, endIdx: c.end,
+                        from: { x: Math.round(pts[c.start].x*10)/10, z: Math.round(pts[c.start].z*10)/10, y: Math.round(pts[c.start].y*10)/10 },
+                        to:   { x: Math.round(pts[c.end].x*10)/10,   z: Math.round(pts[c.end].z*10)/10,   y: Math.round(pts[c.end].y*10)/10 },
+                        len: Math.round(c.len*10)/10,
+                        脊寬: Math.round(wm2*10)/10,
+                        收束比: wMed > 0 ? Math.round(wm2/wMed*100)/100 : null,
+                        最大轉角: Math.round(c.turnMax),
+                        最大坡度: Math.round(c.slopeMax*100)/100,
+                        落差: Math.round((c.yStart - c.yEnd)*10)/10,
+                        台地: c.plateau
+                    };
+                }
+                // 真實龍脈指標：起祖高度、止穴關係、水切次數、方向連續性、高度單調性
+                const nS = pts.length;
+                let waterCross = 0, rises = 0, dirSum = 0, dirN = 0;
+                const _flS = this._flowNorm88 || 1;
+                for(let i=1; i<nS; i++){
+                    const fl = flRef ? (flRef[pts[i].gi]||0) : 0;
+                    if(fl > _flS) waterCross++;                       // 匯流強度超過 p88 視為真水切
+                    if(pts[i].y > pts[i-1].y + 0.4) rises++;
+                    if(i >= 2){
+                        const d1 = azOf(pts[i-2], pts[i-1]), d2 = azOf(pts[i-1], pts[i]);
+                        dirSum += Math.abs(((d2-d1+540)%360)-180); dirN++;
+                    }
+                }
+                const pathLen = (()=>{ let L=0; for(let i=1;i<nS;i++) L += Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); return L; })();
+                const glide = (()=>{ let L=0, tot=0; for(let i=1;i<nS;i++){ const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); L += d; tot += d*(pts[i].y+pts[i-1].y)/2; } return L>0 ? tot/L : 0; })();
+                // 僅計入 ≥8m 之成形段（濾除單格抖動），供龍脈驗證引用
+                const sigSegs = segments.filter(s => s.len >= 8);
+                const cnt = t => sigSegs.filter(s => s.type === t).length;
+                const riseRatio = nS > 1 ? rises/(nS-1) : 0;
+                const dirCont = dirN ? 1 - Math.min(1, (dirSum/dirN)/30) : 0;
+                const plateauFrac = n ? Array.from(plateau).filter(v=>v).length/n : 0;
+                const metrics = {
+                    路徑長: Math.round(pathLen*10)/10,
+                    節點數: nS,
+                    取樣間距: Math.round(cell*10)/10,
+                    起祖: { x: Math.round(pts[0].x*10)/10, z: Math.round(pts[0].z*10)/10, y: Math.round(pts[0].y*10)/10 },
+                    止穴: { x: Math.round(pts[nS-1].x*10)/10, z: Math.round(pts[nS-1].z*10)/10, y: Math.round(pts[nS-1].y*10)/10 },
+                    起祖落差: Math.round((pts[0].y - pts[nS-1].y)*10)/10,
+                    平均滑降高度: Math.round(glide*10)/10,
+                    高度回升率: Math.round(riseRatio*100)/100,
+                    方向連續性: Math.round(dirCont*100),
+                    水切次數: waterCross,
+                    台地比例: Math.round(plateauFrac*100)/100,
+                    脊寬中位: Math.round(wMed*10)/10,
+                    成形段數: sigSegs.length,
+                    過峽數: cnt('過峽'), 束氣數: cnt('束氣'), 跌斷數: cnt('跌斷'),
+                    開帳數: cnt('開帳'), 急落數: cnt('急落'), 轉向數: cnt('轉向'),
+                    最大脊寬: Math.round(Math.max.apply(null, Array.from(widths))*10)/10,
+                    最窄脊寬: Math.round(Math.min.apply(null, Array.from(widths).filter(v=>v>0))*10)/10
+                };
+                return { ok:true, path: pts, segments: sigSegs, allSegments: segments, metrics, nodes: net.nodes, peaks: g.peaks.length, saddles: g.saddles.length, wMed, waterCross, dirCont, riseRatio };
+            }catch(e){ return { ok:false, path:[], segments:[], metrics:null, nodes:[], peaks:0, saddles:0, err: e.message }; }
+        })();
+        this._dragonExtract = { rev: this.hMapRev||0, val: out };
+        return out;
+    },
+    // 生成脊 vs 實測脈 之一致性：生成脊有多少比例真的落在分水嶺脊格上（審計要點 #2 可審計化）
+    ridgeAgreement(){
+        try{
+            const net = this._ridgeNet();
+            const pts = this.dragonRidge;
+            if(!net || !net.mask || !pts || !pts.length) return null;
+            const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell, mask = net.mask;
+            let onRidge = 0, tot = 0, devSum = 0;
+            for(const p of pts){
+                const ix = Math.round((p.x+size/2)/cell), iz = Math.round((p.z+size/2)/cell);
+                if(ix<0||ix>seg||iz<0||iz>seg) continue;
+                tot++;
+                // 3×3 內有脊格即算「貼脊」
+                let hit = false;
+                for(let dz=-1; dz<=1 && !hit; dz++) for(let dx=-1; dx<=1; dx++){
+                    const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                    if(mask[nz*W+nx]){ hit = true; break; }
+                }
+                if(hit) onRidge++;
+            }
+            const ex = this.dragonRidgeExtract();
+            let maxDev = null, meanDev = null;
+            if(ex && ex.ok && ex.path.length){
+                let s = 0, c = 0, mx = 0;
+                for(const p of pts){
+                    let bd = 1e9;
+                    for(const q of ex.path){ const d = Math.hypot(p.x-q.x, p.z-q.z); if(d < bd) bd = d; }
+                    s += bd; c++; if(bd > mx) mx = bd;
+                }
+                meanDev = c ? Math.round(s/c*10)/10 : null;
+                maxDev = Math.round(mx*10)/10;
+            }
+            return {
+                貼脊率: tot ? Math.round(onRidge/tot*100) : 0,
+                取樣點: tot,
+                實測脈可用: !!(ex && ex.ok),
+                平均偏離: meanDev,
+                最大偏離: maxDev,
+                脊網格數: net.count,
+                脊寬中位: Math.round((net.wMed||0)*10)/10,
+                峰: net.peaks ? net.peaks.length : 0,
+                鞍: net.saddles ? net.saddles.length : 0
+            };
+        }catch(e){ return null; }
     },
     buildOverhangVoxels(){
         const state = AppState.current;
@@ -9920,6 +10810,9 @@ const Engine3D = {
     _findT: { y: 0, nx: 0, nz: 0 },
     _ptT: { y: 0, nx: 0, nz: 0 },
     dragonRidge: null,
+    ridgeNet: null,
+    _wsBasin: null,
+    _wsRidgeCount: null,
     buildDragonRidge(){
         if(!this.hMap) return null;
         const state = AppState.current;
@@ -10267,7 +11160,11 @@ const Engine3D = {
         }
     },
     updateDragonLine(){
-        if(!this.dragonLineMesh || !AppState.current.showDragonLine){ if(this.dragonLineMesh) this.dragonLineMesh.visible=false; return; }
+        if(!this.dragonLineMesh || !AppState.current.showDragonLine){
+            if(this.dragonLineMesh) this.dragonLineMesh.visible=false;
+            if(this.dragonMarkerGroup) this.dragonMarkerGroup.visible=false;
+            return;
+        }
         this.dragonLineMesh.visible=true;
         let pts=this.extractDragonRidge(100);
         if(!pts) return;
@@ -10292,6 +11189,28 @@ const Engine3D = {
         this.dragonLineMesh.geometry.attributes.position.needsUpdate=true;
         this.dragonLineMesh.geometry.attributes.color.needsUpdate=true;
         this.dragonLineMesh.geometry.setDrawRange(0,100);
+        // 龍脈軸線標記（審計三輪·清單3）：祖山(金)→過峽(藍)→束氣(黃)→入首(紅)→穴星(白)
+        if(!this.dragonMarkerGroup && typeof THREE !== 'undefined'){
+            this.dragonMarkerGroup = new THREE.Group();
+            const _mkSpec = [ ['祖山', 0xb98a2e, 2.6], ['過峽', 0x1d758f, 2.0], ['束氣', 0xffd700, 2.0], ['入首', 0xa63a2b, 2.0], ['穴', 0xffffff, 1.6] ];
+            for(const [_mkN, _mkC, _mkR] of _mkSpec){
+                const _mkM = new THREE.Mesh(new THREE.SphereGeometry(_mkR, 10, 10), new THREE.MeshBasicMaterial({ color: _mkC, transparent:true, opacity:0.92 }));
+                _mkM.userData.mkName = _mkN;
+                this.dragonMarkerGroup.add(_mkM);
+            }
+            this.scene.add(this.dragonMarkerGroup);
+        }
+        if(this.dragonMarkerGroup){
+            let _chainM = null;
+            try{ _chainM = (typeof Rules !== 'undefined' && Rules.dragonEvidenceChain) ? Rules.dragonEvidenceChain() : null; }catch(eMK){}
+            const _posMap = _chainM && _chainM.位置 ? _chainM.位置 : null;
+            this.dragonMarkerGroup.children.forEach(_mkM2 => {
+                const _p2 = _posMap ? _posMap[_mkM2.userData.mkName] : null;
+                if(_p2){ _mkM2.visible = true; _mkM2.position.set(_p2.x, (_p2.y||0)+2.4, _p2.z); }
+                else _mkM2.visible = false;
+            });
+            this.dragonMarkerGroup.visible = true;
+        }
     },
     updateBettiClosureCache(){
         if(typeof AppState==='undefined' || !AppState.current) return;
