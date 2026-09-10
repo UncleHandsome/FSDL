@@ -1416,12 +1416,13 @@ def main():
     parser.add_argument("--file", type=str, required=True, help="HTML 檔案路徑")
     parser.add_argument("--rounds", type=int, default=225, help="最高執行幾輪修正循環")
     parser.add_argument("--runs-per-round", type=int, default=10, help="每一輪執行幾次 Dry Run 取樣")
-    parser.add_argument("--model", type=str, default="deepseek-v4-flash", help="API 模型名稱")
+    parser.add_argument("--model", type=str, default="deepseek-v4.1-flash", help="API 模型名稱")
     parser.add_argument("--static", action="store_true", help="啟用靜態代碼審查模式 (不執行瀏覽器，僅循環審查代碼)")
     parser.add_argument("--image", "--img", "--vision", action="store_true", dest="image_mode", help="★ 圖片視覺模式：全程純動態 (跳過靜態審查)，每輪 10 筆 Dry Run 並擷取渲染畫面截圖交給 AI 視覺判讀合理性，最後同樣進行畢業大考")
     parser.add_argument("--timeout", type=int, default=300, help="單次 API 超時時間（秒）")
     parser.add_argument("--gemini", "--google", action="store_true", dest="gemini", help="★ 使用 Google AI Studio Gemini 端點 (https://generativelanguage.googleapis.com/v1beta/openai/)")
     parser.add_argument("--nvidia", "--nim", action="store_true", dest="nvidia", help="★ 使用 NVIDIA NIM (build.nvidia.com) GLM-5.2 端點")
+    parser.add_argument("--ds-flash", "--deepseek-flash", "--or-flash", "--or-ds", nargs="?", const="deepseek/deepseek-v4.1-flash", type=str, default=None, help="★ 使用 OpenRouter DeepSeek V4.1 Flash 模型 (預設 deepseek/deepseek-v4.1-flash, https://openrouter.ai/api/v1)")
     parser.add_argument("--dots", nargs="?", const="dots-studio/dots-3-note-preview:free", type=str, default=None, help="★ 使用 OpenRouter Dots3-Note Preview 免費模型 (https://openrouter.ai/api/v1)")
     parser.add_argument("--m3", "--minimax", "--minimax-m3", nargs="?", const="minimax/minimax-m3:free", type=str, default=None, help="★ 使用 OpenRouter MiniMax M3 免費/付費模型 (預設 minimax/minimax-m3:free, https://openrouter.ai/api/v1)")
     parser.add_argument("--free-glm", "--glm5", action="store_true", dest="free_glm", help="★ 使用 OpenRouter Free GLM 5.2 免費模型端點 (https://openrouter.ai/api/v1)")
@@ -1439,7 +1440,12 @@ def main():
     args = parser.parse_args()
 
     # 快捷模型覆寫
-    if args.dots:
+    if args.ds_flash:
+        ds_val = args.ds_flash.strip()
+        if not ("/" in ds_val):
+            ds_val = f"deepseek/{ds_val}"
+        args.model = ds_val
+    elif args.dots:
         dots_val = args.dots.strip()
         if not ("/" in dots_val):
             dots_val = f"dots-studio/{dots_val}"
@@ -1453,7 +1459,7 @@ def main():
         if m3_val in ["minimax/m3", "minimax/minimax-m3"]:
             m3_val = "minimax/minimax-m3:free"
         args.model = m3_val
-    elif args.free_glm and args.model == "deepseek-v4-flash":
+    elif args.free_glm and args.model == "deepseek-v4.1-flash":
         args.model = "z-ai/glm-5.2:free"
     elif args.glm:
         args.model = args.glm
@@ -1504,23 +1510,23 @@ def main():
     # 初始化 API 提供商端點與模型
     is_gemini_provider = args.gemini
     is_nvidia_provider = args.nvidia
-    is_openrouter_provider = bool(args.dots) or bool(args.m3) or ("minimax" in args.model.lower()) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
+    is_openrouter_provider = bool(args.ds_flash) or ("deepseek/" in args.model.lower()) or bool(args.dots) or bool(args.m3) or ("minimax" in args.model.lower()) or args.free_glm or bool(args.ox_stealth) or ("stealth" in args.model.lower()) or ("openrouter" in str(args.base_url or "").lower())
     is_opencode_provider = (args.opencode or args.zen or bool(args.glm) or bool(args.kimi) or bool(args.muse) or bool(args.muse13) or bool(args.ox)) and not is_openrouter_provider
 
     if args.gemini:
         base_url = args.base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
         provider_name = "Google AI Studio (Gemini Free 每日 1500 額度)"
-        if args.model == "deepseek-v4-flash":
+        if args.model == "deepseek-v4.1-flash":
             args.model = "gemini-flash-latest"
     elif args.nvidia:
         base_url = args.base_url or "https://integrate.api.nvidia.com/v1"
         provider_name = "NVIDIA NIM GLM-5.2 (build.nvidia.com)"
-        if args.model == "deepseek-v4-flash":
+        if args.model == "deepseek-v4.1-flash":
             args.model = "z-ai/glm-5.2"
     elif args.free_glm:
         base_url = args.base_url or "https://openrouter.ai/api/v1"
         provider_name = "OpenRouter Free GLM 5.2 (https://openrouter.ai/api/v1)"
-        if args.model == "deepseek-v4-flash":
+        if args.model == "deepseek-v4.1-flash":
             args.model = "z-ai/glm-5.2:free"
     elif is_openrouter_provider:
         base_url = args.base_url or "https://openrouter.ai/api/v1"

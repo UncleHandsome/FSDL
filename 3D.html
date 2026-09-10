@@ -58,13 +58,37 @@ body { margin: 0; overflow: hidden; background: var(--bg-dark); color: var(--tex
 .preset-btn { border-color: #5a8a69 !important; color: #5a8a69 !important; font-weight: bold; }
 .preset-btn:hover { background: #5a8a69 !important; color: #ffffff !important; }
 input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); background: transparent; cursor: pointer; }
-/* ===== 右側面板 v3.1 緊湊排版 ===== */
-#panel-right { --rp-w: 292px; position: absolute; top: 10px; right: 10px; width: var(--rp-w); max-height: calc(100vh - 20px); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 1000; }
+/* ===== 右側面板 v3.3 重新設計：語義分頁＋組徽章＋保留記憶 ===== */
+#panel-right { --rp-w: 306px; position: absolute; top: 10px; right: 10px; width: var(--rp-w); max-height: calc(100vh - 20px); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 1000; }
 .right-scroll-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; scrollbar-width: thin; scrollbar-color: var(--jade) #ddd; padding-right: 2px; }
 .right-scroll-area::-webkit-scrollbar { width: 4px; }
 .right-scroll-area::-webkit-scrollbar-track { background: #e6e4df; border-radius: 2px; }
 .right-scroll-area::-webkit-scrollbar-thumb { background: var(--jade); border-radius: 2px; }
 #panel-right.collapsed { transform: translateX(calc(var(--rp-w) + 5px)); }
+/* --- 分頁籤列 --- */
+.rp-tabs { display: flex; gap: 3px; padding: 3px; background: rgba(246,241,231,0.92); border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; box-shadow: 0 3px 10px rgba(0,0,0,0.08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); flex-shrink: 0; }
+.rp-tab {
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
+    background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px 2px 3px;
+    cursor: pointer; font-family: 'Noto Serif TC', serif; color: #666; transition: 0.18s; position: relative;
+}
+.rp-tab:hover { background: rgba(185,138,46,0.12); }
+.rp-tab.on { background: var(--gold); border-color: var(--gold); color: #fff; box-shadow: 0 2px 6px rgba(185,138,46,0.35); }
+.rp-tab .rp-tab-ico { font-size: 12px; line-height: 1; }
+.rp-tab .rp-tab-txt { font-size: 9.5px; font-weight: bold; letter-spacing: 0.3px; line-height: 1.1; white-space: nowrap; }
+.rp-tab .rp-tab-badge { font-size: 8.5px; font-family: 'Noto Sans TC', sans-serif; font-weight: normal; line-height: 1.05; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.95; }
+.rp-tab.on .rp-tab-badge { color: #fff !important; }
+.rp-tab[data-alert="1"]::after { content: ''; position: absolute; top: 2px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 4px rgba(166,58,43,0.8); }
+/* --- 分頁內容 --- */
+.rp-pages { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.rp-page { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 5px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--jade) #ddd; padding-right: 2px; }
+.rp-page.on { display: flex; }
+/* 關鍵：區塊不可被 flex 壓縮（否則內容被裁切）；超出高度交由 .rp-page 捲動 */
+.rp-page > details.box, .rp-page > .rp-group-hd { flex: 0 0 auto; }
+.rp-page::-webkit-scrollbar { width: 4px; }
+.rp-page::-webkit-scrollbar-thumb { background: var(--jade); border-radius: 2px; }
+.rp-group-hd { display: flex; align-items: center; gap: 4px; font-family: 'Noto Serif TC', serif; font-size: 10px; color: #8a7a5a; padding: 3px 3px 0; letter-spacing: 0.5px; }
+.rp-group-hd::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(185,138,46,0.35), transparent); }
 .box {
     background: var(--bg-panel); border: 1px solid rgba(0,0,0,0.1);
     border-radius: 8px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
@@ -104,6 +128,9 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 @media (max-width: 768px) {
     #panel-left { width: calc(100vw - 20px); height: 50vh; top: 10px; left: 10px; }
     #panel-right { width: calc(100vw - 20px); max-height: calc(50vh - 30px); top: calc(50vh + 20px); right: 10px; left: 10px; }
+    .rp-tab .rp-tab-txt { font-size: 8.5px; }
+    .rp-tab .rp-tab-badge { display: none; }
+    #radar { width: 100%; height: 108px; }
 }
 #controls-hint {
     position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
@@ -167,7 +194,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row" style="margin-top:6px;"><button id="btn-verify-xue" style="background:#0a91a1; color:#fff; font-weight:bold; border:none; border-radius:6px; padding:4px 8px; cursor:pointer; font-size:11px; width:100%;" title="依《葬書》六要：來真/穴的/砂抱/水聚/向有情/穴推 硬約束驗證">🔍 證穴幾何驗證（來真·穴的·砂抱·水聚·向有情·穴推）</button></div>
         <div class="ctrl-row"><span class="ctrl-label">定穴</span><div class="seg"><button class="tog" data-k="manualXue" id="btn-manualXue">手動點穴</button><button id="btn-auto-spot" style="background:var(--jade); color:#fff; font-weight:bold; border:none; border-radius:4px; padding:4px 6px; cursor:pointer;" title="全域搜尋最佳結穴點">尋龍點穴</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">穴高</span><div class="seg" style="align-items:center;"><input type="range" id="xueh-slider" min="0" max="20" value="0" title="穴位海拔（谷底~半山~高山）"><span id="xueh-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">平洋</span></div></div>
-        <div class="ctrl-row"><span class="ctrl-label" title="脊線為地形分水線提取，屬生成層">形勢輔助</span><div class="seg"><button class="tog" data-k="showDragonLine">脊線龍脈</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="脊線為地形分水線提取，屬生成層">形勢輔助</span><div class="seg"><button class="tog" data-k="showDragonLine">脊線龍脈</button><button class="tog" data-k="dragonSpineSource" data-v="emergent" title="v3.2 龍脊來源切換：關＝作者配方脊線（生成層）；開＝由地形分水嶺路網 A* 湧現之實測龍脈（分析層）。實測脈不通時自動回退配方脊線。">實測湧現脈</button></div></div>
         <div class="ctrl-row" style="margin-top:10px;"><span class="ctrl-label">護從</span><div class="seg"><button class="tog" data-k="tianma" style="color:#b98a2e;font-weight:bold;">天馬山</button><button class="tog" data-k="caoshe">草蛇灰線</button><button class="tog" data-k="chuanzhang" style="color:#b98a2e;font-weight:bold;">穿帳</button><button class="tog" data-k="dazhang" style="color:#b98a2e;font-weight:bold;">開帳</button><button class="tog" data-k="dushui" style="color:#b98a2e;font-weight:bold;">渡水</button><button class="tog" data-k="dieduan">跌斷</button><button class="tog" data-k="shu">束氣</button><button class="tog danger" data-k="fenzhi">分流</button><button class="tog" data-k="guiyao">鬼曜</button><button class="tog" data-k="hulong">護龍</button><button class="tog" data-k="fengyao">蜂腰</button><button class="tog" data-k="zutai">祖脈</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="橈棹為龍脈枝腳/砂體，非風場；順水抱/逆水反為水勢/砂情">橈棹·砂體枝腳</span><div class="seg" data-k="zhijiao"><button data-v="shun">順水抱(吉)</button><button data-v="ni" class="danger">逆水反(凶)</button><button data-v="none">無</button></div></div>
         <div class="ctrl-row"><span class="ctrl-label">穴場</span><div class="seg"><button class="tog" data-k="shidao" style="color:#b98a2e;font-weight:bold;">天心十道</button><button class="tog" data-k="feie" style="color:#b98a2e;font-weight:bold;">飛蛾砂</button><button class="tog" data-k="emei" style="color:#b98a2e;font-weight:bold;">蛾眉砂</button><button class="tog" data-k="longtuzhu" style="color:#b98a2e;font-weight:bold;">龍吐珠</button><button class="tog" data-k="luocheng" style="color:#b98a2e;font-weight:bold;">重羅城</button><button class="tog" data-k="xia">穴星</button><button class="tog" data-k="an">案山</button><button class="tog" data-k="chao">朝山</button><button class="tog" data-k="zhu">主山</button><button class="tog" data-k="xu">玄武</button><button class="tog" data-k="mt">明堂</button><button class="tog" data-k="baitai" style="color:#b98a2e;font-weight:bold;">拜台</button><button class="tog" data-k="bendi" style="color:#b98a2e;font-weight:bold;">盆地</button><button class="tog" data-k="taiji">太極</button><button class="tog" data-k="guan">官星</button><button class="tog danger" data-k="qing">傾瀉</button><button class="tog danger" data-k="yangwa">仰瓦</button></div></div>
@@ -295,8 +322,18 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 </div>
 <div id="panel-right">
     <button id="fold-right-btn" class="panel-fold-btn" title="折疊/展開右側面板">▶</button>
-    <div class="right-scroll-area">
+    <nav class="rp-tabs" id="rp-tabs" role="tablist">
+        <button class="rp-tab on" data-tab="overview" role="tab" title="總覽：五訣總評與五維形勢"><span class="rp-tab-ico">◈</span><span class="rp-tab-txt">總覽</span><span class="rp-tab-badge" data-badge-for="score">—</span></button>
+        <button class="rp-tab" data-tab="dragon" role="tab" title="龍脈：連續性、證據鏈、湧現實測脈"><span class="rp-tab-ico">🐉</span><span class="rp-tab-txt">龍脈</span><span class="rp-tab-badge" data-badge-for="dragonchain">—</span></button>
+        <button class="rp-tab" data-tab="tang" role="tab" title="堂穴：明堂多維、點穴評分鏈、穴土"><span class="rp-tab-ico">◎</span><span class="rp-tab-txt">堂穴</span><span class="rp-tab-badge" data-badge-for="mt">—</span></button>
+        <button class="rp-tab" data-tab="qi" role="tab" title="氣煞：形煞物理代理、體素熱力、語義分析圖"><span class="rp-tab-ico">⚡</span><span class="rp-tab-txt">氣煞</span><span class="rp-tab-badge" data-badge-for="sha">—</span></button>
+        <button class="rp-tab" data-tab="liqi" role="tab" title="向盤：玄空飛星、理氣分冊、免責聲明"><span class="rp-tab-ico">☯</span><span class="rp-tab-txt">向盤</span><span class="rp-tab-badge" data-badge-for="flystar">—</span></button>
+    </nav>
 
+    <div class="rp-pages" id="rp-pages">
+
+    <!-- ===== 總覽 ===== -->
+    <section class="rp-page on" data-page="overview">
         <details class="box" data-rp="score" open>
             <summary><span style="color:var(--gold);">◈ 五訣總評</span><span class="rp-badge" id="v-badge">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
@@ -312,39 +349,31 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
             </div>
         </details>
 
-        <details class="box" id="mt-mul-box" data-rp="mt" open>
-            <summary><span style="color:var(--gold);">◈ 明堂多維</span><span class="rp-badge" id="mt-mul-overall">—</span><span class="rp-arrow">▶</span></summary>
+        <div class="rp-group-hd">形勢五維與體感</div>
+
+        <details class="box" id="multi-score-box" data-rp="multi" open>
+            <summary><span style="color:var(--jade);">◈ 點穴評分鏈</span><span class="rp-badge" id="multi-score-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
-                <div id="mt-mul-list"></div>
-                <div class="rp-hint">8子指標加權幾何平均（容積/閉合/案山/水口/傾瀉/平坦/聚水/破碎）；聚水度＝水文場覆蓋×活水×洪泛（v3.1 場量化，不再讀標籤）</div>
-                <details class="rp-note"><summary>公式·權重·閾值</summary>
-                  <div style="margin-top:3px; line-height:1.4;">
-                    公式: <code>明堂 =100×exp(Σ wᵢ·ln(max(0.02,分ᵢ/100)))×凶形乘數（P0-1 已修 floor(1) 撈起）</code><br>
-                    w=[容積10%/閉合20%/案山10%/水口10%/傾瀉15%/平坦10%/聚水10%/破碎15%]，隨場景（山龍/平洋/都市）動態切換<br>
-                    介入: 容積×關攔比值 &lt;40 → 總分×(比值分/50)；子項&lt;15 → 乘性折減 ×0.45~0.7；內/中/外堂三分另計；致命多項 → vetoCheck 一票否決
-                  </div>
+                <div id="multi-score-list" style="max-height:132px; overflow-y:auto;"></div>
+                <details class="rp-note"><summary>維度·權重·輸出</summary>
+                  <div style="margin-top:3px; line-height:1.4;">來龍20%/穴星15%/龍虎15%/明堂15%/水口10%/風場10%/案朝5%/水法5%/證穴5%<br>輸出: {穴點[xyz], 總分, 評級, 維度{分,細項}, 凶形警告[], 建議}</div>
                 </details>
             </div>
         </details>
 
-        <details class="box" id="flystar-box" data-rp="flystar">
-            <summary><span style="color:var(--gold);">◈ 玄空飛星盤</span><span class="rp-badge" id="flystar-yun">九運</span><span class="rp-arrow">▶</span></summary>
+        <details class="box" id="role-minimap-box" data-rp="role">
+            <summary><span style="color:#0a91a1;">◈ 語義分析圖</span><span class="rp-badge">P2 分析渲染</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
-                <div id="flystar-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:3px; font-size:10px; text-align:center;"></div>
-                <div id="flystar-legend" class="rp-hint" style="border-top:1px dashed #ddd; padding-top:3px;"></div>
-                <div id="three-needle-mode" class="rp-hint">三針讀數：地盤(正針) 0°鎖 / 人盤(中針) 讀砂 / 天盤(縫針) 讀水 ｜ 點砂體消砂 點水口納水</div>
+                <canvas id="role-minimap" width="256" height="256" style="width:80%; margin:0 auto; display:block; border:1px solid rgba(0,0,0,0.15); border-radius:4px; background:#1a1a1a;"></canvas>
+                <div class="rp-hint" style="margin-top:3px;">
+                  <span style="color:#1d758f;">■水</span> <span style="color:#b8a98a;">■砂</span> <span style="color:#9db35a;">■明堂</span> <span style="color:#ffd700;">◆穴</span> <span style="color:#5a8a69;">■來龍</span> <span style="color:#8a8a9a;">■建築</span> <span style="color:#7a6a4a;">■道路</span> <span style="color:#a63a2b;">■煞體</span> <span style="color:#e8b030;">━脊線</span> <span style="color:#40c8e6;">▓洪泛線</span> <span style="color:#aaa;">·等高線5m</span>　上=北(+X右=東)
+                </div>
             </div>
         </details>
+    </section>
 
-        <details class="box" id="shape-sha-box" data-rp="sha">
-            <summary><span style="color:var(--ink);">◈ 形煞物理代理</span><span class="rp-badge">8類</span><span class="rp-arrow">▶</span></summary>
-            <div class="rp-body">
-                <div id="shape-sha-list"></div>
-                <details class="rp-note"><summary>成立條件·凶化程度</summary>
-                  <div style="margin-top:3px; line-height:1.4;">天斬: 狹管幾何多維(隙寬/兩側高差/風向對正)＋venturi 實測<br>探頭: 多距離取樣最高凸出＋尖削度＋距離衰減<br>擎拳: 近距陡峭高差代理（heightfield 無真懸挑）<br>凹風: 凹面曲率×風向對齊×場證據(豁口×實測風)<br>孤峰: 16方位風向加權暴露度（連續懲罰，非 8/8 布林）<br>刀削: 壁高×橫向廣度×意態×距離衰減<br>射肋: 側翼 25m 對稱高凸＋稜線銳度<br>蜈蚣: 沿脊凸齒計數(≥5)＋曲率差意態</div>
-                </details>
-            </div>
-        </details>
+    <!-- ===== 龍脈 ===== -->
+    <section class="rp-page" data-page="dragon">
         <details class="box" id="dragon-check-box" data-rp="dragon" open>
             <summary><span style="color:var(--jade);">◈ 龍脈連續性</span><span class="rp-badge" id="dragon-check-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
@@ -365,11 +394,31 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
             </div>
         </details>
 
-        <details class="box" id="soil-box" data-rp="soil">
-            <summary><span style="color:var(--gold);">◈ 穴土地質剖面</span><span class="rp-badge">證穴</span><span class="rp-arrow">▶</span></summary>
+        <details class="box" id="dragon-emerge-box" data-rp="dragonemerge" open>
+            <summary><span style="color:#1d758f;">◈ 湧現龍脈（實測脈）</span><span class="rp-badge" id="dragon-emerge-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
-                <canvas id="soil-canvas" width="260" height="70" style="width:100%; height:54px; border:1px solid #ddd; border-radius:4px;"></canvas>
-                <div id="soil-legend" class="rp-hint"></div>
+                <div id="dragon-emerge-list"></div>
+                <div id="dragon-emerge-segs"></div>
+                <div class="rp-hint">v3.2：由地形分水嶺路網（basin 割集→脊格）建脊網，再以 <b>A*</b> 求「域內最高峰→穴場」最小代價路徑（下行能量損失＋水切＋轉角＋非脊格罰），逐段以側向斷面實測脊寬後分類過峽/束氣/跌斷/開帳。全程讀 hMap／flowMap，不讀任何 UI 標籤。</div>
+                <div class="rp-hint">「貼脊率」＝作者配方脊線落在真分水嶺脊格上的比例，可審計生成脊是否為真龍脈。</div>
+            </div>
+        </details>
+    </section>
+
+    <!-- ===== 堂穴 ===== -->
+    <section class="rp-page" data-page="tang">
+        <details class="box" id="mt-mul-box" data-rp="mt" open>
+            <summary><span style="color:var(--gold);">◈ 明堂多維</span><span class="rp-badge" id="mt-mul-overall">—</span><span class="rp-arrow">▶</span></summary>
+            <div class="rp-body">
+                <div id="mt-mul-list"></div>
+                <div class="rp-hint">8子指標加權幾何平均（容積/閉合/案山/水口/傾瀉/平坦/聚水/破碎）；聚水度＝水文場覆蓋×活水×洪泛（v3.1 場量化，不再讀標籤）；水口收束度＝束窄×0.62＋關鎖層數×0.38（v3.2）</div>
+                <details class="rp-note"><summary>公式·權重·閾值</summary>
+                  <div style="margin-top:3px; line-height:1.4;">
+                    公式: <code>明堂 =100×exp(Σ wᵢ·ln(max(0.02,分ᵢ/100)))×凶形乘數（P0-1 已修 floor(1) 撈起）</code><br>
+                    w=[容積10%/閉合20%/案山10%/水口10%/傾瀉15%/平坦10%/聚水10%/破碎15%]，隨場景（山龍/平洋/都市）動態切換<br>
+                    介入: 容積×關攔比值 &lt;40 → 總分×(比值分/50)；子項&lt;15 → 乘性折減 ×0.45~0.7；內/中/外堂三分另計；致命多項 → vetoCheck 一票否決
+                  </div>
+                </details>
             </div>
         </details>
 
@@ -377,6 +426,27 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
             <summary><span style="color:var(--jade);">◈ 尋龍點穴報告</span><span class="rp-badge">幾何極值驗證</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
                 <div id="xuecert-detail" style="max-height:110px; overflow-y:auto;">尚未點穴，請按「尋龍點穴」或手動點擊地形</div>
+            </div>
+        </details>
+
+        <details class="box" id="soil-box" data-rp="soil">
+            <summary><span style="color:var(--gold);">◈ 穴土地質剖面</span><span class="rp-badge">證穴</span><span class="rp-arrow">▶</span></summary>
+            <div class="rp-body">
+                <canvas id="soil-canvas" width="260" height="70" style="width:100%; height:54px; border:1px solid #ddd; border-radius:4px;"></canvas>
+                <div id="soil-legend" class="rp-hint"></div>
+            </div>
+        </details>
+    </section>
+
+    <!-- ===== 氣煞 ===== -->
+    <section class="rp-page" data-page="qi">
+        <details class="box" id="shape-sha-box" data-rp="sha" open>
+            <summary><span style="color:var(--ink);">◈ 形煞物理代理</span><span class="rp-badge" id="sha-badge">8類</span><span class="rp-arrow">▶</span></summary>
+            <div class="rp-body">
+                <div id="shape-sha-list"></div>
+                <details class="rp-note"><summary>成立條件·凶化程度</summary>
+                  <div style="margin-top:3px; line-height:1.4;">天斬: 狹管幾何多維(隙寬/兩側高差/風向對正)＋venturi 實測<br>探頭: 多距離取樣最高凸出＋尖削度＋距離衰減<br>擎拳: 近距陡峭高差代理（heightfield 無真懸挑）<br>凹風: 凹面曲率×風向對齊×場證據(豁口×實測風)<br>孤峰: 16方位風向加權暴露度（連續懲罰，非 8/8 布林）<br>刀削: 壁高×橫向廣度×意態×距離衰減<br>射肋: 側翼 25m 對稱高凸＋稜線銳度<br>蜈蚣: 沿脊凸齒計數(≥5)＋曲率差意態<br>植被耦合: 冠層 z0 粗糙度場對數律風阻尼＋日照遮蔽（v3.2）</div>
+                </details>
             </div>
         </details>
 
@@ -388,48 +458,71 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
                 <div class="rp-hint">P2-3 色標（qi 密度 %，相對量非物理單位）：<span style="color:#b98a2e;">■</span>聚(金) <span style="color:#a63a2b;">■</span>散(紅) <span style="color:#1d758f;">■</span>環境(藍)</div>
             </div>
         </details>
+    </section>
 
-        <details class="box" id="role-minimap-box" data-rp="role">
-            <summary><span style="color:#0a91a1;">◈ 語義分析圖</span><span class="rp-badge">P2 分析渲染</span><span class="rp-arrow">▶</span></summary>
+    <!-- ===== 向盤·參考 ===== -->
+    <section class="rp-page" data-page="liqi">
+        <details class="box" id="flystar-box" data-rp="flystar" open>
+            <summary><span style="color:var(--gold);">◈ 玄空飛星盤</span><span class="rp-badge" id="flystar-yun">九運</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
-                <canvas id="role-minimap" width="256" height="256" style="width:80%; margin:0 auto; display:block; border:1px solid rgba(0,0,0,0.15); border-radius:4px; background:#1a1a1a;"></canvas>
-                <div class="rp-hint" style="margin-top:3px;">
-                  <span style="color:#1d758f;">■水</span> <span style="color:#b8a98a;">■砂</span> <span style="color:#9db35a;">■明堂</span> <span style="color:#ffd700;">◆穴</span> <span style="color:#5a8a69;">■來龍</span> <span style="color:#8a8a9a;">■建築</span> <span style="color:#7a6a4a;">■道路</span> <span style="color:#a63a2b;">■煞體</span> <span style="color:#e8b030;">━脊線</span> <span style="color:#40c8e6;">▓洪泛線</span> <span style="color:#aaa;">·等高線5m</span>　上=北(+X右=東)
-                </div>
-            </div>
-        </details>
-
-        <details class="box" id="multi-score-box" data-rp="multi" open>
-            <summary><span style="color:var(--jade);">◈ 點穴評分鏈</span><span class="rp-badge" id="multi-score-overall">—</span><span class="rp-arrow">▶</span></summary>
-            <div class="rp-body">
-                <div id="multi-score-list" style="max-height:132px; overflow-y:auto;"></div>
-                <details class="rp-note"><summary>維度·權重·輸出</summary>
-                  <div style="margin-top:3px; line-height:1.4;">來龍20%/穴星15%/龍虎15%/明堂15%/水口10%/風場10%/案朝5%/水法5%/證穴5%<br>輸出: {穴點[xyz], 總分, 評級, 維度{分,細項}, 凶形警告[], 建議}</div>
-                </details>
+                <div id="flystar-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:3px; font-size:10px; text-align:center;"></div>
+                <div id="flystar-legend" class="rp-hint" style="border-top:1px dashed #ddd; padding-top:3px;"></div>
+                <div id="three-needle-mode" class="rp-hint">三針讀數：地盤(正針) 0°鎖 / 人盤(中針) 讀砂 / 天盤(縫針) 讀水 ｜ 點砂體消砂 點水口納水</div>
             </div>
         </details>
 
         <details class="box" data-rp="disclaimer">
             <summary><span style="color:var(--seal);">◈ 免責聲明·尺度·定義</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
-                <div style="font-size:9px; color:#8a7a5a; line-height:1.4;"><b style="color:#a63a2b;">免責聲明：</b>本儀器測量的是<strong>可計算物理代理</strong>（風速/湍流/日照/視域閉合/水力抽吸），並以風水規則映射為吉凶，非對「氣/煞」玄學實體的直接量化。<br><span style="color:#555;">尺度聲明：世界座標以公尺為單位（350m×350m 模擬域），左下角比例尺/1.7m 人形/70m 範圍線僅為尺度參考；Dry Run v2 內建 11 項固定斷言（明堂公式/一票否決/尺度/視角/理氣分冊/P1子系統/聲明/P2不確定性/理氣純度/水法場證據門檻），失敗項寫入 sanityWarnings；評分附帶可信度（物理收斂×地形證據×輸入完整度）與穴場/明堂/龍局三尺度一致性檢核。</span><br><span style="color:#3f6b52;">藏風聚氣</span> = 低風速+低湍流+高閉合，<span style="color:#a63a2b;">散風</span> = 狹管加速/湍流剝離，<span style="color:#1a5a8a;">明堂容積</span> = 幾何容積，<span style="color:#b98a2e;">明堂多維評分</span> = 容積＋閉合＋案山＋水口＋傾瀉＋平坦＋聚水＋破碎 加權幾何平均。</div>
+                <div style="font-size:9px; color:#8a7a5a; line-height:1.4;"><b style="color:#a63a2b;">免責聲明：</b>本儀器測量的是<strong>可計算物理代理</strong>（風速/湍流/日照/視域閉合/水力抽吸），並以風水規則映射為吉凶，非對「氣/煞」玄學實體的直接量化。<br><span style="color:#555;">尺度聲明：世界座標以公尺為單位（350m×350m 模擬域），左下角比例尺/1.7m 人形/70m 範圍線僅為尺度參考；Dry Run v2 內建 12 項固定斷言（明堂公式/一票否決/尺度/視角/理氣分冊/P1子系統/聲明/P2不確定性/理氣純度/水法場證據門檻/湧現龍脈路網），失敗項寫入 sanityWarnings；評分附帶可信度（物理收斂×地形證據×輸入完整度）與穴場/明堂/龍局三尺度一致性檢核。</span><br><span style="color:#3f6b52;">藏風聚氣</span> = 低風速+低湍流+高閉合，<span style="color:#a63a2b;">散風</span> = 狹管加速/湍流剝離，<span style="color:#1a5a8a;">明堂容積</span> = 幾何容積，<span style="color:#b98a2e;">明堂多維評分</span> = 容積＋閉合＋案山＋水口＋傾瀉＋平坦＋聚水＋破碎 加權幾何平均。</div>
             </div>
         </details>
+    </section>
 
     </div>
 </div>
 <script>
 (function(){
     try{
-        var KEY='dsh_rp_open_v1';
+        var KEY='dsh_rp_open_v2';
         var saved={}; try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
+        var state={ tab: saved.tab || 'overview', open: saved.open || {} };
+        function persist(){
+            try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+        }
+        var tabs=document.querySelectorAll('#rp-tabs .rp-tab');
+        var pages=document.querySelectorAll('#rp-pages .rp-page');
+        function showTab(name, initial){
+            var ok=false;
+            tabs.forEach(function(t){ var on=(t.getAttribute('data-tab')===name); t.classList.toggle('on', on); if(on) ok=true; });
+            pages.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-page')===name); });
+            if(!ok){ // 未知分頁 → 回退總覽
+                name='overview';
+                tabs.forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-tab')==='overview'); });
+                pages.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-page')==='overview'); });
+            }
+            state.tab=name; if(!initial) persist();
+        }
+        tabs.forEach(function(t){
+            t.addEventListener('click', function(){ t.blur(); showTab(t.getAttribute('data-tab')); });
+        });
+        // 各區塊開合記憶（沿用 v3.1 行為，改存於 v2 結構）
         document.querySelectorAll('#panel-right details[data-rp]').forEach(function(d){
             var k=d.getAttribute('data-rp');
-            if(typeof saved[k]==='boolean') d.open=saved[k];
-            d.addEventListener('toggle',function(){
-                try{ var s=JSON.parse(localStorage.getItem(KEY)||'{}'); s[k]=d.open; localStorage.setItem(KEY,JSON.stringify(s)); }catch(e){}
-            });
+            if(typeof state.open[k]==='boolean') d.open=state.open[k];
+            d.addEventListener('toggle',function(){ state.open[k]=d.open; persist(); });
         });
+        showTab(state.tab, true);
+        window.__rpShowTab = showTab;
+        // 分頁切換後，該頁 canvas 需重繪（display:none 期間 renderer 會略過）
+        var _pagesRedraw = { overview: function(){ try{ var c=document.getElementById('radar'); if(c && UI.drawRadar) UI.drawRadar(); }catch(e){} },
+                             qi: function(){ try{ UI.renderVoxelHeat && UI.renderVoxelHeat(); }catch(e){} },
+                             tang: function(){ try{ UI.renderSoilProfile && UI.renderSoilProfile(); UI.renderXueCert && UI.renderXueCert(); }catch(e){} } };
+        window.__rpAfterTab = function(name){ var f=_pagesRedraw[name]; if(f) setTimeout(f, 30); };
+        tabs.forEach(function(t){
+            t.addEventListener('click', function(){ window.__rpAfterTab(t.getAttribute('data-tab')); });
+        });
+        window.__rpAfterTab(state.tab);
     }catch(e){}
 })();
 </script>
@@ -496,7 +589,7 @@ const CONFIG = {
         tianma:false, caoshe:false, feie:false, emei:false, shidao:false,
         bohuan:'yes', zhijiao:'shun', soil:'wuse', sherui:false, posui:false, wugong:false, bidao:false, terrain:'flat', 
         zhuScale: 1.0, mtScale: 1.0, waterVel: 1.0, 
-        xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5, showCompass: true, showDragonLine: true, 
+        xueHeight: 0, manualXue: false, xueX: 0, xueZ: 5, showCompass: true, showDragonLine: true, dragonSpineSource: 'generated', 
         yun: '9',
         jiuxing: 'none',
         vHeat:true, vProbe:false, vInspect:false, vWind:true, zhihua:false, zhihuaType:'mix', shaMode:false, analyseMode:false, wind: 5, windDir:'W', pureHydro:false, sceneMode:'mountain', needleRen:-7.5, needleTian:7.5, magVar:0, hanmen:false, jiaoyaMouth:false, soilUserSet:false, solarTime:12, season:'spring', rainfall:1.0, presetSeed:null, roadWidth:6, roadSpeed:30, roadSlope:0, floorLevel:9, buildingCount:8, riverDir:'auto', poolEnabled:false, mouthWidth:6, magLat:23.5, magLng:121, magYear:2026, lat:23.5, lng:121, year:2026
@@ -541,6 +634,7 @@ function createDefaultSensors() {
         qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0,
         shannonEntropy: 0, betti1Closure: 0, sunlight: 1.0, staleQi: 0,
         phreatic: 0, helicity: 0, coanda: 0, venturi: 0,
+        canopyShade: 0, sunlightLocal: 1.0,
         tensorFrac: 0, thermalShear: 0, downdraft: 0, waveletSpike: 0, anabatic: 0,
         coriolisCrash: 0, darcyDrag: 0, boundarySep: 0, bounce: 0,
         airChangeRate: 0, frostRisk: 0
@@ -653,6 +747,65 @@ const AppState = {
         UI.update(true);
         Physics.resetParticles();
         Engine3D.clearHeatmap();
+        // v3.4：隨機平吉在地形建好後做地形感知驗收（舊版篩選讀的是上一張地形，等同沒篩）
+        if(presetName === 'random_auspicious') this.healAuspiciousTerrain();
+    },
+    // v3.4 隨機平吉「地形感知」驗收
+    // ---------------------------------------------------------------------------
+    // 舊版缺陷：generateAuspiciousPreset() 的自我篩選用 Rules.isFatalSha(testObj) 判斷，
+    // 但 isFatalSha 會讀「當前已建地形」的脊網/砂體拓撲/實測龍勢——即上一張地形，
+    // 不是這個候選會生成的地形。實測：同一候選在 buildTerrain 前 isFatalSha=false，
+    // buildTerrain 後變 true（且實測龍勢為 'po' 破碎、蜈蚣脊 75 分）。
+    // 因此舊篩選等於沒篩，Shift+G 常產出 大凶・形煞沖射（實測 8 次中 6 次）。
+    // 修法：候選先照舊生成並建地形，再於「地形就緒後」實測真正的吉凶指標；
+    // 不通過就換種子重建，直到通過或達嘗試上限。
+    // ---------------------------------------------------------------------------
+    healAuspiciousTerrain(){
+        try{
+            if(this._healBusy) return;                          // 防遞迴
+            if(this.current.presetName !== 'random_auspicious') return;
+            const cand = (typeof Rules !== 'undefined') ? Rules._lastAuspiciousCandidate : null;
+            if(!cand || cand.presetSeed !== this.current.presetSeed) return;  // 只驗本次生成者
+            this._healBusy = true;
+            try{
+                // 實際地形就緒後的吉凶指標（皆為場/幾何實測）
+                let fatal = false;
+                try{ fatal = !!Rules.isFatalSha(this.current); }catch(e){ fatal = false; }
+                const mult = (()=>{ try{ return Rules.getGlobalMultiplier(); }catch(e){ return 1; } })();
+                const sha = (()=>{ try{ return Rules.shapeShaProxies(); }catch(e){ return null; } })();
+                const shaOver = sha ? Object.keys(sha).filter(k => sha[k] && sha[k].score >= 70) : [];
+                const shi = (()=>{ try{ return Rules.dragonShiLevel(); }catch(e){ return null; } })();
+                const shiBad = (shi === 'po' || shi === 'si' || shi === 'gufeng');
+                const bad = fatal || shiBad || mult < 0.45 || shaOver.length > 0;
+                const attempt = (this._healAttempt = (this._healAttempt || 0) + 1);
+                const MAXA = 5;                                  // 含首建共最多 6 次
+                this._healInfo = { attempt, fatal, mult: Math.round(mult*1000)/1000, shaOver, shi, healed: false };
+                if(!bad){
+                    this._healInfo.healed = (attempt > 1);
+                    this._healAttempt = 0;
+                    this._healBusy = false;
+                    return;
+                }
+                if(attempt > MAXA){
+                    // 放棄：誠實回報（不假裝吉）
+                    this._healInfo.gaveUp = true;
+                    this._healAttempt = 0;
+                    this._healBusy = false;
+                    try{ Engine3D.showToast('⚠️ 隨機平吉：已嘗試 ' + attempt + ' 次仍未取得平吉格局<br><span style="font-size:11px;">實測全局乘數 ' + this._healInfo.mult + (shaOver.length ? ('・硬煞 ' + shaOver.join('/')) : '') + (shiBad ? ('・龍勢實測「' + shi + '」') : '') + '，此為目前最佳候選</span>', 4200); }catch(e){}
+                    return;
+                }
+                this._healBusy = false;
+                // 換新種子重生成（resetTo 內會再次呼叫本函式驗收）
+                Rules._presSeed = (Math.random() * 1e9) | 0;
+                this.resetTo('random_auspicious');
+                return;
+            }catch(e){
+                this._healBusy = false;
+            }
+            this._healBusy = false;
+        }catch(e){
+            this._healBusy = false;
+        }
     },
     prevHistory() {
         if (this.historyIndex > 0) {
@@ -2708,6 +2861,65 @@ const Rules = {
         this._drainCache = { rev: Engine3D.hMapRev || 0, val };
         return val;
     },
+    // ===== v3.2 水口關鎖層數（審計要點 #22／後續路線 P1-4）=====
+    // 真實水口不只看「寬」，而看多重關攔：沿去水方位取三條近軸剖面，
+    // 計「地形高於穴場視線」之連通交鎖段數（華表/獅象/羅星/交牙），
+    // 並量測去水通道束窄寬度。多層交鎖＋束而不逼 → 高；一洩到底 → 低。
+    mouthLockMetrics(){
+        try{
+            if(typeof Engine3D === 'undefined' || !Engine3D.getTerrainY) return null;
+            const ot = this.outletAzimuth ? this.outletAzimuth() : null;
+            if(!ot) return null;
+            const _ck = [ot.compass, ot.strength, (AppState.current||{}).mouthWidth, (AppState.current||{}).w, (AppState.current||{}).d]
+                        .map(v=>String(v)).join('|') + '#' + ((Engine3D.hMapRev)||0);
+            if(this._mouthLockCache && this._mouthLockCache.key === _ck) return this._mouthLockCache.val;
+            const [ax, az] = effLairAnchor();
+            const ay = Engine3D.getTerrainY(ax, az).y + 1.6;
+            const DMAX = 170, STEP = 4;
+            const hAt = (r, d) => Engine3D.getTerrainY(ax + Math.sin(r)*d, az - Math.cos(r)*d).y + 1.6;
+            const layersOf = (r) => {
+                let n = 0, inB = false;
+                for(let d = 6; d <= DMAX; d += STEP){
+                    const blocked = (hAt(r, d) >= ay);
+                    if(blocked && !inB){ n++; inB = true; } else if(!blocked) inB = false;
+                }
+                return n;
+            };
+            const base = ot.compass * Math.PI/180;
+            const l0 = layersOf(base), lL = layersOf(base - 10*Math.PI/180), lR = layersOf(base + 10*Math.PI/180);
+            const layers = Math.max(l0, lL, lR);
+            // 去水通道寬：沿軸逐距離量測「未被遮擋」的橫向淨寬
+            let minGap = 999;
+            for(let d = 12; d <= DMAX; d += 6){
+                let open = 0;
+                for(let q = -60; q <= 60; q += 3){
+                    const r2 = (ot.compass + q) * Math.PI/180;
+                    if(hAt(r2, d) < ay) open += 3;
+                }
+                if(open < minGap) minGap = open;
+            }
+            if(minGap >= 999) minGap = 120;
+            // 層數分：0 層＝直洩最凶；1 層初關；2 層華表/獅象；≥3 層重羅城
+            const layerScore = layers <= 0 ? 12 : (layers === 1 ? 52 : (layers === 2 ? 80 : 94));
+            // 寬度分：束而不逼（約 10-40m）最佳；過寬＝曠散；過窄＝逼壓
+            const widthScore = minGap < 4 ? 40 : (minGap < 10 ? 62 : (minGap <= 40 ? 95 - Math.abs(minGap-20)*0.8 : Math.max(35, 90-(minGap-40)*0.75)));
+            const total = Math.round(layerScore*0.62 + widthScore*0.38);
+            const val = {
+                交鎖層數: layers, 近軸層數: [l0, lL, lR],
+                去水通道淨寬: Math.round(minGap),
+                層數分: Math.round(layerScore), 寬度分: Math.round(widthScore),
+                關鎖分: total,
+                去水方位: ot.compass,
+                評語: layers === 0 ? '去水無遮，一洩到底'
+                     : layers === 1 ? '一重初關，去水仍見'
+                     : layers === 2 ? '兩重交鎖，水去而回顧'
+                     : '三重以上關攔，重羅城鎖氣',
+                明堂評分耦合: total
+            };
+            this._mouthLockCache = { key: _ck, val };
+            return val;
+        }catch(e){ return null; }
+    },
     outletVisibility() {
         try{
             if(typeof Engine3D==='undefined' || !Engine3D.getTerrainY) return null;
@@ -3323,6 +3535,84 @@ const Rules = {
         const _sh = this.dragonShiLevel ? this.dragonShiLevel() : null;
         if(_sh) return _sh === shiLabel;
         return dLabel === shiLabel;
+    },
+    // ===== 湧現龍脈證據（v3.2，審計要點 #1/#2/#3）=====
+    // 不參與五維計分（保持 Dry Run 斷言不漂移），僅作「生成脊是否為真龍脈」之可審計證據，
+    // 並供龍脈證據鏈引用為 龍脈可信度 的獨立一項。
+    dragonEmergence(){
+        try{
+            if(typeof Engine3D === 'undefined' || !Engine3D.dragonRidgeExtract) return null;
+            const _ck = (function(){
+                const st = AppState.current || {};
+                return ['d','bohuan','dragonSpineSource','riverDir','poolEnabled','presetSeed','manualXue','xueX','xueZ','xueHeight'].map(k=>String(st[k])).join('|') + '#' + (Engine3D.hMapRev||0);
+            })();
+            if(this._emergeCache && this._emergeCache.key === _ck) return this._emergeCache.val;
+            const ex = Engine3D.dragonRidgeExtract();
+            const ag = Engine3D.ridgeAgreement ? Engine3D.ridgeAgreement() : null;
+            if(!ex) return null;
+            const val = {
+                可用: !!(ex.ok && ex.metrics),
+                錯誤: ex.err || null,
+                指標: ex.metrics || null,
+                段鏈: (ex.segments || []).map(s => ({
+                    型: s.type, 長: s.len, 脊寬: s.脊寬, 收束比: s.收束比,
+                    落差: s.落差, 最大轉角: s.最大轉角, 最大坡度: s.最大坡度, 台地: !!s.台地,
+                    起: s.from, 訖: s.to
+                })),
+                貼脊: ag ? {
+                    貼脊率: ag.貼脊率, 取樣點: ag.取樣點,
+                    平均偏離: ag.平均偏離, 最大偏離: ag.最大偏離,
+                    脊網格數: ag.脊網格數, 峰: ag.峰, 鞍: ag.鞍
+                } : null,
+                脊寬中位: ex.wMed != null ? Math.round(ex.wMed*10)/10 : null
+            };
+            // 生成脊 vs 實測脈 之一致性評級（僅敘述，不改分數）
+            if(val.可用 && ag){
+                const r = ag.貼脊率;
+                val.一致評級 = r >= 75 ? '高（生成脊大致即真分水嶺）'
+                             : r >= 50 ? '中（生成脊部分合乎地形，局部已離開分水嶺）'
+                             : '低（生成脊明顯偏離真分水嶺，屬程序化脊線）';
+            } else if(!val.可用){
+                val.一致評級 = '無法判定（實測脈不成立：域內無可通行龍脊路徑）';
+            }
+            this._emergeCache = { key: _ck, val };
+            return val;
+        }catch(e){ return null; }
+    },
+    // 龍脈圖論深化（審計要點 #2）：過峽長度／開帳角度／帳翼環抱／護送連續性
+    // 由實測脈段鏈推導，取代「脊寬比」單一判據。
+    dragonGraphRefine(){
+        try{
+            const em = this.dragonEmergence ? this.dragonEmergence() : null;
+            if(!em || !em.可用 || !em.段鏈 || !em.段鏈.length) return null;
+            const segs = em.段鏈;
+            const out = { 過峽: [], 開帳: [], 跌斷: [], 束氣: [] };
+            for(const s of segs){
+                if(out[s.型]) out[s.型].push(s);
+            }
+            const sum = a => a.reduce((x,y)=>x + (y.長||0), 0);
+            const 過峽總長 = sum(out.過峽), 開帳總長 = sum(out.開帳);
+            const 跌斷總長 = sum(out.跌斷), 束氣總長 = sum(out.束氣);
+            const 脈長 = (em.指標 && em.指標.路徑長) || 0;
+            // 過峽品質：束而不斷（收束比低）＋有長度（太短為噪聲）
+            const 過峽成立 = out.過峽.filter(s => s.長 >= 6 && s.收束比 != null && s.收束比 < 0.7);
+            // 開帳品質：展開（收束比高）＋帳面夠寬
+            const 開帳成立 = out.開帳.filter(s => s.長 >= 10 && s.收束比 != null && s.收束比 > 1.3);
+            return {
+                過峽段數: out.過峽.length, 過峽成立數: 過峽成立.length,
+                過峽總長: Math.round(過峽總長*10)/10,
+                束氣段數: out.束氣.length, 束氣總長: Math.round(束氣總長*10)/10,
+                開帳段數: out.開帳.length, 開帳成立數: 開帳成立.length,
+                開帳總長: Math.round(開帳總長*10)/10,
+                跌斷段數: out.跌斷.length, 跌斷總長: Math.round(跌斷總長*10)/10,
+                脈長: 脈長,
+                過峽佔比: 脈長 > 0 ? Math.round(過峽總長/脈長*100) : 0,
+                開帳佔比: 脈長 > 0 ? Math.round(開帳總長/脈長*100) : 0,
+                節律: (過峽成立.length >= 1 && 開帳成立.length >= 1) ? '有開有束（成節律）'
+                     : (過峽成立.length >= 1 ? '有束無開（行龍收而不展）'
+                     : (開帳成立.length >= 1 ? '有開無束（展而不收）' : '未見開帳束氣節律'))
+            };
+        }catch(e){ return null; }
     },
     // ===== 平洋水龍證據鏈（審計三輪·四節）：完全獨立於山脊邏輯 =====
     // 水網成絡／微高為穴／界水夾送／水脈交會／去水水口／洪泛風險／排水有路——高一寸山低一寸水。
@@ -3968,7 +4258,10 @@ const Rules = {
                 sumFlow += f; cnt++;
                 if (f > peak) peak = f;
             }
-            mouthLock = sumFlow>0 ? Math.max(30, Math.min(100, (peak/(sumFlow/cnt||1)) * 26)) : 50;
+            // v3.2：原線性係數 26 會使峰均比 >3.8 全部飽和於 100（無鑑別度）→ 改對數標度，
+            // 峰均比 1.5→~35 分、3→~70 分、6→~92 分、≥10→100（去水集中度）
+            const _ratio = (sumFlow/cnt) > 0 ? (peak/(sumFlow/cnt)) : 1;
+            mouthLock = Math.max(30, Math.min(100, 35 + Math.log(Math.max(1, _ratio)) * 32));
         }
         let tiltDegOut = meanTiltOut * 180 / Math.PI;
         let tiltPenalty = Math.max(0, (tiltDegOut - 6.5)) * 4.5;
@@ -4003,7 +4296,15 @@ const Rules = {
             容積: { score: Math.round(volScore), raw: Math.round(vol) },
             閉合度: { score: Math.round(closure), raw: Math.round(protV*100)/100 },
             案山遮擋率: { score: Math.round(anCover), raw: Math.round(anCover) },
-            水口收束度: { score: Math.round(mouthLock), raw: Math.round(mouthLock) },
+            水口收束度: (() => {
+                // v3.2：耦合水口關鎖層數（交鎖層數＋去水通道淨寬），非僅幾何束窄
+                const _ml = this.mouthLockMetrics ? this.mouthLockMetrics() : null;
+                if(_ml){
+                    const _mix = Math.round(mouthLock*0.62 + _ml.關鎖分*0.38);
+                    return { score: Math.round(_mix), raw: Math.round(_mix) + '（束窄' + Math.round(mouthLock) + '+關鎖' + _ml.關鎖分 + '：' + _ml.評語 + '·交鎖' + _ml.交鎖層數 + '層·淨寬' + _ml.去水通道淨寬 + 'm）' };
+                }
+                return { score: Math.round(mouthLock), raw: Math.round(mouthLock) };
+            })(),
             傾瀉度: { score: Math.round(tiltScore), raw: Math.round(meanTilt*180/Math.PI*10)/10 + '°' },
             平坦度: { score: Math.round(flatScore), raw: Math.round(stdTilt*10)/10 },
             聚水度: { score: Math.round(hydScore), raw: _mtW ? _mtW.說明 : (st.w !== 'none' ? st.w : '無') },
@@ -4210,6 +4511,8 @@ const Rules = {
             };
         }
         p.presetSeed = baseSeedNum;
+        // v3.4：候選快取——供 resetTo 在地形建好後做「地形感知」驗收（見 AppState.healAuspiciousTerrain）
+        this._lastAuspiciousCandidate = p;
         if(retry<5){
             const testObj = Object.assign({}, CONFIG.baseState, p);
             const hasP0A = Rules.isFatalSha(testObj);
@@ -4918,6 +5221,33 @@ window.DryRunTool = {
                     _addAssert('A11 P0水法場證據門檻', _ok11, 'waterFieldGate=' + (_wg11 ? ('有場:' + _wg11.有場 + ' 凶成形:' + _wg11.凶水成形 + (_wg11.總分 != null ? (' 場證' + _wg11.總分) : '')) : 'null')
                         + '｜mingtangWater=' + (_mw11 ? (_mw11.score + '分·' + _mw11.說明) : 'null(回退標籤)') + (_why11.length ? '｜' + _why11.join('；') : ''));
                 }catch(e11){ _addAssert('A11 P0水法場證據門檻', false, '異常：' + e11.message); }
+                // A12: v3.2 湧現龍脈路網——脊網必可建；實測脈若成立則路徑/指標須完整；
+                //      貼脊率須為 0-100 數值（可審計「生成脊是否即真分水嶺」）；規則層須通。
+                try{
+                    let _ok12 = true; const _why12 = [];
+                    const _net12 = (Engine3D._ridgeNet ? Engine3D._ridgeNet() : null);
+                    if(!_net12){ _ok12 = false; _why12.push('脊網未建'); }
+                    else if(!(_net12.count > 0)){ _ok12 = false; _why12.push('脊格數為0'); }
+                    const _em12 = (Engine3D.dragonRidgeExtract ? Engine3D.dragonRidgeExtract() : null);
+                    if(!_em12){ _ok12 = false; _why12.push('dragonRidgeExtract缺'); }
+                    else if(_em12.ok){
+                        if(!(_em12.path && _em12.path.length >= 8)){ _ok12 = false; _why12.push('實測脈路徑過短'); }
+                        if(!_em12.metrics){ _ok12 = false; _why12.push('實測脈指標缺'); }
+                    }
+                    const _ag12 = (Engine3D.ridgeAgreement ? Engine3D.ridgeAgreement() : null);
+                    if(!_ag12){ _ok12 = false; _why12.push('貼脊率未計算'); }
+                    else if(!(_ag12.貼脊率 >= 0 && _ag12.貼脊率 <= 100)){ _ok12 = false; _why12.push('貼脊率超界'); }
+                    const _rl12 = (Rules.dragonEmergence ? Rules.dragonEmergence() : null);
+                    if(!_rl12){ _ok12 = false; _why12.push('規則層 dragonEmergence 缺'); }
+                    const _gr12 = (Rules.dragonGraphRefine ? Rules.dragonGraphRefine() : null);
+                    if(_rl12 && _rl12.可用 && !_gr12){ _ok12 = false; _why12.push('圖論深化未通'); }
+                    _addAssert('A12 P1湧現龍脈路網', _ok12,
+                        '脊網格=' + (_net12 ? _net12.count : 'null') + '｜脊寬中位=' + (_net12 ? Math.round((_net12.wMed||0)*10)/10 : '-') + 'm'
+                        + '｜實測脈=' + (_em12 && _em12.ok ? ('成立 ' + _em12.path.length + '節點/' + (_em12.metrics ? _em12.metrics.路徑長 + 'm' : '?') + '·起祖落差' + (_em12.metrics ? _em12.metrics.起祖落差 : '?') + 'm') : ('不成立' + (_em12 && _em12.err ? '(' + _em12.err + ')' : '')))
+                        + '｜貼脊率=' + (_ag12 ? _ag12.貼脊率 + '%' : 'null')
+                        + '｜一致=' + (_rl12 ? (_rl12.一致評級 || '-') : 'null')
+                        + (_why12.length ? '｜' + _why12.join('；') : ''));
+                }catch(e12){ _addAssert('A12 P1湧現龍脈路網', false, '異常：' + e12.message); }
         }catch(e){ _addAssert('A6 斷言執行', false, '異常：' + e.message); }
         resultData.dryRun = {
             enabled: true,
@@ -5170,6 +5500,15 @@ const UI = {
                 b.blur();
                 if(b.disabled) return;
                 AppState.current.presetName = 'custom';
+                // v3.2：dragonSpineSource 為字串狀態（generated/emergent），其餘 tog 為布林
+                if (b.dataset.k === 'dragonSpineSource') {
+                    const _on = (AppState.current.dragonSpineSource !== 'emergent');
+                    AppState.current.dragonSpineSource = _on ? 'emergent' : 'generated';
+                    b.classList.toggle('on', _on);
+                    Engine3D.updateDragonLine();
+                    if (typeof UI !== 'undefined' && UI.renderDragonEmergence) UI.renderDragonEmergence();
+                    return;
+                }
                 AppState.current[b.dataset.k] = !AppState.current[b.dataset.k];
                 b.classList.toggle('on', AppState.current[b.dataset.k]);
                 if (b.dataset.k === 'zhihua') {
@@ -5960,7 +6299,9 @@ const UI = {
             }
         }
         document.querySelectorAll('.tog').forEach(b => {
-            b.classList.toggle('on', !!AppState.current[b.dataset.k]);
+            // v3.2：dragonSpineSource 為字串（'emergent' 表開啟），其餘為布林
+            if (b.dataset.k === 'dragonSpineSource') b.classList.toggle('on', AppState.current.dragonSpineSource === 'emergent');
+            else b.classList.toggle('on', !!AppState.current[b.dataset.k]);
         });
         const windDirSel = document.getElementById('wind-dir-select');
         if (windDirSel && AppState.current.windDir) windDirSel.value = AppState.current.windDir;
@@ -6161,8 +6502,72 @@ const UI = {
         this.renderMingtangMulti();
         this.renderDragonContinuity();
         this.renderDragonEvidenceChain();
+        this.renderDragonEmergence();
+        this.renderTabBadges();
         this.renderShapeSha();
         this.renderMultiScore();
+    },
+    // v3.3 分頁籤徽章：把各組關鍵結論直接顯示在籤上，收合時仍可讀。
+    // 各 renderer 完成後呼叫 setTabLabel() 寫入結論；renderTabBadges() 統一補上警示紅點。
+    setTabLabel(tabName, txt, color){
+        try{
+            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
+            if(!t) return;
+            const b = t.querySelector('.rp-tab-badge');
+            if(b && txt != null){ if(b.innerText !== txt) b.innerText = txt; if(color) b.style.color = color; }
+        }catch(e){}
+    },
+    setTabAlert(tabName, on){
+        try{
+            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
+            if(t) t.setAttribute('data-alert', on ? '1' : '0');
+        }catch(e){}
+    },
+    renderTabBadges(){
+        // 直接由規則層計算（不依賴該分頁是否可見／已渲染），確保五籤隨時正確
+        // 總覽：五維均分 + 評級色
+        try{
+            const sc = AppState.smoothedScores;
+            const mult = Rules.getGlobalMultiplier();
+            const eff = sc ? sc.map(s => Math.min(100, Math.max(0, Math.round(s * mult)))) : null;
+            const avg = eff && eff.length ? Math.round(eff.reduce((a,b)=>a+(b||0),0)/eff.length) : null;
+            const vr = document.getElementById('v-rating');
+            this.setTabLabel('overview', avg != null ? ('均 ' + avg) : '—', vr ? (vr.style.color || null) : null);
+        }catch(e){}
+        // 龍脈：證據鏈可信度（低→紅點）
+        try{
+            const ch = Rules.dragonEvidenceChain ? Rules.dragonEvidenceChain() : null;
+            const lvl = ch ? ch.可信度 : '—';
+            const col = lvl === '高' ? '#3f6b52' : lvl === '中' ? '#b98a2e' : (lvl === '低' ? '#a63a2b' : null);
+            this.setTabLabel('dragon', lvl, col);
+            this.setTabAlert('dragon', lvl === '低');
+        }catch(e){}
+        // 堂穴：明堂綜合分（<40→紅點）
+        try{
+            const mt = Rules.mingtangMulti ? Rules.mingtangMulti() : null;
+            const v = mt ? mt.加權幾何平均 : null;
+            const col = v == null ? null : (v >= 60 ? '#3f6b52' : v >= 40 ? '#b98a2e' : '#a63a2b');
+            this.setTabLabel('tang', v != null ? ('堂' + v) : '—', col);
+            this.setTabAlert('tang', v != null && v < 40);
+        }catch(e){}
+        // 氣煞：形煞實測分數（≥70 硬煞 / 40-69 軟煞）
+        try{
+            const s = Rules.shapeShaProxies ? Rules.shapeShaProxies() : null;
+            if(s){
+                let hard = 0, soft = 0;
+                for(const k in s){ const v = s[k]; if(!v || typeof v.score !== 'number') continue; if(v.score >= 70) hard++; else if(v.score >= 40) soft++; }
+                const txt = hard > 0 ? (hard + '硬煞') : (soft > 0 ? (soft + '軟煞') : '淨');
+                this.setTabLabel('qi', txt, hard > 0 ? '#a63a2b' : (soft > 0 ? '#b98a2e' : '#3f6b52'));
+                let fatal = false;
+                try{ fatal = !!Rules.isFatalSha(AppState.current); }catch(e){}
+                this.setTabAlert('qi', hard > 0 || fatal);
+            }
+        }catch(e){}
+        // 向盤：元運
+        try{
+            const fs = document.getElementById('flystar-yun');
+            this.setTabLabel('liqi', fs ? fs.innerText : ((AppState.current.yun || '9') + '運'), '#b98a2e');
+        }catch(e){}
     },
     renderMultiScore(){
         const el=document.getElementById('multi-score-list');
@@ -6189,11 +6594,15 @@ const UI = {
         if(!s){ el.innerHTML='(無形煞資料)'; return; }
         let html='';
         const order=['天斬煞','探頭煞','擎拳煞','凹風','孤峰','刀削壁','射肋煞','蜈蚣脊'];
+        let hard=0, soft=0;
         for(const k of order){
             const v=s[k]; if(!v) continue;
             const c = v.score>=70?'#a63a2b':v.score>=40?'#b98a2e':'#3f6b52';
-            html+=`<div class="rp-row"><span class="lbl">${k}</span><span class="val" style="color:${c};">${v.score}</span><span class="raw" title="${v.公式}">${v.公式}</span></div>`;
+            const mk = v.score>=70?'●':v.score>=40?'◐':'○';   // ● 硬煞 / ◐ 軟煞 / ○ 未成
+            if(v.score>=70) hard++; else if(v.score>=40) soft++;
+            html+=`<div class="rp-row"><span class="val" title="●硬煞(≥70) ◐軟煞(40-69) ○未成(&lt;40)" style="color:${c}; min-width:10px;">${mk}</span><span class="lbl">${k}</span><span class="val" style="color:${c}; min-width:18px;">${v.score}</span><span class="raw" title="${v.公式}">${v.公式}</span></div>`;
         }
+        if(!hard && !soft) html += '<div class="rp-hint" style="color:#3f6b52;">八類形煞均未成形（實測代理分 <40）</div>';
         el.innerHTML=html;
     },
     renderDragonEvidenceChain(){
@@ -6216,6 +6625,75 @@ const UI = {
         if(dl) dl.innerHTML = chain.缺陷警告.length ? chain.缺陷警告.map(d => '· ' + d).join('<br>') : '無重大缺陷';
         const dd = document.getElementById('dragon-chain-defects');
         if(dd) dd.open = chain.缺陷警告.length > 0;
+    },
+    renderDragonEmergence(){
+        const el = document.getElementById('dragon-emerge-list');
+        const oe = document.getElementById('dragon-emerge-overall');
+        const se = document.getElementById('dragon-emerge-segs');
+        if(!el) return;
+        const em = Rules.dragonEmergence ? Rules.dragonEmergence() : null;
+        if(!em){ el.innerHTML = '<span style="color:#999;">（尚未建立地形）</span>'; if(oe) oe.innerText = '—'; if(se) se.innerHTML=''; return; }
+        if(!em.可用){
+            el.innerHTML = '<span style="color:#a63a2b;">實測脈不成立' + (em.錯誤 ? '（' + em.錯誤 + '）' : '：域內無可通行龍脊路徑') + '</span>';
+            if(oe){ oe.innerText = '不可用'; oe.style.color = '#a63a2b'; }
+            if(se) se.innerHTML = '';
+            return;
+        }
+        const m = em.指標 || {};
+        if(oe){
+            oe.innerText = '脈長 ' + m.路徑長 + 'm';
+            oe.style.color = '#1d758f';
+        }
+        const row = (lbl, val, col, tip) => `<div class="rp-row"><span class="lbl">${lbl}</span><span class="raw" style="color:${col||'inherit'};" title="${tip||val}">${val}</span></div>`;
+        const _cA = (m.起祖落差||0) >= 20 ? '#3f6b52' : '#b98a2e';
+        const _cW = (m.水切次數||0) === 0 ? '#3f6b52' : ((m.水切次數||0) <= 2 ? '#b98a2e' : '#a63a2b');
+        const _cD = (m.方向連續性||0) >= 50 ? '#3f6b52' : ((m.方向連續性||0) >= 25 ? '#b98a2e' : '#a63a2b');
+        let html = '';
+        html += row('起祖', `${m.起祖.y}m @(${m.起祖.x},${m.起祖.z})`, _cA, '實測脈起點＝域內最高分水嶺峰（祖山）');
+        html += row('止穴', `${m.止穴.y}m @(${m.止穴.x},${m.止穴.z})`, 'inherit', '實測脈終點（吸附至最近脊格，≤18m）');
+        html += row('起祖落差', m.起祖落差 + 'm', _cA, '祖山至止穴之高差：龍脈能量來源');
+        html += row('平均滑降高度', m.平均滑降高度 + 'm', 'inherit', '沿脈加權平均高度，越高表示行龍越在高處（不落谷）');
+        html += row('高度回升率', m.高度回升率, (m.高度回升率 <= 0.35 ? '#3f6b52' : '#b98a2e'), '沿脈上行比例：過高＝急龍不止／起伏失序');
+        html += row('方向連續性', m.方向連續性 + '%', _cD, '逐段方位平均偏轉量反推：越高＝行龍越不亂');
+        html += row('水切次數', m.水切次數, _cW, '跨過匯流強度 >p88 之水道節點數：水切龍脈');
+        html += row('脊寬中位', m.脊寬中位 + 'm', 'inherit', '側向斷面自脊頂下降 3m 內之半寬中位數');
+        html += row('最窄／最寬', m.最窄脊寬 + ' / ' + m.最大脊寬 + 'm', 'inherit', '脊身寬度極值（束氣↔開帳之動態範圍）');
+        html += row('台地比例', Math.round((m.台地比例||0)*100) + '%', 'inherit', '35m 內無明顯下切之比例：高＝平頂／低丘，非典型山龍');
+        html += row('成形段數', m.成形段數 + '（≥8m）', 'inherit', '濾除單格抖動後之有效段數');
+        html += row('開／束／峽／跌', `${m.開帳數}/${m.束氣數}/${m.過峽數}/${m.跌斷數}`, 'inherit', '開帳／束氣／過峽／跌斷 段數');
+        el.innerHTML = html;
+        // 貼脊一致性
+        if(em.貼脊){
+            const r = em.貼脊.貼脊率;
+            const _rc = r >= 75 ? '#3f6b52' : (r >= 50 ? '#b98a2e' : '#a63a2b');
+            el.innerHTML += `<div style="margin-top:5px; padding:4px; background:rgba(0,0,0,0.03); border-radius:4px; font-size:10px; line-height:1.5;">
+              <b style="color:${_rc};">生成脊貼脊率 ${r}%</b>（${em.貼脊.取樣點} 取樣點）<br>
+              與實測脈平均偏離 ${em.貼脊.平均偏離}m／最大 ${em.貼脊.最大偏離}m<br>
+              脊網 ${em.貼脊.脊網格數} 格｜峰 ${em.貼脊.峰}｜鞍 ${em.貼脊.鞍}<br>
+              <span style="color:${_rc};">一致評級：${em.一致評級 || '—'}</span>
+            </div>`;
+        }
+        // 段鏈與圖論深化
+        if(se){
+            const gr = Rules.dragonGraphRefine ? Rules.dragonGraphRefine() : null;
+            let h2 = '';
+            if(em.段鏈 && em.段鏈.length){
+                const cOf = t => ({ '行龍':'#3f6b52','開帳':'#b98a2e','過峽':'#1d758f','束氣':'#8a6d1a','跌斷':'#a63a2b','急落':'#c05a2b','轉向':'#6b5a3a' }[t] || '#666');
+                h2 += '<div style="margin-top:5px; font-size:10px; line-height:1.55;">';
+                for(const s of em.段鏈){
+                    h2 += `<div class="rp-row"><span class="lbl" style="color:${cOf(s.型)}; min-width:30px;">${s.型}</span><span class="raw" title="收束比 ${s.收束比}｜最大轉角 ${s.最大轉角}°｜最大坡度 ${s.最大坡度}${s.台地?'｜台地':''}">${s.長}m・寬${s.脊寬}m・落差${s.落差}m</span></div>`;
+                }
+                h2 += '</div>';
+            }
+            if(gr){
+                h2 += `<div style="margin-top:5px; padding:4px; background:rgba(29,117,143,0.07); border-radius:4px; font-size:10px; color:#1d758f; line-height:1.5;">
+                  <b>龍脈圖論</b>：${gr.節律}<br>
+                  過峽 ${gr.過峽成立數}/${gr.過峽段數} 成立（佔脈 ${gr.過峽佔比}%）｜束氣 ${gr.束氣段數} 段<br>
+                  開帳 ${gr.開帳成立數}/${gr.開帳段數} 成立（佔脈 ${gr.開帳佔比}%）｜跌斷 ${gr.跌斷段數} 段
+                </div>`;
+            }
+            se.innerHTML = h2;
+        }
     },
     renderDragonContinuity(){
         const el=document.getElementById('dragon-check-list');
@@ -6663,7 +7141,7 @@ const Engine3D = {
         skyGrad.addColorStop(1, '#e8eef2');
         skyCtx.fillStyle = skyGrad; skyCtx.fillRect(0, 0, 2, 256);
         this.scene.background = new THREE.CanvasTexture(skyCv);
-        this.scene.fog = new THREE.Fog(0xc6d7e8, 300, 950);
+        this.scene.fog = null;
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1500);
         this.camera.position.set(0, 150, 190);
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: true });
@@ -7700,6 +8178,12 @@ const Engine3D = {
             if(this.renderer) this.renderer.shadowMap.needsUpdate = true;
         }
         AppState.sensors.sunlight = isNight ? 0.0 : Math.max(0.05, Math.min(1, sinAlt * 1.2));
+        // v3.2 植被耦合：穴場冠層遮蔽 → 局部日照（不覆寫全域 sunlight，另立感測器供日照維引用）
+        try{
+            const _sh = ((typeof Physics !== 'undefined' && Physics.canopyShadeAt) ? Physics.canopyShadeAt(effLairAnchor()[0], effLairAnchor()[1]) : 0);
+            AppState.sensors.canopyShade = Math.round(_sh*100)/100;
+            AppState.sensors.sunlightLocal = isNight ? 0 : Math.max(0.02, Math.min(1, AppState.sensors.sunlight * (1 - _sh)));
+        }catch(eCS){ AppState.sensors.canopyShade = 0; AppState.sensors.sunlightLocal = AppState.sensors.sunlight; }
     },
     clearHeatmap() {
         if(this.hCtx) {
@@ -9726,17 +10210,22 @@ const Engine3D = {
             this.treeMesh.count = treeCount; 
             this.treeMesh.instanceMatrix.needsUpdate = true;
             this.treeDensity = new Float32Array(64*64);
+            this.treeCanopyH = new Float32Array(64*64);
             for(let tp of this.treePos){
                 let tgx=Math.max(0, Math.min(63, Math.floor((tp.x+CONFIG.tSize/2)/CONFIG.tSize*64)));
                 let tgz=Math.max(0, Math.min(63, Math.floor((tp.z+CONFIG.tSize/2)/CONFIG.tSize*64)));
                 this.treeDensity[tgz*64+tgx]++;
+                const _ch = (tp.scale||1) * 3.2;                      // 樹高代理 ≈ 樹身尺度 × 3.2m
+                if(_ch > this.treeCanopyH[tgz*64+tgx]) this.treeCanopyH[tgz*64+tgx] = _ch;
                 for(let dz2=-1; dz2<=1; dz2++) for(let dx2=-1; dx2<=1; dx2++){
                     let nx=tgx+dx2, nz=tgz+dz2;
                     if(nx>=0&&nx<64&&nz>=0&&nz<64&& (dx2!==0||dz2!==0)){
                         this.treeDensity[nz*64+nx]+=0.25;
+                        if(_ch*0.7 > this.treeCanopyH[nz*64+nx]) this.treeCanopyH[nz*64+nx] = _ch*0.7;
                     }
                 }
             }
+            if(Physics && Physics.computeRoughnessField) Physics.computeRoughnessField();
         }
         if (this.rockMesh) {
             let rockCount = 0;
@@ -11166,7 +11655,14 @@ const Engine3D = {
             return;
         }
         this.dragonLineMesh.visible=true;
-        let pts=this.extractDragonRidge(100);
+        // v3.2 龍脊來源可切換：generated=作者配方脊線　emergent=地形湧現之 A* 龍脈（見 Engine3D.dragonRidgeExtract）
+        const _useEm = (AppState.current.dragonSpineSource === 'emergent');
+        let _emEx = null;
+        if(_useEm){
+            try{ _emEx = this.dragonRidgeExtract ? this.dragonRidgeExtract() : null; }catch(eEM){}
+        }
+        const _emOk = !!(_emEx && _emEx.ok && _emEx.path && _emEx.path.length >= 8);
+        let pts = (_useEm && _emOk) ? _emEx.path : this.extractDragonRidge(100);
         if(!pts) return;
         let pos=this.dragonLineMesh.geometry.attributes.position.array;
         let cols=this.dragonLineMesh.geometry.attributes.color.array;
@@ -11177,14 +11673,28 @@ const Engine3D = {
             [0.83, 0.63, 0.09], 
             [0.0, 0.8, 1.0]      
         ];
+        // 實測脈：依量測段型上色（行龍綠／開帳金／過峽藍／束氣黃／跌斷紅／轉向褐）
+        const emColorOf = (frac) => {
+            const m = { '行龍':[0.24,0.55,0.38], '開帳':[0.9,0.72,0.2], '過峽':[0.15,0.6,0.82],
+                        '束氣':[1.0,0.84,0.1], '跌斷':[0.75,0.2,0.15], '急落':[0.85,0.35,0.2],
+                        '轉向':[0.62,0.48,0.28] };
+            return m[frac] || [0.8,0.8,0.8];
+        };
         for(let i=0;i<100;i++){
-            let p=pts[Math.min(pts.length-1, Math.floor(i/100*pts.length))];
+            const _fi = Math.min(pts.length-1, Math.floor(i/100*pts.length));
+            let p=pts[_fi];
             pos[i*3]=p.x; pos[i*3+1]=p.y+1.2; pos[i*3+2]=p.z;
-            const _segOf = [0,1,2,2,3,4];
-            const segIdx = _segOf[Math.min(5, Math.floor(i / 100 * 6))];
-            cols[i*3] = segColors[segIdx][0];
-            cols[i*3+1] = segColors[segIdx][1];
-            cols[i*3+2] = segColors[segIdx][2];
+            let col;
+            if(_useEm && _emOk && _emEx.segments && _emEx.segments.length){
+                let hit = null;
+                for(const s of _emEx.segments){ if(_fi >= s.startIdx && _fi <= s.endIdx){ hit = s.type; break; } }
+                col = emColorOf(hit);
+            } else {
+                const _segOf = [0,1,2,2,3,4];
+                const segIdx = _segOf[Math.min(5, Math.floor(i / 100 * 6))];
+                col = segColors[segIdx];
+            }
+            cols[i*3] = col[0]; cols[i*3+1] = col[1]; cols[i*3+2] = col[2];
         }
         this.dragonLineMesh.geometry.attributes.position.needsUpdate=true;
         this.dragonLineMesh.geometry.attributes.color.needsUpdate=true;
@@ -11210,6 +11720,38 @@ const Engine3D = {
                 else _mkM2.visible = false;
             });
             this.dragonMarkerGroup.visible = true;
+        }
+        // v3.2 實測龍脈標記（獨立群組）：祖山(金)＝實測脈起點　過峽(藍)　束氣(黃)　止穴(白)
+        // 僅在「龍脊來源＝實測湧現」且實測脈可用時顯示，避免與作者配方軸線混淆。
+        if(typeof THREE !== 'undefined' && !this.dragonEmergentGroup){
+            this.dragonEmergentGroup = new THREE.Group();
+            const _emSpec = [ ['祖山(實測)', 0xb98a2e, 2.8], ['過峽(實測)', 0x1d758f, 2.2], ['束氣(實測)', 0xffd700, 2.2], ['止穴(實測)', 0xffffff, 2.0] ];
+            for(const [_n2, _c2, _r2] of _emSpec){
+                const _m2 = new THREE.Mesh(new THREE.RingGeometry(_r2*0.7, _r2, 14), new THREE.MeshBasicMaterial({ color: _c2, transparent:true, opacity:0.95, side: THREE.DoubleSide, depthTest:false }));
+                _m2.userData.emName = _n2;
+                _m2.renderOrder = 999;
+                this.dragonEmergentGroup.add(_m2);
+            }
+            this.scene.add(this.dragonEmergentGroup);
+        }
+        if(this.dragonEmergentGroup){
+            const _show = (_useEm && _emOk);
+            this.dragonEmergentGroup.visible = _show;
+            if(_show){
+                const _segs = (_emEx.segments || []);
+                const _pick = (t) => { const s = _segs.find(x => x.type === t); return s ? s.to : null; };
+                const _pm = {
+                    '祖山(實測)': _emEx.path[0],
+                    '過峽(實測)': _pick('過峽'),
+                    '束氣(實測)': _pick('束氣'),
+                    '止穴(實測)': _emEx.path[_emEx.path.length-1]
+                };
+                this.dragonEmergentGroup.children.forEach(_m3 => {
+                    const _p3 = _pm[_m3.userData.emName];
+                    if(_p3){ _m3.visible = true; _m3.position.set(_p3.x, (_p3.y||0)+2.8, _p3.z); _m3.rotation.x = -Math.PI/2; }
+                    else _m3.visible = false;
+                });
+            }
         }
     },
     updateBettiClosureCache(){
@@ -11506,7 +12048,80 @@ const Physics = {
             }
         }
     },
+    // ===== v3.2 植被耦合（審計 P2-6）：樹 → 空氣動力粗糙度場 z0 → 風速對數剖面阻尼 ＋ 冠層日照遮蔽 =====
+    // 由 treeDensity/treeCanopyH（實際種植結果，非機率）建立 64×64 粗糙度場；
+    // 供 3D 風場、2D 風場與日照遮蔽共用，使植栽成為真正的物理量而非貼圖。
+    computeRoughnessField(){
+        const G = 64;
+        const dens = (typeof Engine3D !== 'undefined') ? Engine3D.treeDensity : null;
+        const canH = (typeof Engine3D !== 'undefined') ? Engine3D.treeCanopyH : null;
+        const z0 = new Float32Array(G*G), cov = new Float32Array(G*G), hgt = new Float32Array(G*G);
+        if(dens){
+            for(let i=0; i<G*G; i++){
+                const h = canH ? (canH[i] || 0) : 0;
+                const d = dens[i] || 0;
+                hgt[i] = h;
+                // 冠層覆蓋率：密度 6 棵/格以上視為鬱閉
+                cov[i] = Math.max(0, Math.min(1, d / 6));
+                // 空氣動力粗糙度長度 z0：草/裸地 0.03m → 密林 h/8（上限 4m）
+                z0[i] = 0.03 + (h > 0.5 ? Math.min(4.0, h * cov[i] / 8) : 0);
+            }
+        } else {
+            z0.fill(0.03); cov.fill(0); hgt.fill(0);
+        }
+        this.roughField = { z0, cov, hgt, g: G, rev: (typeof Engine3D !== 'undefined' ? (Engine3D.hMapRev||0) : 0), treeRev: (typeof Engine3D !== 'undefined' && Engine3D.treeDensity) ? 1 : 0 };
+        return this.roughField;
+    },
+    // 確保粗糙度場為最新（樹為 UI.buildTerrain 所種，故此處做存在性＋世代自癒）
+    ensureRoughField(){
+        const cur = this.roughField;
+        const treed = (typeof Engine3D !== 'undefined' && Engine3D.treeDensity) ? 1 : 0;
+        if(!cur || cur.treeRev !== treed || cur.rev !== ((typeof Engine3D !== 'undefined' ? (Engine3D.hMapRev||0) : 0))){
+            return this.computeRoughnessField();
+        }
+        return cur;
+    },
+    // 雙線性取樣冠層覆蓋率／粗糙度（世界座標）
+    _roughAt(x, z){
+        const rf = this.roughField;
+        if(!rf) return { cov: 0, z0: 0.03, h: 0 };
+        const G = rf.g, size = CONFIG.tSize;
+        let fx = (x + size/2)/size*G - 0.5, fz = (z + size/2)/size*G - 0.5;
+        fx = Math.max(0, Math.min(G-1.001, fx)); fz = Math.max(0, Math.min(G-1.001, fz));
+        const x0 = fx|0, z0i = fz|0, tx = fx-x0, tz = fz-z0i;
+        const i00 = z0i*G+x0, i10 = i00+1, i01 = i00+G, i11 = i01+1;
+        const bl = (arr) => (arr[i00]*(1-tx) + arr[i10]*tx)*(1-tz) + (arr[i01]*(1-tx) + arr[i11]*tx)*tz;
+        return { cov: bl(rf.cov), z0: bl(rf.z0), h: bl(rf.hgt) };
+    },
+    // 冠層對風速之對數律阻尼：u/u0 = ln(y/z0)/ln(y/z0_ref)，並抑制 z0 以下之風
+    vegetationFactor(x, z, y){
+        const rf = this.roughField;
+        if(!rf) return 1;
+        const s = this._roughAt(x, z);
+        if(s.cov <= 0.001) return 1;
+        const z0b = 0.03, z0 = Math.max(z0b, Math.min(4.0, s.z0));
+        const lnRef = Math.log(10 / z0b);
+        const lnHere = Math.log(Math.max(y, z0*1.05) / z0);
+        const fLog = Math.max(0.15, Math.min(1, lnHere / lnRef));
+        let fDen = 1;
+        if(y < s.h) fDen = 0.35 + 0.65 * Math.max(0, y) / Math.max(1, s.h);  // 冠層內風速剖面
+        return fLog * fDen;
+    },
+    // 冠層遮蔽：被樹冠擋住的日光比例（含太陽高度角，低日照角遮蔽更強）
+    canopyShadeAt(x, z){
+        const rf = this.roughField;
+        if(!rf) return 0;
+        const s = this._roughAt(x, z);
+        if(s.cov <= 0.001) return 0;
+        const alt = (AppState.sensors && AppState.sensors.solarAltitude != null) ? AppState.sensors.solarAltitude : 45;
+        const altRad = Math.max(0.05, Math.min(Math.PI/2, alt*Math.PI/180));
+        // 低太陽高度角 → 光線斜穿更厚冠層 → 遮蔽更強
+        const pathF = Math.min(3.0, 1/Math.max(0.25, Math.sin(altRad)));
+        return Math.max(0, Math.min(1, s.cov * pathF * 0.65));
+    },
     _updateWindGrid3D(dt, baseWind, windVX, windVZ){
+        // v3.2 植被耦合：開算前確保粗糙度場為最新（自癒，避免順序依賴）
+        try{ if(this.ensureRoughField) this.ensureRoughField(); }catch(eRF){}
         const NX = this.wind3DSize, NY = this.wind3DLayers;
         const idx3 = (h, gz, gx) => (h * NX + gz) * NX + gx;
         const state = AppState.current;
@@ -11526,7 +12141,9 @@ const Physics = {
                     const _isWaterCol = t.y <= (((state.d === 'pingyang') ? -3.5 : -12.0) + 0.3);
                     const _alphaCol = _isWaterCol ? 0.10 : (_slopeCol > 1.2 ? 0.22 : 0.16);
                     const _prof = Math.pow(Math.max(0.2, yL) / 10.0, _alphaCol);
-                    const stream = baseWind * _prof * Math.exp(-obst * 1.2);
+                    // v3.2 植被耦合：冠層對數律阻尼（粗糙度場 z0），使植栽真正改變風場
+                    const _veg = this.vegetationFactor(wx, wz, yL);
+                    const stream = baseWind * _prof * _veg * Math.exp(-obst * 1.2);
                     if(h === 0){
                         const upwindH = Engine3D.getTerrainY(wx - (windVX != null ? windVX : 1) * cellSize * 3, wz - (windVZ || 0) * cellSize * 3).y;
                         const drop = Math.max(0, upwindH - t.y);
