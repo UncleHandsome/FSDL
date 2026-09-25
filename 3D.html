@@ -58,7 +58,7 @@ body { margin: 0; overflow: hidden; background: var(--bg-dark); color: var(--tex
 .preset-btn { border-color: #5a8a69 !important; color: #5a8a69 !important; font-weight: bold; }
 .preset-btn:hover { background: #5a8a69 !important; color: #ffffff !important; }
 input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); background: transparent; cursor: pointer; }
-/* ===== 右側面板 v3.3 重新設計：語義分頁＋組徽章＋保留記憶 ===== */
+/* ===== 右側面板 v3.3 重新設計：語義分頁＋籤徽章＋保留記憶 ===== */
 #panel-right { --rp-w: 306px; position: absolute; top: 10px; right: 10px; width: var(--rp-w); max-height: calc(100vh - 20px); display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 1000; }
 .right-scroll-area { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; scrollbar-width: thin; scrollbar-color: var(--jade) #ddd; padding-right: 2px; }
 .right-scroll-area::-webkit-scrollbar { width: 4px; }
@@ -329,11 +329,11 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <button class="rp-tab" data-tab="qi" role="tab" title="氣煞：形煞物理代理、體素熱力、語義分析圖"><span class="rp-tab-ico">⚡</span><span class="rp-tab-txt">氣煞</span><span class="rp-tab-badge" data-badge-for="sha">—</span></button>
         <button class="rp-tab" data-tab="liqi" role="tab" title="向盤：玄空飛星、理氣分冊、免責聲明"><span class="rp-tab-ico">☯</span><span class="rp-tab-txt">向盤</span><span class="rp-tab-badge" data-badge-for="flystar">—</span></button>
     </nav>
-
     <div class="rp-pages" id="rp-pages">
 
     <!-- ===== 總覽 ===== -->
     <section class="rp-page on" data-page="overview">
+
         <details class="box" data-rp="score" open>
             <summary><span style="color:var(--gold);">◈ 五訣總評</span><span class="rp-badge" id="v-badge">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
@@ -374,6 +374,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 
     <!-- ===== 龍脈 ===== -->
     <section class="rp-page" data-page="dragon">
+
         <details class="box" id="dragon-check-box" data-rp="dragon" open>
             <summary><span style="color:var(--jade);">◈ 龍脈連續性</span><span class="rp-badge" id="dragon-check-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
@@ -393,7 +394,6 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
                 <div class="rp-hint">十項證據＋龍力/龍止（山龍：祖山→…→水界→龍力→龍止）全由地形/水文實測；平洋自動切換水龍版（水網/微高/界水/交會/去水/洪泛/排水）。龍勢選項僅為生成傾向。可信度：證據計分。</div>
             </div>
         </details>
-
         <details class="box" id="dragon-emerge-box" data-rp="dragonemerge" open>
             <summary><span style="color:#1d758f;">◈ 湧現龍脈（實測脈）</span><span class="rp-badge" id="dragon-emerge-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
@@ -407,11 +407,12 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 
     <!-- ===== 堂穴 ===== -->
     <section class="rp-page" data-page="tang">
+
         <details class="box" id="mt-mul-box" data-rp="mt" open>
             <summary><span style="color:var(--gold);">◈ 明堂多維</span><span class="rp-badge" id="mt-mul-overall">—</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
                 <div id="mt-mul-list"></div>
-                <div class="rp-hint">8子指標加權幾何平均（容積/閉合/案山/水口/傾瀉/平坦/聚水/破碎）；聚水度＝水文場覆蓋×活水×洪泛（v3.1 場量化，不再讀標籤）；水口收束度＝束窄×0.62＋關鎖層數×0.38（v3.2）</div>
+                <div class="rp-hint">8子指標加權幾何平均（容積/閉合/案山/水口/傾瀉/平坦/聚水/破碎）；聚水度＝水文場覆蓋×活水×洪泛（v3.1 場量化，不再讀標籤）</div>
                 <details class="rp-note"><summary>公式·權重·閾值</summary>
                   <div style="margin-top:3px; line-height:1.4;">
                     公式: <code>明堂 =100×exp(Σ wᵢ·ln(max(0.02,分ᵢ/100)))×凶形乘數（P0-1 已修 floor(1) 撈起）</code><br>
@@ -440,12 +441,13 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 
     <!-- ===== 氣煞 ===== -->
     <section class="rp-page" data-page="qi">
-        <details class="box" id="shape-sha-box" data-rp="sha" open>
+
+        <details class="box" id="shape-sha-box" data-rp="sha">
             <summary><span style="color:var(--ink);">◈ 形煞物理代理</span><span class="rp-badge" id="sha-badge">8類</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
                 <div id="shape-sha-list"></div>
                 <details class="rp-note"><summary>成立條件·凶化程度</summary>
-                  <div style="margin-top:3px; line-height:1.4;">天斬: 狹管幾何多維(隙寬/兩側高差/風向對正)＋venturi 實測<br>探頭: 多距離取樣最高凸出＋尖削度＋距離衰減<br>擎拳: 近距陡峭高差代理（heightfield 無真懸挑）<br>凹風: 凹面曲率×風向對齊×場證據(豁口×實測風)<br>孤峰: 16方位風向加權暴露度（連續懲罰，非 8/8 布林）<br>刀削: 壁高×橫向廣度×意態×距離衰減<br>射肋: 側翼 25m 對稱高凸＋稜線銳度<br>蜈蚣: 沿脊凸齒計數(≥5)＋曲率差意態<br>植被耦合: 冠層 z0 粗糙度場對數律風阻尼＋日照遮蔽（v3.2）</div>
+                  <div style="margin-top:3px; line-height:1.4;">天斬: 狹管幾何多維(隙寬/兩側高差/風向對正)＋venturi 實測<br>探頭: 多距離取樣最高凸出＋尖削度＋距離衰減<br>擎拳: 近距陡峭高差代理（heightfield 無真懸挑）<br>凹風: 凹面曲率×風向對齊×場證據(豁口×實測風)<br>孤峰: 16方位風向加權暴露度（連續懲罰，非 8/8 布林）<br>刀削: 壁高×橫向廣度×意態×距離衰減<br>射肋: 側翼 25m 對稱高凸＋稜線銳度<br>蜈蚣: 沿脊凸齒計數(≥5)＋曲率差意態</div>
                 </details>
             </div>
         </details>
@@ -462,7 +464,8 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
 
     <!-- ===== 向盤·參考 ===== -->
     <section class="rp-page" data-page="liqi">
-        <details class="box" id="flystar-box" data-rp="flystar" open>
+
+        <details class="box" id="flystar-box" data-rp="flystar">
             <summary><span style="color:var(--gold);">◈ 玄空飛星盤</span><span class="rp-badge" id="flystar-yun">九運</span><span class="rp-arrow">▶</span></summary>
             <div class="rp-body">
                 <div id="flystar-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:3px; font-size:10px; text-align:center;"></div>
@@ -480,48 +483,44 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
     </section>
 
     </div>
-</div>
 <script>
 (function(){
     try{
         var KEY='dsh_rp_open_v2';
         var saved={}; try{ saved=JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){}
         var state={ tab: saved.tab || 'overview', open: saved.open || {} };
-        function persist(){
-            try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
-        }
+        function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
         var tabs=document.querySelectorAll('#rp-tabs .rp-tab');
         var pages=document.querySelectorAll('#rp-pages .rp-page');
         function showTab(name, initial){
             var ok=false;
             tabs.forEach(function(t){ var on=(t.getAttribute('data-tab')===name); t.classList.toggle('on', on); if(on) ok=true; });
             pages.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-page')===name); });
-            if(!ok){ // 未知分頁 → 回退總覽
+            if(!ok){
                 name='overview';
                 tabs.forEach(function(t){ t.classList.toggle('on', t.getAttribute('data-tab')==='overview'); });
                 pages.forEach(function(p){ p.classList.toggle('on', p.getAttribute('data-page')==='overview'); });
             }
             state.tab=name; if(!initial) persist();
         }
+        window.__rpShowTab = showTab;
+        var _pagesRedraw = { overview: function(){ try{ var c=document.getElementById('radar'); if(c && UI.drawRadar) UI.drawRadar(); }catch(e){} },
+                             qi: function(){ try{ UI.renderVoxelHeat && UI.renderVoxelHeat(); }catch(e){} },
+                             tang: function(){ try{ UI.renderSoilProfile && UI.renderSoilProfile(); UI.renderXueCert && UI.renderXueCert(); }catch(e){} } };
+        window.__rpAfterTab = function(name){ var f=_pagesRedraw[name]; if(f) setTimeout(f, 30); };
         tabs.forEach(function(t){
-            t.addEventListener('click', function(){ t.blur(); showTab(t.getAttribute('data-tab')); });
+            t.addEventListener('click', function(){
+                t.blur();
+                showTab(t.getAttribute('data-tab'));
+                window.__rpAfterTab(t.getAttribute('data-tab'));
+            });
         });
-        // 各區塊開合記憶（沿用 v3.1 行為，改存於 v2 結構）
         document.querySelectorAll('#panel-right details[data-rp]').forEach(function(d){
             var k=d.getAttribute('data-rp');
             if(typeof state.open[k]==='boolean') d.open=state.open[k];
             d.addEventListener('toggle',function(){ state.open[k]=d.open; persist(); });
         });
         showTab(state.tab, true);
-        window.__rpShowTab = showTab;
-        // 分頁切換後，該頁 canvas 需重繪（display:none 期間 renderer 會略過）
-        var _pagesRedraw = { overview: function(){ try{ var c=document.getElementById('radar'); if(c && UI.drawRadar) UI.drawRadar(); }catch(e){} },
-                             qi: function(){ try{ UI.renderVoxelHeat && UI.renderVoxelHeat(); }catch(e){} },
-                             tang: function(){ try{ UI.renderSoilProfile && UI.renderSoilProfile(); UI.renderXueCert && UI.renderXueCert(); }catch(e){} } };
-        window.__rpAfterTab = function(name){ var f=_pagesRedraw[name]; if(f) setTimeout(f, 30); };
-        tabs.forEach(function(t){
-            t.addEventListener('click', function(){ window.__rpAfterTab(t.getAttribute('data-tab')); });
-        });
         window.__rpAfterTab(state.tab);
     }catch(e){}
 })();
@@ -634,7 +633,6 @@ function createDefaultSensors() {
         qiDensity: 0, windSpeed: 0, turbulence: 0, waterDrag: 0,
         shannonEntropy: 0, betti1Closure: 0, sunlight: 1.0, staleQi: 0,
         phreatic: 0, helicity: 0, coanda: 0, venturi: 0,
-        canopyShade: 0, sunlightLocal: 1.0,
         tensorFrac: 0, thermalShear: 0, downdraft: 0, waveletSpike: 0, anabatic: 0,
         coriolisCrash: 0, darcyDrag: 0, boundarySep: 0, bounce: 0,
         airChangeRate: 0, frostRisk: 0
@@ -655,6 +653,14 @@ function effLairAnchor() {
         st.manualXue ? (st.xueX || 0) : 0,
         (st.manualXue ? st.xueZ : 5.0) - (st.d !== 'pingyang' ? (st.xueHeight || 0) * 1.5 : 0)
     ];
+}
+function qiWaterLevel(state) {
+    const st = state || AppState.current;
+    if (typeof Engine3D !== 'undefined' && typeof Engine3D.waterLevelNow === 'function') {
+        const v = Engine3D.waterLevelNow(st);
+        if (typeof v === 'number' && isFinite(v)) return v;
+    }
+    return (st.d === 'pingyang') ? -3.5 : -12.0;
 }
 const AppState = {
     current: { ...CONFIG.baseState },
@@ -747,66 +753,96 @@ const AppState = {
         UI.update(true);
         Physics.resetParticles();
         Engine3D.clearHeatmap();
-        // v3.4：隨機平吉在地形建好後做地形感知驗收（舊版篩選讀的是上一張地形，等同沒篩）
-        if(presetName === 'random_auspicious') this.healAuspiciousTerrain();
+        // v3.4：隨機平吉在地形建好後做地形感知驗收（舊版篩選讀的是上一張地形，等同沒篩）；
+        // 非平吉（純隨機／具名格局）呼叫僅為清除驗收狀態，避免殘留
+        this.healAuspiciousTerrain();
     },
-    // v3.4 隨機平吉「地形感知」驗收
+
+    // v3.4 隨機平吉「地形感知」驗收（best-of-N）
     // ---------------------------------------------------------------------------
     // 舊版缺陷：generateAuspiciousPreset() 的自我篩選用 Rules.isFatalSha(testObj) 判斷，
     // 但 isFatalSha 會讀「當前已建地形」的脊網/砂體拓撲/實測龍勢——即上一張地形，
     // 不是這個候選會生成的地形。實測：同一候選在 buildTerrain 前 isFatalSha=false，
-    // buildTerrain 後變 true（且實測龍勢為 'po' 破碎、蜈蚣脊 75 分）。
-    // 因此舊篩選等於沒篩，Shift+G 常產出 大凶・形煞沖射（實測 8 次中 6 次）。
-    // 修法：候選先照舊生成並建地形，再於「地形就緒後」實測真正的吉凶指標；
-    // 不通過就換種子重建，直到通過或達嘗試上限。
+    // buildTerrain 後變 true（實測龍勢 'po' 破碎、蜈蚣脊 75 分）。故舊篩選等於沒篩，
+    // Shift+G 實測 8 次中 6 次為「大凶・形煞沖射」。
+    // 修法：候選照舊生成並建地形後，於「地形就緒」實測真正吉凶指標；不合格換種子重試，
+    // 並全程記錄最佳候選（best-of-N）——即使全部不合格也回饋最好的一張，而非最後一張。
     // ---------------------------------------------------------------------------
     healAuspiciousTerrain(){
         try{
-            if(this._healBusy) return;                          // 防遞迴
-            if(this.current.presetName !== 'random_auspicious') return;
+            if(this._healBusy) return;                                   // 防遞迴
+            if(this.current.presetName !== 'random_auspicious'){
+                this._healReset(); return;                               // 非平吉：清除狀態即可
+            }
+            if(this._healFinal){
+                // 搜尋已結束：這次呼叫是「回復最佳候選」的重建，只做回報
+                const pb = this._healFinal; this._healFinal = null;
+                this._healAttempt = 0; this._healBest = null;
+                this._healInfo = { attempt: pb.attempt, mult: pb.mult, shaOver: pb.shaOver, shi: pb.shi,
+                                   fatal: pb.fatal, drowned: pb.drowned, gaveUp: true,
+                                   restoredBest: pb, healed: false };
+                return;
+            }
             const cand = (typeof Rules !== 'undefined') ? Rules._lastAuspiciousCandidate : null;
-            if(!cand || cand.presetSeed !== this.current.presetSeed) return;  // 只驗本次生成者
+            if(!cand || cand.presetSeed !== this.current.presetSeed) return;   // 只驗本次生成者
             this._healBusy = true;
             try{
-                // 實際地形就緒後的吉凶指標（皆為場/幾何實測）
+                const st = this.current;
+                const isPy = (st.d === 'pingyang' || st.sceneMode === 'pingyang');
                 let fatal = false;
-                try{ fatal = !!Rules.isFatalSha(this.current); }catch(e){ fatal = false; }
+                try{ fatal = !!Rules.isFatalSha(st); }catch(e){ fatal = false; }
                 const mult = (()=>{ try{ return Rules.getGlobalMultiplier(); }catch(e){ return 1; } })();
                 const sha = (()=>{ try{ return Rules.shapeShaProxies(); }catch(e){ return null; } })();
                 const shaOver = sha ? Object.keys(sha).filter(k => sha[k] && sha[k].score >= 70) : [];
                 const shi = (()=>{ try{ return Rules.dragonShiLevel(); }catch(e){ return null; } })();
-                const shiBad = (shi === 'po' || shi === 'si' || shi === 'gufeng');
-                const bad = fatal || shiBad || mult < 0.45 || shaOver.length > 0;
+                const shiBad = !isPy && (shi === 'po' || shi === 'si' || shi === 'gufeng');
+                // 穴心不得貼近／低於水面（平洋隨機微地形常把穴心壓到水下 → 積水＋割腳硬否決）
+                let drowned = false, lairY = null, wl = null;
+                try{
+                    const [ax2, az2] = effLairAnchor();
+                    lairY = Engine3D.getTerrainY(ax2, az2).y;
+                    wl = Engine3D.waterLevelNow ? Engine3D.waterLevelNow(st) : null;
+                    if(st.w !== 'none' && wl != null) drowned = (lairY < wl + 1.2);
+                }catch(eD){}
+                const bad = (isPy ? fatal : (fatal || shiBad)) || drowned || mult < 0.45 || shaOver.length > 0;
                 const attempt = (this._healAttempt = (this._healAttempt || 0) + 1);
-                const MAXA = 5;                                  // 含首建共最多 6 次
-                this._healInfo = { attempt, fatal, mult: Math.round(mult*1000)/1000, shaOver, shi, healed: false };
-                if(!bad){
-                    this._healInfo.healed = (attempt > 1);
-                    this._healAttempt = 0;
+                const MAXA = 12;                                          // 最多 13 張地形（每張約 0.27s）
+                // 評分：合格者 +1000 必勝；再以乘數、硬煞、否決逐項折減
+                const score = (bad ? 0 : 1000) + mult * 60 - shaOver.length * 25
+                            - (fatal ? 120 : 0) - (drowned ? 90 : 0) - (shiBad ? 40 : 0);
+                this._healInfo = { attempt, fatal, mult: Math.round(mult*1000)/1000, shaOver, shi,
+                                   healed: false, drowned, score: Math.round(score),
+                                   lairY: lairY != null ? Math.round(lairY*100)/100 : null,
+                                   waterLevel: wl != null ? Math.round(wl*100)/100 : null };
+                if(!this._healBest || score > this._healBest.score){
+                    this._healBest = { score, seed: st.presetSeed, d: st.d, attempt,
+                                       mult: this._healInfo.mult, fatal: !!fatal, drowned: !!drowned,
+                                       shi, shaOver: shaOver.slice(0) };
+                }
+                if(!bad){ this._healInfo.healed = (attempt > 1); this._healReset(); this._healBusy = false; return; }
+                if(attempt <= MAXA){
                     this._healBusy = false;
+                    Rules._presSeed = (Math.random() * 1e9) | 0;           // 換新種子重生成
+                    this.resetTo('random_auspicious');
                     return;
                 }
-                if(attempt > MAXA){
-                    // 放棄：誠實回報（不假裝吉）
-                    this._healInfo.gaveUp = true;
-                    this._healAttempt = 0;
-                    this._healBusy = false;
-                    try{ Engine3D.showToast('⚠️ 隨機平吉：已嘗試 ' + attempt + ' 次仍未取得平吉格局<br><span style="font-size:11px;">實測全局乘數 ' + this._healInfo.mult + (shaOver.length ? ('・硬煞 ' + shaOver.join('/')) : '') + (shiBad ? ('・龍勢實測「' + shi + '」') : '') + '，此為目前最佳候選</span>', 4200); }catch(e){}
+                // 用盡預算：回復最佳候選（而非最後一張），並誠實標示為「已盡力」
+                const best = this._healBest;
+                this._healInfo.gaveUp = true;
+                this._healAttempt = 0; this._healBest = null; this._healBusy = false;
+                if(best && best.seed !== st.presetSeed){
+                    this._healFinal = best;
+                    Rules._presSeed = best.seed;
+                    this.resetTo('random_auspicious');
                     return;
                 }
-                this._healBusy = false;
-                // 換新種子重生成（resetTo 內會再次呼叫本函式驗收）
-                Rules._presSeed = (Math.random() * 1e9) | 0;
-                this.resetTo('random_auspicious');
+                try{ Engine3D.showToast('⚠️ 隨機平吉：已嘗試 ' + attempt + ' 張地形仍未取得平吉格局<br><span style="font-size:11px;">已回饋最佳候選：全局乘數 ' + this._healInfo.mult + (shaOver.length ? ('・硬煞 ' + shaOver.join('/')) : '') + (drowned ? ('・穴心貼水(' + this._healInfo.lairY + 'm/水位' + this._healInfo.waterLevel + 'm)') : '') + '</span>', 4200); }catch(e){}
                 return;
-            }catch(e){
-                this._healBusy = false;
-            }
+            }catch(e){ this._healBusy = false; }
             this._healBusy = false;
-        }catch(e){
-            this._healBusy = false;
-        }
+        }catch(e){ this._healBusy = false; }
     },
+    _healReset(){ this._healAttempt = 0; this._healInfo = null; this._healBest = null; this._healFinal = null; },
     prevHistory() {
         if (this.historyIndex > 0) {
             this.historyIndex--;
@@ -837,7 +873,7 @@ const Rules = {
             if(typeof Engine3D !== 'undefined' && Engine3D.getTerrainY && Engine3D.hMap){
                 const [ax, az] = effLairAnchor();
                 const ay = Engine3D.getTerrainY(ax, az).y;
-                const waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+                const waterLevel = qiWaterLevel(st);
                 // P0-R1c（v3.1）積水誤判修正（二段精修）：穴場尺度積水＝穴心 6m 內滯水（近環）；
                 // 6~12m 的低窪/鄰谷不論深淺皆不構成穴場積水（水低於穴不犯積水，割腳由 (d) 場證據判定）。
                 // 近環滯水需「閉塞成盆」或水文場證實有水才成硬煞；開敞淺窪僅記錄軟證據。
@@ -863,12 +899,12 @@ const Rules = {
                         if(hh > pondY + 0.3) closedCnt++;
                     }
                     let hydroWet = false;
-                    try{ const _hyP = Engine3D.hydroField ? Engine3D.hydroField(pondX, pondZ) : null; hydroWet = !!(_hyP && _hyP.depth > 0.05); }catch(eHP){}
-                    if(closedCnt >= 10 || hydroWet){
-                        hazardVeto = true; hazardReasons.push('穴場積水(6m內滯水' + pondDepN.toFixed(1) + 'm·' + (hydroWet ? '水文場有水' : ('閉塞' + closedCnt + '/16')) + ')');
+                    try{ const _hyP = Engine3D.hydroField ? Engine3D.hydroField(pondX, pondZ) : null; hydroWet = !!(_hyP && (_hyP.floodRisk > 0.25 || _hyP.depth > 1.2)); }catch(eHP){}
+                    if(hydroWet){
+                        hazardVeto = true; hazardReasons.push('穴場積水(6m內滯水' + pondDepN.toFixed(1) + 'm·水文場有水)');
                     } else {
                         if(!st._softFieldHazards) st._softFieldHazards = [];
-                        st._softFieldHazards.push('低窪未閉塞(深' + pondDepN.toFixed(1) + 'm·環帶僅' + closedCnt + '/16高起·非滯水)');
+                        st._softFieldHazards.push((closedCnt >= 10 ? '閉塞盆地(非滯水)' : '低窪未閉塞') + '(深' + pondDepN.toFixed(1) + 'm·環帶' + closedCnt + '/16高起)');
                     }
                 } else if(pondDepF >= 0.6){
                     if(!st._softFieldHazards) st._softFieldHazards = [];
@@ -897,13 +933,13 @@ const Rules = {
                     const drop = hNear - hFar;
                     if(drop > maxCliff) maxCliff = drop;
                 }
-                if(maxCliff >= 6.0){
+                if(maxCliff >= 10.0){
                     hazardVeto = true; hazardReasons.push('崖下落石(後陡崖落差' + maxCliff.toFixed(1) + 'm)');
                 }
                 if(st.w !== 'none' && st.w !== 'lintou'){
                     const frontLow = Engine3D.getTerrainY(ax + fx*5, az + fz*5).y;
                     let _frontFlood = null;
-                    try{ const _hfF = Engine3D.hydroField ? Engine3D.hydroField(ax + fx*5, az + fz*5) : null; if(_hfF && typeof _hfF.floodLevel === 'number' && _hfF.depth > 0) _frontFlood = _hfF.floodLevel; }catch(e){}
+                    try{ const _hfF = Engine3D.hydroField ? Engine3D.hydroField(ax + fx*5, az + fz*5) : null; if(_hfF && typeof _hfF.floodLevel === 'number' && _hfF.floodRisk > 0.25) _frontFlood = _hfF.floodLevel; }catch(e){}
                     const _effWater = (_frontFlood !== null) ? Math.max(waterLevel, _frontFlood) : waterLevel; 
                     if(frontLow <= _effWater + 0.5 && ay > _effWater + 0.3){
                         hazardVeto = true; hazardReasons.push('割腳水(穴前水面浸至穴腳' + (_frontFlood !== null && _frontFlood > waterLevel ? '·含洪水位' : '') + ')');
@@ -922,7 +958,7 @@ const Rules = {
                     if(bgx>=0 && bgx<=segH && bgz>=0 && bgz<=segH){
                         backFlow = Engine3D.flowMap[bgz*(segH+1)+bgx] || 0;
                     }
-                    if(backRise >= 3.2 && (backRise / 5.0) > 0.7 && backFlow > 0.55){
+                    if(backRise >= 3.2 && (backRise / 5.0) > 0.7 && backFlow > 2.5){
                         const _softMitL = st.zhihua && (st.zhihuaType==='phys' || st.zhihuaType==='mix');
                         if(_softMitL){ if(!st._softFieldHazards) st._softFieldHazards = []; st._softFieldHazards.push('淋頭水(場證據)'); }
                         else { hazardVeto = true; hazardReasons.push('淋頭水(後方坡' + ((backRise/5.0)*45).toFixed(0) + '°匯流' + backFlow.toFixed(2) + '灌頂)'); }
@@ -1179,11 +1215,13 @@ const Rules = {
         if(AppState.obstacles.length > 0) {
             let totalObsImpact = 0;
             const [lx, lz] = effLairAnchor();
+            const _wdmObs = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
+            const windAngObs = (((_wdmObs[AppState.current.windDir] != null) ? _wdmObs[AppState.current.windDir] : 270) + 180) * Math.PI / 180;
             AppState.obstacles.forEach(obs => {
                 let dx = obs.mesh.position.x - lx;
                 let dz = obs.mesh.position.z - lz;
                 let dist = Math.sqrt(dx*dx + dz*dz);
-                let ang = Math.atan2(dz,dx); let windAng = ((AppState.current.degree||0)*Math.PI/180); let dirFactor = Math.abs(Math.cos(ang - windAng))*0.5+0.5; let impact = Math.exp(-dist / (18+dirFactor*10));
+                let ang = Math.atan2(dx, -dz); let dirFactor = Math.abs(Math.cos(ang - windAngObs))*0.5+0.5; let impact = Math.exp(-dist / (18+dirFactor*10));
                 totalObsImpact += impact;
             });
             m *= Math.max(0.15, 1.0 - totalObsImpact * 0.45);
@@ -1687,7 +1725,7 @@ const Rules = {
         let lx_in_situ = state.manualXue ? (state.xueX || 0) : 0;
         let lz_in_situ = state.manualXue ? state.xueZ : 5.0;
         let tLairActual = Engine3D.getTerrainY(lx_in_situ, lz_in_situ, Rules._lairT);
-        let waterLevelActual = (state.d === 'pingyang') ? -3.5 : -12.0;
+        let waterLevelActual = qiWaterLevel(state);
         let isLairDrowned = (tLairActual.y <= waterLevelActual + 0.3);
         if (isLairDrowned) {
             X_base = 0;
@@ -1849,7 +1887,7 @@ const Rules = {
         try{
             const _inL = this.inflowAzimuth ? this.inflowAzimuth() : null;
             if(_inL && state.w !== 'none' && state.w !== 'lintou'){
-                const sit24 = Math.floor((deg+7.5)/15)%24;
+                const sit24 = Math.floor((((deg + 180) % 360) + 7.5) / 15) % 24;
                 const SH2 = {16:0,15:0,23:0,0:0,7:0,8:0, 3:1,4:1,11:1,12:1,19:1,20:1, 21:2,22:2,5:2,6:2,13:2,14:2, 9:3,10:3,17:3,18:3,1:3,2:3};
                 const ju2 = (sit24 in SH2) ? SH2[sit24] : 0;
                 const L2 = [16,4,22,10][ju2], W2 = (L2+8)%24;
@@ -1859,15 +1897,13 @@ const Rules = {
         }catch(e){}
         const baSha = (() => { try{ return this.baShaCheck(state.degree, outlet); }catch(e){ return 0; } })();
         if (baSha < -10){ score += baSha * 0.4; notes.push('坐山八煞未化解（' + Math.round(baSha) + '）'); }
-        const _deg15 = Math.floor(deg / 15);
-        const _sub = deg % 15;
-        if (_sub < 1.5 || _sub > 13.5){
+        const _sub = (((deg % 15) + 15) % 15);
+        const _dToCenter15 = Math.min(_sub, 15 - _sub);
+        const _dToBoundary15 = 7.5 - _dToCenter15;
+        if (_dToCenter15 > 4.5){
             notes.push('兼向（非正山正向，需視兼卦吉凶）');
         }
         {
-            const _m15 = (((deg % 15) + 15) % 15);
-            const _dToCenter15 = Math.min(_m15, 15 - _m15);
-            const _dToBoundary15 = 7.5 - _dToCenter15;
             const _m45 = (((deg % 45) + 45) % 45);
             const _dToBoundary45 = 22.5 - Math.min(_m45, 45 - _m45);
             let _fk = (_dToBoundary15 < 2.0 ? -2 : (_dToBoundary15 > 5.5 ? 2 : 0)); 
@@ -1886,10 +1922,10 @@ const Rules = {
         }
         try{
             const _fly = (typeof UI !== 'undefined' && UI.buildFlyStarGrid) ? UI.buildFlyStarGrid(parseInt(state.yun||'9'), Math.floor(((state.degree+180)%360+7.5)/15)%24, Math.floor((state.degree+7.5)/15)%24) : null;
-            if (_fly && _fly.向星 !== undefined){
+            if (_fly && UI.facingPalaceIdx != null && _fly[UI.facingPalaceIdx] && _fly[UI.facingPalaceIdx].xiang !== undefined){
                 const _yXing = parseInt(state.yun||'9');
-                const _good = [1,6,8,9].includes(_fly.向星);
-                notes.push('玄空向星=' + _fly.向星 + '宮（' + (_good?'吉':'需視零正') + '）');
+                const _good = [1,6,8,9].includes(_fly[UI.facingPalaceIdx].xiang);
+                notes.push('玄空向星=' + _fly[UI.facingPalaceIdx].xiang + '宮（' + (_good?'吉':'需視零正') + '）');
                 if (_good) score += 10; else score -= 8;
             }
         }catch(e){}
@@ -2072,8 +2108,7 @@ const Rules = {
         } else if (state.face === '0' && state.d !== 'huilong' && state.d !== 'pingyang') {
             facingName = "背水坐空 (正神下水・陰陽顛倒)";
         } else {
-            const _facingDeg = (deg + 180) % 360;
-            const _gd = this.godFlags(_facingDeg, state.yun || '9');
+            const _gd = this.godFlags(deg, state.yun || '9');
             const _pName = this.GOD_PALACES[_gd.idx] + '宮';
             let _wIdxV = _gd.idx;
             try{ let _wpV = Rules.waterPositionPalace(); if(_wpV) _wIdxV = _wpV.palaceIdx; }catch(e){}
@@ -2252,7 +2287,9 @@ const Rules = {
         let tableBonus = 0;
         if(state.ml==='you'||state.ml==='xiasha'||state.ml==='jiaoya') tableBonus+=20; else if(state.ml==='ya') tableBonus-=10;
         if(state.mr==='you'||state.mr==='xiasha'||state.mr==='jiaoya') tableBonus+=20; else if(state.mr==='tai') tableBonus-=10;
+        const _clampedCap = cap;
         cap = Math.max(geoCap*0.78, Math.min(geoCap*1.25+22, geoCap*_geoW*1.05 + (cap*_tabW)*(0.72+0.28*_prot)));
+        cap = Math.min(cap, _clampedCap);
         return Math.max(0, Math.min(90, cap));
     },
     flowDrivenShift(dxLair, dzLair){
@@ -2260,7 +2297,8 @@ const Rules = {
         const hm = (typeof Engine3D!=='undefined' && Engine3D.hMap) ? Engine3D.hMap : this.hMap;
         if(!fm || !hm) return 0;
         const seg=CONFIG.tSeg, size=CONFIG.tSize;
-        let gx=Math.round((dxLair+size/2)/(size/seg)), gz=Math.round((dzLair+size/2)/(size/seg));
+        const [axF, azF] = effLairAnchor();
+        let gx=Math.round((axF+dxLair+size/2)/(size/seg)), gz=Math.round((azF+dzLair+size/2)/(size/seg));
         let best=0, shift=0;
         for(let dz2=-2; dz2<=2; dz2++) for(let dx2=-2; dx2<=2; dx2++){
             let ix=gx+dx2, iz=gz+dz2; if(ix<0||ix>seg||iz<0||iz>seg) continue;
@@ -2281,7 +2319,7 @@ const Rules = {
             const st = AppState.current;
             if(!st || st.w === 'none') return 0;
             const _ep = effLairAnchor();
-            const waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+            const waterLevel = qiWaterLevel(st);
             const rot = (typeof riverRotOf === 'function' ? (riverRotOf(st)||0) : 0) * Math.PI / 180;
             const cs = Math.cos(rot), sn = Math.sin(rot);
             const gapAt = (lat) => {
@@ -2289,7 +2327,8 @@ const Rules = {
                     for(const sg of [1,-1]){
                         const wx = _ep[0] + lat*cs - s*sg*sn;
                         const wz = _ep[1] + lat*sn + s*sg*cs;
-                        if(Engine3D.getTerrainY(wx, wz).y <= waterLevel + 0.15) return s;
+                        const _gapY = Engine3D.getTerrainY(wx, wz).y;
+                        if(_gapY > -99 && _gapY <= waterLevel + 0.15) return s;
                     }
                 }
                 return 110; 
@@ -2298,11 +2337,7 @@ const Rules = {
             if(g0 >= 110 && gp40 >= 110) return 0; 
             const omega = ((gp85 - gp63) + (gm85 - gm63)) * 0.5; 
             const kappa = ((gp40 + gm40) * 0.5 - g0);            
-            const _w = st.w;
-            if(_w === 'you') return Math.max(-1, Math.min(1, (omega * 0.7 + kappa * 0.3) / 12));
-            if(_w === 'fan') return Math.max(-1, Math.min(1, (omega * 0.7 - kappa * 0.3) / 12));
-            if(_w === 'jiuqu') return Math.max(0, Math.min(1, Math.abs(omega) / 12)); 
-            return Math.max(-1, Math.min(1, omega / 12));
+            return Math.max(-1, Math.min(1, (omega * 0.7 + kappa * 0.3) / 12));
         }catch(e){ return 0; }
     },
     sandPressure(x,z){
@@ -2319,9 +2354,10 @@ const Rules = {
     },
     protectionRatio() {
         if (typeof Engine3D === 'undefined' || !Engine3D.hMap || !Engine3D.getTerrainY) return 1;
-        if (this._protCache && this._protCache.rev === (Engine3D.hMapRev || 0)) return this._protCache.val;
         const st = AppState.current;
         const [ax, az] = effLairAnchor();
+        const _protKey = (Engine3D.hMapRev || 0) + '|' + (st.degree || 0) + '|' + st.face + '|' + ax + '|' + az + '|' + st.sceneMode;
+        if (this._protCache && this._protCache.key === _protKey) return this._protCache.val;
         const ay = Engine3D.getTerrainY(ax, az).y;
         const rad = ((st.degree || 0) % 360) * Math.PI / 180;
         const fx = -Math.sin(rad) * (st.face === '1' ? 1 : -1);
@@ -2354,7 +2390,7 @@ const Rules = {
             if (maxH > ay + 4) closed++;
         }
         const val = total > 0 ? closed / total : 1;
-        this._protCache = { rev: Engine3D.hMapRev || 0, val };
+        this._protCache = { key: _protKey, val };
         return val;
     },
     scoreXue(x, z){
@@ -2372,7 +2408,7 @@ const Rules = {
     xueCert(x, z) {
         if (typeof Engine3D === 'undefined' || !Engine3D.getTerrainY || typeof Physics === 'undefined') return null;
         const st = AppState.current;
-        const waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(st);
         const t = {...Engine3D.getTerrainY(x, z)};
         const msgs = [];
         let score = 60;
@@ -2445,9 +2481,11 @@ const Rules = {
         const tC={...Engine3D.getTerrainY(x, z, this._ptT)};
         const check=[];
         let laiZhenOk = false;
+        let laiZhenApplicable = false;
         if(Engine3D.dragonSegments){
             const ruShouSeg = Engine3D.dragonSegments.find(s => s.name === '入首');
             if(ruShouSeg && Engine3D.dragonRidge && Engine3D.dragonRidge.length){
+                laiZhenApplicable = true;
                 const _tail = Engine3D.dragonRidge[Engine3D.dragonRidge.length - 1];
                 laiZhenOk = Math.hypot(x - _tail.x, z - _tail.z) < 20;
             }
@@ -2468,6 +2506,7 @@ const Rules = {
         const rightH=Engine3D.getTerrainY(x + _cosSB * 22, z + _sinSB * 22, this._ptT).y;
         const sandBaoOk = (leftH > tC.y + 0.8 && rightH > tC.y + 0.8);
         let shuiJuOk = false;
+        const shuiJuApplicable = !!Engine3D.flowMap;
         if(Engine3D.flowMap){
             const tSeg=CONFIG.tSeg;
             const _radW = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
@@ -2490,10 +2529,10 @@ const Rules = {
         const anAngle = (anH > tC.y + 0.5) ? Math.atan2(anH - tC.y, 70) * 180 / Math.PI : 0;
         const _xqMax = (typeof CONFIG !== 'undefined' && CONFIG.THRESH) ? CONFIG.THRESH.向有情上限 : 30;
         const xiangOk = (anAngle > 0 && anAngle < _xqMax);
-        check.push({項:'來真', 通過: laiZhenOk, 說明: laiZhenOk?'位於入首段':'穴位偏離入首段，無主龍引氣'});
+        if(laiZhenApplicable) check.push({項:'來真', 通過: laiZhenOk, 說明: laiZhenOk?'位於入首段':'穴位偏離入首段，無主龍引氣'});
         check.push({項:'穴的', 通過: xueDeOk, 說明: xueDeOk?`氈唇高程差 ${dome.toFixed(2)}m 合理`:(dome<=0.3?'穴位平板無唇托':`氈唇差 ${dome.toFixed(2)}m 過大`)});
         check.push({項:'砂抱', 通過: sandBaoOk, 說明: sandBaoOk?`左 ${leftH.toFixed(1)}m / 右 ${rightH.toFixed(1)}m 皆護穴`:`左右砂不抱（差 < 0.8m 或缺）`});
-        check.push({項:'水聚', 通過: shuiJuOk, 說明: shuiJuOk?'穴前有水流收束':'穴前無收水或直洩'});
+        if(shuiJuApplicable) check.push({項:'水聚', 通過: shuiJuOk, 說明: shuiJuOk?'穴前有水流收束':'穴前無收水或直洩'});
         check.push({項:'向有情', 通過: xiangOk, 說明: xiangOk?`朝案仰角 ${anAngle.toFixed(1)}° 3-15°`:`朝案無情（<3°或>30°）`});
         const betti = AppState.sensors.betti1Closure || 0;
         const xueTuiOk = (betti >= 0.5);
@@ -2512,21 +2551,31 @@ const Rules = {
                 }
                 for(const dir of [-1, 1]){
                     for(let dz=0; dz<=ruShou.z1+10 && dz>=-50; dz+=4){
-                        const xx = x + Math.cos(_shRad) * dir * 25 + _shFx * dz, zz = z + Math.sin(_shRad) * dir * 25 + _shFz * dz;
+                        const cosS = Math.cos(_shRad) * dir, sinS = Math.sin(_shRad) * dir;
+                        const xx = x + cosS * 14 + _shFx * dz, zz = z + sinS * 14 + _shFz * dz;
                         const rH = Engine3D.getTerrainY(xx, zz, this._ptT).y;
-                        if(rH > tC.y + 2) shaPoints.push({項:`射肋(${dir>0?'右':'左'})`, x:xx.toFixed(1), z:zz.toFixed(1), 差:(rH-tC.y).toFixed(1)+'m'});
+                        const oH = Engine3D.getTerrainY(x + cosS * 28 + _shFx * dz, z + sinS * 28 + _shFz * dz, this._ptT).y;
+                        if(rH > tC.y + 3 && rH > oH + 2) shaPoints.push({項:`射肋(${dir>0?'右':'左'})`, x:xx.toFixed(1), z:zz.toFixed(1), 差:(rH-tC.y).toFixed(1)+'m'});
                     }
                 }
                 for(let dz=-10; dz<=10; dz+=3) for(let dx=-10; dx<=10; dx+=3){
-                    const xx = x+dx, zz = z+dz;
-                    if(Math.hypot(dx,dz) < 12 && Engine3D.getTerrainY(xx,zz,this._ptT).y < tC.y - 0.5){
-                        shaPoints.push({項:'凹風', x:xx.toFixed(1), z:zz.toFixed(1)});
+                    const rA = Math.hypot(dx, dz);
+                    if(rA < 3 || rA >= 12) continue;
+                    const dipY = Engine3D.getTerrainY(x+dx, z+dz, this._ptT).y;
+                    if(dipY >= tC.y - 0.5) continue;
+                    if((dx*_shFx + dz*_shFz)/rA > 0.3) continue;
+                    const pX = -dz/rA, pZ = dx/rA;
+                    const wallA = Engine3D.getTerrainY(x+dx+pX*7, z+dz+pZ*7, this._ptT).y;
+                    const wallB = Engine3D.getTerrainY(x+dx-pX*7, z+dz-pZ*7, this._ptT).y;
+                    if(wallA > tC.y + 0.8 && wallB > tC.y + 0.8){
+                        shaPoints.push({項:'凹風', x:(x+dx).toFixed(1), z:(z+dz).toFixed(1)});
                     }
                 }
             }
         }
         check.push({項:'煞點座標', 通過: shaPoints.length === 0, 說明: shaPoints.length === 0 ? '穴場周圍 5m 內無具體形煞點' : `⚠️ ${shaPoints.length} 個煞點：${shaPoints.map(p=>`${p.項}@(${p.x},${p.z})`).slice(0,3).join('、')}`});
-        return {細項: check, 通過: check.every(c=>c.通過), 煞點: shaPoints};
+        const _passN = check.reduce((a, c) => a + (c.通過 ? 1 : 0), 0);
+        return {細項: check, 通過: _passN === check.length, 煞點: shaPoints, score: Math.round(_passN * 100 / Math.max(1, check.length))};
     },
     classifyXueForm(x, z){
         if(typeof Engine3D === 'undefined' || !Engine3D.getTerrainY) return {form:'wo', scores:{wo:0.5,qian:0.5,ru:0.5,tu:0.5}};
@@ -2834,7 +2883,8 @@ const Rules = {
         const facing = (((st.degree || 0) + 180) % 360 + 360) % 360;
         const rel = ((compass - facing + 540) % 360) - 180; 
         const palaceIdx = Math.floor((compass + 22.5) / 45) % 8;
-        const val = { compass: Math.round(compass), rel: Math.round(rel), palace: this.GOD_PALACES[palaceIdx] + '宮', strength: Math.round(best) };
+        const palace24 = Math.floor((compass + 7.5) / 15) % 24;
+        const val = { compass: Math.round(compass), rel: Math.round(rel), palace: this.GOD_PALACES[palaceIdx] + '宮', palace24, strength: Math.round(best) };
         this._outletCache = { rev: Engine3D.hMapRev || 0, val };
         return val;
     },
@@ -2860,65 +2910,6 @@ const Rules = {
         const val = { azimuth: bestAz, drop: Math.round(bestDrop * 10) / 10 };
         this._drainCache = { rev: Engine3D.hMapRev || 0, val };
         return val;
-    },
-    // ===== v3.2 水口關鎖層數（審計要點 #22／後續路線 P1-4）=====
-    // 真實水口不只看「寬」，而看多重關攔：沿去水方位取三條近軸剖面，
-    // 計「地形高於穴場視線」之連通交鎖段數（華表/獅象/羅星/交牙），
-    // 並量測去水通道束窄寬度。多層交鎖＋束而不逼 → 高；一洩到底 → 低。
-    mouthLockMetrics(){
-        try{
-            if(typeof Engine3D === 'undefined' || !Engine3D.getTerrainY) return null;
-            const ot = this.outletAzimuth ? this.outletAzimuth() : null;
-            if(!ot) return null;
-            const _ck = [ot.compass, ot.strength, (AppState.current||{}).mouthWidth, (AppState.current||{}).w, (AppState.current||{}).d]
-                        .map(v=>String(v)).join('|') + '#' + ((Engine3D.hMapRev)||0);
-            if(this._mouthLockCache && this._mouthLockCache.key === _ck) return this._mouthLockCache.val;
-            const [ax, az] = effLairAnchor();
-            const ay = Engine3D.getTerrainY(ax, az).y + 1.6;
-            const DMAX = 170, STEP = 4;
-            const hAt = (r, d) => Engine3D.getTerrainY(ax + Math.sin(r)*d, az - Math.cos(r)*d).y + 1.6;
-            const layersOf = (r) => {
-                let n = 0, inB = false;
-                for(let d = 6; d <= DMAX; d += STEP){
-                    const blocked = (hAt(r, d) >= ay);
-                    if(blocked && !inB){ n++; inB = true; } else if(!blocked) inB = false;
-                }
-                return n;
-            };
-            const base = ot.compass * Math.PI/180;
-            const l0 = layersOf(base), lL = layersOf(base - 10*Math.PI/180), lR = layersOf(base + 10*Math.PI/180);
-            const layers = Math.max(l0, lL, lR);
-            // 去水通道寬：沿軸逐距離量測「未被遮擋」的橫向淨寬
-            let minGap = 999;
-            for(let d = 12; d <= DMAX; d += 6){
-                let open = 0;
-                for(let q = -60; q <= 60; q += 3){
-                    const r2 = (ot.compass + q) * Math.PI/180;
-                    if(hAt(r2, d) < ay) open += 3;
-                }
-                if(open < minGap) minGap = open;
-            }
-            if(minGap >= 999) minGap = 120;
-            // 層數分：0 層＝直洩最凶；1 層初關；2 層華表/獅象；≥3 層重羅城
-            const layerScore = layers <= 0 ? 12 : (layers === 1 ? 52 : (layers === 2 ? 80 : 94));
-            // 寬度分：束而不逼（約 10-40m）最佳；過寬＝曠散；過窄＝逼壓
-            const widthScore = minGap < 4 ? 40 : (minGap < 10 ? 62 : (minGap <= 40 ? 95 - Math.abs(minGap-20)*0.8 : Math.max(35, 90-(minGap-40)*0.75)));
-            const total = Math.round(layerScore*0.62 + widthScore*0.38);
-            const val = {
-                交鎖層數: layers, 近軸層數: [l0, lL, lR],
-                去水通道淨寬: Math.round(minGap),
-                層數分: Math.round(layerScore), 寬度分: Math.round(widthScore),
-                關鎖分: total,
-                去水方位: ot.compass,
-                評語: layers === 0 ? '去水無遮，一洩到底'
-                     : layers === 1 ? '一重初關，去水仍見'
-                     : layers === 2 ? '兩重交鎖，水去而回顧'
-                     : '三重以上關攔，重羅城鎖氣',
-                明堂評分耦合: total
-            };
-            this._mouthLockCache = { key: _ck, val };
-            return val;
-        }catch(e){ return null; }
     },
     outletVisibility() {
         try{
@@ -2946,7 +2937,7 @@ const Rules = {
             if(!st || st.w === 'none') return null;
             const _ep = effLairAnchor();
             const ay = Engine3D.getTerrainY(_ep[0], _ep[1]).y;
-            const waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+            const waterLevel = qiWaterLevel(st);
             let dNear = 999;
             for(let k=0;k<16;k++){
                 const r = k*22.5*Math.PI/180;
@@ -2955,14 +2946,14 @@ const Rules = {
                     if(Engine3D.getTerrainY(_ep[0]+dx*d, _ep[1]+dz*d).y <= waterLevel + 0.15){ if(d<dNear) dNear=d; break; }
                 }
             }
-            const distScore = dNear>=999 ? 0 : (dNear<8 ? 20 + dNear*5 : (dNear<=60 ? 95 - Math.abs(dNear-28)*1.4 : Math.max(25, 95-(dNear-60)*2)));
+            const distScore = dNear>=999 ? 0 : (dNear<8 ? 20 + dNear*5 : (dNear<=60 ? 95 - Math.abs(dNear-28)*1.4 : Math.max(25, 50-(dNear-60)*1.0)));
             const curv = this.waterCurvatureFromField ? this.waterCurvatureFromField() : 0;
             const curvScore = Math.max(0, Math.min(100, 55 + curv*45));
             let vel = 0;
             try{ const _hy = Engine3D.hydroField ? Engine3D.hydroField(_ep[0], _ep[1]) : null; if(_hy) vel = _hy.velocity||0; }catch(e){}
             const velScore = vel<=0 ? 55 : (vel<=1.0 ? 90 - vel*10 : Math.max(15, 80 - (vel-1.0)*55));
             const rise = ay - waterLevel;
-            const riseScore = rise < 0.5 ? 20 : (rise<=6 ? 90 - Math.abs(rise-3)*6 : Math.max(30, 90-(rise-6)*4));
+            const riseScore = rise < 0.5 ? 20 : (rise<=6 ? 90 - Math.abs(rise-3)*6 : Math.max(30, 72-(rise-6)*4));
             let outletS = 55;
             try{ const ot = this.outletAzimuth(); if(ot && ot.strength) outletS = Math.max(20, Math.min(95, 40 + ot.strength*0.6)); }catch(e){}
             const total = Math.round(distScore*0.26 + curvScore*0.24 + velScore*0.16 + riseScore*0.18 + outletS*0.16);
@@ -2986,13 +2977,13 @@ const Rules = {
                 for(let dx=-R; dx<=R; dx+=3){
                     if(dx*dx+dz*dz > R*R) continue;
                     n++;
-                    let hy=null;
-                    try{ hy = Engine3D.hydroField(ax+dx, az+dz); }catch(eH){}
-                    if(hy && (hy.depth||0) > 0.05){
-                        wet++;
-                        if((hy.velocity||0) > 0.06 || (hy.flow||0) > 0.25) live++;
-                        if((hy.floodRisk||0) > 0.4) flood++;
-                    }
+                let hy=null;
+                try{ hy = Engine3D.hydroField(ax+dx, az+dz); }catch(eH){}
+                if(hy && (hy.depth||0) > 1.0){
+                    wet++;
+                    if((hy.velocity||0) > 0.06 || (hy.flow||0) > 0.25) live++;
+                    if((hy.floodRisk||0) > 0.4) flood++;
+                }
                 }
             }
             if(!n) return null;
@@ -3058,14 +3049,14 @@ const Rules = {
                 }
             });
             const junctionS = Math.max(0, Math.min(100, 30 + nearChains.size*25));
-            const distS = dNear>=999 ? 0 : (dNear<=6 ? 55 : (dNear<=30 ? 95 - (dNear-6)*1.6 : Math.max(20, 95-(dNear-30)*1.8)));
+            const distS = dNear>=999 ? 0 : (dNear<=6 ? 55 + (dNear/6)*40 : (dNear<=30 ? 95 - (dNear-6)*1.6 : Math.max(20, 56.6-(dNear-30)*1.8)));
             const ay = Engine3D.getTerrainY(_ep[0], _ep[1]).y;
             let relHi = -999;
             for(let dz=-12; dz<=12; dz+=4) for(let dx=-12; dx<=12; dx+=4){
                 const h = Engine3D.getTerrainY(_ep[0]+dx, _ep[1]+dz).y;
                 if(h < ay && ay-h > relHi) relHi = ay-h;
             }
-            const microS = relHi <= 0 ? 35 : (relHi <= 1.5 ? 90 - Math.abs(relHi-0.6)*25 : Math.max(40, 90-(relHi-1.5)*18));
+            const microS = relHi <= 0 ? 35 : (relHi <= 1.5 ? 90 - Math.abs(relHi-0.6)*25 : Math.max(40, 67.5-(relHi-1.5)*18));
             const total = Math.round(junctionS*0.34 + distS*0.33 + microS*0.33);
             return { 總分: total, 最近水脈: Math.round(dNear), 交會鏈數: nearChains.size, 微高: Math.round(relHi*100)/100,
                      子分: {交會: Math.round(junctionS), 距離: Math.round(distS), 微高: Math.round(microS)} };
@@ -3115,20 +3106,20 @@ const Rules = {
             const wx = (bx/seg)*size - size/2, wz = (bz/seg)*size - size/2;
             const compass = ((Math.atan2(wx-ax, -(wz-az))*180/Math.PI)+360)%360;
             const palaceIdx = Math.floor((compass+22.5)/45)%8;
-            const palace24 = Math.floor((((compass%360)+360)%360)/15)%24;
+            const palace24 = Math.floor(((((compass%360)+360)%360)+7.5)/15)%24;
             return { compass: Math.round(compass), palaceIdx, palace24, strength: Math.round(best) };
         }catch(e){ return null; }
     },
     sanHeBonus(degree, yun, w, outlet){
         if(!outlet || w==='none' || outlet.strength <= 15) return 0;
-        const sitting = ((degree||0)%360+360)%360;
-        const facing = (sitting+180)%360;
+        const facing = ((degree||0)%360+360)%360;
+        const sitting = (facing+180)%360;
         const sitPalace = Math.floor((sitting+22.5)/45)%8;
         let ju = null; 
         const sit24 = Math.floor((sitting+7.5)/15)%24;
         const SHUANG_SHAN_JU = {16:0,15:0,23:0,0:0,7:0,8:0, 3:1,4:1,11:1,12:1,19:1,20:1, 21:2,22:2,5:2,6:2,13:2,14:2, 9:3,10:3,17:3,18:3,1:3,2:3};
         ju = (sit24 in SHUANG_SHAN_JU) ? SHUANG_SHAN_JU[sit24] : 0;
-        const outPalace24 = Math.floor((((outlet.compass % 360)+360)%360)/15)%24; 
+        const outPalace24 = outlet.palace24; 
         const outPalace8 = Math.floor((outlet.compass+22.5)/45)%8;
         let changSheng24, diWang24, muKu24;
         if(ju===0){ changSheng24=16; diWang24=0; muKu24=8; } 
@@ -3147,10 +3138,10 @@ const Rules = {
     },
     baShaCheck(degree, outlet){
         if(!outlet || outlet.strength <= 15) return 0;
-        const sitting = ((degree||0)%360+360)%360;
-        const facing = (sitting+180)%360;
+        const facing = ((degree||0)%360+360)%360;
+        const sitting = (facing+180)%360;
         const sit24 = Math.floor((sitting+7.5)/15)%24;
-        const out24 = Math.floor((((outlet.compass % 360)+360)%360)/15)%24; 
+        const out24 = outlet.palace24; 
         const baMap = {0:8, 15:6, 6:16, 9:18, 21:12, 18:10, 3:4, 12:22};
         let penalty=0;
         for(let k in baMap){
@@ -3507,7 +3498,7 @@ const Rules = {
             const _yMinW = Math.min.apply(null, ys), _yMaxW = Math.max.apply(null, ys), _reliefAll = _yMaxW - _yMinW;
             if(cv < 0.05 && _reliefAll < 8){ shi='si'; explain='幾無起伏（CV=' + cv.toFixed(2) + '·總落差' + Math.round(_reliefAll) + 'm）→ 死龍態'; }
             else if(g.peaks.length <= 1 && escortDensity < 0.2 && _reliefAll >= 8){ shi='gufeng'; explain='單峰無護（峰' + g.peaks.length + '·護從密度' + escortDensity.toFixed(2) + '）→ 孤露態'; }
-            else if(brokenness > 0.6 && g.basinCount > 14){ shi='po'; explain='分水嶺破碎（鞍/峰比 ' + (g.saddles.length/Math.max(1,g.peaks.length)).toFixed(2) + '/盆地' + g.basinCount + '）→ 破碎態'; }
+            else if(brokenness > 0.6 && g.basinCount > 14 && this.protectionRatio() < 0.55){ shi='po'; explain='分水嶺破碎（鞍/峰比 ' + (g.saddles.length/Math.max(1,g.peaks.length)).toFixed(2) + '/盆地' + g.basinCount + '）→ 破碎態'; }
             else if(turn > 72 && dchkCompat()){ shi='huilong'; explain='末端回折 ' + Math.round(turn) + '° → 迴龍顧祖態'; }
             else if(ortho > 55){ shi='heng'; explain='脊走向與立向正交 ' + Math.round(ortho) + '° → 橫龍態'; }
             else if(cv > 0.30){ shi='ji'; explain='起伏 CV=' + cv.toFixed(2) + ' 高急 → 急龍態'; }
@@ -3526,7 +3517,18 @@ const Rules = {
             return _wm ? _wm.shi : null;
         }catch(e){ return null; }
     },
+    // v3.4 修正：平洋局以水為龍，不適用山脊分水嶺判據——否則平洋地形（近乎平坦，basin 極多、
+    // 鞍/峰比極高）必被判為「破碎態」，再經 getGlobalMultiplier ×0.15 打成大凶。
+    // 實測：平洋內部證據鏈 7/7 高、缺陷 0，卻被山龍判據判死，屬跨模型污染。
     dragonIsBad(dLabel){
+        try{
+            const st = AppState.current;
+            if(st && (st.d === 'pingyang' || st.sceneMode === 'pingyang')){
+                const py = this.pingyangEvidenceChain ? this.pingyangEvidenceChain() : null;
+                if(py) return py.可信度 === '低';
+                return false;
+            }
+        }catch(e){}
         const _sh = this.dragonShiLevel ? this.dragonShiLevel() : null;
         if(_sh) return (_sh === 'si' || _sh === 'po' || _sh === 'gufeng');
         return dLabel === 'si' || dLabel === 'po' || dLabel === 'gufeng';
@@ -3536,9 +3538,8 @@ const Rules = {
         if(_sh) return _sh === shiLabel;
         return dLabel === shiLabel;
     },
-    // ===== 湧現龍脈證據（v3.2，審計要點 #1/#2/#3）=====
-    // 不參與五維計分（保持 Dry Run 斷言不漂移），僅作「生成脊是否為真龍脈」之可審計證據，
-    // 並供龍脈證據鏈引用為 龍脈可信度 的獨立一項。
+
+    // ===== 湧現龍脈證據（v3.2）：不參與五維計分，僅作「生成脊是否為真龍脈」之可審計證據 =====
     dragonEmergence(){
         try{
             if(typeof Engine3D === 'undefined' || !Engine3D.dragonRidgeExtract) return null;
@@ -3554,10 +3555,10 @@ const Rules = {
                 可用: !!(ex.ok && ex.metrics),
                 錯誤: ex.err || null,
                 指標: ex.metrics || null,
-                段鏈: (ex.segments || []).map(s => ({
-                    型: s.type, 長: s.len, 脊寬: s.脊寬, 收束比: s.收束比,
-                    落差: s.落差, 最大轉角: s.最大轉角, 最大坡度: s.最大坡度, 台地: !!s.台地,
-                    起: s.from, 訖: s.to
+                段鏈: (ex.segments || []).map(sg => ({
+                    型: sg.type, 長: sg.len, 脊寬: sg.脊寬, 收束比: sg.收束比,
+                    落差: sg.落差, 最大轉角: sg.最大轉角, 最大坡度: sg.最大坡度, 台地: !!sg.台地,
+                    起: sg.from, 訖: sg.to
                 })),
                 貼脊: ag ? {
                     貼脊率: ag.貼脊率, 取樣點: ag.取樣點,
@@ -3566,7 +3567,6 @@ const Rules = {
                 } : null,
                 脊寬中位: ex.wMed != null ? Math.round(ex.wMed*10)/10 : null
             };
-            // 生成脊 vs 實測脈 之一致性評級（僅敘述，不改分數）
             if(val.可用 && ag){
                 const r = ag.貼脊率;
                 val.一致評級 = r >= 75 ? '高（生成脊大致即真分水嶺）'
@@ -3579,25 +3579,20 @@ const Rules = {
             return val;
         }catch(e){ return null; }
     },
-    // 龍脈圖論深化（審計要點 #2）：過峽長度／開帳角度／帳翼環抱／護送連續性
-    // 由實測脈段鏈推導，取代「脊寬比」單一判據。
+    // 龍脈圖論深化：過峽長度／開帳角度／帳翼環抱／護送連續性（由實測脈段鏈推導）
     dragonGraphRefine(){
         try{
             const em = this.dragonEmergence ? this.dragonEmergence() : null;
             if(!em || !em.可用 || !em.段鏈 || !em.段鏈.length) return null;
             const segs = em.段鏈;
             const out = { 過峽: [], 開帳: [], 跌斷: [], 束氣: [] };
-            for(const s of segs){
-                if(out[s.型]) out[s.型].push(s);
-            }
+            for(const sg of segs){ if(out[sg.型]) out[sg.型].push(sg); }
             const sum = a => a.reduce((x,y)=>x + (y.長||0), 0);
             const 過峽總長 = sum(out.過峽), 開帳總長 = sum(out.開帳);
             const 跌斷總長 = sum(out.跌斷), 束氣總長 = sum(out.束氣);
             const 脈長 = (em.指標 && em.指標.路徑長) || 0;
-            // 過峽品質：束而不斷（收束比低）＋有長度（太短為噪聲）
-            const 過峽成立 = out.過峽.filter(s => s.長 >= 6 && s.收束比 != null && s.收束比 < 0.7);
-            // 開帳品質：展開（收束比高）＋帳面夠寬
-            const 開帳成立 = out.開帳.filter(s => s.長 >= 10 && s.收束比 != null && s.收束比 > 1.3);
+            const 過峽成立 = out.過峽.filter(sg => sg.長 >= 6 && sg.收束比 != null && sg.收束比 < 0.7);
+            const 開帳成立 = out.開帳.filter(sg => sg.長 >= 10 && sg.收束比 != null && sg.收束比 > 1.3);
             return {
                 過峽段數: out.過峽.length, 過峽成立數: 過峽成立.length,
                 過峽總長: Math.round(過峽總長*10)/10,
@@ -3939,7 +3934,7 @@ const Rules = {
             credScore += longLi ? 1 : 0;
             credScore += stopOk ? 1 : 0;
             const 可信度 = credScore >= 7 ? '高' : (credScore >= 5 ? '中' : '低');
-            const val = { 項目: items, 缺陷警告: defects, 可信度, 可信計分: credScore + '/7', 脊網長: Math.round(mainLen),
+            const val = { 項目: items, 缺陷警告: defects, 可信度, 可信計分: credScore + '/9', 脊網長: Math.round(mainLen),
                 位置: { 祖山: zuPt, 過峽: guaBest || null, 束氣: shuFeat || null, 入首: pts[n-1], 穴: {x:ax, y:lair.y, z:az} } };
             this._evChainCache = { key: _ckv, val };
             return val;
@@ -3992,9 +3987,9 @@ const Rules = {
         const d = ((deg%360)+360)%360;
         const _m15 = ((d%15)+15)%15;
         const dToCenter15 = Math.min(_m15, 15 - _m15);
+        const dToBoundary15 = 7.5 - dToCenter15;
         const _m45 = ((d%45)+45)%45;
         const dToCenter45 = Math.min(_m45, 45 - _m45);
-        const dToBoundary15 = 7.5 - dToCenter15;
         const dToBoundary45 = 22.5 - dToCenter45;
         let pen = 0;
         if (dToBoundary15 < 3) pen -= (3 - dToBoundary15) * 4;
@@ -4027,7 +4022,7 @@ const Rules = {
             const r2y = Engine3D.getTerrainY(ax-Math.cos(ang*Math.PI/180)*30, az-Math.sin(ang*Math.PI/180)*30).y;
             const g = Math.abs(r1y - r2y) / 2;
             tianzhanSamples.push(g);
-            if (g < tianzhanGap) tianzhanGap = g;
+            if (Math.min(r1y, r2y) > tC.y + 8.0 && g < tianzhanGap) tianzhanGap = g;
         }
         // P0-R1f（T7 修復）：windRad 原僅依風強正負（0/π），完全忽略風向 select——
         // 天斬狹管、凹風對正、孤峰 16方位加權全部被鎖在東西向。改依 st.windDir（來風方位，
@@ -4062,7 +4057,7 @@ const Rules = {
         const _windMouth = windAt(ax + Math.cos(windRad)*12, az + Math.sin(windRad)*12);
         const _windRatioT = (windUp > 0.15) ? Math.max(0.5, Math.min(1.6, 0.55 + _windMouth / windUp * 0.5)) : 1.0;
         tianzhanRaw = tianzhanRaw * _windRatioT;
-        const tianzhanIntent = intentMod(tianzhanGap, Math.max(tC.nx, tC.nz));
+        const tianzhanIntent = intentMod(tianzhanGap, Math.hypot(tC.nx, tC.nz));
         const tianzhanScore = Math.round(tianzhanRaw * tianzhanIntent * distAttn(12, 12));
         const _radT = (((st.degree||0) % 360 + 360) % 360) * Math.PI / 180;
         const _lkT = st.face === '1' ? 1 : -1;
@@ -4082,19 +4077,22 @@ const Rules = {
         const tantouIntent = tantouRaw > 0 ? Math.min(1.5, 0.5 + tMaxCurv*0.6) : 1.0;
         const tantouScore = Math.round(tantouRaw * tantouIntent * distAttn(tAtD, 14));
         const tFQ = {...Engine3D.getTerrainY(ax + _fxT * 14, az + _fzT * 14)};
-        const slopeFQ = Math.hypot(tFQ.nx, tFQ.nz);
-        let fQRaw = (tFQ.y - tC.y > 3.5 && slopeFQ > 1.6) ? Math.min(100, (tFQ.y - tC.y)*6 + slopeFQ*10) : 0;
+        const fqRise = tFQ.y - tC.y;
+        const slopeFQ = Math.max(0, fqRise) / 14;
+        let fQRaw = (fqRise > 3.5 && slopeFQ > 0.35) ? Math.min(100, fqRise*6 + slopeFQ*28) : 0;
         if(st.qingquan && Engine3D.overhangVoxelCount > 0){
             fQRaw = Math.min(100, fQRaw * 1.3 + 8); 
             var _fqClearNote = '；體素懸挑淨空 ' + (Engine3D.overhangVoxelClearance || 0) + 'm（P2-6）';
         } else { var _fqClearNote = ''; }
         const fQScore = Math.round(fQRaw * distAttn(14, 14));
         const fARaw = (Math.abs(tC.nx) > 1.0 || Math.abs(tC.nz) > 1.0) ? Math.min(100, Math.hypot(tC.nx, tC.nz)*38) : 0;
+        const _aoUpY = Engine3D.getTerrainY(ax + Math.cos(fromRad) * 16, az + Math.sin(fromRad) * 16, this._ptT).y;
+        const _aoExposed = Math.max(0, Math.min(1, (tC.y - _aoUpY) / 3.0 + 0.5));
         const concaveAlign = (Math.sign(tC.nx) === Math.sign(Math.cos(fromRad)) ||
                               Math.sign(tC.nz) === Math.sign(Math.sin(fromRad))) ? 1.3 : 0.8; 
         const _windAtLair = windAt(ax, az);
         const _windRatioA = (windUp > 0.15) ? Math.max(0.6, Math.min(1.5, 0.6 + _windAtLair / windUp * 0.45)) : 1.0;
-        const fAScore = Math.round(fARaw * concaveAlign * _windRatioA * distAttn(8, 8));
+        const fAScore = Math.round(fARaw * concaveAlign * _windRatioA * distAttn(8, 8) * _aoExposed);
         let exposedWeighted = 0;
         for (let a=0; a<16; a++){ 
             const aRad = a*Math.PI/8;
@@ -4115,7 +4113,7 @@ const Rules = {
         let maxWallH = 0, maxWallD = 0, maxWallCurv = 0;
         for (let dx=-30; dx<=30; dx+=5){
             const h = Engine3D.getTerrainY(ax + _sxW * dx - _fxW * 25, az + _szW * dx - _fzW * 25);
-            if (h.y > maxWallH) { maxWallH = h.y; maxWallD = Math.abs(dx); maxWallCurv = Math.abs(h.nx); }
+            if (h.y > maxWallH) { maxWallH = h.y; maxWallD = Math.abs(dx); maxWallCurv = Math.hypot(h.nx, h.nz); }
         }
         const fDRaw = (maxWallH - tC.y > 8) ? Math.min(100, (maxWallH - tC.y)/(maxWallD || 1) * 60) : 0;
         const fDIntent = intentMod(maxWallH - tC.y, maxWallCurv);
@@ -4158,8 +4156,8 @@ const Rules = {
         const _shaVal = {
             天斬煞: { score: tianzhanScore, 公式: `V_gap=${tianzhanGap.toFixed(1)}m；連續性=${(tianzhanContinuity*100).toFixed(0)}%；出口開放=${tianzhanExit}；中間遮擋=${midBlock}；意態=${tianzhanIntent.toFixed(2)}；距離衰減 1/(1+(d/12)^2)；風速放大=${_windRatioT.toFixed(2)}（P1-10 實測閉環）` },
             探頭煞: { score: tantouScore, 公式: `仰角=${tMaxDiff.toFixed(1)}m@${tAtD}m；尖削度=${tMaxCurv.toFixed(2)}；意態=${tantouIntent.toFixed(2)}` },
-            擎拳煞: { score: fQScore, 公式: `前坡高差=${(tFQ.y-tC.y).toFixed(1)}m；前坡坡度=${slopeFQ.toFixed(2)}；近距放大${_fqClearNote}` },
-            凹風: { score: fAScore, 公式: `曲率=${Math.hypot(tC.nx, tC.nz).toFixed(2)}；風向對齊=${concaveAlign}；穴場正下方最凶；風速放大=${_windRatioA.toFixed(2)}（P1-10 實測閉環）` },
+            擎拳煞: { score: fQScore, 公式: `前坡高差=${fqRise.toFixed(1)}m；前坡實坡度=${slopeFQ.toFixed(2)}m/m（14m 基線）；近距放大${_fqClearNote}` },
+            凹風: { score: fAScore, 公式: `穴周每格高差=${Math.hypot(tC.nx, tC.nz).toFixed(2)}m（一階差分，非曲率）；上遊暴露=${_aoExposed.toFixed(2)}（穴高 ${tC.y.toFixed(1)} vs 上遊 ${_aoUpY.toFixed(1)}）；風向對齊=${concaveAlign}；穴場正下方最凶；風速放大=${_windRatioA.toFixed(2)}（P1-10 實測閉環）` },
             孤峰: { score: fGScore, 公式: `16方位加權暴露度=${exposedWeighted.toFixed(1)}（風向方位權重高·來風=${st.windDir||'W'}）；遠距衰減` },
             刀削壁: { score: fDScore, 公式: `壁高=${(maxWallH-tC.y).toFixed(1)}m 距=${maxWallD}m；硬壁近穴極凶` },
             射肋煞: { score: fSheScore, 公式: `稜線夾角精準度=${Math.abs(sideL.y-sideR.y).toFixed(2)}` },
@@ -4258,10 +4256,7 @@ const Rules = {
                 sumFlow += f; cnt++;
                 if (f > peak) peak = f;
             }
-            // v3.2：原線性係數 26 會使峰均比 >3.8 全部飽和於 100（無鑑別度）→ 改對數標度，
-            // 峰均比 1.5→~35 分、3→~70 分、6→~92 分、≥10→100（去水集中度）
-            const _ratio = (sumFlow/cnt) > 0 ? (peak/(sumFlow/cnt)) : 1;
-            mouthLock = Math.max(30, Math.min(100, 35 + Math.log(Math.max(1, _ratio)) * 32));
+            mouthLock = sumFlow>0 ? Math.max(30, Math.min(100, (peak/(sumFlow/cnt||1)) * 26)) : 50;
         }
         let tiltDegOut = meanTiltOut * 180 / Math.PI;
         let tiltPenalty = Math.max(0, (tiltDegOut - 6.5)) * 4.5;
@@ -4296,15 +4291,7 @@ const Rules = {
             容積: { score: Math.round(volScore), raw: Math.round(vol) },
             閉合度: { score: Math.round(closure), raw: Math.round(protV*100)/100 },
             案山遮擋率: { score: Math.round(anCover), raw: Math.round(anCover) },
-            水口收束度: (() => {
-                // v3.2：耦合水口關鎖層數（交鎖層數＋去水通道淨寬），非僅幾何束窄
-                const _ml = this.mouthLockMetrics ? this.mouthLockMetrics() : null;
-                if(_ml){
-                    const _mix = Math.round(mouthLock*0.62 + _ml.關鎖分*0.38);
-                    return { score: Math.round(_mix), raw: Math.round(_mix) + '（束窄' + Math.round(mouthLock) + '+關鎖' + _ml.關鎖分 + '：' + _ml.評語 + '·交鎖' + _ml.交鎖層數 + '層·淨寬' + _ml.去水通道淨寬 + 'm）' };
-                }
-                return { score: Math.round(mouthLock), raw: Math.round(mouthLock) };
-            })(),
+            水口收束度: { score: Math.round(mouthLock), raw: Math.round(mouthLock) },
             傾瀉度: { score: Math.round(tiltScore), raw: Math.round(meanTilt*180/Math.PI*10)/10 + '°' },
             平坦度: { score: Math.round(flatScore), raw: Math.round(stdTilt*10)/10 },
             聚水度: { score: Math.round(hydScore), raw: _mtW ? _mtW.說明 : (st.w !== 'none' ? st.w : '無') },
@@ -4324,16 +4311,16 @@ const Rules = {
         const out = { 子指標: result, 加權幾何平均: Math.round(geoMean), 權重: w, 容積閉合比: {ratio: Math.round(volClosureRatio*100)/100, score: Math.round(volClosureScore)} };
         try{
             const innerScore = (() => {
-                let centerCount = 0, rimCount = 0, sumT = 0;
+                let cN = 0, cSum = 0, rN = 0, rSum = 0;
                 for(let dz=-10; dz<=10; dz+=3){
                     for(let dx=-10; dx<=10; dx+=3){
                         const t = Engine3D.getTerrainY(ax+dx, az+dz).y;
-                        if(Math.abs(dz) < 4 && Math.abs(dx) < 4) centerCount++;
-                        else if(Math.sqrt(dx*dx+dz*dz) > 8) rimCount++;
-                        sumT += (t - ay);
+                        if(Math.abs(dz) < 4 && Math.abs(dx) < 4) { cN++; cSum += t; }
+                        else if(Math.sqrt(dx*dx+dz*dz) > 8) { rN++; rSum += t; }
                     }
                 }
-                return centerCount > rimCount * 1.5 ? 80 : 40;
+                if(!cN || !rN) return 40;
+                return (rSum/rN) > (cSum/cN) + 0.3 ? 80 : 40;
             })();
             const midScore = (() => {
                 let flatCnt = 0, totalCnt = 0;
@@ -4374,6 +4361,9 @@ const Rules = {
         const rad = ((st.degree || 0) % 360) * Math.PI / 180;
         const fx = -Math.sin(rad) * (st.face === '1' ? 1 : -1), fz = Math.cos(rad) * (st.face === '1' ? 1 : -1);
         const seg = CONFIG.tSeg, size = CONFIG.tSize;
+        const protV = Rules.protectionRatio();
+        const spLv = Rules.sandPressure(ax - Math.cos(rad) * 35, az - Math.sin(rad) * 35).pressure;
+        const spRv = Rules.sandPressure(ax + Math.cos(rad) * 35, az + Math.sin(rad) * 35).pressure;
         let vol = 0;
         for (let iz = 0; iz <= seg; iz++) {
             const wz = (iz / seg) * size - size / 2;
@@ -4382,8 +4372,6 @@ const Rules = {
                 const dx = wx-ax, dz=wz-az;
                 const d2 = dx*dx+dz*dz;
                 const alongDot = (dx*fx+dz*fz)/Math.max(1,Math.sqrt(d2));
-                const protV = Rules.protectionRatio();
-                const spLv = Rules.sandPressure(ax - Math.cos(rad) * 35, az - Math.sin(rad) * 35).pressure, spRv = Rules.sandPressure(ax + Math.cos(rad) * 35, az + Math.sin(rad) * 35).pressure;
                 let Reff = baseR * (alongDot>0?1.10:0.85) * (0.78+0.22*protV) - Math.min(spLv,spRv)*1.05;
                 const wallDist = Math.min(
                     st.ml==='none'?999: Math.hypot(wx - (ax - Math.cos(rad) * 35), wz - (az - Math.sin(rad) * 35)),
@@ -4899,7 +4887,7 @@ window.DryRunTool = {
             }
         }
 		let maxSlope = 0, tearingCount = 0, zFightingCount = 0;
-		let waterLevel = (st.d === 'pingyang') ? -3.5 : -12.0;
+		let waterLevel = qiWaterLevel(st);
 		let riverRefZ = Engine3D.riverRefZ(st.w);
 		let lxAud = st.manualXue ? (st.xueX || 0) : 0;
 		let lzAud = st.manualXue ? st.xueZ : 5.0;
@@ -5013,7 +5001,7 @@ window.DryRunTool = {
         if (['zhichong', 'sickle', 'zuocha', 'youcha', 'jiandao', 'lanyao', 'wuwei'].includes(st.road)) activeShaList.push(`路煞(${st.road})`);
         if (AppState.obstacles.length > 0) activeShaList.push(`手動置煞(${AppState.obstacles.length}處)`);
         const deg = st.degree !== undefined ? ((st.degree % 360) + 360) % 360 : 0;
-        const _facingDegDR = (deg + 180) % 360;
+        const _facingDegDR = deg;
         let facingName = "朝北 (坎宮)";
         if (_facingDegDR >= 45 && _facingDegDR < 135) facingName = "朝東 (震宮)";
         else if (_facingDegDR >= 135 && _facingDegDR < 225) facingName = "朝南 (離宮)";
@@ -5080,14 +5068,14 @@ window.DryRunTool = {
 				},
 				hydroFieldAtLair: (() => { try { return Engine3D.hydroField(st.xueX || 0, st.manualXue ? st.xueZ : 5.0); } catch(e) { return null; } })(),
 				ridgeGraph: (Engine3D.ridgeGraphStats && JSON.parse(JSON.stringify(Engine3D.ridgeGraphStats))) || null,
-				roleGridSummary: (() => {
-					try {
-						if(!Engine3D.roleGrid) return null;
-						const counts = [0,0,0,0,0,0];
-						for(let i=0;i<Engine3D.roleGrid.length;i++) counts[Engine3D.roleGrid[i]]++;
-						return { counts, water: counts[1], sand: counts[2], hall: counts[3], lair: counts[4], dragon: counts[5] };
-					} catch(e) { return null; }
-				})(),
+                roleGridSummary: (() => {
+                    try {
+                        if(!Engine3D.roleGrid) return null;
+                        const counts = [0,0,0,0,0,0,0,0,0];
+                        for(let i=0;i<Engine3D.roleGrid.length;i++) counts[Engine3D.roleGrid[i]]++;
+                        return { counts, water: counts[1], sand: counts[2], hall: counts[3], lair: counts[4], dragon: counts[5] };
+                    } catch(e) { return null; }
+                })(),
 				xueHeight: st.xueHeight || 0,
 				manualXue: !!st.manualXue,
 				xueX: st.xueX || 0,
@@ -5196,7 +5184,7 @@ window.DryRunTool = {
             const _sc8 = resultData.scaleConsistency;
             _addAssert('A8 P2不確定性', !!(_u8 && typeof _u8.confidence === 'number' && _u8.confidence >= 0 && _u8.confidence <= 100 && !!_sc8), 'uncertainty=' + (_u8 ? _u8.confidence + '%' : 'null') + ' scaleConsistency=' + (_sc8 ? (_sc8.一致 ? '一致' : _sc8.悖論數 + '悖論') : 'null'));
             const _ach9 = AppState.sensors.airChangeRate || 0;
-            _addAssert('A9 P0感測器活性', _ach9 > 0.001 || _ach9 < -0.001 || (AppState.sensors.windSpeed || 0) <= 0.001, 'airChangeRate=' + _ach9.toFixed(3) + ' windSpeed=' + (AppState.sensors.windSpeed||0).toFixed(2) + (AppState.sensors.windSpeed > 0.001 && _ach9 <= 0.001 ? '（有風但 ACH=0：感測器未接線）' : ''));
+            _addAssert('A9 P0感測器活性', _ach9 > 5e-4 || _ach9 < -5e-4 || (AppState.sensors.windSpeed || 0) <= 0.001, 'airChangeRate=' + _ach9.toFixed(4) + ' windSpeed=' + (AppState.sensors.windSpeed||0).toFixed(2) + (AppState.sensors.windSpeed > 0.001 && Math.abs(_ach9) <= 5e-4 ? '（有風但 ACH≈0：感測器未接線）' : ''));
             try{
                 const _savedL = {};
                 ['sanHeBonus','baShaCheck','jianXiangPenalty','godFlags','waterPositionPalace'].forEach(k => { _savedL[k] = Rules[k]; });
@@ -5746,7 +5734,7 @@ const UI = {
                 const st = AppState.current;
                 const tC = Engine3D.getTerrainY(st.xueX||0, st.xueZ||5, this._ptT);
                 const anH = Engine3D.getTerrainY(st.xueX||0, (st.xueZ||5)+70, this._ptT).y;
-                const wLvl = (st.d === 'pingyang') ? -3.5 : -12.0;
+                const wLvl = qiWaterLevel(st);
                 const xueAbsY = tC.y + val;
                 const optimalH = Rules.deriveOptimalXueHeight ? Rules.deriveOptimalXueHeight() - tC.y : 0;
                 const deviation = Math.abs(val - optimalH);
@@ -6507,68 +6495,6 @@ const UI = {
         this.renderShapeSha();
         this.renderMultiScore();
     },
-    // v3.3 分頁籤徽章：把各組關鍵結論直接顯示在籤上，收合時仍可讀。
-    // 各 renderer 完成後呼叫 setTabLabel() 寫入結論；renderTabBadges() 統一補上警示紅點。
-    setTabLabel(tabName, txt, color){
-        try{
-            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
-            if(!t) return;
-            const b = t.querySelector('.rp-tab-badge');
-            if(b && txt != null){ if(b.innerText !== txt) b.innerText = txt; if(color) b.style.color = color; }
-        }catch(e){}
-    },
-    setTabAlert(tabName, on){
-        try{
-            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
-            if(t) t.setAttribute('data-alert', on ? '1' : '0');
-        }catch(e){}
-    },
-    renderTabBadges(){
-        // 直接由規則層計算（不依賴該分頁是否可見／已渲染），確保五籤隨時正確
-        // 總覽：五維均分 + 評級色
-        try{
-            const sc = AppState.smoothedScores;
-            const mult = Rules.getGlobalMultiplier();
-            const eff = sc ? sc.map(s => Math.min(100, Math.max(0, Math.round(s * mult)))) : null;
-            const avg = eff && eff.length ? Math.round(eff.reduce((a,b)=>a+(b||0),0)/eff.length) : null;
-            const vr = document.getElementById('v-rating');
-            this.setTabLabel('overview', avg != null ? ('均 ' + avg) : '—', vr ? (vr.style.color || null) : null);
-        }catch(e){}
-        // 龍脈：證據鏈可信度（低→紅點）
-        try{
-            const ch = Rules.dragonEvidenceChain ? Rules.dragonEvidenceChain() : null;
-            const lvl = ch ? ch.可信度 : '—';
-            const col = lvl === '高' ? '#3f6b52' : lvl === '中' ? '#b98a2e' : (lvl === '低' ? '#a63a2b' : null);
-            this.setTabLabel('dragon', lvl, col);
-            this.setTabAlert('dragon', lvl === '低');
-        }catch(e){}
-        // 堂穴：明堂綜合分（<40→紅點）
-        try{
-            const mt = Rules.mingtangMulti ? Rules.mingtangMulti() : null;
-            const v = mt ? mt.加權幾何平均 : null;
-            const col = v == null ? null : (v >= 60 ? '#3f6b52' : v >= 40 ? '#b98a2e' : '#a63a2b');
-            this.setTabLabel('tang', v != null ? ('堂' + v) : '—', col);
-            this.setTabAlert('tang', v != null && v < 40);
-        }catch(e){}
-        // 氣煞：形煞實測分數（≥70 硬煞 / 40-69 軟煞）
-        try{
-            const s = Rules.shapeShaProxies ? Rules.shapeShaProxies() : null;
-            if(s){
-                let hard = 0, soft = 0;
-                for(const k in s){ const v = s[k]; if(!v || typeof v.score !== 'number') continue; if(v.score >= 70) hard++; else if(v.score >= 40) soft++; }
-                const txt = hard > 0 ? (hard + '硬煞') : (soft > 0 ? (soft + '軟煞') : '淨');
-                this.setTabLabel('qi', txt, hard > 0 ? '#a63a2b' : (soft > 0 ? '#b98a2e' : '#3f6b52'));
-                let fatal = false;
-                try{ fatal = !!Rules.isFatalSha(AppState.current); }catch(e){}
-                this.setTabAlert('qi', hard > 0 || fatal);
-            }
-        }catch(e){}
-        // 向盤：元運
-        try{
-            const fs = document.getElementById('flystar-yun');
-            this.setTabLabel('liqi', fs ? fs.innerText : ((AppState.current.yun || '9') + '運'), '#b98a2e');
-        }catch(e){}
-    },
     renderMultiScore(){
         const el=document.getElementById('multi-score-list');
         const oe=document.getElementById('multi-score-overall');
@@ -6594,15 +6520,11 @@ const UI = {
         if(!s){ el.innerHTML='(無形煞資料)'; return; }
         let html='';
         const order=['天斬煞','探頭煞','擎拳煞','凹風','孤峰','刀削壁','射肋煞','蜈蚣脊'];
-        let hard=0, soft=0;
         for(const k of order){
             const v=s[k]; if(!v) continue;
             const c = v.score>=70?'#a63a2b':v.score>=40?'#b98a2e':'#3f6b52';
-            const mk = v.score>=70?'●':v.score>=40?'◐':'○';   // ● 硬煞 / ◐ 軟煞 / ○ 未成
-            if(v.score>=70) hard++; else if(v.score>=40) soft++;
-            html+=`<div class="rp-row"><span class="val" title="●硬煞(≥70) ◐軟煞(40-69) ○未成(&lt;40)" style="color:${c}; min-width:10px;">${mk}</span><span class="lbl">${k}</span><span class="val" style="color:${c}; min-width:18px;">${v.score}</span><span class="raw" title="${v.公式}">${v.公式}</span></div>`;
+            html+=`<div class="rp-row"><span class="lbl">${k}</span><span class="val" style="color:${c};">${v.score}</span><span class="raw" title="${v.公式}">${v.公式}</span></div>`;
         }
-        if(!hard && !soft) html += '<div class="rp-hint" style="color:#3f6b52;">八類形煞均未成形（實測代理分 <40）</div>';
         el.innerHTML=html;
     },
     renderDragonEvidenceChain(){
@@ -6626,6 +6548,62 @@ const UI = {
         const dd = document.getElementById('dragon-chain-defects');
         if(dd) dd.open = chain.缺陷警告.length > 0;
     },
+
+    setTabLabel(tabName, txt, color){
+        try{
+            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
+            if(!t) return;
+            const b = t.querySelector('.rp-tab-badge');
+            if(b && txt != null){ if(b.innerText !== txt) b.innerText = txt; if(color) b.style.color = color; }
+        }catch(e){}
+    },
+    setTabAlert(tabName, on){
+        try{
+            const t = document.querySelector('#rp-tabs .rp-tab[data-tab="' + tabName + '"]');
+            if(t) t.setAttribute('data-alert', on ? '1' : '0');
+        }catch(e){}
+    },
+    // v3.3 分頁籤徽章：直接由規則層計算（不依賴該分頁是否可見／已渲染），確保五籤隨時正確
+    renderTabBadges(){
+        try{
+            const sc = AppState.smoothedScores;
+            const mult = Rules.getGlobalMultiplier();
+            const eff = sc ? sc.map(x => Math.min(100, Math.max(0, Math.round(x * mult)))) : null;
+            const avg = eff && eff.length ? Math.round(eff.reduce((a,b)=>a+(b||0),0)/eff.length) : null;
+            const vr = document.getElementById('v-rating');
+            this.setTabLabel('overview', avg != null ? ('均 ' + avg) : '—', vr ? (vr.style.color || null) : null);
+        }catch(e){}
+        try{
+            const ch = Rules.dragonEvidenceChain ? Rules.dragonEvidenceChain() : null;
+            const lvl = ch ? ch.可信度 : '—';
+            const col = lvl === '高' ? '#3f6b52' : lvl === '中' ? '#b98a2e' : (lvl === '低' ? '#a63a2b' : null);
+            this.setTabLabel('dragon', lvl, col);
+            this.setTabAlert('dragon', lvl === '低');
+        }catch(e){}
+        try{
+            const mt = Rules.mingtangMulti ? Rules.mingtangMulti() : null;
+            const v = mt ? mt.加權幾何平均 : null;
+            const col = v == null ? null : (v >= 60 ? '#3f6b52' : v >= 40 ? '#b98a2e' : '#a63a2b');
+            this.setTabLabel('tang', v != null ? ('堂' + v) : '—', col);
+            this.setTabAlert('tang', v != null && v < 40);
+        }catch(e){}
+        try{
+            const sh = Rules.shapeShaProxies ? Rules.shapeShaProxies() : null;
+            if(sh){
+                let hard = 0, soft = 0;
+                for(const k in sh){ const v = sh[k]; if(!v || typeof v.score !== 'number') continue; if(v.score >= 70) hard++; else if(v.score >= 40) soft++; }
+                const txt = hard > 0 ? (hard + '硬煞') : (soft > 0 ? (soft + '軟煞') : '淨');
+                this.setTabLabel('qi', txt, hard > 0 ? '#a63a2b' : (soft > 0 ? '#b98a2e' : '#3f6b52'));
+                let fatal = false;
+                try{ fatal = !!Rules.isFatalSha(AppState.current); }catch(e){}
+                this.setTabAlert('qi', hard > 0 || fatal);
+            }
+        }catch(e){}
+        try{
+            const fs2 = document.getElementById('flystar-yun');
+            this.setTabLabel('liqi', fs2 ? fs2.innerText : ((AppState.current.yun || '9') + '運'), '#b98a2e');
+        }catch(e){}
+    },
     renderDragonEmergence(){
         const el = document.getElementById('dragon-emerge-list');
         const oe = document.getElementById('dragon-emerge-overall');
@@ -6640,17 +6618,14 @@ const UI = {
             return;
         }
         const m = em.指標 || {};
-        if(oe){
-            oe.innerText = '脈長 ' + m.路徑長 + 'm';
-            oe.style.color = '#1d758f';
-        }
-        const row = (lbl, val, col, tip) => `<div class="rp-row"><span class="lbl">${lbl}</span><span class="raw" style="color:${col||'inherit'};" title="${tip||val}">${val}</span></div>`;
+        if(oe){ oe.innerText = '脈長 ' + m.路徑長 + 'm'; oe.style.color = '#1d758f'; }
+        const row = (lbl, val, col, tip) => '<div class="rp-row"><span class="lbl">' + lbl + '</span><span class="raw" style="color:' + (col||'inherit') + ';" title="' + (tip||val) + '">' + val + '</span></div>';
         const _cA = (m.起祖落差||0) >= 20 ? '#3f6b52' : '#b98a2e';
         const _cW = (m.水切次數||0) === 0 ? '#3f6b52' : ((m.水切次數||0) <= 2 ? '#b98a2e' : '#a63a2b');
         const _cD = (m.方向連續性||0) >= 50 ? '#3f6b52' : ((m.方向連續性||0) >= 25 ? '#b98a2e' : '#a63a2b');
         let html = '';
-        html += row('起祖', `${m.起祖.y}m @(${m.起祖.x},${m.起祖.z})`, _cA, '實測脈起點＝域內最高分水嶺峰（祖山）');
-        html += row('止穴', `${m.止穴.y}m @(${m.止穴.x},${m.止穴.z})`, 'inherit', '實測脈終點（吸附至最近脊格，≤18m）');
+        html += row('起祖', m.起祖.y + 'm @(' + m.起祖.x + ',' + m.起祖.z + ')', _cA, '實測脈起點＝域內最高分水嶺峰（祖山）');
+        html += row('止穴', m.止穴.y + 'm @(' + m.止穴.x + ',' + m.止穴.z + ')', 'inherit', '實測脈終點（吸附至最近脊格，≤18m）');
         html += row('起祖落差', m.起祖落差 + 'm', _cA, '祖山至止穴之高差：龍脈能量來源');
         html += row('平均滑降高度', m.平均滑降高度 + 'm', 'inherit', '沿脈加權平均高度，越高表示行龍越在高處（不落谷）');
         html += row('高度回升率', m.高度回升率, (m.高度回升率 <= 0.35 ? '#3f6b52' : '#b98a2e'), '沿脈上行比例：過高＝急龍不止／起伏失序');
@@ -6660,37 +6635,33 @@ const UI = {
         html += row('最窄／最寬', m.最窄脊寬 + ' / ' + m.最大脊寬 + 'm', 'inherit', '脊身寬度極值（束氣↔開帳之動態範圍）');
         html += row('台地比例', Math.round((m.台地比例||0)*100) + '%', 'inherit', '35m 內無明顯下切之比例：高＝平頂／低丘，非典型山龍');
         html += row('成形段數', m.成形段數 + '（≥8m）', 'inherit', '濾除單格抖動後之有效段數');
-        html += row('開／束／峽／跌', `${m.開帳數}/${m.束氣數}/${m.過峽數}/${m.跌斷數}`, 'inherit', '開帳／束氣／過峽／跌斷 段數');
+        html += row('開／束／峽／跌', m.開帳數 + '/' + m.束氣數 + '/' + m.過峽數 + '/' + m.跌斷數, 'inherit', '開帳／束氣／過峽／跌斷 段數');
         el.innerHTML = html;
-        // 貼脊一致性
         if(em.貼脊){
             const r = em.貼脊.貼脊率;
             const _rc = r >= 75 ? '#3f6b52' : (r >= 50 ? '#b98a2e' : '#a63a2b');
-            el.innerHTML += `<div style="margin-top:5px; padding:4px; background:rgba(0,0,0,0.03); border-radius:4px; font-size:10px; line-height:1.5;">
-              <b style="color:${_rc};">生成脊貼脊率 ${r}%</b>（${em.貼脊.取樣點} 取樣點）<br>
-              與實測脈平均偏離 ${em.貼脊.平均偏離}m／最大 ${em.貼脊.最大偏離}m<br>
-              脊網 ${em.貼脊.脊網格數} 格｜峰 ${em.貼脊.峰}｜鞍 ${em.貼脊.鞍}<br>
-              <span style="color:${_rc};">一致評級：${em.一致評級 || '—'}</span>
-            </div>`;
+            el.innerHTML += '<div style="margin-top:5px; padding:4px; background:rgba(0,0,0,0.03); border-radius:4px; font-size:10px; line-height:1.5;">'
+              + '<b style="color:' + _rc + ';">生成脊貼脊率 ' + r + '%</b>（' + em.貼脊.取樣點 + ' 取樣點）<br>'
+              + '與實測脈平均偏離 ' + em.貼脊.平均偏離 + 'm／最大 ' + em.貼脊.最大偏離 + 'm<br>'
+              + '脊網 ' + em.貼脊.脊網格數 + ' 格｜峰 ' + em.貼脊.峰 + '｜鞍 ' + em.貼脊.鞍 + '<br>'
+              + '<span style="color:' + _rc + ';">一致評級：' + (em.一致評級 || '—') + '</span></div>';
         }
-        // 段鏈與圖論深化
         if(se){
             const gr = Rules.dragonGraphRefine ? Rules.dragonGraphRefine() : null;
             let h2 = '';
             if(em.段鏈 && em.段鏈.length){
                 const cOf = t => ({ '行龍':'#3f6b52','開帳':'#b98a2e','過峽':'#1d758f','束氣':'#8a6d1a','跌斷':'#a63a2b','急落':'#c05a2b','轉向':'#6b5a3a' }[t] || '#666');
                 h2 += '<div style="margin-top:5px; font-size:10px; line-height:1.55;">';
-                for(const s of em.段鏈){
-                    h2 += `<div class="rp-row"><span class="lbl" style="color:${cOf(s.型)}; min-width:30px;">${s.型}</span><span class="raw" title="收束比 ${s.收束比}｜最大轉角 ${s.最大轉角}°｜最大坡度 ${s.最大坡度}${s.台地?'｜台地':''}">${s.長}m・寬${s.脊寬}m・落差${s.落差}m</span></div>`;
+                for(const sg of em.段鏈){
+                    h2 += '<div class="rp-row"><span class="lbl" style="color:' + cOf(sg.型) + '; min-width:30px;">' + sg.型 + '</span><span class="raw" title="收束比 ' + sg.收束比 + '｜最大轉角 ' + sg.最大轉角 + '°｜最大坡度 ' + sg.最大坡度 + (sg.台地?'｜台地':'') + '">' + sg.長 + 'm・寬' + sg.脊寬 + 'm・落差' + sg.落差 + 'm</span></div>';
                 }
                 h2 += '</div>';
             }
             if(gr){
-                h2 += `<div style="margin-top:5px; padding:4px; background:rgba(29,117,143,0.07); border-radius:4px; font-size:10px; color:#1d758f; line-height:1.5;">
-                  <b>龍脈圖論</b>：${gr.節律}<br>
-                  過峽 ${gr.過峽成立數}/${gr.過峽段數} 成立（佔脈 ${gr.過峽佔比}%）｜束氣 ${gr.束氣段數} 段<br>
-                  開帳 ${gr.開帳成立數}/${gr.開帳段數} 成立（佔脈 ${gr.開帳佔比}%）｜跌斷 ${gr.跌斷段數} 段
-                </div>`;
+                h2 += '<div style="margin-top:5px; padding:4px; background:rgba(29,117,143,0.07); border-radius:4px; font-size:10px; color:#1d758f; line-height:1.5;">'
+                   + '<b>龍脈圖論</b>：' + gr.節律 + '<br>'
+                   + '過峽 ' + gr.過峽成立數 + '/' + gr.過峽段數 + ' 成立（佔脈 ' + gr.過峽佔比 + '%）｜束氣 ' + gr.束氣段數 + ' 段<br>'
+                   + '開帳 ' + gr.開帳成立數 + '/' + gr.開帳段數 + ' 成立（佔脈 ' + gr.開帳佔比 + '%）｜跌斷 ' + gr.跌斷段數 + ' 段</div>';
             }
             se.innerHTML = h2;
         }
@@ -6955,7 +6926,7 @@ const UI = {
             ctx.fillText(namesS[soil][i]||'', 6, Math.min(h-4, toYS(hMinS) + i*(h/4) + 12));
         }
         ctx.restore();
-        const wlvS = (st.d === 'pingyang') ? -3.5 : -12.0;
+        const wlvS = qiWaterLevel(st);
         if (wlvS > hMinS - 1 && wlvS < hMaxS + 1) {
             ctx.strokeStyle='rgba(26,90,138,0.85)'; ctx.setLineDash([4,3]);
             ctx.beginPath(); ctx.moveTo(0, toYS(wlvS)); ctx.lineTo(w, toYS(wlvS)); ctx.stroke(); ctx.setLineDash([]);
@@ -6973,7 +6944,7 @@ const UI = {
             try{
                 const [ax,az]=effLairAnchor();
                 const t=Engine3D.getTerrainY(ax,az);
-                leg.innerHTML+=` ｜ 穴心高程 ${t.y.toFixed(1)}m 坡度 ${(Math.hypot(t.nx,t.nz)).toFixed(2)}`;
+                leg.innerHTML+=` ｜ 穴心高程 ${t.y.toFixed(1)}m 每格高差 ${(Math.hypot(t.nx,t.nz)).toFixed(2)}m/${(CONFIG.tSize/CONFIG.tSeg).toFixed(2)}m`;
             }catch(e){}
         }
     },
@@ -7952,7 +7923,7 @@ const Engine3D = {
                         let vx = Physics.windGridX[cfdIdx] || 0;
                         let vz = Physics.windGridZ[cfdIdx] || 0;
                         let windSpeed = Math.sqrt(vx * vx + vz * vz);
-                        let waterLevel = (AppState.current.d === 'pingyang') ? -3.5 : -12.0;
+                        let waterLevel = qiWaterLevel(AppState.current);
                         let backHDiff = hB - t.y;
                         let sideGuardHDiff = Math.min(hL, hR) - t.y;
                         let isWater = t.y <= waterLevel + 0.5;
@@ -8178,12 +8149,6 @@ const Engine3D = {
             if(this.renderer) this.renderer.shadowMap.needsUpdate = true;
         }
         AppState.sensors.sunlight = isNight ? 0.0 : Math.max(0.05, Math.min(1, sinAlt * 1.2));
-        // v3.2 植被耦合：穴場冠層遮蔽 → 局部日照（不覆寫全域 sunlight，另立感測器供日照維引用）
-        try{
-            const _sh = ((typeof Physics !== 'undefined' && Physics.canopyShadeAt) ? Physics.canopyShadeAt(effLairAnchor()[0], effLairAnchor()[1]) : 0);
-            AppState.sensors.canopyShade = Math.round(_sh*100)/100;
-            AppState.sensors.sunlightLocal = isNight ? 0 : Math.max(0.02, Math.min(1, AppState.sensors.sunlight * (1 - _sh)));
-        }catch(eCS){ AppState.sensors.canopyShade = 0; AppState.sensors.sunlightLocal = AppState.sensors.sunlight; }
     },
     clearHeatmap() {
         if(this.hCtx) {
@@ -8206,7 +8171,7 @@ const Engine3D = {
         const cvSize = 256;
         const gridRes = 48; 
         const step = cvSize / gridRes;
-        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(state);
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, cvSize, cvSize);
         let lookDir = state.face === '1' ? 1.0 : -1.0;
@@ -8295,7 +8260,7 @@ const Engine3D = {
     },
 	autoFindBestLair() {
         const state = AppState.current;
-        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(state);
         let bestScore = -999;
         let bestX = 0, bestZ = 5;
         for (let gz = 8; gz < 56; gz++) {
@@ -9703,7 +9668,7 @@ const Engine3D = {
                             if(['jushui','sishui'].includes(state.w)) flowTilt *= 0.3; 
                         }
 						let targetRiverY = riverBottom + flowTilt;
-                        let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                        let waterLevel = qiWaterLevel(state);
                         targetRiverY = Math.min(targetRiverY, Math.min(y - 1.5, waterLevel - 0.8));
 						y = y * smoothT + targetRiverY * (1 - smoothT);
 						if (state.w === 'gejiao' && dR >= 15) {
@@ -10210,22 +10175,17 @@ const Engine3D = {
             this.treeMesh.count = treeCount; 
             this.treeMesh.instanceMatrix.needsUpdate = true;
             this.treeDensity = new Float32Array(64*64);
-            this.treeCanopyH = new Float32Array(64*64);
             for(let tp of this.treePos){
                 let tgx=Math.max(0, Math.min(63, Math.floor((tp.x+CONFIG.tSize/2)/CONFIG.tSize*64)));
                 let tgz=Math.max(0, Math.min(63, Math.floor((tp.z+CONFIG.tSize/2)/CONFIG.tSize*64)));
                 this.treeDensity[tgz*64+tgx]++;
-                const _ch = (tp.scale||1) * 3.2;                      // 樹高代理 ≈ 樹身尺度 × 3.2m
-                if(_ch > this.treeCanopyH[tgz*64+tgx]) this.treeCanopyH[tgz*64+tgx] = _ch;
                 for(let dz2=-1; dz2<=1; dz2++) for(let dx2=-1; dx2<=1; dx2++){
                     let nx=tgx+dx2, nz=tgz+dz2;
                     if(nx>=0&&nx<64&&nz>=0&&nz<64&& (dx2!==0||dz2!==0)){
                         this.treeDensity[nz*64+nx]+=0.25;
-                        if(_ch*0.7 > this.treeCanopyH[nz*64+nx]) this.treeCanopyH[nz*64+nx] = _ch*0.7;
                     }
                 }
             }
-            if(Physics && Physics.computeRoughnessField) Physics.computeRoughnessField();
         }
         if (this.rockMesh) {
             let rockCount = 0;
@@ -10286,7 +10246,7 @@ const Engine3D = {
         if (!(state.luo || state.hua || state.shixiang || state.qin)) return;
         const tSeg = CONFIG.tSeg, tSize = CONFIG.tSize;
         const [ax, az] = effLairAnchor();
-        const waterLevelAt = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevelAt = qiWaterLevel(state);
         let bx = -1, bz = -1, best = -1;
         if (this.flowMap) {
             const fm = this.flowMap;
@@ -10403,7 +10363,7 @@ const Engine3D = {
         const shader = this.waterMesh.material.userData.shader;
         const isHuilongNorth = (state.d==='huilong' && state.zutai && state.face==='0');
         const slope = isHuilongNorth ? 0.055 : (state.d==='pingyang' ? -0.012 : -0.045);
-        const base = (state.d==='pingyang' ? -3.5 : -12.0);
+        const base = qiWaterLevel(state);
         if(shader.uniforms.waterSlope) shader.uniforms.waterSlope.value = slope;
         if(shader.uniforms.waterBase) shader.uniforms.waterBase.value = base;
         if(this.flowMap && this.hMap && this.flowDirTex){
@@ -10447,7 +10407,7 @@ const Engine3D = {
             this.hMap[i] = Math.max(-45, Math.min(130, this.hMap[i]));
         }
         if (state.w === 'none') return;
-        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(state);
         const wZ = this.riverRefZ(state.w);
         for (let gz = 0; gz <= tSeg; gz++) {
             for (let gx = 0; gx <= tSeg; gx++) {
@@ -10505,7 +10465,7 @@ const Engine3D = {
         const seg = CONFIG.tSeg, size = CONFIG.tSize;
         const N = 128;
         const data = this.heightTex.image.data;
-        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(state);
         const hGrid = new Float32Array(N*N);
         const mask = new Uint8Array(N*N);
         for(let gz=0; gz<N; gz++){
@@ -10557,7 +10517,7 @@ const Engine3D = {
         const seg = CONFIG.tSeg, size = CONFIG.tSize;
         const G = 64;
         const grid = new Uint8Array(G*G);
-        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterLevel = qiWaterLevel(state);
         const [ax, az] = effLairAnchor();
         const ay = this.getTerrainY(ax, az).y;
         const rad = (((state.degree||0)%360+360)%360) * Math.PI/180;
@@ -10682,7 +10642,7 @@ const Engine3D = {
         const gz = Math.max(0, Math.min(seg, Math.round((z+size/2)/(size/seg))));
         const f = this.flowMap[gz*(seg+1)+gx] || 0;
         const h = this.hMap[gz*(seg+1)+gx] || 0;
-        const waterLevel = this.waterLevelNow ? this.waterLevelNow(state) : ((state.d === 'pingyang') ? -3.5 : -12.0); 
+        const waterLevel = this.waterLevelNow ? this.waterLevelNow(state) : (qiWaterLevel(state)); 
         const depth = f > 0.15 ? Math.min(4, 0.6 * Math.pow(f, 0.4)) : 0;
         const hx1 = this.hMap[gz*(seg+1)+Math.max(0,gx-1)]||h, hx2 = this.hMap[gz*(seg+1)+Math.min(seg,gx+1)]||h;
         const hz1 = this.hMap[Math.max(0,gz-1)*(seg+1)+gx]||h, hz2 = this.hMap[Math.min(seg,gz+1)*(seg+1)+gx]||h;
@@ -10694,6 +10654,435 @@ const Engine3D = {
         const scour = depth > 0 ? Math.min(100, v*v*depth*0.9) : 0;
         return { flow: Math.round(f*100)/100, depth: Math.round(depth*100)/100, velocity: Math.round(v*100)/100, floodRisk: Math.round(floodRisk*100)/100, scour, floodLevel: Math.round(floodLevel*10)/10 };
     },
+
+    // ===================================================================================
+    // 湧現龍脈路網（審計要點 #1/#2／二十二節：龍脈不該是手繪脊線，而應由地形湧現）
+    // 問題：buildDragonRidge() 以固定配方（祖山 z=-150／開帳 -118..-90／束氣 -88..-66／
+    //       蜂腰 -64..-42／跌斷 -40..-20／入首 -18..0）沿固定 z 逐層掃描側向極值，
+    //       拓樸為作者先驗 —— 屬「程序化脊線＋規則檢查」。
+    // 本段：由 hMap 實測分水嶺（basin 割集）→ 真實山脊格 → 脊網節點（峰／鞍／脊格）
+    //       → A* 求「祖山→穴場」最小代價路徑（高度損失×水切×轉角×振幅加權）
+    //       → 逐段側向斷面量測脊寬 → 由實測收束/跌斷/轉向標記 過峽/束氣/跌斷/開帳。
+    //       生成層仍用作者配方（保 3D 造型與 Seed 可重現）；分析層改讀實測脈。
+    // ===================================================================================
+    _hbLerpH(gx, gz){
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap;
+        let x0 = gx|0; if(x0 > seg-1) x0 = seg-1; if(x0 < 0) x0 = 0;
+        let z0 = gz|0; if(z0 > seg-1) z0 = seg-1; if(z0 < 0) z0 = 0;
+        const tx = gx - x0, tz = gz - z0;
+        const h00 = h[z0*W+x0], h10 = h[z0*W+x0+1], h01 = h[(z0+1)*W+x0], h11 = h[(z0+1)*W+x0+1];
+        return (h00*(1-tx) + h10*tx)*(1-tz) + (h01*(1-tx) + h11*tx)*tz;
+    },
+    _hbSlopeH(x, z){
+        const w2g = CONFIG.tSeg / CONFIG.tSize;
+        const gx = (x + CONFIG.tSize/2)*w2g, gz = (z + CONFIG.tSize/2)*w2g;
+        const e = 1.2*w2g;
+        const dx = (this._hbLerpH(gx+e, gz) - this._hbLerpH(gx-e, gz)) / 2.4;
+        const dz = (this._hbLerpH(gx, gz+e) - this._hbLerpH(gx, gz-e)) / 2.4;
+        return Math.hypot(dx, dz);
+    },
+    _ridgeNet(){
+        if(!this.hMap){ this.ridgeNet = null; return null; }
+        if(this.ridgeNet && this.ridgeNet.rev === (this.hMapRev||0)) return this.ridgeNet;
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, size = CONFIG.tSize, cell = size/seg;
+        const g = this.extractWatershedGraph();
+        if(!g){ this.ridgeNet = null; return null; }
+        if(g.basin) this._wsBasin = g.basin;
+        if(g.ridgeCount) this._wsRidgeCount = g.ridgeCount;
+        // --- 1. basin 最小高度（R1 脊線性判據）---
+        const basinMin = new Float32Array(g.basinCount).fill(1e9);
+        for(let iz=0; iz<W; iz++) for(let ix=0; ix<W; ix++){
+            const i = iz*W+ix, b = this._wsBasin ? this._wsBasin[i] : -1;
+            if(b >= 0 && b < basinMin.length && h[i] < basinMin[b]) basinMin[b] = h[i];
+        }
+        // --- 2. 脊格候選：basin 邊界 ＋ 高於全體 basin 最低點 ≥3m ＋ R1 脊線性 ---
+        const cand = [];
+        for(let iz=1; iz<seg; iz++) for(let ix=1; ix<seg; ix++){
+            const i = iz*W+ix;
+            const cnt = this._wsRidgeCount ? this._wsRidgeCount[i] : 0;
+            if(cnt < 2) continue;                       // 需與 ≥2 個相異 basin 相鄰 → 真分水嶺（濾孤立噪點）
+            const b0 = this._wsBasin ? this._wsBasin[i] : -1;
+            const bmin = (b0 >= 0 && basinMin[b0] < 1e8) ? basinMin[b0] : h[i];
+            if(h[i] - bmin < 3.0) continue;             // 相對其流域需有顯著抬升
+            if(this._hbSlopeH((ix/seg)*size-size/2, (iz/seg)*size-size/2) < 0.03) continue; // 排除平坦地偽脊
+            cand.push(i);
+        }
+        if(cand.length < 20){
+            this.ridgeNet = { rev:this.hMapRev||0, mask:null, cellIdx:new Int32Array(0), width:null, nodes:[], peaks:g.peaks, saddles:g.saddles, count:0, cell };
+            return this.ridgeNet;
+        }
+        // --- 3. 脊寬（垂直脊向斷面，3m 內未降 >3m 的最大半寬）---
+        const mask = new Uint8Array(W*W); for(const i of cand) mask[i] = 1;
+        const width = new Float32Array(W*W);
+        let wSum = 0, wN = 0;
+        for(const i of cand){
+            const ix = i % W, iz = (i-ix)/W;
+            const x = (ix/seg)*size-size/2, z = (iz/seg)*size-size/2;
+            const h0 = h[i];
+            let sxx=0, szz=0, sxz=0;
+            for(let dz=-1; dz<=1; dz++) for(let dx=-1; dx<=1; dx++){
+                const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                if(!mask[nz*W+nx]) continue;
+                sxx += dx*dx; szz += dz*dz; sxz += dx*dz;
+            }
+            const th = 0.5*Math.atan2(2*sxz, sxx-szz);
+            const px = Math.cos(th), pz = Math.sin(th);
+            let w = 0;
+            for(let d=1; d<=14; d++){
+                const dd = d*cell;
+                const ha = this._hbLerpH((x+px*dd+size/2)*seg/size, (z+pz*dd+size/2)*seg/size);
+                const hb = this._hbLerpH((x-px*dd+size/2)*seg/size, (z-pz*dd+size/2)*seg/size);
+                if(h0 - Math.min(ha, hb) > 3.0) break;
+                w = dd;
+            }
+            width[i] = w; wSum += w; wN++;
+        }
+        const wMed = wN ? wSum/wN : 1;
+        // --- 4. 脊網節點：峰（顯著）／鞍（隘口）---
+        const idxOf = (x, z) => {
+            const ix = Math.round((x+size/2)/cell), iz = Math.round((z+size/2)/cell);
+            if(ix<0||ix>seg||iz<0||iz>seg) return -1;
+            return iz*W+ix;
+        };
+        const nodes = [];
+        const peakNodes = g.peaks.map(p => ({ gi: idxOf(p.x, p.z), x: p.x, z: p.z, y: p.y, type: 'peak' })).filter(n => n.gi >= 0 && mask[n.gi]);
+        const saddleNodes = g.saddles.map(sd => {
+            const gi = idxOf(sd.x, sd.z);
+            const wid = (gi>=0 && mask[gi]) ? width[gi] : wMed;
+            return { gi, x: sd.x, z: sd.z, y: sd.y, type: 'saddle', wide: wid < wMed*0.6, narrow: wid < wMed*0.35 };
+        }).filter(n => n.gi >= 0);
+        for(const n of peakNodes) nodes.push(n);
+        for(const n of saddleNodes) if(!mask[n.gi]) nodes.push(n);
+        this.ridgeNet = { rev:this.hMapRev||0, mask, cellIdx:Int32Array.from(cand), width, wMed, nodes, peaks:g.peaks, saddles:g.saddles, count:cand.length, cell };
+        return this.ridgeNet;
+    },
+    // Dijkstra/A*：祖山（域內最高峰）→ 穴場 之最小代價龍脊路徑
+    //   代價 = 高差損失(1.5/m) + 水切(正規化匯流×4) + 轉角(2/rad) + 非脊格(0.35/步) + 距離(0.05/m)
+    //   坡度上限 3.5 防越崖；起點鎖「最高峰」，故路徑必自祖山行度而下。
+    ridgePath(startGi, goalGi){
+        const net = this._ridgeNet();
+        if(!net || !net.mask) return null;
+        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, mask = net.mask, width = net.width;
+        const wMed = net.wMed || 1, cell = net.cell, N = W*W;
+        const DX=[1,1,0,-1,-1,-1,0,1], DZ=[0,1,1,1,0,-1,-1,-1];
+        const dist = new Float64Array(N).fill(1e18);
+        const prev = new Int32Array(N).fill(-1);
+        const done = new Uint8Array(N);
+        // 並列二元堆（距離／索引分開存，避免打包精度問題；成本可為浮點）
+        const CAP = 1 << 18;
+        const hd = new Float64Array(CAP), hi = new Int32Array(CAP);
+        let hn = 0;
+        const PUSH = (i, d) => {
+            if(hn >= CAP) return;
+            let c = hn++;
+            hd[c] = d; hi[c] = i;
+            while(c > 0){
+                const par = (c-1) >> 1;
+                if(hd[par] <= hd[c]) break;
+                const td = hd[par]; hd[par] = hd[c]; hd[c] = td;
+                const ti = hi[par]; hi[par] = hi[c]; hi[c] = ti;
+                c = par;
+            }
+        };
+        const POP = () => {
+            const td0 = hd[0], ti0 = hi[0];
+            hn--;
+            if(hn > 0){
+                hd[0] = hd[hn]; hi[0] = hi[hn];
+                let c = 0;
+                for(;;){
+                    const l = c*2+1, r = l+1; let m = c;
+                    if(l < hn && hd[l] < hd[m]) m = l;
+                    if(r < hn && hd[r] < hd[m]) m = r;
+                    if(m === c) break;
+                    const td = hd[m]; hd[m] = hd[c]; hd[c] = td;
+                    const ti = hi[m]; hi[m] = hi[c]; hi[c] = ti;
+                    c = m;
+                }
+            }
+            return { i: ti0, d: td0 };
+        };
+        if(startGi < 0 || goalGi < 0) return null;
+        // flowMap 為匯流量（1…~158，中位 2.34）：以 p88 正規化為 0-1 水切強度
+        let flRef = null, flScale = 1;
+        if(this.flowMap){
+            flRef = this.flowMap;
+            const samp = [];
+            for(let k=0; k<flRef.length; k+=17) samp.push(flRef[k]);
+            samp.sort((a,b)=>a-b);
+            flScale = samp.length ? Math.max(1, samp[Math.floor(samp.length*0.88)]) : 1;
+            this._flowNorm88 = flScale;
+        }
+        const flNorm = i => flRef ? Math.min(1, (flRef[i]||0)/flScale) : 0;
+        dist[startGi] = 0; PUSH(startGi, 0);
+        let iter = 0, found = false;
+        while(hn > 0 && iter < N*6){
+            iter++;
+            const cur = POP();
+            const i = cur.i;
+            if(done[i]) continue;
+            done[i] = 1;
+            if(i === goalGi){ found = true; break; }
+            const ix = i % W, iz = (i-ix)/W;
+            const h0 = h[i];
+            const pv = prev[i];
+            let dirx = 0, dirz = 0;
+            if(pv >= 0){ const px = pv % W, pz = (pv-px)/W; dirx = ix-px; dirz = iz-pz; }
+            const fl0 = flNorm(i);
+            for(let k=0; k<8; k++){
+                const nx = ix+DX[k], nz = iz+DZ[k];
+                if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                const j = nz*W+nx;
+                if(done[j]) continue;
+                const dh = h[j] - h0;
+                const step = (k%2===0) ? cell : cell*1.4142;
+                const slope = Math.abs(dh)/step;
+                if(slope > 3.5) continue;                         // 越崖封鎖
+                let c = step*0.05;
+                c += Math.max(0, -dh)*1.5;                        // 下行能量損失
+                c += ((fl0 + flNorm(j))*0.5)*4.0;                 // 水切（正規化匯流強度）
+                if(!mask[j]) c += 0.35;                           // 非脊格
+                if(mask[j] && width[j] < wMed*0.5) c -= 0.10;     // 收束（過峽/束氣）微獎勵
+                if(dirx || dirz){
+                    const l0 = Math.hypot(dirx, dirz);
+                    const dotv = (dirx*DX[k] + dirz*DZ[k]) / (l0*Math.SQRT2);
+                    const ang = Math.acos(Math.max(-1, Math.min(1, dotv / Math.SQRT1_2)));
+                    c += ang*2.0;                                  // 轉角不順
+                }
+                const nd = dist[i] + c;
+                if(nd < dist[j]){ dist[j] = nd; prev[j] = i; PUSH(j, nd); }
+            }
+        }
+        if(!found) return null;
+        const path = [];
+        let c = goalGi;
+        while(c >= 0 && path.length < 4096){ path.push(c); c = prev[c]; }
+        path.reverse();
+        return path;
+    },
+    // 由脊網湧現之龍脈：節點（峰/鞍）＋ A* 路徑＋逐段側向斷面量測
+    dragonRidgeExtract(){
+        if(this._dragonExtract && this._dragonExtract.rev === (this.hMapRev||0)) return this._dragonExtract.val;
+        const out = (() => {
+            const empty = { ok:false, path:[], segments:[], allSegments:[], metrics:null, nodes:[], peaks:0, saddles:0 };
+            try{
+                const net = this._ridgeNet();
+                if(!net || !net.mask) return empty;
+                const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell;
+                const g = this.extractWatershedGraph();
+                if(!g || !g.peaks || !g.peaks.length) return empty;
+                const [ax, az] = effLairAnchor();
+                const w2g = v => Math.round((v + size/2)/cell);
+                let best = null;
+                for(const p of g.peaks){ if(!best || p.y > best.y) best = p; }
+                if(!best) return empty;
+                const startGi = w2g(best.x) + w2g(best.z)*W;
+                const gxG = Math.max(0, Math.min(seg, w2g(ax))), gzG = Math.max(0, Math.min(seg, w2g(az)));
+                let goalGi = gzG*W + gxG;
+                // 目標吸附至最近脊格（≤18m）
+                if(!net.mask[goalGi]){
+                    let bd = 1e9, bg = -1;
+                    for(let r=1; r<=8 && bg<0; r++){
+                        for(let dz=-r; dz<=r; dz++) for(let dx=-r; dx<=r; dx++){
+                            if(Math.max(Math.abs(dx),Math.abs(dz)) !== r) continue;
+                            const nx = gxG+dx, nz = gzG+dz;
+                            if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                            const i = nz*W+nx;
+                            if(!net.mask[i]) continue;
+                            const dd = Math.hypot(dx, dz)*cell;
+                            if(dd < bd){ bd = dd; bg = i; }
+                        }
+                    }
+                    if(bg >= 0) goalGi = bg;
+                }
+                if(startGi === goalGi) return empty;
+                const pathGi = this.ridgePath(startGi, goalGi);
+                if(!pathGi || pathGi.length < 8) return empty;
+                const hmRef = this.hMap, flRef = this.flowMap;
+                const pts = pathGi.map(i => {
+                    const ix = i % W, iz = (i-ix)/W;
+                    return { x: ix*cell - size/2, z: iz*cell - size/2, y: hmRef ? hmRef[i] : 0, gi: i };
+                });
+                // ---- 逐段側向斷面量測（多尺度平順，避免單格抖動誤分類）----
+                const n = pts.length;
+                const raws = new Float32Array(n);
+                const plateau = new Uint8Array(n);
+                const azOf = (a, b) => Math.atan2(b.x - a.x, -(b.z - a.z)) * 180/Math.PI;
+                for(let i=0; i<n; i++){
+                    const p = pts[i];
+                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
+                    const tx = pts[ib].x - pts[ia].x, tz = pts[ib].z - pts[ia].z;
+                    const tl = Math.hypot(tx, tz) || 1;
+                    const px = -tz/tl, pz = tx/tl;
+                    let w = 0, minDrop = 1e9;
+                    for(let d=1; d<=16; d++){
+                        const dd = d*cell;
+                        const ha = Engine3D.getTerrainY(p.x + px*dd, p.z + pz*dd).y;
+                        const hb = Engine3D.getTerrainY(p.x - px*dd, p.z - pz*dd).y;
+                        const drop = p.y - Math.min(ha, hb);
+                        if(drop < minDrop) minDrop = drop;
+                        if(drop > 3.0) break;
+                        w = dd;
+                    }
+                    raws[i] = w;
+                    plateau[i] = (minDrop < 1.5) ? 1 : 0;
+                }
+                const widths = new Float32Array(n);
+                for(let i=0; i<n; i++){
+                    let sum = 0, c = 0;
+                    for(let k=-3; k<=3; k++){ const j = i+k; if(j<0||j>=n) continue; sum += raws[j]; c++; }
+                    widths[i] = c ? sum/c : 0;
+                }
+                const wArr = Array.from(widths).filter(v => v > 0).sort((a,b)=>a-b);
+                const wMed = wArr.length ? wArr[Math.floor(wArr.length/2)] : 0;
+                const slopeC = new Float32Array(n), turns = new Float32Array(n);
+                for(let i=0; i<n; i++){
+                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
+                    const run = Math.hypot(pts[ib].x-pts[ia].x, pts[ib].z-pts[ia].z) || 1;
+                    slopeC[i] = (pts[ia].y - pts[ib].y) / run;
+                }
+                const slopeMed = (()=>{
+                    const a = Array.from(slopeC).filter(v => v > 0.02).sort((x,y)=>x-y);
+                    return a.length ? a[Math.floor(a.length*0.5)] : 0.1;
+                })();
+                for(let i=0; i<n; i++){
+                    if(i < 3 || i > n-4){ turns[i] = 0; continue; }
+                    const d1 = azOf(pts[Math.max(0,i-6)], pts[i]), d2 = azOf(pts[i], pts[Math.min(n-1,i+6)]);
+                    turns[i] = Math.abs(((d2-d1+540)%360)-180);
+                }
+                const segments = [];
+                let cur = null;
+                for(let i=0; i<n; i++){
+                    const w = widths[i], p = pts[i];
+                    let type;
+                    if(wMed > 0 && !plateau[i] && w < wMed*0.35) type = '束氣';
+                    else if(wMed > 0 && !plateau[i] && w < wMed*0.55) type = '過峽';
+                    else if(wMed > 0 && w > wMed*1.45) type = '開帳';
+                    else if(!plateau[i] && slopeMed > 0.02 && slopeC[i] > slopeMed*1.6){
+                        let rebound = false;
+                        for(let k=1; k<=6 && i+k<n; k++){ if(pts[i+k].y > pts[i].y + 0.5){ rebound = true; break; } }
+                        type = rebound ? '跌斷' : '急落';
+                    }
+                    else if(turns[i] > 30) type = '轉向';
+                    else type = '行龍';
+                    if(cur && cur.type === type){
+                        cur.end = i; cur.len += (i>0 ? Math.hypot(p.x-pts[i-1].x, p.z-pts[i-1].z) : 0);
+                        cur.ws.push(w); cur.turnMax = Math.max(cur.turnMax, turns[i]);
+                        cur.slopeMax = Math.max(cur.slopeMax, slopeC[i]);
+                        cur.plateau = cur.plateau || !!plateau[i];
+                        cur.yEnd = p.y;
+                    } else {
+                        if(cur) segments.push(finish(cur));
+                        cur = { type, start:i, end:i, len:0, ws:[w], turnMax:turns[i], slopeMax:slopeC[i], plateau:!!plateau[i], yStart:p.y, yEnd:p.y };
+                    }
+                }
+                if(cur) segments.push(finish(cur));
+                function finish(c){
+                    const ws = c.ws.slice().sort((a,b)=>a-b);
+                    const wm2 = ws.length ? ws[Math.floor(ws.length/2)] : 0;
+                    return {
+                        type: c.type, startIdx: c.start, endIdx: c.end,
+                        from: { x: Math.round(pts[c.start].x*10)/10, z: Math.round(pts[c.start].z*10)/10, y: Math.round(pts[c.start].y*10)/10 },
+                        to:   { x: Math.round(pts[c.end].x*10)/10,   z: Math.round(pts[c.end].z*10)/10,   y: Math.round(pts[c.end].y*10)/10 },
+                        len: Math.round(c.len*10)/10,
+                        脊寬: Math.round(wm2*10)/10,
+                        收束比: wMed > 0 ? Math.round(wm2/wMed*100)/100 : null,
+                        最大轉角: Math.round(c.turnMax),
+                        最大坡度: Math.round(c.slopeMax*100)/100,
+                        落差: Math.round((c.yStart - c.yEnd)*10)/10,
+                        台地: c.plateau
+                    };
+                }
+                const nS = pts.length;
+                let waterCross = 0, rises = 0, dirSum = 0, dirN = 0;
+                const _flS = this._flowNorm88 || 1;
+                for(let i=1; i<nS; i++){
+                    const fl = flRef ? (flRef[pts[i].gi]||0) : 0;
+                    if(fl > _flS) waterCross++;
+                    if(pts[i].y > pts[i-1].y + 0.4) rises++;
+                    if(i >= 2){
+                        const d1 = azOf(pts[i-2], pts[i-1]), d2 = azOf(pts[i-1], pts[i]);
+                        dirSum += Math.abs(((d2-d1+540)%360)-180); dirN++;
+                    }
+                }
+                const pathLen = (()=>{ let Ln=0; for(let i=1;i<nS;i++) Ln += Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); return Ln; })();
+                const glide = (()=>{ let Ln=0, tot=0; for(let i=1;i<nS;i++){ const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); Ln += d; tot += d*(pts[i].y+pts[i-1].y)/2; } return Ln>0 ? tot/Ln : 0; })();
+                const sigSegs = segments.filter(sg => sg.len >= 8);
+                const cnt = t => sigSegs.filter(sg => sg.type === t).length;
+                const riseRatio = nS > 1 ? rises/(nS-1) : 0;
+                const dirCont = dirN ? 1 - Math.min(1, (dirSum/dirN)/30) : 0;
+                const plateauFrac = n ? Array.from(plateau).filter(v=>v).length/n : 0;
+                const metrics = {
+                    路徑長: Math.round(pathLen*10)/10,
+                    節點數: nS,
+                    取樣間距: Math.round(cell*10)/10,
+                    起祖: { x: Math.round(pts[0].x*10)/10, z: Math.round(pts[0].z*10)/10, y: Math.round(pts[0].y*10)/10 },
+                    止穴: { x: Math.round(pts[nS-1].x*10)/10, z: Math.round(pts[nS-1].z*10)/10, y: Math.round(pts[nS-1].y*10)/10 },
+                    起祖落差: Math.round((pts[0].y - pts[nS-1].y)*10)/10,
+                    平均滑降高度: Math.round(glide*10)/10,
+                    高度回升率: Math.round(riseRatio*100)/100,
+                    方向連續性: Math.round(dirCont*100),
+                    水切次數: waterCross,
+                    台地比例: Math.round(plateauFrac*100)/100,
+                    脊寬中位: Math.round(wMed*10)/10,
+                    成形段數: sigSegs.length,
+                    過峽數: cnt('過峽'), 束氣數: cnt('束氣'), 跌斷數: cnt('跌斷'),
+                    開帳數: cnt('開帳'), 急落數: cnt('急落'), 轉向數: cnt('轉向'),
+                    最大脊寬: Math.round(Math.max.apply(null, Array.from(widths))*10)/10,
+                    最窄脊寬: Math.round(Math.min.apply(null, Array.from(widths).filter(v=>v>0))*10)/10
+                };
+                return { ok:true, path: pts, segments: sigSegs, allSegments: segments, metrics, nodes: net.nodes,
+                         peaks: g.peaks.length, saddles: g.saddles.length, wMed, waterCross, dirCont, riseRatio };
+            }catch(e){ return { ok:false, path:[], segments:[], allSegments:[], metrics:null, nodes:[], peaks:0, saddles:0, err: e.message }; }
+        })();
+        this._dragonExtract = { rev: this.hMapRev||0, val: out };
+        return out;
+    },
+    // 生成脊 vs 實測脈 之一致性：生成脊有多少比例真的落在分水嶺脊格上
+    ridgeAgreement(){
+        try{
+            const net = this._ridgeNet();
+            const pts = this.dragonRidge;
+            if(!net || !net.mask || !pts || !pts.length) return null;
+            const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell, mask = net.mask;
+            let onRidge = 0, tot = 0;
+            for(const p of pts){
+                const ix = Math.round((p.x+size/2)/cell), iz = Math.round((p.z+size/2)/cell);
+                if(ix<0||ix>seg||iz<0||iz>seg) continue;
+                tot++;
+                let hit = false;
+                for(let dz=-1; dz<=1 && !hit; dz++) for(let dx=-1; dx<=1; dx++){
+                    const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
+                    if(mask[nz*W+nx]){ hit = true; break; }
+                }
+                if(hit) onRidge++;
+            }
+            const ex = this.dragonRidgeExtract();
+            let maxDev = null, meanDev = null;
+            if(ex && ex.ok && ex.path.length){
+                let sum = 0, c = 0, mx = 0;
+                for(const p of pts){
+                    let bd = 1e9;
+                    for(const q of ex.path){ const d = Math.hypot(p.x-q.x, p.z-q.z); if(d < bd) bd = d; }
+                    sum += bd; c++; if(bd > mx) mx = bd;
+                }
+                meanDev = c ? Math.round(sum/c*10)/10 : null;
+                maxDev = Math.round(mx*10)/10;
+            }
+            return {
+                貼脊率: tot ? Math.round(onRidge/tot*100) : 0,
+                取樣點: tot,
+                實測脈可用: !!(ex && ex.ok),
+                平均偏離: meanDev,
+                最大偏離: maxDev,
+                脊網格數: net.count,
+                脊寬中位: Math.round((net.wMed||0)*10)/10,
+                峰: net.peaks ? net.peaks.length : 0,
+                鞍: net.saddles ? net.saddles.length : 0
+            };
+        }catch(e){ return null; }
+    },
+
     waterLevelNow(state) {
         const base = (state.d === 'pingyang') ? -3.5 : -12.0;
         return base + (this.lakeLevelOffset || 0);
@@ -10811,443 +11200,6 @@ const Engine3D = {
         // 供 _ridgeNet() 取用（避免重算分水嶺）
         this._wsBasin = basin; this._wsRidgeCount = ridgeCount;
         return val;
-    },
-    // ===================================================================================
-    // 湧現龍脈路網（審計要點 #1/#2／二十二節：龍脈不該是手繪脊線，而應由地形湧現）
-    // 問題：buildDragonRidge() 以固定配方（祖山 z=-150／開帳 -118..-90／束氣 -88..-66／
-    //       蜂腰 -64..-42／跌斷 -40..-20／入首 -18..0）沿固定 z 逐層掃描側向極值，
-    //       拓樸為作者先驗 —— 屬「程序化脊線＋規則檢查」。
-    // 本段：由 hMap 實測分水嶺（basin 割集）→ 真實山脊格 → 脊網節點（峰／鞍／脊格）
-    //       → A* 求「祖山→穴場」最小代價路徑（高度損失×水切×轉角×振幅加權）
-    //       → 逐段側向斷面量測脊寬 → 由實測收束/跌斷/轉向標記 過峽/束氣/跌斷/開帳。
-    //       生成層仍用作者配方（保 3D 造型與 Seed 可重現）；分析層改讀實測脈。
-    // ===================================================================================
-    _hbLerpH(gx, gz){
-        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap;
-        let x0 = gx|0; if(x0 > seg-1) x0 = seg-1; if(x0 < 0) x0 = 0;
-        let z0 = gz|0; if(z0 > seg-1) z0 = seg-1; if(z0 < 0) z0 = 0;
-        const tx = gx - x0, tz = gz - z0;
-        const h00 = h[z0*W+x0], h10 = h[z0*W+x0+1], h01 = h[(z0+1)*W+x0], h11 = h[(z0+1)*W+x0+1];
-        return (h00*(1-tx) + h10*tx)*(1-tz) + (h01*(1-tx) + h11*tx)*tz;
-    },
-    _hbSlopeH(x, z){
-        const w2g = CONFIG.tSeg / CONFIG.tSize;
-        const gx = (x + CONFIG.tSize/2)*w2g, gz = (z + CONFIG.tSize/2)*w2g;
-        const e = 1.2*w2g;
-        const dx = (this._hbLerpH(gx+e, gz) - this._hbLerpH(gx-e, gz)) / 2.4;
-        const dz = (this._hbLerpH(gx, gz+e) - this._hbLerpH(gx, gz-e)) / 2.4;
-        return Math.hypot(dx, dz);
-    },
-    _ridgeNet(){
-        if(!this.hMap){ this.ridgeNet = null; return null; }
-        if(this.ridgeNet && this.ridgeNet.rev === (this.hMapRev||0)) return this.ridgeNet;
-        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, size = CONFIG.tSize, cell = size/seg;
-        const g = this.extractWatershedGraph();
-        if(!g){ this.ridgeNet = null; return null; }
-        if(g.basin) this._wsBasin = g.basin;
-        if(g.ridgeCount) this._wsRidgeCount = g.ridgeCount;
-        // --- 1. basin 最小高度（R1 脊線性判據）---
-        const basinMin = new Float32Array(g.basinCount).fill(1e9);
-        for(let iz=0; iz<W; iz++) for(let ix=0; ix<W; ix++){
-            const i = iz*W+ix, b = this._wsBasin ? this._wsBasin[i] : -1;
-            if(b >= 0 && b < basinMin.length && h[i] < basinMin[b]) basinMin[b] = h[i];
-        }
-        // --- 2. 脊格候選：basin 邊界 ＋ 高於全體 basin 最低點 ≥3m ＋ R1 脊線性 ---
-        const cand = [];
-        for(let iz=1; iz<seg; iz++) for(let ix=1; ix<seg; ix++){
-            const i = iz*W+ix;
-            const cnt = this._wsRidgeCount ? this._wsRidgeCount[i] : 0;
-            if(cnt < 2) continue;                       // 需與 ≥2 個相異 basin 相鄰 → 真分水嶺（濾孤立噪點）
-            const b0 = this._wsBasin ? this._wsBasin[i] : -1;
-            const bmin = (b0 >= 0 && basinMin[b0] < 1e8) ? basinMin[b0] : h[i];
-            if(h[i] - bmin < 3.0) continue;             // 相對其流域需有顯著抬升
-            if(this._hbSlopeH((ix/seg)*size-size/2, (iz/seg)*size-size/2) < 0.03) continue; // 排除平坦地偽脊
-            cand.push(i);
-        }
-        if(cand.length < 20){ this.ridgeNet = { rev:this.hMapRev||0, mask:null, cellIdx:new Int32Array(0), amp:null, width:null, nodes:[], peaks:g.peaks, saddles:g.saddles, count:0 }; return this.ridgeNet; }
-        // --- 3. 脊寬（垂直脊向斷面，5m 內未降 >3m 的最大半寬）---
-        const mask = new Uint8Array(W*W); for(const i of cand) mask[i] = 1;
-        const width = new Float32Array(W*W);
-        let wSum = 0, wN = 0;
-        for(const i of cand){
-            const ix = i % W, iz = (i-ix)/W;
-            const x = (ix/seg)*size-size/2, z = (iz/seg)*size-size/2;
-            const h0 = h[i];
-            // 脊向：與相鄰脊格之最小變異方向
-            let sxx=0, szz=0, sxz=0;
-            for(let dz=-1; dz<=1; dz++) for(let dx=-1; dx<=1; dx++){
-                const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
-                if(!mask[nz*W+nx]) continue;
-                sxx += dx*dx; szz += dz*dz; sxz += dx*dz;
-            }
-            const th = 0.5*Math.atan2(2*sxz, sxx-szz);   // 脊向角
-            const px = Math.cos(th), pz = Math.sin(th);  // 垂直脊向
-            let w = 0;
-            for(let d=1; d<=14; d++){
-                const dd = d*cell;
-                const ha = this._hbLerpH((x+px*dd+size/2)*seg/size, (z+pz*dd+size/2)*seg/size);
-                const hb = this._hbLerpH((x-px*dd+size/2)*seg/size, (z-pz*dd+size/2)*seg/size);
-                if(h0 - Math.min(ha, hb) > 3.0) break;
-                w = dd;
-            }
-            width[i] = w; wSum += w; wN++;
-        }
-        const wMed = wN ? wSum/wN : 1;
-        // --- 4. 脊網節點：峰（顯著）／鞍（隘口）---
-        const idxOf = (x, z) => {
-            const ix = Math.round((x+size/2)/cell), iz = Math.round((z+size/2)/cell);
-            if(ix<0||ix>seg||iz<0||iz>seg) return -1;
-            return iz*W+ix;
-        };
-        const nodes = [];
-        const peakNodes = g.peaks.map(p => ({ gi: idxOf(p.x, p.z), x: p.x, z: p.z, y: p.y, type: 'peak' })).filter(n => n.gi >= 0 && mask[n.gi]);
-        const saddleNodes = g.saddles.map(s => {
-            const gi = idxOf(s.x, s.z);
-            const wid = (gi>=0 && mask[gi]) ? width[gi] : wMed;
-            return { gi, x: s.x, z: s.z, y: s.y, type: 'saddle', wide: wid < wMed*0.6, narrow: wid < wMed*0.35 };
-        }).filter(n => n.gi >= 0);
-        for(const n of peakNodes) nodes.push(n);
-        for(const n of saddleNodes) if(!mask[n.gi]) nodes.push(n); // 隘口可不在脊格上
-        this.ridgeNet = { rev:this.hMapRev||0, mask, cellIdx:Int32Array.from(cand), amp:null, width, wMed, nodes, peaks:g.peaks, saddles:g.saddles, count:cand.length, cell };
-        return this.ridgeNet;
-    },
-    // Dijkstra/A*：祖山（域內最高峰）→ 穴場 之最小代價龍脊路徑
-    //   代價 = 高差損失(1.5/m) + 水切流量(6/單位) + 轉角(2/rad) + 非脊格(0.35/步) + 距離(0.05/m)
-    //   坡度上限 3.5 防越崖；起點鎖「最高峰」，故路徑必自祖山行度而下。
-    ridgePath(startGi, goalGi){
-        const net = this._ridgeNet();
-        if(!net || !net.mask) return null;
-        const seg = CONFIG.tSeg, W = seg+1, h = this.hMap, mask = net.mask, width = net.width;
-        const wMed = net.wMed || 1, cell = net.cell, N = W*W;
-        const DX=[1,1,0,-1,-1,-1,0,1], DZ=[0,1,1,1,0,-1,-1,-1];
-        const dist = new Float64Array(N).fill(1e18);
-        const prev = new Int32Array(N).fill(-1);
-        const done = new Uint8Array(N);
-        // 並列二元堆（距離／索引分開存，避免打包精度問題；成本可為浮點）
-        const CAP = 1 << 18;
-        const hd = new Float64Array(CAP), hi = new Int32Array(CAP);
-        let hn = 0;
-        const PUSH = (i, d) => {
-            if(hn >= CAP) return;
-            let c = hn++;
-            hd[c] = d; hi[c] = i;
-            while(c > 0){
-                const par = (c-1) >> 1;
-                if(hd[par] <= hd[c]) break;
-                const td = hd[par]; hd[par] = hd[c]; hd[c] = td;
-                const ti = hi[par]; hi[par] = hi[c]; hi[c] = ti;
-                c = par;
-            }
-        };
-        const POP = () => {
-            const td0 = hd[0], ti0 = hi[0];
-            hn--;
-            if(hn > 0){
-                hd[0] = hd[hn]; hi[0] = hi[hn];
-                let c = 0;
-                for(;;){
-                    const l = c*2+1, r = l+1; let m = c;
-                    if(l < hn && hd[l] < hd[m]) m = l;
-                    if(r < hn && hd[r] < hd[m]) m = r;
-                    if(m === c) break;
-                    const td = hd[m]; hd[m] = hd[c]; hd[c] = td;
-                    const ti = hi[m]; hi[m] = hi[c]; hi[c] = ti;
-                    c = m;
-                }
-            }
-            return { i: ti0, d: td0 };
-        };
-        const gz0 = goalGi / W | 0, gx0 = goalGi % W;
-        const gxw = gx0*cell - CONFIG.tSize/2, gzw = gz0*cell - CONFIG.tSize/2;
-        if(startGi < 0 || goalGi < 0) return null;
-        // flowMap 為匯流量（1…~158，中位 2.34）：以 p88 正規化為 0-1 水切強度，供 A* 與水切計數共用
-        let flRef = null, flScale = 1;
-        if(this.flowMap){
-            flRef = this.flowMap;
-            const samp = [];
-            for(let k=0; k<flRef.length; k+=17) samp.push(flRef[k]);
-            samp.sort((a,b)=>a-b);
-            flScale = samp.length ? Math.max(1, samp[Math.floor(samp.length*0.88)]) : 1;
-            this._flowNorm88 = flScale;
-        }
-        const flNorm = i => flRef ? Math.min(1, (flRef[i]||0)/flScale) : 0;
-        dist[startGi] = 0; PUSH(startGi, 0);
-        let iter = 0, found = false;
-        while(hn > 0 && iter < N*6){
-            iter++;
-            const cur = POP();
-            const i = cur.i;
-            if(done[i]) continue;
-            done[i] = 1;
-            if(i === goalGi){ found = true; break; }
-            const ix = i % W, iz = (i-ix)/W;
-            const h0 = h[i];
-            const pv = prev[i];
-            let dirx = 0, dirz = 0;
-            if(pv >= 0){ const px = pv % W, pz = (pv-px)/W; dirx = ix-px; dirz = iz-pz; }
-            const fl0 = flNorm(i);
-            for(let k=0; k<8; k++){
-                const nx = ix+DX[k], nz = iz+DZ[k];
-                if(nx<0||nx>seg||nz<0||nz>seg) continue;
-                const j = nz*W+nx;
-                if(done[j]) continue;
-                const h1 = h[j];
-                const dh = h1 - h0;
-                const step = (k%2===0) ? cell : cell*1.4142;
-                const slope = Math.abs(dh)/step;
-                if(slope > 3.5) continue;                         // 越崖封鎖
-                let c = step*0.05;
-                c += Math.max(0, -dh)*1.5;                        // 下行能量損失
-                c += ((fl0 + flNorm(j))*0.5)*4.0;                 // 水切（正規化匯流強度）
-                if(!mask[j]) c += 0.35;                           // 非脊格
-                if(mask[j] && width[j] < wMed*0.5) c -= 0.10;     // 收束（過峽/束氣）微獎勵
-                if(dirx || dirz){
-                    const l0 = Math.hypot(dirx, dirz);
-                    const dotv = (dirx*DX[k] + dirz*DZ[k]) / (l0*Math.SQRT2);
-                    const ang = Math.acos(Math.max(-1, Math.min(1, dotv / Math.SQRT1_2)));
-                    c += ang*2.0;                                  // 轉角不順
-                }
-                const nd = dist[i] + c;
-                if(nd < dist[j]){ dist[j] = nd; prev[j] = i; PUSH(j, nd); }
-            }
-        }
-        if(!found) return null;
-        const path = [];
-        let c = goalGi;
-        while(c >= 0 && path.length < 4096){ path.push(c); c = prev[c]; }
-        path.reverse();
-        return path;
-    },
-    // 由脊網湧現之龍脈：節點（峰/鞍）＋ A* 路徑＋逐段側向斷面量測
-    dragonRidgeExtract(){
-        if(this._dragonExtract && this._dragonExtract.rev === (this.hMapRev||0)) return this._dragonExtract.val;
-        const out = (() => {
-            const empty = { ok:false, path:[], segments:[], metrics:null, nodes:[], peaks:0, saddles:0 };
-            try{
-                const net = this._ridgeNet();
-                if(!net || !net.mask){ return empty; }
-                const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell;
-                const g = this.extractWatershedGraph();
-                if(!g || !g.peaks || !g.peaks.length) return empty;
-                const [ax, az] = effLairAnchor();
-                const w2g = v => Math.round((v + size/2)/cell);
-                // 祖山＝域內最高峰（不需在後方；取全域最高）
-                let best = null;
-                for(const p of g.peaks){ if(!best || p.y > best.y) best = p; }
-                if(!best) return empty;
-                const startGi = w2g(best.x)*1 + w2g(best.z)*W;
-                const gxG = Math.max(0, Math.min(seg, w2g(ax))), gzG = Math.max(0, Math.min(seg, w2g(az)));
-                let goalGi = gzG*W + gxG;
-                // 目標吸附至最近脊格（≤18m），避免目標落在谷中而拉出非龍脈段
-                if(!net.mask[goalGi]){
-                    let bd = 1e9, bg = -1;
-                    for(let r=1; r<=8 && bg<0; r++){
-                        for(let dz=-r; dz<=r; dz++) for(let dx=-r; dx<=r; dx++){
-                            if(Math.max(Math.abs(dx),Math.abs(dz)) !== r) continue;
-                            const nx = gxG+dx, nz = gzG+dz;
-                            if(nx<0||nx>seg||nz<0||nz>seg) continue;
-                            const i = nz*W+nx;
-                            if(!net.mask[i]) continue;
-                            const dd = Math.hypot(dx, dz)*cell;
-                            if(dd < bd){ bd = dd; bg = i; }
-                        }
-                    }
-                    if(bg >= 0) goalGi = bg;
-                }
-                if(startGi === goalGi) return empty;
-                const pathGi = this.ridgePath(startGi, goalGi);
-                if(!pathGi || pathGi.length < 8) return empty;
-                const hmRef = this.hMap, flRef = this.flowMap;
-                const pts = pathGi.map(i => {
-                    const ix = i % W, iz = (i-ix)/W;
-                    return { x: ix*cell - size/2, z: iz*cell - size/2, y: hmRef ? hmRef[i] : 0, gi: i };
-                });
-                // ---- 逐段側向斷面量測（多尺度平順，避免單格抖動誤分類）----
-                const n = pts.length;
-                const raws = new Float32Array(n);     // 原始脊半寬
-                const plateau = new Uint8Array(n);    // 高原／台地：35m 內無明顯下切
-                const azOf = (a, b) => Math.atan2(b.x - a.x, -(b.z - a.z)) * 180/Math.PI;
-                for(let i=0; i<n; i++){
-                    const p = pts[i];
-                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
-                    const tx = pts[ib].x - pts[ia].x, tz = pts[ib].z - pts[ia].z;
-                    const tl = Math.hypot(tx, tz) || 1;
-                    const px = -tz/tl, pz = tx/tl;
-                    let w = 0, minDrop = 1e9;
-                    for(let d=1; d<=16; d++){
-                        const dd = d*cell;
-                        const ha = Engine3D.getTerrainY(p.x + px*dd, p.z + pz*dd).y;
-                        const hb = Engine3D.getTerrainY(p.x - px*dd, p.z - pz*dd).y;
-                        const drop = p.y - Math.min(ha, hb);
-                        if(drop < minDrop) minDrop = drop;
-                        if(drop > 3.0) break;
-                        w = dd;
-                    }
-                    raws[i] = w;
-                    plateau[i] = (minDrop < 1.5) ? 1 : 0;
-                }
-                // 脊寬平順曲線（±3 節點移動平均）
-                const widths = new Float32Array(n);
-                for(let i=0; i<n; i++){
-                    let s = 0, c = 0;
-                    for(let k=-3; k<=3; k++){ const j = i+k; if(j<0||j>=n) continue; s += raws[j]; c++; }
-                    widths[i] = c ? s/c : 0;
-                }
-                const wArr = Array.from(widths).filter(v => v > 0).sort((a,b)=>a-b);
-                const wMed = wArr.length ? wArr[Math.floor(wArr.length/2)] : 0;
-                // 坡度／轉向曲線（中央差分，單位 m/m 與 度/7m）
-                const slopeC = new Float32Array(n), turns = new Float32Array(n);
-                for(let i=0; i<n; i++){
-                    const ia = Math.max(0, i-3), ib = Math.min(n-1, i+3);
-                    const run = Math.hypot(pts[ib].x-pts[ia].x, pts[ib].z-pts[ia].z) || 1;
-                    slopeC[i] = (pts[ia].y - pts[ib].y) / run;        // 正 = 順龍下行
-                }
-                const slopeMed = (()=>{
-                    const a = Array.from(slopeC).filter(v => v > 0.02).sort((x,y)=>x-y);
-                    return a.length ? a[Math.floor(a.length*0.5)] : 0.1;
-                })();
-                for(let i=0; i<n; i++){
-                    if(i < 3 || i > n-4){ turns[i] = 0; continue; }
-                    const d1 = azOf(pts[i-6] || pts[0], pts[i]), d2 = azOf(pts[i], pts[Math.min(n-1,i+6)]);
-                    turns[i] = Math.abs(((d2-d1+540)%360)-180);
-                }
-                // ---- 由平順曲線分類（多尺度，非單格）----
-                //   跌斷：連續下行坡度為中位數 1.6 倍以上，且跌後 15m 內再起（真跌斷而非順坡）
-                //   束氣：脊寬 < 0.35 中位　過峽：脊寬 < 0.55 中位　開帳：脊寬 > 1.45 中位
-                const segments = [];
-                let cur = null;
-                for(let i=0; i<n; i++){
-                    const w = widths[i], p = pts[i];
-                    let type = null;
-                    if(wMed > 0 && !plateau[i] && w < wMed*0.35) type = '束氣';
-                    else if(wMed > 0 && !plateau[i] && w < wMed*0.55) type = '過峽';
-                    else if(wMed > 0 && w > wMed*1.45) type = '開帳';
-                    else if(!plateau[i] && slopeMed > 0.02 && slopeC[i] > slopeMed*1.6){
-                        // 跌後再起判定：往後 6 節點內出現回升
-                        let rebound = false;
-                        for(let k=1; k<=6 && i+k<n; k++){ if(pts[i+k].y > pts[i].y + 0.5){ rebound = true; break; } }
-                        type = rebound ? '跌斷' : '急落';
-                    }
-                    else if(turns[i] > 30) type = '轉向';
-                    else type = '行龍';
-                    if(cur && cur.type === type){
-                        cur.end = i; cur.len += (i>0 ? Math.hypot(p.x-pts[i-1].x, p.z-pts[i-1].z) : 0);
-                        cur.ws.push(w); cur.turnMax = Math.max(cur.turnMax, turns[i]);
-                        cur.slopeMax = Math.max(cur.slopeMax, slopeC[i]);
-                        cur.plateau = cur.plateau || !!plateau[i];
-                        cur.yEnd = p.y;
-                    } else {
-                        if(cur) segments.push(finish(cur));
-                        cur = { type, start:i, end:i, len:0, ws:[w], turnMax:turns[i], slopeMax:slopeC[i], plateau:!!plateau[i], yStart:p.y, yEnd:p.y };
-                    }
-                }
-                if(cur) segments.push(finish(cur));
-                function finish(c){
-                    const ws = c.ws.slice().sort((a,b)=>a-b);
-                    const wm2 = ws.length ? ws[Math.floor(ws.length/2)] : 0;
-                    return {
-                        type: c.type, startIdx: c.start, endIdx: c.end,
-                        from: { x: Math.round(pts[c.start].x*10)/10, z: Math.round(pts[c.start].z*10)/10, y: Math.round(pts[c.start].y*10)/10 },
-                        to:   { x: Math.round(pts[c.end].x*10)/10,   z: Math.round(pts[c.end].z*10)/10,   y: Math.round(pts[c.end].y*10)/10 },
-                        len: Math.round(c.len*10)/10,
-                        脊寬: Math.round(wm2*10)/10,
-                        收束比: wMed > 0 ? Math.round(wm2/wMed*100)/100 : null,
-                        最大轉角: Math.round(c.turnMax),
-                        最大坡度: Math.round(c.slopeMax*100)/100,
-                        落差: Math.round((c.yStart - c.yEnd)*10)/10,
-                        台地: c.plateau
-                    };
-                }
-                // 真實龍脈指標：起祖高度、止穴關係、水切次數、方向連續性、高度單調性
-                const nS = pts.length;
-                let waterCross = 0, rises = 0, dirSum = 0, dirN = 0;
-                const _flS = this._flowNorm88 || 1;
-                for(let i=1; i<nS; i++){
-                    const fl = flRef ? (flRef[pts[i].gi]||0) : 0;
-                    if(fl > _flS) waterCross++;                       // 匯流強度超過 p88 視為真水切
-                    if(pts[i].y > pts[i-1].y + 0.4) rises++;
-                    if(i >= 2){
-                        const d1 = azOf(pts[i-2], pts[i-1]), d2 = azOf(pts[i-1], pts[i]);
-                        dirSum += Math.abs(((d2-d1+540)%360)-180); dirN++;
-                    }
-                }
-                const pathLen = (()=>{ let L=0; for(let i=1;i<nS;i++) L += Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); return L; })();
-                const glide = (()=>{ let L=0, tot=0; for(let i=1;i<nS;i++){ const d=Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z); L += d; tot += d*(pts[i].y+pts[i-1].y)/2; } return L>0 ? tot/L : 0; })();
-                // 僅計入 ≥8m 之成形段（濾除單格抖動），供龍脈驗證引用
-                const sigSegs = segments.filter(s => s.len >= 8);
-                const cnt = t => sigSegs.filter(s => s.type === t).length;
-                const riseRatio = nS > 1 ? rises/(nS-1) : 0;
-                const dirCont = dirN ? 1 - Math.min(1, (dirSum/dirN)/30) : 0;
-                const plateauFrac = n ? Array.from(plateau).filter(v=>v).length/n : 0;
-                const metrics = {
-                    路徑長: Math.round(pathLen*10)/10,
-                    節點數: nS,
-                    取樣間距: Math.round(cell*10)/10,
-                    起祖: { x: Math.round(pts[0].x*10)/10, z: Math.round(pts[0].z*10)/10, y: Math.round(pts[0].y*10)/10 },
-                    止穴: { x: Math.round(pts[nS-1].x*10)/10, z: Math.round(pts[nS-1].z*10)/10, y: Math.round(pts[nS-1].y*10)/10 },
-                    起祖落差: Math.round((pts[0].y - pts[nS-1].y)*10)/10,
-                    平均滑降高度: Math.round(glide*10)/10,
-                    高度回升率: Math.round(riseRatio*100)/100,
-                    方向連續性: Math.round(dirCont*100),
-                    水切次數: waterCross,
-                    台地比例: Math.round(plateauFrac*100)/100,
-                    脊寬中位: Math.round(wMed*10)/10,
-                    成形段數: sigSegs.length,
-                    過峽數: cnt('過峽'), 束氣數: cnt('束氣'), 跌斷數: cnt('跌斷'),
-                    開帳數: cnt('開帳'), 急落數: cnt('急落'), 轉向數: cnt('轉向'),
-                    最大脊寬: Math.round(Math.max.apply(null, Array.from(widths))*10)/10,
-                    最窄脊寬: Math.round(Math.min.apply(null, Array.from(widths).filter(v=>v>0))*10)/10
-                };
-                return { ok:true, path: pts, segments: sigSegs, allSegments: segments, metrics, nodes: net.nodes, peaks: g.peaks.length, saddles: g.saddles.length, wMed, waterCross, dirCont, riseRatio };
-            }catch(e){ return { ok:false, path:[], segments:[], metrics:null, nodes:[], peaks:0, saddles:0, err: e.message }; }
-        })();
-        this._dragonExtract = { rev: this.hMapRev||0, val: out };
-        return out;
-    },
-    // 生成脊 vs 實測脈 之一致性：生成脊有多少比例真的落在分水嶺脊格上（審計要點 #2 可審計化）
-    ridgeAgreement(){
-        try{
-            const net = this._ridgeNet();
-            const pts = this.dragonRidge;
-            if(!net || !net.mask || !pts || !pts.length) return null;
-            const seg = CONFIG.tSeg, W = seg+1, size = CONFIG.tSize, cell = net.cell, mask = net.mask;
-            let onRidge = 0, tot = 0, devSum = 0;
-            for(const p of pts){
-                const ix = Math.round((p.x+size/2)/cell), iz = Math.round((p.z+size/2)/cell);
-                if(ix<0||ix>seg||iz<0||iz>seg) continue;
-                tot++;
-                // 3×3 內有脊格即算「貼脊」
-                let hit = false;
-                for(let dz=-1; dz<=1 && !hit; dz++) for(let dx=-1; dx<=1; dx++){
-                    const nx=ix+dx, nz=iz+dz; if(nx<0||nx>seg||nz<0||nz>seg) continue;
-                    if(mask[nz*W+nx]){ hit = true; break; }
-                }
-                if(hit) onRidge++;
-            }
-            const ex = this.dragonRidgeExtract();
-            let maxDev = null, meanDev = null;
-            if(ex && ex.ok && ex.path.length){
-                let s = 0, c = 0, mx = 0;
-                for(const p of pts){
-                    let bd = 1e9;
-                    for(const q of ex.path){ const d = Math.hypot(p.x-q.x, p.z-q.z); if(d < bd) bd = d; }
-                    s += bd; c++; if(bd > mx) mx = bd;
-                }
-                meanDev = c ? Math.round(s/c*10)/10 : null;
-                maxDev = Math.round(mx*10)/10;
-            }
-            return {
-                貼脊率: tot ? Math.round(onRidge/tot*100) : 0,
-                取樣點: tot,
-                實測脈可用: !!(ex && ex.ok),
-                平均偏離: meanDev,
-                最大偏離: maxDev,
-                脊網格數: net.count,
-                脊寬中位: Math.round((net.wMed||0)*10)/10,
-                峰: net.peaks ? net.peaks.length : 0,
-                鞍: net.saddles ? net.saddles.length : 0
-            };
-        }catch(e){ return null; }
     },
     buildOverhangVoxels(){
         const state = AppState.current;
@@ -11655,12 +11607,10 @@ const Engine3D = {
             return;
         }
         this.dragonLineMesh.visible=true;
-        // v3.2 龍脊來源可切換：generated=作者配方脊線　emergent=地形湧現之 A* 龍脈（見 Engine3D.dragonRidgeExtract）
+        // v3.2 龍脊來源可切換：generated=作者配方脊線　emergent=地形湧現之 A* 龍脈
         const _useEm = (AppState.current.dragonSpineSource === 'emergent');
         let _emEx = null;
-        if(_useEm){
-            try{ _emEx = this.dragonRidgeExtract ? this.dragonRidgeExtract() : null; }catch(eEM){}
-        }
+        if(_useEm){ try{ _emEx = this.dragonRidgeExtract ? this.dragonRidgeExtract() : null; }catch(eEM){} }
         const _emOk = !!(_emEx && _emEx.ok && _emEx.path && _emEx.path.length >= 8);
         let pts = (_useEm && _emOk) ? _emEx.path : this.extractDragonRidge(100);
         if(!pts) return;
@@ -11687,7 +11637,7 @@ const Engine3D = {
             let col;
             if(_useEm && _emOk && _emEx.segments && _emEx.segments.length){
                 let hit = null;
-                for(const s of _emEx.segments){ if(_fi >= s.startIdx && _fi <= s.endIdx){ hit = s.type; break; } }
+                for(const sg of _emEx.segments){ if(_fi >= sg.startIdx && _fi <= sg.endIdx){ hit = sg.type; break; } }
                 col = emColorOf(hit);
             } else {
                 const _segOf = [0,1,2,2,3,4];
@@ -11721,8 +11671,7 @@ const Engine3D = {
             });
             this.dragonMarkerGroup.visible = true;
         }
-        // v3.2 實測龍脈標記（獨立群組）：祖山(金)＝實測脈起點　過峽(藍)　束氣(黃)　止穴(白)
-        // 僅在「龍脊來源＝實測湧現」且實測脈可用時顯示，避免與作者配方軸線混淆。
+        // v3.2 實測龍脈標記（獨立群組）：祖山(金環)＝實測脈起點　過峽(藍)　束氣(黃)　止穴(白)
         if(typeof THREE !== 'undefined' && !this.dragonEmergentGroup){
             this.dragonEmergentGroup = new THREE.Group();
             const _emSpec = [ ['祖山(實測)', 0xb98a2e, 2.8], ['過峽(實測)', 0x1d758f, 2.2], ['束氣(實測)', 0xffd700, 2.2], ['止穴(實測)', 0xffffff, 2.0] ];
@@ -11739,7 +11688,7 @@ const Engine3D = {
             this.dragonEmergentGroup.visible = _show;
             if(_show){
                 const _segs = (_emEx.segments || []);
-                const _pick = (t) => { const s = _segs.find(x => x.type === t); return s ? s.to : null; };
+                const _pick = (t) => { const sg = _segs.find(x => x.type === t); return sg ? sg.to : null; };
                 const _pm = {
                     '祖山(實測)': _emEx.path[0],
                     '過峽(實測)': _pick('過峽'),
@@ -11882,6 +11831,7 @@ const Physics = {
     maxQi: 0,                                  
     bestLairPos: new THREE.Vector3(0, 0, 5),
     _ptT: { y: 0, nx: 0, nz: 0 },
+    _ptQ: { y: 0, nx: 0, nz: 0 },
     _ptTFinal: { y: 0, nx: 0, nz: 0 },
     colorDirty: false,
     init() {
@@ -12048,80 +11998,7 @@ const Physics = {
             }
         }
     },
-    // ===== v3.2 植被耦合（審計 P2-6）：樹 → 空氣動力粗糙度場 z0 → 風速對數剖面阻尼 ＋ 冠層日照遮蔽 =====
-    // 由 treeDensity/treeCanopyH（實際種植結果，非機率）建立 64×64 粗糙度場；
-    // 供 3D 風場、2D 風場與日照遮蔽共用，使植栽成為真正的物理量而非貼圖。
-    computeRoughnessField(){
-        const G = 64;
-        const dens = (typeof Engine3D !== 'undefined') ? Engine3D.treeDensity : null;
-        const canH = (typeof Engine3D !== 'undefined') ? Engine3D.treeCanopyH : null;
-        const z0 = new Float32Array(G*G), cov = new Float32Array(G*G), hgt = new Float32Array(G*G);
-        if(dens){
-            for(let i=0; i<G*G; i++){
-                const h = canH ? (canH[i] || 0) : 0;
-                const d = dens[i] || 0;
-                hgt[i] = h;
-                // 冠層覆蓋率：密度 6 棵/格以上視為鬱閉
-                cov[i] = Math.max(0, Math.min(1, d / 6));
-                // 空氣動力粗糙度長度 z0：草/裸地 0.03m → 密林 h/8（上限 4m）
-                z0[i] = 0.03 + (h > 0.5 ? Math.min(4.0, h * cov[i] / 8) : 0);
-            }
-        } else {
-            z0.fill(0.03); cov.fill(0); hgt.fill(0);
-        }
-        this.roughField = { z0, cov, hgt, g: G, rev: (typeof Engine3D !== 'undefined' ? (Engine3D.hMapRev||0) : 0), treeRev: (typeof Engine3D !== 'undefined' && Engine3D.treeDensity) ? 1 : 0 };
-        return this.roughField;
-    },
-    // 確保粗糙度場為最新（樹為 UI.buildTerrain 所種，故此處做存在性＋世代自癒）
-    ensureRoughField(){
-        const cur = this.roughField;
-        const treed = (typeof Engine3D !== 'undefined' && Engine3D.treeDensity) ? 1 : 0;
-        if(!cur || cur.treeRev !== treed || cur.rev !== ((typeof Engine3D !== 'undefined' ? (Engine3D.hMapRev||0) : 0))){
-            return this.computeRoughnessField();
-        }
-        return cur;
-    },
-    // 雙線性取樣冠層覆蓋率／粗糙度（世界座標）
-    _roughAt(x, z){
-        const rf = this.roughField;
-        if(!rf) return { cov: 0, z0: 0.03, h: 0 };
-        const G = rf.g, size = CONFIG.tSize;
-        let fx = (x + size/2)/size*G - 0.5, fz = (z + size/2)/size*G - 0.5;
-        fx = Math.max(0, Math.min(G-1.001, fx)); fz = Math.max(0, Math.min(G-1.001, fz));
-        const x0 = fx|0, z0i = fz|0, tx = fx-x0, tz = fz-z0i;
-        const i00 = z0i*G+x0, i10 = i00+1, i01 = i00+G, i11 = i01+1;
-        const bl = (arr) => (arr[i00]*(1-tx) + arr[i10]*tx)*(1-tz) + (arr[i01]*(1-tx) + arr[i11]*tx)*tz;
-        return { cov: bl(rf.cov), z0: bl(rf.z0), h: bl(rf.hgt) };
-    },
-    // 冠層對風速之對數律阻尼：u/u0 = ln(y/z0)/ln(y/z0_ref)，並抑制 z0 以下之風
-    vegetationFactor(x, z, y){
-        const rf = this.roughField;
-        if(!rf) return 1;
-        const s = this._roughAt(x, z);
-        if(s.cov <= 0.001) return 1;
-        const z0b = 0.03, z0 = Math.max(z0b, Math.min(4.0, s.z0));
-        const lnRef = Math.log(10 / z0b);
-        const lnHere = Math.log(Math.max(y, z0*1.05) / z0);
-        const fLog = Math.max(0.15, Math.min(1, lnHere / lnRef));
-        let fDen = 1;
-        if(y < s.h) fDen = 0.35 + 0.65 * Math.max(0, y) / Math.max(1, s.h);  // 冠層內風速剖面
-        return fLog * fDen;
-    },
-    // 冠層遮蔽：被樹冠擋住的日光比例（含太陽高度角，低日照角遮蔽更強）
-    canopyShadeAt(x, z){
-        const rf = this.roughField;
-        if(!rf) return 0;
-        const s = this._roughAt(x, z);
-        if(s.cov <= 0.001) return 0;
-        const alt = (AppState.sensors && AppState.sensors.solarAltitude != null) ? AppState.sensors.solarAltitude : 45;
-        const altRad = Math.max(0.05, Math.min(Math.PI/2, alt*Math.PI/180));
-        // 低太陽高度角 → 光線斜穿更厚冠層 → 遮蔽更強
-        const pathF = Math.min(3.0, 1/Math.max(0.25, Math.sin(altRad)));
-        return Math.max(0, Math.min(1, s.cov * pathF * 0.65));
-    },
     _updateWindGrid3D(dt, baseWind, windVX, windVZ){
-        // v3.2 植被耦合：開算前確保粗糙度場為最新（自癒，避免順序依賴）
-        try{ if(this.ensureRoughField) this.ensureRoughField(); }catch(eRF){}
         const NX = this.wind3DSize, NY = this.wind3DLayers;
         const idx3 = (h, gz, gx) => (h * NX + gz) * NX + gx;
         const state = AppState.current;
@@ -12138,12 +12015,10 @@ const Physics = {
                     const t = Engine3D.getTerrainY(wx, wz);
                     const obst = (t.y > yL) ? Math.max(0, t.y - yL) / 8.0 : 0;
                     const _slopeCol = Math.hypot(t.nx, t.nz);
-                    const _isWaterCol = t.y <= (((state.d === 'pingyang') ? -3.5 : -12.0) + 0.3);
+                    const _isWaterCol = t.y <= ((qiWaterLevel(state)) + 0.3);
                     const _alphaCol = _isWaterCol ? 0.10 : (_slopeCol > 1.2 ? 0.22 : 0.16);
                     const _prof = Math.pow(Math.max(0.2, yL) / 10.0, _alphaCol);
-                    // v3.2 植被耦合：冠層對數律阻尼（粗糙度場 z0），使植栽真正改變風場
-                    const _veg = this.vegetationFactor(wx, wz, yL);
-                    const stream = baseWind * _prof * _veg * Math.exp(-obst * 1.2);
+                    const stream = baseWind * _prof * Math.exp(-obst * 1.2);
                     if(h === 0){
                         const upwindH = Engine3D.getTerrainY(wx - (windVX != null ? windVX : 1) * cellSize * 3, wz - (windVZ || 0) * cellSize * 3).y;
                         const drop = Math.max(0, upwindH - t.y);
@@ -12241,7 +12116,7 @@ const Physics = {
 					tx = Math.max(-125, Math.min(125, (_prand() > 0.5 ? 1 : -1) * (15 + _prand()*25) + xueXOffset));
 				}
 				let ty = Engine3D.getTerrainY(tx, tz).y;
-				let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+				let waterLevel = qiWaterLevel(state);
 				this.pPos[i*3] = tx;
 				this.pPos[i*3+1] = Math.max(ty + 5.5 + _prand()*3.0, waterLevel + 4.5);
 				this.pPos[i*3+2] = tz;
@@ -12378,7 +12253,7 @@ const Physics = {
                     let worldX = (gx / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let worldZ = (gz / 64) * CONFIG.tSize - CONFIG.tSize / 2;
                     let t = Engine3D.getTerrainY(worldX, worldZ);
-                    let blockingThreshold = (state.d === 'pingyang') ? 999.0 : blockRefY;
+                    let blockingThreshold = blockRefY;
                     if (t.y > blockingThreshold) { 
                         this.windGridX[idx] *= windBlockDecay; 
                         this.windGridZ[idx] *= windBlockDecay;
@@ -12392,7 +12267,7 @@ const Physics = {
                         const bwx = windVX * baseWind, bwz = windVZ * baseWind;
                         this.windGridX[idx] += (bwx - this.windGridX[idx]) * 0.08 * dt;
                         this.windGridZ[idx] += (bwz - this.windGridZ[idx]) * 0.08 * dt;
-                        const waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                        const waterLevel = qiWaterLevel(state);
                         if (t.y <= waterLevel + 0.5) {
                             const waterWindDamping = Math.pow(0.85, dt);
                             this.windGridX[idx] *= waterWindDamping;
@@ -12568,7 +12443,7 @@ const Physics = {
         const tempNormal = Physics._tempNormalScratch;
         const pVelAttrArr = this.pGeom.attributes.velocity.array;
         const POW_0995 = Math.pow(0.995, dt);
-        const waterSensorLevelL = (state.d === 'pingyang') ? -3.5 : -12.0;
+        const waterSensorLevelL = qiWaterLevel(state);
         const isBadWaterTypeW = ['gejiao','fan','ji','tfork','juanlian','pubu','liulei','jiaojian'].includes(state.w);
         const roadIsTrapZone = ['zhichong','sickle','jiandao','zuocha','youcha','lanyao','wuwei'].includes(state.road);
         const hasGuardStars = (state.shixiang || state.hua || state.luo || state.qin || state.riyue) && (state.w !== 'none' && state.w !== 'lintou');
@@ -12680,7 +12555,7 @@ const Physics = {
                     }
                 }
             }
-            let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+            let waterLevel = qiWaterLevel(state);
             let isTianchiLake = (state.tianchi && state.zhu && Math.sqrt(dxTaiji*dxTaiji + Math.pow(dzTaiji+60, 2)) < 16 && Math.abs(t.y - tianchiLevel) < 2.0);
             let isWater = (((state.w !== 'none' || state.yue) && t.y <= waterLevel + 0.5) || isTianchiLake);
             let isWaterZone = (((state.w !== 'none' || state.yue) && t.y <= waterLevel + 1.5 && y <= waterLevel + 5.0) || isTianchiLake);
@@ -12874,8 +12749,8 @@ const Physics = {
             if (Math.abs(baseWind) > 0.01) {
                 let scanD = 15;
                 if (Math.abs(dxGeom) < 18) {
-                    let hLeft = Engine3D.getTerrainY(x - degCos * scanD, z + degSin * scanD).y;
-                    let hRight = Engine3D.getTerrainY(x + degCos * scanD, z - degSin * scanD).y;
+                    let hLeft = Engine3D.getTerrainY(x - degCos * scanD, z + degSin * scanD, this._ptQ).y;
+                    let hRight = Engine3D.getTerrainY(x + degCos * scanD, z - degSin * scanD, this._ptQ).y;
                     if (hLeft > t.y + 10 && hRight > t.y + 10) {
                         let compression = ((hLeft - t.y) + (hRight - t.y)) * 0.02;
                         let pinchForce = Math.abs(globalWindX) * compression * 1.2; 
@@ -12892,7 +12767,7 @@ const Physics = {
                     const _gwLen = Math.hypot(globalWindX, globalWindZ) || 1;
                     let scanX = x - (globalWindX / _gwLen) * scanD;
                     let scanZ = z - (globalWindZ / _gwLen) * scanD;
-                    let windUpstreamH = Engine3D.getTerrainY(scanX, scanZ).y;
+                    let windUpstreamH = Engine3D.getTerrainY(scanX, scanZ, this._ptQ).y;
                     if (windUpstreamH < t.y - 3) {
                         let funnelSpeed = Math.abs(globalWindX) * 1.5;
                         localWindX += Math.sign(globalWindX) * funnelSpeed; 
@@ -12909,34 +12784,17 @@ const Physics = {
             const _scriptZ = localWindZ - globalWindZ;
             localWindX = globalWindX + _scriptX * 0.35;
             localWindZ = globalWindZ + _scriptZ * 0.35;
-            localTurbulence *= 0.45;
             vel.x += localWindX * dt;
             vel.z += localWindZ * dt;
-            vel.y += (localTurbulence * (_prand() - 0.5)) * dt; 
             let speedSq = localWindX*localWindX + localWindZ*localWindZ;
             const windStripGate = (st === 2) ? 3.5 : 2.2;
             if ((st === 0 || st === 2) && speedSq > windStripGate && _prand() < (speedSq - (windStripGate - 0.15)) * 0.8 * dt) {
                 this.pState[i] = 3; 
                 frameScatter++;
+                this.colorDirty = true;
                 this.pCol[i*3] = 0.5; this.pCol[i*3+1] = 0.7; this.pCol[i*3+2] = 0.9;
             }
-            if (st === 3 && speedSq < 1.0 && localTurbulence < 1.0 && _prand() < 0.15 * dt) {
-                this.pState[i] = 0; this.colorDirty = true;
-                this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.6;
-            }
-            const turbStripGate = (st === 2) ? 3.5 : 2.5;
-            if (localTurbulence > turbStripGate && st !== 1 && st !== 3) {
-                if (localTurbulence > 5.5 && _prand() < localTurbulence * 0.1 * dt) {
-                    this.pState[i] = 1; 
-                    frameScatter++;
-                    this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.1;
-                    if (_prand() < 0.02) Engine3D.createShockwave(x, y, z, 0xff3333);
-                } else if (_prand() < localTurbulence * 0.15 * dt) {
-                    this.pState[i] = 3; 
-                    frameScatter++;
-                    this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.9;
-                }
-            }
+            st = this.pState[i];
             let caveZoneFalloff = Math.max(0, 1 - Math.abs(dzGeom) / 35.0);
             caveZoneFalloff *= Math.max(0, 1 - Math.abs(dxGeom) / 35.0);
             caveZoneFalloff = caveZoneFalloff * caveZoneFalloff * (3 - 2 * caveZoneFalloff);
@@ -12992,8 +12850,8 @@ const Physics = {
                     vel.y -= phreaticDepth * 2.0 * dt; 
                 }
                 if (dzGeom < 0 && Math.abs(t.nx) > 0.6) {
-                    let tLeft = Engine3D.getTerrainY(x - degCos * 2, z + degSin * 2).nx;
-                    let tRight = Engine3D.getTerrainY(x + degCos * 2, z - degSin * 2).nx;
+                    let tLeft = Engine3D.getTerrainY(x - degCos * 2, z + degSin * 2, this._ptQ).nx;
+                    let tRight = Engine3D.getTerrainY(x + degCos * 2, z - degSin * 2, this._ptQ).nx;
                     let gaussianCurvature = Math.abs(tLeft - tRight);
                     if (gaussianCurvature > 1.8) { 
                         frameTensorFracture++; 
@@ -13015,12 +12873,13 @@ const Physics = {
                     let guideFalloff = 1.0 - Math.max(0, Math.min(1, (dzGeom - 60) / 12.0));
                     guideFalloff = guideFalloff * guideFalloff * (3 - 2 * guideFalloff);
                     let taijiDistForGuide = Math.sqrt(Math.max(0, dxTaiji*dxTaiji + dzTaiji*dzTaiji));
-                    let taijiRadiusForGuide = Math.sqrt(state.d === 'pingyang' ? 1000 : 320);
+                    let taijiRadiusForGuide = Math.sqrt(state.d === 'pingyang' ? 1000 : 900);
                     let taijiFadeForGuide = Math.max(0, Math.min(1, (taijiDistForGuide - taijiRadiusForGuide * 1.0) / (taijiRadiusForGuide * 0.2)));
                     taijiFadeForGuide = taijiFadeForGuide * taijiFadeForGuide * (3 - 2 * taijiFadeForGuide);
                     guideFalloff *= taijiFadeForGuide;
                     let pulse = (state.d === 'pingyang') ? (1.8 * (state.waterVel || 1.0) + 0.8) : 2.5;
-                    vel.z += pulse * dt * guideFalloff;
+                    vel.x += degSin * pulse * dt * guideFalloff;
+                    vel.z += degCos * pulse * dt * guideFalloff;
                     if (state.d === 'huilong') {
                         let rx = x - lx_L;
                         let rz = z - lz_L;
@@ -13098,12 +12957,12 @@ const Physics = {
                         fuliuFalloff = fuliuFalloff * fuliuFalloff * (3 - 2 * fuliuFalloff);
                         localTurbulence += 2.0 * thermalDraft * (state.waterVel || 1.0) * fuliuFalloff;
                     }
-                    waterFlowX += Math.atan(x * 0.1) * 0.5 * wVel; 
+                    waterFlowX += Math.atan(dxGeom * 0.1) * 0.5 * wVel; 
                     waterFlowZ += 0.8 * wVel;
                     let waterSpeed = Math.sqrt(waterFlowX*waterFlowX + waterFlowZ*waterFlowZ);
                     let dirX = (waterSpeed > 0) ? (waterFlowX / waterSpeed) : 0;
                     let dirZ = (waterSpeed > 0) ? (waterFlowZ / waterSpeed) : 0;
-                    let downstreamH = Engine3D.getTerrainY(x + dirX * 5.0, z + dirZ * 5.0).y;
+                    let downstreamH = Engine3D.getTerrainY(x + dirX * 5.0, z + dirZ * 5.0, this._ptQ).y;
                     if (downstreamH > t.y + 3.0) {
                         waterFlowX *= -0.3; 
                         waterFlowZ *= -0.3;
@@ -13165,7 +13024,7 @@ const Physics = {
                         let cliffDx = Math.max(0, 1 - Math.abs(dxGeom) / 44.0);
                         cliffDx = cliffDx * cliffDx * (3 - 2 * cliffDx);
                         let cliffFalloff = Math.min(cliffDz, cliffDx);
-                        let cliffCheck = Engine3D.getTerrainY(x, z + 8); 
+                        let cliffCheck = Engine3D.getTerrainY(x, z + 8, this._ptQ); 
                         let dropThreshold = (state.d === 'pingyang') ? 2.0 : 8.0; 
                         let dropExcess = (t.y - cliffCheck.y) - dropThreshold;
                         if (dropExcess > 0) { 
@@ -13181,8 +13040,8 @@ const Physics = {
                     if (Math.abs(dxGeom) < 40 && dzGeom > -20 && dzGeom < 40) {
                         let thermalDeltaP = (solarFlux - 0.5) * 3.5; 
                         vel.y += thermalDeltaP * dt;
-                        let leftH = Engine3D.getTerrainY(x - degCos * 20, z + degSin * 20).y;
-                        let rightH = Engine3D.getTerrainY(x + degCos * 20, z - degSin * 20).y;
+                        let leftH = Engine3D.getTerrainY(x - degCos * 20, z + degSin * 20, this._ptQ).y;
+                        let rightH = Engine3D.getTerrainY(x + degCos * 20, z - degSin * 20, this._ptQ).y;
                         if (Math.abs(leftH - rightH) > 25.0) {
                             frameThermalShear++; 
                             vel.x += Math.sign(rightH - leftH) * Math.abs(thermalDeltaP) * 1.5 * dt;
@@ -13214,8 +13073,8 @@ const Physics = {
                         vel.y += ruggedness * 0.3 * thermalDraft * ruggedFactor;
                         vel.z += (_prand() - 0.5) * ruggedness * 1.0 * thermalDraft * ruggedFactor;
                     }
-                    let leftSand = Engine3D.getTerrainY(x - degCos * 25, z + degSin * 25).y;
-                    let rightSand = Engine3D.getTerrainY(x + degCos * 25, z - degSin * 25).y;
+                    let leftSand = Engine3D.getTerrainY(x - degCos * 25, z + degSin * 25, this._ptQ).y;
+                    let rightSand = Engine3D.getTerrainY(x + degCos * 25, z - degSin * 25, this._ptQ).y;
                     let isLeftExposed = (leftSand < t.y + 3);
                     let isRightExposed = (rightSand < t.y + 3);
                     if (dzGeom > -20 && dzGeom < 45 && Math.abs(dxGeom) < 40) {
@@ -13232,8 +13091,8 @@ const Physics = {
                             vel.multiplyScalar(Math.pow(0.75, dt * steepCollision)); 
                         }
                     }
-                    let rearH = Engine3D.getTerrainY(x, z - 25).y;
-                    let frontH = Engine3D.getTerrainY(x, z + 45).y; 
+                    let rearH = Engine3D.getTerrainY(x, z - 25, this._ptQ).y;
+                    let frontH = Engine3D.getTerrainY(x, z + 45, this._ptQ).y; 
                     if (dzGeom < -10) {
                         let isUphill = (vel.z > 0 && t.nz > 0.5); 
                         let isHittingWall = (Math.abs(t.nx) > 1.5 && Math.sign(vel.x) === Math.sign(t.nx)); 
@@ -13262,7 +13121,7 @@ const Physics = {
 								vel.y -= 0.3 * thermalDraft * dt * downwashFalloff;
 							}
 						}
-                        let rearSlopeNormal = Engine3D.getTerrainY(x, z - 10).nz;
+                        let rearSlopeNormal = Engine3D.getTerrainY(x, z - 10, this._ptQ).nz;
                         let rearSlopeFactor = Math.max(0, Math.min(1, (rearSlopeNormal - 5.0) / 8.0));
                         rearSlopeFactor = rearSlopeFactor * rearSlopeFactor * (3 - 2 * rearSlopeFactor);
                         if (rearSlopeFactor > 0.001) { 
@@ -13287,8 +13146,8 @@ const Physics = {
                     if (dzGeom > -72 && dzGeom < -13) {
                         let passFalloff = Math.max(0, Math.min(1, (dzGeom + 72) / 8.0)) * Math.max(0, Math.min(1, (-13 - dzGeom) / 8.0));
                         passFalloff = passFalloff * passFalloff * (3 - 2 * passFalloff);
-                        let widthLeft = Engine3D.getTerrainY(x - degCos * 12, z + degSin * 12).y;
-                        let widthRight = Engine3D.getTerrainY(x + degCos * 12, z - degSin * 12).y;
+                        let widthLeft = Engine3D.getTerrainY(x - degCos * 12, z + degSin * 12, this._ptQ).y;
+                        let widthRight = Engine3D.getTerrainY(x + degCos * 12, z - degSin * 12, this._ptQ).y;
                         if (widthLeft > t.y + 5 && widthRight > t.y + 5) {
                             vel.x += (lx - x) * 0.8 * thermalDraft * dt * passFalloff; 
                         if (widthLeft > t.y + 12 && widthRight > t.y + 12) {
@@ -13330,6 +13189,28 @@ const Physics = {
                     vel.multiplyScalar(Math.pow(0.85, dt)); 
                 }
             }
+            localTurbulence *= 0.45;
+            vel.y += (localTurbulence * (_prand() - 0.5)) * dt;
+            if (st === 3 && speedSq < 1.0 && localTurbulence < 1.0 && _prand() < 0.15 * dt) {
+                this.pState[i] = 0; this.colorDirty = true;
+                this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.6;
+            }
+            const turbStripGate = (st === 2) ? 3.5 : 2.5;
+            if (localTurbulence > turbStripGate && st !== 1 && st !== 3) {
+                if (localTurbulence > 5.5 && _prand() < localTurbulence * 0.1 * dt) {
+                    this.pState[i] = 1; 
+                    frameScatter++;
+                    this.colorDirty = true;
+                    this.pCol[i*3] = 1.0; this.pCol[i*3+1] = 0.15; this.pCol[i*3+2] = 0.1;
+                    if (_prand() < 0.02) Engine3D.createShockwave(x, y, z, 0xff3333);
+                } else if (_prand() < localTurbulence * 0.15 * dt) {
+                    this.pState[i] = 3; 
+                    frameScatter++;
+                    this.colorDirty = true;
+                    this.pCol[i*3] = 0.4; this.pCol[i*3+1] = 0.8; this.pCol[i*3+2] = 0.9;
+                }
+            }
+            st = this.pState[i];
             if(st === 1) {
                 vel.x += (_prand()-0.5)*0.8*thermalDraft*dt;
                 vel.z += (_prand()-0.5)*0.8*thermalDraft*dt;
@@ -13384,7 +13265,7 @@ const Physics = {
                     vel.multiplyScalar(Math.pow(seepagePermeability, dt)); 
                     vel.y *= Math.pow(0.8, dt * taijiEdge);
                 }
-               let touchedWater = (isWater || ((state.w !== 'none' || state.yue) && y < waterLevel - 1.0)) && vel.lengthSq() > 2.0 && (state.waterVel || 1.0) > 1.5;
+               let touchedWater = (isWater || ((state.w !== 'none' || state.yue) && y < waterLevel - 1.0)) && vel.lengthSq() > 3.2 && (state.waterVel || 1.0) > 1.5;
                if (touchedWater) {
                    if (st === 2) frameScatter += 2;
                    vel.y -= 0.5 * dt; 
@@ -13400,7 +13281,7 @@ const Physics = {
                vel.z += ((dxTaiji)*0.06 * spiralDir - dzTaiji*attractStrength) * dt * taijiEdge;
                let targetHoverY = t.y + (isYang ? 2.2 : 0.9);
                vel.y += ((targetHoverY - y) * 0.8 + (isYang ? 0.1 : -0.1)) * dt * taijiEdge;
-               let taijiDampingFactor = (localTurbulence < 0.5) ? 0.45 : 0.95;
+               let taijiDampingFactor = 0.45 + 0.50 * Math.min(1, Math.max(0, (localTurbulence - 0.5) / 1.0));
                vel.multiplyScalar(Math.pow(taijiDampingFactor, dt * taijiEdge));
                if (st === 2 && _prand() < 0.3) {
                    let cohesionX = 0, cohesionZ = 0;
@@ -13494,7 +13375,7 @@ const Physics = {
                     z = Math.max(-160, -35 - _prand()*10 + xueZOffset);
                     x = Math.max(-125, Math.min(125, (_prand()-0.5)*20 + xueXOffset));
                     let spawnGroundY = Engine3D.getTerrainY(x, z).y;
-                    let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                    let waterLevel = qiWaterLevel(state);
                     y = Math.max(spawnGroundY + 3.5, waterLevel + 2.5, spawnGroundY + 2.5 + _prand()*3.0);
                     vel.set((_prand()-0.5)*0.5, 0.2, 3.5);
                 } else {
@@ -13519,7 +13400,7 @@ const Physics = {
                         z = Math.max(-160, -35 + (_prand()-0.5)*10 + xueZOffset);
                         x = Math.max(-125, Math.min(125, (_prand() > 0.5 ? 1 : -1) * (15 + _prand()*25) + xueXOffset));
                     }
-                    let waterLevel = (state.d === 'pingyang') ? -3.5 : -12.0;
+                    let waterLevel = qiWaterLevel(state);
                     y = Math.max(Engine3D.getTerrainY(x, z).y + 5.5 + _prand()*3.0, waterLevel + 4.5);
                     vel.set((_prand()-0.5)*0.5, 0.0, 3.5);
                 }

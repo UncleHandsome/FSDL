@@ -1077,7 +1077,7 @@ class FengShuiEngine {
     }
     let capacityBase = Math.round(30 + frontOpenness * 90) - vFront * 0.2;
     let capacityAdjust = (gatheredDrops - escapedDrops) * 0.5;
-    c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust)));
+    c = Math.max(20, Math.min(150, Math.round(capacityBase + capacityAdjust + (c - 40))));
     if (st.water === 'none' && !st.special.includes('taiji') && !st.special.includes('chaoshan') && !st.special.includes('guanxing') && !mingTangBroken) {
         c = Math.max(c, 40);
     }
@@ -1443,8 +1443,8 @@ class FengShuiEngine {
     }
     if (!fengShuiContextBroken && !waterBroken && st.special.includes('hulong') && st.dragon !== 'none') {
         if (st.left === 'qinglong' && st.right === 'baihu') {
-            let phaseShift = Math.abs(vLeft - vRight);
-            if (phaseShift > 10 && phaseShift < 50) {
+            let phaseShift = Math.abs(vLeft - vRight) / Math.max(1.0, (vLeft + vRight) * 0.5);
+            if (phaseShift > 0.02 && phaseShift < 0.35) {
                 standingWaveTriggered = true;
                 observerText.push(`波動力學｜相消干涉：左右實體建築幾何錯開，於明堂形成穩定的駐波場 (龍虎交牙)`);
             } else {
@@ -2111,10 +2111,11 @@ class CityBuilder {
       this.ghostMesh.visible = true;
       if (tool !== this.ghostType) {
           const oldGeo = this.ghostMesh.geometry;
-          if (tool === 'wood') { this.ghostMesh.geometry = new THREE.BoxGeometry(12, 60, 12); this.ghostMesh.material.color.setHex(0x2a6b3c); }
-          else if (tool === 'earth') { this.ghostMesh.geometry = new THREE.BoxGeometry(24, 25, 24); this.ghostMesh.material.color.setHex(0x7c6a4a); }
-          else if (tool === 'water') { this.ghostMesh.geometry = new THREE.CylinderGeometry(12, 12, 2, 32); this.ghostMesh.material.color.setHex(0x4fa6ff); }
-          if (oldGeo) oldGeo.dispose();
+          let swapped = false;
+          if (tool === 'wood') { this.ghostMesh.geometry = new THREE.BoxGeometry(12, 60, 12); this.ghostMesh.material.color.setHex(0x2a6b3c); swapped = true; }
+          else if (tool === 'earth') { this.ghostMesh.geometry = new THREE.BoxGeometry(24, 25, 24); this.ghostMesh.material.color.setHex(0x7c6a4a); swapped = true; }
+          else if (tool === 'water') { this.ghostMesh.geometry = new THREE.CylinderGeometry(12, 12, 2, 32); this.ghostMesh.material.color.setHex(0x4fa6ff); swapped = true; }
+          if (swapped && oldGeo) oldGeo.dispose();
           this.ghostType = tool;
       }
       let ty = this.terrainYCorrected(x, z);
@@ -3067,8 +3068,10 @@ void main() {
             v.z -= (u_flipBack ? -15.0 : 15.0) * max(0.0, u_envWind) * dt; 
             v += curlNoise(p * 0.08 + u_simTime * 0.5) * max(0.0, u_envWind) * 8.0 * dt;
         } else { 
+            const float BG_DRIFT = 2.2;
+            v += vec3(0.0, 0.0, u_flipBack ? -BG_DRIFT : BG_DRIFT) * dt * 1.2;
             v *= max(0.0, 1.0 - 0.6*dt); 
-            if (mod(float(i), 2.0) < 1.0) v += curlNoise(p * 0.15) * max(0.0, u_envWind) * 6.0 * dt; 
+            if (mod(float(i), 2.0) < 1.0) v += curlNoise(p * 0.15) * (max(0.0, u_envWind) * 6.0 + BG_DRIFT * 2.0) * dt; 
         }
         if(!isWater) p.y = max(p.y, ty + 0.8);
         bool hitObstacle = false;
@@ -3131,7 +3134,6 @@ float getTerrainY(float x, float z) {
     }
     return y;
 }
-uniform bool u_helmholtz;
 uniform vec3 u_spawns[64]; uniform vec3 u_spawnDirs[64]; uniform int u_spawnCount;
 attribute float a_id; attribute float a_life; attribute float a_seed;
 varying float vLife;
@@ -3180,10 +3182,6 @@ void main() {
         if(u_shaTianzhan && tianW2 > 0.37) {
             float windFactor = max(0.0, u_envWind) * tianW2;
             v.z -= (u_flipBack ? -60.0 : 60.0) * windFactor * dt; v.x *= max(0.0, 1.0 - 5.0 * tianW2 * dt);
-            if (u_helmholtz) {
-                float resonance = sin(u_simTime * 12.0 + sz * 0.8) * 60.0;
-                v.x += resonance * windFactor * dt;
-            }
         }
         float wTrees = exp(-((sz - 22.0) / 8.0)*((sz - 22.0) / 8.0) - (sx / 30.0)*(sx / 30.0)); if(u_cureTrees && wTrees > 0.37) { v *= max(0.0, 1.0 - 2.0 * wTrees * dt); }
         float wMirror = exp(-((sz - 20.0) / 5.0)*((sz - 20.0) / 5.0) - (sx / 12.0)*(sx / 12.0)); if(u_cureMirror && wMirror > 0.37) { v.z += (u_flipBack ? -10.0 : 10.0) * max(0.0, u_envWind) * wMirror * dt; v.y += max(0.0, u_envWind) * 5.0 * wMirror * dt; }
@@ -3295,7 +3293,6 @@ class ParticleSystem {
         u_terrainType: { value: 0 },
         u_qingxie: { value: false }, u_sunkenFront: { value: false },
             u_flipBack: { value: false },
-        u_helmholtz: { value: false },
         u_cureTrees: { value: false }, u_cureMirror: { value: false }, u_cureStone: { value: false }, u_cureGourd: { value: false },
         u_spawns: { value: Array.from({length:64}, () => new THREE.Vector3()) },
         u_spawnDirs: { value: Array.from({length:64}, () => new THREE.Vector3()) },
@@ -3422,7 +3419,6 @@ class ParticleSystem {
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_flipBack.value = (st.liqi === 'back');
     this.uniforms.u_shaTianzhan.value = st.sha.includes('tianzhan');
-    this.uniforms.u_helmholtz.value = !!(stateManager.analysis && stateManager.analysis.isHelmholtz);
     this.uniforms.u_qingxie.value = st.special.includes('qingxie');
     this.uniforms.u_sunkenFront.value = st.front === 'sunken';
     this.uniforms.u_flipBack.value = (st.liqi === 'back');
