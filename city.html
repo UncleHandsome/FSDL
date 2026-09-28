@@ -341,7 +341,7 @@ const Config = {
   XKFS_PALACE_NUM: { kan:1, kun:2, zhen:3, xun:4, qian:6, dui:7, gen:8, li:9 },
   XKFS_PALACE_DIRNAME: { kan:'北坎', gen:'東北艮', zhen:'正東震', xun:'東南巽', li:'正南離', kun:'西南坤', dui:'正西兌', qian:'西北乾' },
   XKFS_YUAN: { '壬':1,'子':2,'癸':3,'丑':1,'艮':2,'寅':3,'甲':1,'卯':2,'乙':3,'辰':1,'巽':2,'巳':3,'丙':1,'午':2,'丁':3,'未':1,'坤':2,'申':3,'庚':1,'酉':2,'辛':3,'戌':1,'乾':2,'亥':3 },
-  XKFS_YANG: ['甲','庚','丙','壬','乾','坤','艮','巽','寅','申','巳','亥'],   // 地元四正＋天元四維＋人元四生為陽，餘十二山屬陰
+  XKFS_YANG: ['甲','庚','丙','壬','乾','坤','艮','巽','寅','申','巳','亥'],   // 陽表依沈氏玄空；三元龍正名：天元=子午卯酉・地元=乾坤艮巽・人元=寅申巳亥
   XKFS_PALACE_MOUNTAINS: { kan:['壬','子','癸'], gen:['丑','艮','寅'], zhen:['甲','卯','乙'], xun:['辰','巽','巳'], li:['丙','午','丁'], kun:['未','坤','申'], dui:['庚','酉','辛'], qian:['戌','乾','亥'] },
   SANHE_STAGES: ['長生','沐浴','冠帶','臨官','帝旺','衰','病','死','墓','絕','胎','養'],
   SANHE_FRAMES: {
@@ -3272,13 +3272,13 @@ class ParticleSystem {
     this.goodGeo = new THREE.BufferGeometry();
     this.badGeo = new THREE.BufferGeometry();
     const goodIds = new Float32Array(this.GMAX), goodSeeds = new Float32Array(this.GMAX), goodLifes = new Float32Array(this.GMAX);
-    for(let i=0; i<this.GMAX; i++) { goodIds[i] = i; goodSeeds[i] = Math.random(); goodLifes[i] = 10; }
+    for(let i=0; i<this.GMAX; i++) { goodIds[i] = i; goodSeeds[i] = Math.random(); goodLifes[i] = 7 + Math.random()*6; }
     this.goodGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.GMAX*3), 3));
     this.goodGeo.setAttribute('a_id', new THREE.BufferAttribute(goodIds, 1));
     this.goodGeo.setAttribute('a_seed', new THREE.BufferAttribute(goodSeeds, 1));
     this.goodGeo.setAttribute('a_life', new THREE.BufferAttribute(goodLifes, 1));
     const badIds = new Float32Array(this.BMAX), badSeeds = new Float32Array(this.BMAX), badLifes = new Float32Array(this.BMAX);
-    for(let i=0; i<this.BMAX; i++) { badIds[i] = i; badSeeds[i] = Math.random(); badLifes[i] = 10; }
+    for(let i=0; i<this.BMAX; i++) { badIds[i] = i; badSeeds[i] = Math.random(); badLifes[i] = 7 + Math.random()*6; }
     this.badGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.BMAX*3), 3));
     this.badGeo.setAttribute('a_id', new THREE.BufferAttribute(badIds, 1));
     this.badGeo.setAttribute('a_seed', new THREE.BufferAttribute(badSeeds, 1));
