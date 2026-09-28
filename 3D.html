@@ -251,7 +251,7 @@ input[type=range] { width: 100%; margin: 0; accent-color: var(--gold); backgroun
         <div class="ctrl-row"><span class="ctrl-label" title="真實水流速由降雨強度×坡度×流量×河道寬度×粗糙度×彎曲度自然湧現，此滑桿為降雨強度代理，非全域倍率">降雨強度（水流速湧現）</span><div class="seg" style="align-items:center;"><input type="range" id="wvel-slider" min="1" max="25" value="5" title="降雨強度/坡度/流量等自然湧現水流速，此為降雨強度代理"><span id="wvel-val" style="min-width:25px; text-align:right; font-size:12px; color:var(--gold);">x1</span></div></div>
         <div class="ctrl-row" style="margin-top:10px; border-top:1px dashed #ccc; padding-top:10px;"><span class="ctrl-label" title="向水/背水需與環境聯動：穴前有水宜向水，穴後空宜背水">理氣·向背</span><div class="seg" data-k="face"><button data-v="1">向水</button><button data-v="0">背水(坐空)</button></div></div>
         <div id="face-env-warn" style="font-size:10px; color:#a63a2b; margin:-6px 0 8px 45px; display:none;"></div>
-        <div class="ctrl-row"><span class="ctrl-label" title="立向應由地形（來龍/水口/朝案）決定，為果非因；建議先定地後擇向">立向*（果）</span><div class="seg" style="align-items:center;"><input type="range" id="degree-slider" min="0" max="345" step="15" value="0" title="立向度數（先有地形，後擇坐向；拖動僅改羅盤讀數，不改地形）"><span id="degree-val" style="min-width:56px; text-align:right; font-size:12px; color:var(--gold);">0° 坎北</span><button id="btn-suggest-facing" style="margin-left:6px; background:#3f6b52; color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:11px; cursor:pointer;" title="依來龍/水口/朝案自動推薦立向">推薦</button></div></div>
+        <div class="ctrl-row"><span class="ctrl-label" title="立向應由地形（來龍/水口/朝案）決定，為果非因；建議先定地後擇向">立向*（果）</span><div class="seg" style="align-items:center;"><input type="range" id="degree-slider" min="0" max="345" step="15" value="0" title="立向度數（先有地形，後擇坐向；拖動僅改羅盤讀數，不改地形）"><span id="degree-val" style="min-width:56px; text-align:right; font-size:12px; color:var(--gold);">0° 坎北</span><button id="btn-suggest-facing" style="margin-left:6px; background:#3f6b52; color:#fff; border:none; border-radius:4px; padding:3px 6px; font-size:11px; cursor:pointer;" title="依水口自動推定立向（向避去水直瀉）；無可測水口時不推定">推薦</button></div></div>
         <div style="font-size:10px; color:#8a7a5a; margin:-6px 0 8px 51px;">＊先有地形，後擇坐向；改變立向不改地形，僅改理氣盤</div>
         <div class="ctrl-row"><span class="ctrl-label">元運</span><div class="seg" style="align-items:center;"><select id="yun-select" style="flex:1;padding:3px;font-family:'Noto Serif TC',serif;border-radius:4px;border:1px solid rgba(0,0,0,0.15);background:#fff;"><option value="1">一運</option><option value="2">二運</option><option value="3">三運</option><option value="4">四運</option><option value="5">五運</option><option value="6">六運</option><option value="7">七運</option><option value="8">八運</option><option value="9" selected>九運（現行）</option></select></div></div>
         <div class="ctrl-row"><span class="ctrl-label" title="三針偏角固定：地盤0°/人盤-7.5°/天盤+7.5°，羅盤為測量工具不可調；拖拽羅盤外圈改變測量目標方位">三針羅盤（偏角鎖定）</span><div class="seg" style="align-items:center; gap:6px;"><span style="font-size:10px; color:#a63a2b;">地</span><span style="font-size:10px; color:#999; min-width:36px; text-align:center;">0°鎖</span><span style="font-size:10px; color:#3366ff;">人</span><span style="font-size:10px; color:#999; min-width:36px; text-align:center;">-7.5°鎖</span><span style="font-size:10px; color:#22aa33;">天</span><span style="font-size:10px; color:#999; min-width:36px; text-align:center;">+7.5°鎖</span></div></div>
@@ -713,6 +713,10 @@ const AppState = {
             this.current.manualXue = false;
             this.current.zutai = false;
         }
+        try{
+            const _ps = (this.current.presetSeed != null) ? this.current.presetSeed : Rules.seedFromName(actualName);
+            Rules.setPhysicsSeed(_ps);
+        }catch(eSeed){}
         this.frames = 0;
         while(Engine3D.obsGroup.children.length > 0) {
             let child = Engine3D.obsGroup.children[0];
@@ -5817,15 +5821,15 @@ const UI = {
         });
         document.getElementById('btn-suggest-facing')?.addEventListener('click', e=>{
             e.target.blur();
-            const [ax,az]=effLairAnchor();
             const outlet=Rules.outletAzimuth();
-            let best=0;
+            let best=null;
             if(outlet) best=(outlet.compass+180)%360;
-            else {
-                const anH=Engine3D.getTerrainY(ax, az+70).y;
-                const dhaH=Engine3D.getTerrainY(ax, az+120).y;
-                best = (dhaH>anH? 0 : 0); 
-                best = (Math.atan2(-(ax - ax), (az+70)-az)*180/Math.PI+360)%360;
+            // 無可測水口時不硬給方位：舊寫法兩行皆退化為恆 0（`dhaH>anH?0:0`，以及
+            // `atan2(-(ax-ax),70)`＝atan2(0,70)＝0），於是「推薦」在無水口布局上必定回 0° 坎北，
+            // 卻仍提示「已依水口/朝案推薦」——即把沒算出來的結果假裝算出來，也正是「固定推薦」之譏所自。
+            if(best === null){
+                Engine3D.showToast('未偵測到水口（無去水可據）：無法依形勢推定立向，請先設水法或覆核地形', 3000);
+                return;
             }
             best=Math.round(best/15)*15%360;
             AppState.current.degree=best;
@@ -5834,7 +5838,7 @@ const UI = {
             if(ds) ds.value=best;
             const dv=document.getElementById('degree-val');
             if(dv) dv.innerText=UI.degreeLabel(best);
-            Engine3D.showToast('已依水口/朝案推薦立向 '+best+'°（僅改羅盤，不改地形）', 2600);
+            Engine3D.showToast('已依水口推定立向 '+best+'°（向避去水直瀉；僅改羅盤，不改地形）', 2600);
             this.update();
         });
         document.getElementById('solar-slider')?.addEventListener('input', e=>{
@@ -11923,15 +11927,24 @@ const Engine3D = {
 };
     function _mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
     let _physicsRng = null;
+    let _physicsSeed = null;
+    // 舊缺陷：_physicsRng 只在「第一次使用」時建立、之後永不重置，而具名格局的 presetSeed 恆為 null
+    // （僅 generateRandomPreset 會設），故全頁面共用一條序列——同一張布局每次跑到隨機流的哪個位置，
+    // 取決於自載入以來已模擬多久 ⇒ gather 抖 1~30%、globalMultiplier 0.64↔0.79、邊緣格局評級跨帶。
+    // 對照：city.html 的滴探針本就以固定種子重建區域 PRNG，故其具名格局 gather 三遍完全相同。
+    function _seedFromName(n){ let h = 2166136261 >>> 0; const s = String(n||'x'); for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+    function _setPhysicsSeed(seedOrNull){ _physicsSeed = (seedOrNull == null ? null : (seedOrNull >>> 0)); _physicsRng = null; }
     function _prand(){
         if(!_physicsRng){
-            const _s = (typeof Rules !== 'undefined' && Rules._presSeed != null) ? Rules._presSeed
+            const _s = (_physicsSeed != null) ? _physicsSeed
+                : ((typeof Rules !== 'undefined' && Rules._presSeed != null) ? Rules._presSeed
                 : ((typeof AppState !== 'undefined' && AppState.current && AppState.current.presetSeed != null) ? AppState.current.presetSeed
-                : ((Math.random()*1e9)|0));
+                : ((Math.random()*1e9)|0)));
             _physicsRng = _mulberry32(_s >>> 0);
         }
         return _physicsRng();
     }
+    if (typeof Rules !== 'undefined') { Rules.setPhysicsSeed = _setPhysicsSeed; Rules.seedFromName = _seedFromName; }
 const Physics = {
     pCount: CONFIG.pCount,
     pPos: new Float32Array(CONFIG.pCount * 3),
